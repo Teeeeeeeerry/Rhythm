@@ -24,15 +24,83 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-已完成初步开发
+初步开发完成。当前版本 **v0.4.1 "Motif"**。
+
+### 已知限制
+
+- **URL 流式播放**：URL 解析器（yt-dlp 集成）已就绪，但 HTTP 流式下载 + 解码 + 播放管道尚未实现（[#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11)）。目前仅本地文件播放可用。
+- **URL 输入 UI**：界面上尚未提供粘贴 URL 的入口（[#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12)）。
+
+### 待实现
+
+| 功能 | 状态 | Issue |
+|------|------|-------|
+| 本地音乐播放（MP3/FLAC/AAC/WAV/OGG/ALAC/APE/WMA/AIFF/WavPack/MP4） | ✅ 完成 | — |
+| 资料库管理 + FTS5 全文搜索 | ✅ 完成 | — |
+| 播放列表（混合本地/在线，M3U8 导入导出） | ✅ 完成 | — |
+| 播放队列（顺序/随机/单曲循环/列表循环） | ✅ 完成 | — |
+| 专辑封面自动提取 | ✅ 完成 | — |
+| 系统媒体键 + 托盘模式 | ✅ 完成 | — |
+| 中英文界面 | ✅ 完成 | — |
+| URL 流式播放（YouTube/Bilibili/直链） | 🔧 待实现 | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
+| URL 输入 UI | 🔧 待实现 | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
 
 ## 构建
 
-依赖：Rust 1.70+、yt-dlp
+### 前置依赖
+
+- **Rust** 1.70+（[rustup.rs](https://rustup.rs)）
+- **yt-dlp**（URL 解析，可选：仅本地播放时不需要）
+- **macOS**：Xcode 15+ 或 Command Line Tools + Swift 5.9+
+- **Windows**：Visual Studio 2022 + Windows App SDK + CMake 3.20+
+
+### macOS
 
 ```bash
-cd rust-core && cargo build --release
-cargo test
+# 1. 构建 Rust 核心库
+cargo build --release -p rhythm-core
+
+# 2. 构建 Swift UI
+cd macos && swift build -c release
+
+# 3. 打包 .app（在 macos/build/ 目录）
+mkdir -p build/Rhythm.app/Contents/{MacOS,Resources,Frameworks}
+cp .build/release/Rhythm build/Rhythm.app/Contents/MacOS/
+cp ../target/release/librhythm_core.dylib build/Rhythm.app/Contents/Frameworks/
+cp Rhythm/Resources/Info.plist build/Rhythm.app/Contents/
+sed -i '' 's/\$(EXECUTABLE_NAME)/Rhythm/' build/Rhythm.app/Contents/Info.plist
+
+# 4. 签名并创建 DMG
+codesign --force --deep --sign - build/Rhythm.app
+hdiutil create -volname Rhythm -srcfolder build/Rhythm.app -ov -format UDZO build/Rhythm.dmg
+```
+
+或使用一键脚本：
+```bash
+bash scripts/build-macos.sh
+```
+
+### Windows
+
+```bash
+# 1. 构建 Rust 核心 DLL（在 Windows 上或交叉编译）
+cargo build --release -p rhythm-core --target x86_64-pc-windows-msvc
+
+# 2. 构建 WinUI 3 应用
+cd windows && mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build . --config Release
+```
+
+或使用一键脚本（在 Windows 上）：
+```bat
+scripts\build-windows.bat
+```
+
+### 运行测试
+
+```bash
+cargo test -p rhythm-core
 ```
 
 ## 技术选型
