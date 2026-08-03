@@ -105,7 +105,7 @@ struct PlayerBarView: View {
             Button(action: { appState.cyclePlayMode() }) {
                 Image(systemName: appState.playMode.icon)
                     .font(.caption)
-                    .foregroundStyle(appState.playMode == .sequential ? .secondary : .accent)
+                    .foregroundStyle(appState.playMode == .sequential ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
             }
             .buttonStyle(.plain)
             .help(appState.playMode.label)
