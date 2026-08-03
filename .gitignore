@@ -1,0 +1,23 @@
+# Rust
+rust-core/target/
+
+# macOS
+.DS_Store
+*.dmg
+*.app
+
+# Windows
+*.exe
+*.pdb
+*.msix
+*.msi
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+build/
+dist/
