@@ -1,0 +1,131 @@
+import SwiftUI
+
+struct ArtistAlbumView: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        let grouped = groupByArtistAlbum()
+        if grouped.isEmpty {
+            Text("无内容").foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List {
+                ForEach(grouped, id: \.0) { artist, albums in
+                    Section(artist) {
+                        ForEach(albums, id: \.0) { album, tracks in
+                            AlbumRow(album: album, tracks: tracks)
+                        }
+                    }
+                }
+            }
+            .listStyle(.inset)
+        }
+    }
+
+    private func groupByArtistAlbum() -> [(String, [(String, [Track])])] {
+        var artists: [String: [String: [Track]]] = [:]
+        for track in appState.tracks {
+            let artist = track.artist ?? "Unknown Artist"
+            let album = track.album ?? "Unknown Album"
+            artists[artist, default: [:]][album, default: []].append(track)
+        }
+        return artists
+            .map { (artist, albums) in
+                (artist, albums.map { ($0.key, $0.value.sorted { ($0.discNumber ?? 0, $0.trackNumber ?? 0) < ($1.discNumber ?? 0, $1.trackNumber ?? 0) }) }
+                    .sorted { $0.0 < $1.0 })
+            }
+            .sorted { $0.0 < $1.0 }
+    }
+}
+
+struct AlbumRow: View {
+    let album: String
+    let tracks: [Track]
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(album)
+                .font(.headline)
+            ForEach(tracks) { track in
+                TrackRowView(track: track)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+struct TrackRowView: View {
+    let track: Track
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(track.title)
+                    .lineLimit(1)
+                if let artist = track.artist {
+                    Text(artist)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            SourceTagView(sourceType: track.sourceType)
+            Text(track.durationFormatted)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+        .padding(.vertical, 1)
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) { appState.playTrack(track) }
+        .contextMenu {
+            Button("播放") { appState.playTrack(track) }
+            Divider()
+            Menu("添加到播放列表") {
+                ForEach(appState.playlists) { pl in
+                    Button(pl.name) {
+                        if let id = pl.id {
+                            appState.library?.addToPlaylist(playlistId: id, trackId: track.id)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct SourceTagView: View {
+    let sourceType: String
+
+    var color: Color {
+        switch sourceType {
+        case "local": .blue
+        case "youtube": .red
+        case "bilibili": .pink
+        case "direct_url": .green
+        default: .gray
+        }
+    }
+
+    var label: String {
+        switch sourceType {
+        case "local": "本地"
+        case "youtube": "YT"
+        case "bilibili": "B站"
+        case "direct_url": "链接"
+        default: ""
+        }
+    }
+
+    var body: some View {
+        Text(label)
+            .font(.caption2)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(color.opacity(0.15))
+            .foregroundColor(color)
+            .clipShape(RoundedRectangle(cornerRadius: 3))
+    }
+}

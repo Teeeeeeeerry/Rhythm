@@ -1,0 +1,4 @@
+module RhythmCore {
+    header "rhythm_core.h"
+    export *
+}
