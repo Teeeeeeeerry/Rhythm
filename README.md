@@ -18,14 +18,7 @@
 
 ## 架构
 
-```
-UI (macOS Swift · Windows WinUI3)
-─────────────────────────────────
-       Rust Core (C-ABI)
-─────────────────────────────────
- Metadata · Audio · Library
- Playlist · Queue · Resolver
-```
+Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和 AppKit 编写，Windows 端用 C++ 和 WinUI 3 编写，两套 UI 各自遵循对应平台的设计语言，但在功能上保持对等。下层是一个用 Rust 编写的共享核心库，负责所有与平台无关的逻辑——音频解码与播放、元数据提取、资料库管理、播放列表、播放队列、URL 解析——然后通过 C-ABI 编译为 .dylib 和 .dll，供两端 UI 直接调用。这种双原生 UI + 单一 Rust 核心的策略，既能保证界面与系统深度融合、内存占用可控，又避免了在两端重复实现相同的底层逻辑。
 
 ## 开发状态
 
