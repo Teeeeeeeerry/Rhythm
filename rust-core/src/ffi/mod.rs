@@ -8,11 +8,13 @@ use crate::audio::AudioEngine;
 use crate::library::Library;
 use crate::metadata;
 use crate::playlist;
+use crate::queue::{PlayMode, PlayQueue};
 use crate::resolver;
 use crate::{PlayerState, TrackInfo};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::path::Path;
+use std::sync::Mutex;
 
 // ─── Opaque Handle Types ───────────────────────────────────────────
 
@@ -21,6 +23,9 @@ pub struct RhythmLibrary(Library);
 
 /// Opaque handle to an AudioEngine instance.
 pub struct RhythmPlayer(AudioEngine);
+
+/// Opaque handle to a PlayQueue instance.
+pub struct RhythmQueue(Mutex<PlayQueue>);
 
 // ─── String/FFI Helpers ────────────────────────────────────────────
 
@@ -289,6 +294,22 @@ pub extern "C" fn rhythm_metadata_scan(dir: *const c_char) -> *mut c_char {
     }
 }
 
+/// Extract cover art from a local audio file and save to cache directory.
+/// Returns the file path of the saved artwork, or null if none found.
+#[no_mangle]
+pub extern "C" fn rhythm_metadata_extract_artwork(
+    file_path: *const c_char,
+    cache_dir: *const c_char,
+) -> *mut c_char {
+    let fp = unsafe { c_str_to_str(file_path) };
+    let cd = unsafe { c_str_to_str(cache_dir) };
+    match metadata::extract_artwork(Path::new(fp), Path::new(cd)) {
+        Ok(Some(path)) => str_to_c_string(&path),
+        Ok(None) => std::ptr::null_mut(),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
 // ─── Audio Player FFI ─────────────────────────────────────────────
 
 /// Create a new audio player. Returns opaque handle.
@@ -391,7 +412,7 @@ pub extern "C" fn rhythm_player_get_duration(ptr: *mut RhythmPlayer) -> f64 {
     unsafe { ptr.as_ref().map(|p| p.0.duration()).unwrap_or(0.0) }
 }
 
-/// Get player state: 0=Stopped, 1=Playing, 2=Paused, 3=Buffering, 4=Error
+/// Get player state: 0=Stopped, 1=Playing, 2=Paused, 3=Buffering, 4=Error, 5=Finished
 #[no_mangle]
 pub extern "C" fn rhythm_player_get_state(ptr: *mut RhythmPlayer) -> i32 {
     unsafe {
@@ -402,6 +423,7 @@ pub extern "C" fn rhythm_player_get_state(ptr: *mut RhythmPlayer) -> i32 {
                 PlayerState::Paused => 2,
                 PlayerState::Buffering => 3,
                 PlayerState::Error(_) => 4,
+                PlayerState::Finished => 5,
             })
             .unwrap_or(-1)
     }
@@ -427,6 +449,112 @@ pub extern "C" fn rhythm_classify_url(url: *const c_char) -> *mut c_char {
         Ok(source_type) => str_to_c_string(&source_type.to_string()),
         Err(_) => std::ptr::null_mut(),
     }
+}
+
+// ─── Play Queue FFI ───────────────────────────────────────────────
+
+/// Create a new play queue from a JSON array of tracks.
+/// Returns opaque handle, or null on error.
+#[no_mangle]
+pub extern "C" fn rhythm_queue_create(tracks_json: *const c_char) -> *mut RhythmQueue {
+    let json = unsafe { c_str_to_str(tracks_json) };
+    let tracks: Vec<TrackInfo> = match serde_json::from_str(json) {
+        Ok(t) => t,
+        Err(_) => return std::ptr::null_mut(),
+    };
+    Box::into_raw(Box::new(RhythmQueue(Mutex::new(PlayQueue::new(tracks)))))
+}
+
+/// Destroy a queue handle.
+#[no_mangle]
+pub extern "C" fn rhythm_queue_destroy(ptr: *mut RhythmQueue) {
+    if !ptr.is_null() {
+        unsafe { let _ = Box::from_raw(ptr); }
+    }
+}
+
+/// Get the current track as JSON. Caller must free with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_queue_current(ptr: *mut RhythmQueue) -> *mut c_char {
+    if ptr.is_null() { return std::ptr::null_mut(); }
+    let q = unsafe { &(*ptr).0 };
+    let guard = q.lock().unwrap();
+    match guard.current() {
+        Some(t) => str_to_c_string(&serde_json::to_string(t).unwrap_or_default()),
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// Advance to the next track and return it as JSON. Returns null if exhausted.
+#[no_mangle]
+pub extern "C" fn rhythm_queue_next(ptr: *mut RhythmQueue) -> *mut c_char {
+    if ptr.is_null() { return std::ptr::null_mut(); }
+    let q = unsafe { &(*ptr).0 };
+    let mut guard = q.lock().unwrap();
+    match guard.next() {
+        Some(t) => str_to_c_string(&serde_json::to_string(t).unwrap_or_default()),
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// Move to the previous track and return it as JSON.
+#[no_mangle]
+pub extern "C" fn rhythm_queue_previous(ptr: *mut RhythmQueue) -> *mut c_char {
+    if ptr.is_null() { return std::ptr::null_mut(); }
+    let q = unsafe { &(*ptr).0 };
+    let mut guard = q.lock().unwrap();
+    match guard.previous() {
+        Some(t) => str_to_c_string(&serde_json::to_string(t).unwrap_or_default()),
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// Set the play mode: 0=Sequential, 1=Shuffle, 2=SingleLoop, 3=ListLoop
+#[no_mangle]
+pub extern "C" fn rhythm_queue_set_mode(ptr: *mut RhythmQueue, mode: i32) {
+    if ptr.is_null() { return; }
+    let q = unsafe { &(*ptr).0 };
+    let mut guard = q.lock().unwrap();
+    guard.set_mode(PlayMode::from_i32(mode));
+}
+
+/// Jump to a specific track by ID. Returns 0 on success, -1 if not found.
+#[no_mangle]
+pub extern "C" fn rhythm_queue_jump_to(ptr: *mut RhythmQueue, track_id: i64) -> i32 {
+    if ptr.is_null() { return -1; }
+    let q = unsafe { &(*ptr).0 };
+    let mut guard = q.lock().unwrap();
+    if guard.jump_to(track_id) { 0 } else { -1 }
+}
+
+/// Replace the queue contents with a new track list.
+#[no_mangle]
+pub extern "C" fn rhythm_queue_replace(ptr: *mut RhythmQueue, tracks_json: *const c_char) {
+    if ptr.is_null() { return; }
+    let json = unsafe { c_str_to_str(tracks_json) };
+    let tracks: Vec<TrackInfo> = match serde_json::from_str(json) {
+        Ok(t) => t,
+        Err(_) => return,
+    };
+    let q = unsafe { &(*ptr).0 };
+    let mut guard = q.lock().unwrap();
+    guard.replace(tracks);
+}
+
+/// Whether the queue has a next track. Returns 1 for true, 0 for false.
+#[no_mangle]
+pub extern "C" fn rhythm_queue_has_next(ptr: *mut RhythmQueue) -> i32 {
+    if ptr.is_null() { return 0; }
+    let q = unsafe { &(*ptr).0 };
+    q.lock().unwrap().has_next() as i32
+}
+
+/// Whether the queue has a previous track.
+#[no_mangle]
+pub extern "C" fn rhythm_queue_has_previous(ptr: *mut RhythmQueue) -> i32 {
+    if ptr.is_null() { return 0; }
+    let q = unsafe { &(*ptr).0 };
+    q.lock().unwrap().has_previous() as i32
 }
 
 // ─── M3U8 Import/Export FFI ───────────────────────────────────────

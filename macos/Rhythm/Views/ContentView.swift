@@ -25,9 +25,9 @@ struct ContentView: View {
                     Button(action: importFolder) {
                         Image(systemName: "plus")
                     }
-                    .help("导入文件夹")
+                    .help(L10n.importTooltip)
                 }
-                TextField("搜索...", text: $appState.searchQuery)
+                TextField(L10n.searchPlaceholder, text: $appState.searchQuery)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 160)
                     .onSubmit { appState.search(appState.searchQuery) }
@@ -39,10 +39,7 @@ struct ContentView: View {
         .onReceive(
             Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
         ) { _ in
-            if appState.isPlaying {
-                appState.position = appState.player.position
-                appState.duration = appState.player.duration
-            }
+            appState.updatePlaybackProgress()
         }
     }
 

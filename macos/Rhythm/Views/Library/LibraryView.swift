@@ -5,15 +5,22 @@ struct LibraryView: View {
     @State private var viewMode: LibraryViewMode = .artistAlbum
 
     enum LibraryViewMode: String, CaseIterable {
-        case artistAlbum = "按艺人/专辑"
-        case alphabetical = "按首字母"
+        case artistAlbum
+        case alphabetical
+
+        var label: String {
+            switch self {
+            case .artistAlbum: L10n.byArtistAlbum
+            case .alphabetical: L10n.byLetter
+            }
+        }
     }
 
     var body: some View {
         VStack(spacing: 0) {
             Picker("视图", selection: $viewMode) {
                 ForEach(LibraryViewMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
+                    Text(mode.label).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
@@ -40,13 +47,15 @@ struct LibraryView: View {
             Image(systemName: "music.note.list")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
-            Text("资料库为空")
+            Text(L10n.libraryEmpty)
                 .font(.title3)
                 .foregroundStyle(.secondary)
-            Text("点击工具栏 + 按钮导入音乐文件夹")
+            Text(L10n.isChinese
+                 ? "点击工具栏 + 按钮导入音乐文件夹"
+                 : "Click the + button in the toolbar to import a music folder")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-            Button("导入文件夹") {
+            Button(L10n.importTooltip) {
                 importFolder()
             }
             .padding(.top, 4)
@@ -58,7 +67,7 @@ struct LibraryView: View {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.prompt = "导入"
+        panel.prompt = L10n.isChinese ? "导入" : "Import"
         if panel.runModal() == .OK, let url = panel.url {
             appState.importDirectory(url)
         }

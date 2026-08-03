@@ -45,7 +45,7 @@ struct PlayerBarView: View {
         HStack(spacing: 8) {
             coverArt
             VStack(alignment: .leading, spacing: 1) {
-                Text(appState.currentTrack?.title ?? "未在播放")
+                Text(appState.currentTrack?.title ?? L10n.notPlaying)
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
                 if let artist = appState.currentTrack?.artist {
@@ -60,34 +60,55 @@ struct PlayerBarView: View {
     }
 
     var coverArt: some View {
-        RoundedRectangle(cornerRadius: 4)
-            .fill(.quaternary)
-            .frame(width: 36, height: 36)
-            .overlay(
-                Image(systemName: "music.note")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            )
+        Group {
+            if let artPath = appState.currentTrack?.artworkPath,
+               let nsImage = NSImage(contentsOfFile: artPath) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 36, height: 36)
+                    .cornerRadius(4)
+            } else {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(.quaternary)
+                    .frame(width: 36, height: 36)
+                    .overlay(
+                        Image(systemName: "music.note")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    )
+            }
+        }
     }
 
     var playbackControls: some View {
         HStack(spacing: 16) {
-            Button(action: {}) {
+            Button(action: { appState.playPrevious() }) {
                 Image(systemName: "backward.fill")
             }
             .buttonStyle(.plain)
+            .disabled(!appState.isPlaying)
 
-            Button(action: togglePlay) {
+            Button(action: { appState.togglePlayPause() }) {
                 Image(systemName: appState.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 22))
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.space, modifiers: [])
 
-            Button(action: {}) {
+            Button(action: { appState.playNext() }) {
                 Image(systemName: "forward.fill")
             }
             .buttonStyle(.plain)
+            .disabled(!appState.isPlaying)
+
+            Button(action: { appState.cyclePlayMode() }) {
+                Image(systemName: appState.playMode.icon)
+                    .font(.caption)
+                    .foregroundStyle(appState.playMode == .sequential ? .secondary : .accent)
+            }
+            .buttonStyle(.plain)
+            .help(appState.playMode.label)
         }
     }
 
@@ -99,18 +120,5 @@ struct PlayerBarView: View {
         let dm = Int(dur) / 60
         let ds = Int(dur) % 60
         return String(format: "%d:%02d / %d:%02d", pm, ps, dm, ds)
-    }
-
-    private func togglePlay() {
-        if appState.isPlaying {
-            appState.player.pause()
-            appState.isPlaying = false
-        } else {
-            if let track = appState.currentTrack {
-                appState.playTrack(track)
-            } else if let first = appState.tracks.first {
-                appState.playTrack(first)
-            }
-        }
     }
 }

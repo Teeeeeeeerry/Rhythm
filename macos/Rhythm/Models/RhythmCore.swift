@@ -145,6 +145,95 @@ struct Playlist: Identifiable, Codable {
     let tracks: [Track]
 }
 
+// MARK: - Play Queue Wrapper
+
+enum PlayMode: Int32 {
+    case sequential = 0
+    case shuffle = 1
+    case singleLoop = 2
+    case listLoop = 3
+
+    var label: String {
+        switch self {
+        case .sequential: L10n.modeSequential
+        case .shuffle: L10n.modeShuffle
+        case .singleLoop: L10n.modeSingleLoop
+        case .listLoop: L10n.modeListLoop
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .sequential: "arrow.right"
+        case .shuffle: "shuffle"
+        case .singleLoop: "repeat.1"
+        case .listLoop: "repeat"
+        }
+    }
+
+    func next() -> PlayMode {
+        PlayMode(rawValue: (self.rawValue + 1) % 4) ?? .sequential
+    }
+}
+
+final class RhythmQueue {
+    private var ptr: OpaquePointer?
+
+    init?(tracks: [Track]) {
+        let tracksJSON = (try? JSONEncoder().encode(tracks)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        guard let ptr = rhythm_queue_create(tracksJSON) else { return nil }
+        self.ptr = ptr
+    }
+
+    deinit {
+        if let ptr { rhythm_queue_destroy(ptr) }
+    }
+
+    func current() -> Track? {
+        guard let ptr, let json = rhythm_queue_current(ptr) else { return nil }
+        defer { rhythm_free_string(json) }
+        return decodeJSON(String(cString: json))
+    }
+
+    func next() -> Track? {
+        guard let ptr, let json = rhythm_queue_next(ptr) else { return nil }
+        defer { rhythm_free_string(json) }
+        return decodeJSON(String(cString: json))
+    }
+
+    func previous() -> Track? {
+        guard let ptr, let json = rhythm_queue_previous(ptr) else { return nil }
+        defer { rhythm_free_string(json) }
+        return decodeJSON(String(cString: json))
+    }
+
+    func setMode(_ mode: PlayMode) {
+        guard let ptr else { return }
+        rhythm_queue_set_mode(ptr, mode.rawValue)
+    }
+
+    func jumpTo(_ trackId: Int64) -> Bool {
+        guard let ptr else { return false }
+        return rhythm_queue_jump_to(ptr, trackId) == 0
+    }
+
+    func replace(tracks: [Track]) {
+        guard let ptr else { return }
+        let json = (try? JSONEncoder().encode(tracks)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        rhythm_queue_replace(ptr, json)
+    }
+
+    var hasNext: Bool {
+        guard let ptr else { return false }
+        return rhythm_queue_has_next(ptr) != 0
+    }
+
+    var hasPrevious: Bool {
+        guard let ptr else { return false }
+        return rhythm_queue_has_previous(ptr) != 0
+    }
+}
+
 // MARK: - Resolver Types
 
 struct ResolvedInfo: Codable {
