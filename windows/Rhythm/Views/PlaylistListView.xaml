@@ -1,0 +1,42 @@
+<UserControl
+    x:Class="Rhythm.Views.PlaylistListView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Button x:Name="btnNewPlaylist" Grid.Row="0" Click="OnNewPlaylistClick"
+                Margin="12,8" HorizontalAlignment="Left">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <SymbolIcon Symbol="Add" />
+                <TextBlock Text="新建播放列表" />
+            </StackPanel>
+        </Button>
+
+        <ListView x:Name="playlistList" Grid.Row="1"
+                  SelectionChanged="OnSelectionChanged">
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="8,4">
+                        <SymbolIcon Grid.Column="0" Symbol="List" />
+                        <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                   VerticalAlignment="Center" Margin="8,0" />
+                        <TextBlock Grid.Column="2" FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Text="{Binding TrackCount}" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <TextBlock x:Name="emptyMessage" Grid.Row="1"
+                   Text="暂无播放列表"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Visibility="Collapsed" />
+    </Grid>
+</UserControl>

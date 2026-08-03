@@ -1,0 +1,68 @@
+<UserControl
+    x:Class="Rhythm.Views.PlayerBarView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Height="64" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="4" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ProgressBar x:Name="progressBar" Grid.Row="0"
+                     Minimum="0" Maximum="100" Value="0"
+                     Height="4" />
+
+        <Grid Grid.Row="1" Margin="16,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                <Border Width="40" Height="40" CornerRadius="4"
+                        Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                    <SymbolIcon Symbol="MusicInfo" />
+                </Border>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="trackTitle" Text="未在播放"
+                               FontSize="12" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="120" />
+                    <TextBlock x:Name="trackArtist" Text=""
+                               FontSize="11"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="120" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal"
+                        HorizontalAlignment="Center" Spacing="12">
+                <Button Width="32" Height="32" Style="{StaticResource Button}">
+                    <SymbolIcon Symbol="Previous" />
+                </Button>
+                <Button x:Name="btnPlayPause" Width="40" Height="40"
+                        Click="OnPlayPauseClick">
+                    <SymbolIcon x:Name="playIcon" Symbol="Play" />
+                </Button>
+                <Button Width="32" Height="32" Style="{StaticResource Button}">
+                    <SymbolIcon Symbol="Next" />
+                </Button>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                        VerticalAlignment="Center">
+                <SymbolIcon Symbol="Volume" />
+                <Slider x:Name="volumeSlider" Width="80"
+                        Minimum="0" Maximum="100" Value="100"
+                        ValueChanged="OnVolumeChanged" />
+                <TextBlock x:Name="timeText" FontSize="11"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Text="0:00 / 0:00" Width="80"
+                           HorizontalTextAlignment="Right" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>
