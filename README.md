@@ -1,6 +1,8 @@
-# Rhythm - 律动
+# Rhythm
 
 跨平台音乐播放器。本地音乐 + 在线链接，Win/Mac 双平台。
+
+[English](README.en.md) | 中文
 
 ## 功能
 
@@ -22,7 +24,12 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-初步开发完成
+| Phase | 内容 | 状态 |
+|-------|------|------|
+| 1 | Rust 核心库 | 完成 |
+| 2 | macOS UI | 完成 |
+| 3 | Windows UI | 完成 |
+| 4 | 打磨 | 完成 |
 
 ## 构建
 
