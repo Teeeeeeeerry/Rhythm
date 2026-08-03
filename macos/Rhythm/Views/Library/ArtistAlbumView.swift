@@ -44,11 +44,32 @@ struct AlbumRow: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(album)
-                .font(.headline)
-            ForEach(tracks) { track in
-                TrackRowView(track: track)
+        HStack(spacing: 8) {
+            // Album artwork thumbnail
+            if let artPath = tracks.first(where: { $0.artworkPath != nil })?.artworkPath,
+               let nsImage = NSImage(contentsOfFile: artPath) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 48, height: 48)
+                    .cornerRadius(4)
+            } else {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(.quaternary)
+                    .frame(width: 48, height: 48)
+                    .overlay(
+                        Image(systemName: "music.note.list")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    )
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(album)
+                    .font(.headline)
+                ForEach(tracks) { track in
+                    TrackRowView(track: track)
+                }
             }
         }
         .padding(.vertical, 2)
@@ -81,9 +102,9 @@ struct TrackRowView: View {
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { appState.playTrack(track) }
         .contextMenu {
-            Button("播放") { appState.playTrack(track) }
+            Button(L10n.play) { appState.playTrack(track) }
             Divider()
-            Menu("添加到播放列表") {
+            Menu(L10n.addToPlaylist) {
                 ForEach(appState.playlists) { pl in
                     Button(pl.name) {
                         if let id = pl.id {

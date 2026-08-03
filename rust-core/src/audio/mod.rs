@@ -238,7 +238,7 @@ fn play_file_impl(
         }
     }
 
-    emit(&state_cb, PlayerState::Stopped);
+    emit(&state_cb, PlayerState::Finished);
     Ok(())
 }
 

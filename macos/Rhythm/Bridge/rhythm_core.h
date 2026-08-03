@@ -11,6 +11,7 @@ extern "C" {
 
 typedef struct RhythmLibrary RhythmLibrary;
 typedef struct RhythmPlayer RhythmPlayer;
+typedef struct RhythmQueue RhythmQueue;
 
 // ─── Library API ───────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ int32_t rhythm_library_record_play(RhythmLibrary* lib, int64_t track_id);
 
 char* rhythm_metadata_extract(const char* file_path);
 char* rhythm_metadata_scan(const char* directory);
+char* rhythm_metadata_extract_artwork(const char* file_path, const char* cache_dir);
 
 // ─── Player API ────────────────────────────────────────────────────
 
@@ -57,6 +59,22 @@ int32_t rhythm_player_get_state(RhythmPlayer* player);
 //   2 = Paused
 //   3 = Buffering
 //   4 = Error
+//   5 = Finished (track ended naturally)
+
+// ─── Play Queue API ────────────────────────────────────────────────
+
+RhythmQueue* rhythm_queue_create(const char* tracks_json);
+void rhythm_queue_destroy(RhythmQueue* queue);
+
+char* rhythm_queue_current(RhythmQueue* queue);
+char* rhythm_queue_next(RhythmQueue* queue);
+char* rhythm_queue_previous(RhythmQueue* queue);
+void rhythm_queue_set_mode(RhythmQueue* queue, int32_t mode);
+int32_t rhythm_queue_jump_to(RhythmQueue* queue, int64_t track_id);
+void rhythm_queue_replace(RhythmQueue* queue, const char* tracks_json);
+int32_t rhythm_queue_has_next(RhythmQueue* queue);
+int32_t rhythm_queue_has_previous(RhythmQueue* queue);
+// Play modes: 0=Sequential, 1=Shuffle, 2=SingleLoop, 3=ListLoop
 
 // ─── URL Resolver API ──────────────────────────────────────────────
 
