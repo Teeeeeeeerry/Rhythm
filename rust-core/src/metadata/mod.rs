@@ -100,8 +100,12 @@ pub fn is_mp4_container(path: &Path) -> bool {
     )
 }
 
+/// Maximum artwork file size in bytes (1 MB) — skip larger embedded images.
+const MAX_ARTWORK_SIZE: usize = 1_048_576;
+
 /// Extract cover art from an audio file, saving to a cache directory.
 /// Returns the path to the extracted artwork file, or None if no artwork found.
+/// Skips artwork larger than `MAX_ARTWORK_SIZE` to avoid memory bloat.
 pub fn extract_artwork(path: &Path, cache_dir: &Path) -> RhythmResult<Option<String>> {
     use lofty::prelude::*;
     use lofty::probe::Probe;
@@ -114,19 +118,29 @@ pub fn extract_artwork(path: &Path, cache_dir: &Path) -> RhythmResult<Option<Str
     // Try to find embedded picture
     if let Some(tag) = tagged_file.primary_tag() {
         if let Some(picture) = tag.pictures().first() {
+            let data = picture.data();
+            if data.len() > MAX_ARTWORK_SIZE {
+                log::warn!(
+                    "Skipping oversized artwork ({} bytes) in {}",
+                    data.len(),
+                    path.display()
+                );
+                return Ok(None);
+            }
+
             let ext = match picture.mime_type().map(|m| format!("{m:?}")) {
                 Some(ref m) if m.contains("jpeg") || m.contains("jpg") => "jpg",
                 Some(ref m) if m.contains("png") => "png",
                 _ => "jpg",
             };
 
-            let hash = blake3::hash(picture.data());
+            let hash = blake3::hash(data);
             let filename = format!("{hash}.{ext}");
             let artwork_path = cache_dir.join(&filename);
 
             if !artwork_path.exists() {
                 std::fs::create_dir_all(cache_dir)?;
-                std::fs::write(&artwork_path, picture.data())?;
+                std::fs::write(&artwork_path, data)?;
             }
 
             return Ok(Some(artwork_path.to_string_lossy().to_string()));

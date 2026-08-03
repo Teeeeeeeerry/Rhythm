@@ -46,6 +46,9 @@ thiserror = "2"
 # File hashing for duplicate detection
 blake3 = "1"
 
+# Random for shuffle
+rand = "0.8"
+
 # UUID for IDs if needed
 uuid = { version = "1", features = ["v4"] }
 

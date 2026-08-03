@@ -1,9 +1,10 @@
-pub mod metadata;
 pub mod audio;
-pub mod library;
-pub mod playlist;
-pub mod resolver;
 pub mod ffi;
+pub mod library;
+pub mod metadata;
+pub mod playlist;
+pub mod queue;
+pub mod resolver;
 
 use thiserror::Error;
 
@@ -127,6 +128,8 @@ pub enum PlayerState {
     Playing,
     Paused,
     Buffering,
+    /// Track ended naturally (not manually stopped).
+    Finished,
     Error(String),
 }
 

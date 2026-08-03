@@ -22,7 +22,9 @@ struct PlaylistListView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(pl.name)
                                     .font(.body)
-                                Text("\(pl.tracks.count) 首")
+                                Text(L10n.isChinese
+                                     ? "\(pl.tracks.count) 首"
+                                     : "\(pl.tracks.count) tracks")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -30,7 +32,7 @@ struct PlaylistListView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { selectedPlaylist = pl }
                         .contextMenu {
-                            Button("删除") {
+                            Button(L10n.isChinese ? "删除" : "Delete") {
                                 if let id = pl.id { appState.library?.deletePlaylist(id) }
                                 appState.refreshLibrary()
                             }
@@ -47,14 +49,14 @@ struct PlaylistListView: View {
         }
         .sheet(isPresented: $showNewPlaylist) {
             VStack(spacing: 16) {
-                Text("新建播放列表")
+                Text(L10n.newPlaylist)
                     .font(.headline)
-                TextField("名称", text: $newPlaylistName)
+                TextField(L10n.playlistName, text: $newPlaylistName)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 200)
                 HStack {
-                    Button("取消") { showNewPlaylist = false }
-                    Button("创建") {
+                    Button(L10n.cancel) { showNewPlaylist = false }
+                    Button(L10n.create) {
                         if !newPlaylistName.isEmpty {
                             _ = appState.library?.createPlaylist(name: newPlaylistName)
                             appState.refreshLibrary()
@@ -75,10 +77,10 @@ struct PlaylistListView: View {
             Image(systemName: "list.bullet")
                 .font(.system(size: 40))
                 .foregroundStyle(.secondary)
-            Text("暂无播放列表")
+            Text(L10n.isChinese ? "暂无播放列表" : "No playlists yet")
                 .font(.title3)
                 .foregroundStyle(.secondary)
-            Button("新建播放列表") { showNewPlaylist = true }
+            Button(L10n.newPlaylist) { showNewPlaylist = true }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

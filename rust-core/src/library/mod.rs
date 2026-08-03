@@ -21,8 +21,16 @@ impl Library {
 
         let conn = Connection::open(db_path)?;
 
-        // Enable WAL mode for concurrent reads
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
+        // Enable WAL mode and performance optimizations
+        conn.execute_batch(
+            "PRAGMA journal_mode=WAL;
+             PRAGMA foreign_keys=ON;
+             PRAGMA cache_size=-8000;     -- 8MB page cache
+             PRAGMA mmap_size=67108864;    -- 64MB memory-mapped I/O
+             PRAGMA synchronous=NORMAL;    -- Safe enough with WAL
+             PRAGMA temp_store=MEMORY;     -- Use memory for temp tables
+             PRAGMA busy_timeout=5000;     -- Wait up to 5s on lock"
+        )?;
 
         let lib = Library {
             conn: Mutex::new(conn),
@@ -532,13 +540,26 @@ impl Library {
 
     /// Batch-import tracks from a directory scan.
     pub fn import_from_directory(&self, dir: &Path) -> RhythmResult<usize> {
-        use crate::metadata::scan_directory;
+        use crate::metadata::{scan_directory, extract_artwork};
+
+        // Determine cache directory relative to the database
+        let artwork_cache = dir.parent().unwrap_or(Path::new(".")).join(".rhythm_artwork");
+
         let tracks = scan_directory(dir)?;
         let count = tracks.len();
 
         for track in &tracks {
-            if let Err(e) = self.add_track(track) {
-                log::warn!("Failed to import {}: {e}", track.title);
+            // Try to extract artwork for local files
+            let mut t = track.clone();
+            if t.source_type == SourceType::Local {
+                if let Some(ref file_path) = t.file_path {
+                    if let Ok(Some(art_path)) = extract_artwork(Path::new(file_path), &artwork_cache) {
+                        t.artwork_path = Some(art_path);
+                    }
+                }
+            }
+            if let Err(e) = self.add_track(&t) {
+                log::warn!("Failed to import {}: {e}", t.title);
             }
         }
 

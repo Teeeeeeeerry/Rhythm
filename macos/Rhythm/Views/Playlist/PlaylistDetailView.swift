@@ -20,7 +20,7 @@ struct PlaylistDetailView: View {
                         TrackRowView(track: track)
                             .opacity(track.isAvailable ? 1 : 0.35)
                             .contextMenu {
-                                Button("从列表移除") {
+                                Button(L10n.isChinese ? "从列表移除" : "Remove from Playlist") {
                                     if let pid = playlist.id {
                                         appState.library?.removeFromPlaylist(playlistId: pid, trackId: track.id)
                                         appState.refreshLibrary()
@@ -47,15 +47,15 @@ struct PlaylistDetailView: View {
         HStack {
             Button(action: onBack) {
                 Image(systemName: "chevron.left")
-                Text("返回")
+                Text(L10n.isChinese ? "返回" : "Back")
             }
             .buttonStyle(.plain)
             Spacer()
             Text(playlist.name).font(.headline)
             Spacer()
             HStack(spacing: 8) {
-                Button("导入 m3u8") { showImportSheet = true }
-                Button("导出 m3u8") { exportM3U8() }
+                Button(L10n.importM3U8) { showImportSheet = true }
+                Button(L10n.exportM3U8) { exportM3U8() }
             }
             .controlSize(.small)
         }
@@ -68,8 +68,11 @@ struct PlaylistDetailView: View {
             Image(systemName: "music.note")
                 .font(.system(size: 32))
                 .foregroundStyle(.secondary)
-            Text("列表为空").foregroundStyle(.secondary)
-            Text("从资料库右键添加歌曲")
+            Text(L10n.isChinese ? "列表为空" : "Playlist is empty")
+                .foregroundStyle(.secondary)
+            Text(L10n.isChinese
+                 ? "从资料库右键添加歌曲"
+                 : "Right-click a track in Library to add it here")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
