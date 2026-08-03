@@ -1,16 +1,26 @@
 # Rust
 rust-core/target/
+target/
 
 # macOS
 .DS_Store
 *.dmg
 *.app
+macos/.build/
+macos/build/
+macos/Rhythm/Bridge/*.dylib
 
 # Windows
 *.exe
 *.pdb
 *.msix
 *.msi
+windows/build/
+windows/windows/
+
+# Build artifacts
+build/
+dist/
 
 # IDE
 .vscode/
@@ -18,8 +28,5 @@ rust-core/target/
 *.swp
 *.swo
 
-# Build artifacts
-build/
-dist/
-macos/Rhythm/Bridge/*.dylib
-macos/.build/
+# Zip archives
+*.zip
