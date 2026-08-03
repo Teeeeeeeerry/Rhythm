@@ -28,7 +28,7 @@ UI (macOS Swift · Windows WinUI3)
 |-------|------|------|
 | 1 | Rust 核心库 | 完成 |
 | 2 | macOS UI | 完成 |
-| 3 | Windows UI | 待开发 |
+| 3 | Windows UI | 完成 |
 | 4 | 打磨 | 待开发 |
 
 ## 构建

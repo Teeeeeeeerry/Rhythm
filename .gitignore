@@ -21,3 +21,5 @@ rust-core/target/
 # Build artifacts
 build/
 dist/
+macos/Rhythm/Bridge/*.dylib
+macos/.build/
