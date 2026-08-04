@@ -24,7 +24,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-初步开发完成。当前版本 **v0.5.3 "Germ"**。
+初步开发完成。当前版本 **v0.5.4 "Germ"**。
 
 ### 实现状态
 
@@ -51,6 +51,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 - 只从 yt-dlp 官方 GitHub Release 下载，并按官方发布的 `SHA2-256SUMS` 校验，校验不通过即丢弃
 - 每 7 天在后台检查一次更新；如果某个站点因版本过旧解析失败，会自动升级后重试一次
 - 系统里已经装了 yt-dlp（Homebrew、MacPorts、pip、scoop、winget 等）则直接复用，不会重复下载
+- 优先选择 AAC/M4A 音轨（内置解码器不支持 Opus），并沿用 yt-dlp 报告的请求头——B 站 CDN 缺少 Referer 会返回 403
 
 如果需要自己管理 yt-dlp：
 

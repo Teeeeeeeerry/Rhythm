@@ -123,6 +123,13 @@ final class RhythmPlayer {
         return rhythm_player_get_state(ptr)
     }
 
+    /// Why playback failed, when `state` is 4 (Error).
+    var errorMessage: String? {
+        guard let ptr, let raw = rhythm_player_error(ptr) else { return nil }
+        defer { rhythm_free_string(raw) }
+        return String(cString: raw)
+    }
+
     var position: Double {
         guard let ptr else { return 0 }
         return rhythm_player_get_position(ptr)

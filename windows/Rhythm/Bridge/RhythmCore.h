@@ -96,6 +96,8 @@ public:
     void SetVolume(float volume);
     float Volume() const;
     int32_t State() const;
+    /// Why playback failed, when State() is 4 (Error); empty otherwise.
+    std::wstring ErrorMessage() const;
     double Position() const;
     double Duration() const;
 

@@ -2,7 +2,7 @@ pub mod install;
 
 use crate::{RhythmError, SourceType, TrackInfo};
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -46,6 +46,13 @@ pub const YTDLP_ENV_OVERRIDE: &str = "RHYTHM_YTDLP_PATH";
 /// Rotate the resolver log once it grows past this size.
 const LOG_MAX_BYTES: u64 = 512 * 1024;
 
+/// yt-dlp format selector, ordered by what this build can actually decode.
+///
+/// AAC-in-MP4 first (YouTube 140, Bilibili's m4s), then any m4a/mp4, then
+/// whatever the site offers.
+const AUDIO_FORMAT_SELECTOR: &str =
+    "bestaudio[acodec^=mp4a]/bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio/best";
+
 /// The result of resolving a URL.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ResolvedUrl {
@@ -55,6 +62,13 @@ pub struct ResolvedUrl {
     pub duration: f64,
     pub source_type: SourceType,
     pub thumbnail_url: Option<String>,
+    /// Headers the CDN requires on every request for `stream_url`.
+    ///
+    /// Bilibili's CDN answers 403 without a `Referer` pointing back at the
+    /// video page, and YouTube is picky about `User-Agent` — yt-dlp reports
+    /// exactly what it used, so playback reuses that verbatim.
+    #[serde(default)]
+    pub http_headers: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone)]
@@ -148,7 +162,10 @@ static BILIBILI_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
 
 /// Direct audio URL: common container extensions, optionally followed by query params.
 static DIRECT_AUDIO_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\.(mp3|flac|aac|ogg|opus|m4a|wav|wma|aiff|webm|weba)(\?.*)?$").unwrap()
+    // `m4s` covers DASH segments: those are what Bilibili's CDN serves, and
+    // handing one back to yt-dlp only earns a 403 from its generic extractor.
+    Regex::new(r"(?i)\.(mp3|flac|aac|ogg|opus|m4a|m4s|mp4|wav|wma|aiff|webm|weba)(\?.*)?$")
+        .unwrap()
 });
 
 // ─── Cache helpers ──────────────────────────────────────────────────
@@ -703,6 +720,8 @@ fn resolve_direct_url(url: &str) -> ResolveResult<ResolvedUrl> {
         duration: 0.0, // Unknown until playback starts
         source_type: SourceType::DirectUrl,
         thumbnail_url: None,
+        // A plain audio URL needs nothing beyond the defaults.
+        http_headers: BTreeMap::new(),
     })
 }
 
@@ -748,7 +767,12 @@ fn run_ytdlp(
     let mut command = Command::new(binary);
     command.args([
         "-f",
-        "bestaudio/best",
+        // Prefer AAC/MP4 audio: symphonia is built here with mp3/aac/flac/
+        // vorbis/wav/alac/pcm/isomp4 and has no Opus decoder, but YouTube's
+        // plain `bestaudio` is webm/opus — which resolved fine and then
+        // played silence. The trailing fallbacks keep sites that only offer
+        // Opus working as well as they did before.
+        AUDIO_FORMAT_SELECTOR,
         "--no-playlist",
         "--print-json",
         "--no-download",
@@ -850,9 +874,9 @@ fn run_ytdlp(
     // Duration: accept both numeric and string representations.
     let duration = parse_duration_seconds(&json);
 
-    // Stream URL: try several known locations in the yt-dlp JSON schema.
-    let stream_url = match extract_stream_url(&json, url) {
-        Ok(stream_url) => stream_url,
+    // Stream URL and the headers its CDN expects.
+    let (stream_url, http_headers) = match extract_stream(&json, url) {
+        Ok(stream) => stream,
         Err(failure) => {
             log_failure(url, &failure, &output.stderr);
             return Err(failure);
@@ -868,6 +892,7 @@ fn run_ytdlp(
         duration,
         source_type: source_type.clone(),
         thumbnail_url,
+        http_headers,
     })
 }
 
@@ -993,18 +1018,27 @@ fn summarize_stderr(stderr: &str) -> String {
     summary
 }
 
-/// Try every known field where yt-dlp may place the audio stream URL.
-fn extract_stream_url(json: &serde_json::Value, original_url: &str) -> ResolveResult<String> {
+/// Try every known field where yt-dlp may place the audio stream URL, along
+/// with the headers that stream needs.
+///
+/// Headers are taken from the format that supplied the URL when it has them,
+/// falling back to the top-level set.
+fn extract_stream(
+    json: &serde_json::Value,
+    original_url: &str,
+) -> ResolveResult<(String, BTreeMap<String, String>)> {
+    let top_level = headers_from(&json["http_headers"]);
+
     // 1. Direct "url" field (most common).
     if let Some(u) = json["url"].as_str() {
-        return Ok(u.to_string());
+        return Ok((u.to_string(), top_level));
     }
 
     // 2. "requested_formats" array — pick the first entry that has a "url".
     if let Some(formats) = json["requested_formats"].as_array() {
         for fmt in formats {
             if let Some(u) = fmt["url"].as_str() {
-                return Ok(u.to_string());
+                return Ok((u.to_string(), format_headers(fmt, &top_level)));
             }
         }
     }
@@ -1018,27 +1052,52 @@ fn extract_stream_url(json: &serde_json::Value, original_url: &str) -> ResolveRe
                 || fmt["acodec"].as_str().map_or(false, |a| a != "none");
             if is_audio {
                 if let Some(u) = fmt["url"].as_str() {
-                    return Ok(u.to_string());
+                    return Ok((u.to_string(), format_headers(fmt, &top_level)));
                 }
             }
         }
         // Fallback: first format with any url.
         for fmt in formats {
             if let Some(u) = fmt["url"].as_str() {
-                return Ok(u.to_string());
+                return Ok((u.to_string(), format_headers(fmt, &top_level)));
             }
         }
     }
 
     // 4. "manifest_url" or "m3u8" HLS playlist — usable for streaming.
     if let Some(u) = json["manifest_url"].as_str() {
-        return Ok(u.to_string());
+        return Ok((u.to_string(), top_level));
     }
 
     Err(ResolveFailure::new(
         ResolveErrorKind::NoAudioStream,
         format!("No audio stream URL found in yt-dlp output for: {original_url}"),
     ))
+}
+
+/// Read a `http_headers` object into a map, ignoring non-string values.
+fn headers_from(value: &serde_json::Value) -> BTreeMap<String, String> {
+    value
+        .as_object()
+        .map(|obj| {
+            obj.iter()
+                .filter_map(|(k, v)| v.as_str().map(|v| (k.clone(), v.to_string())))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// A format's own headers, falling back to the top-level set.
+fn format_headers(
+    format: &serde_json::Value,
+    top_level: &BTreeMap<String, String>,
+) -> BTreeMap<String, String> {
+    let own = headers_from(&format["http_headers"]);
+    if own.is_empty() {
+        top_level.clone()
+    } else {
+        own
+    }
 }
 
 /// Parse duration in seconds from yt-dlp JSON.
@@ -1396,6 +1455,87 @@ mod tests {
         let summary = summarize_stderr(&stderr);
         assert!(summary.chars().count() <= 601);
         assert!(summary.ends_with('…'));
+    }
+
+    // ── Stream + header extraction ───────────────────────────────
+
+    #[test]
+    fn test_extract_stream_takes_top_level_headers() {
+        // Shape of Bilibili's yt-dlp output: the CDN link plus the Referer
+        // that makes it return 206 instead of 403.
+        let json = serde_json::json!({
+            "url": "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/x.m4s",
+            "http_headers": {
+                "User-Agent": "Mozilla/5.0",
+                "Referer": "http://www.bilibili.com/video/av113416614187402",
+            }
+        });
+
+        let (url, headers) = extract_stream(&json, "https://b23.tv/abc").unwrap();
+        assert!(url.ends_with("x.m4s"));
+        assert_eq!(
+            headers.get("Referer").map(String::as_str),
+            Some("http://www.bilibili.com/video/av113416614187402")
+        );
+        assert_eq!(headers.get("User-Agent").map(String::as_str), Some("Mozilla/5.0"));
+    }
+
+    #[test]
+    fn test_extract_stream_prefers_format_headers() {
+        let json = serde_json::json!({
+            "http_headers": { "Referer": "https://top.example" },
+            "formats": [{
+                "url": "https://cdn.example/audio.m4a",
+                "vcodec": "none",
+                "http_headers": { "Referer": "https://format.example" },
+            }]
+        });
+
+        let (_, headers) = extract_stream(&json, "https://example.com").unwrap();
+        assert_eq!(
+            headers.get("Referer").map(String::as_str),
+            Some("https://format.example")
+        );
+    }
+
+    #[test]
+    fn test_extract_stream_falls_back_to_top_level_headers() {
+        let json = serde_json::json!({
+            "http_headers": { "Referer": "https://top.example" },
+            "formats": [{ "url": "https://cdn.example/audio.m4a", "vcodec": "none" }]
+        });
+
+        let (_, headers) = extract_stream(&json, "https://example.com").unwrap();
+        assert_eq!(
+            headers.get("Referer").map(String::as_str),
+            Some("https://top.example")
+        );
+    }
+
+    #[test]
+    fn test_extract_stream_without_headers_is_empty_not_error() {
+        let json = serde_json::json!({ "url": "https://cdn.example/audio.m4a" });
+        let (_, headers) = extract_stream(&json, "https://example.com").unwrap();
+        assert!(headers.is_empty());
+    }
+
+    #[test]
+    fn test_extract_stream_ignores_non_string_header_values() {
+        let json = serde_json::json!({
+            "url": "https://cdn.example/audio.m4a",
+            "http_headers": { "Referer": "https://ok.example", "Weird": 42 }
+        });
+        let (_, headers) = extract_stream(&json, "https://example.com").unwrap();
+        assert_eq!(headers.len(), 1);
+        assert!(headers.contains_key("Referer"));
+    }
+
+    #[test]
+    fn test_dash_segment_is_a_direct_url_not_a_ytdlp_target() {
+        // A resolved Bilibili CDN link must never be handed back to yt-dlp:
+        // its generic extractor just earns a 403.
+        let m4s = "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/x.m4s?e=ig8&deadline=1";
+        assert_eq!(classify_url(m4s).unwrap(), SourceType::DirectUrl);
     }
 
     // ── Failure conversion ───────────────────────────────────────

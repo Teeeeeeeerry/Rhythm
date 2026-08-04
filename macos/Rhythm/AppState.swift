@@ -146,7 +146,10 @@ final class AppState: ObservableObject {
                     id: -1,
                     filePath: nil,
                     sourceType: resolved.sourceType ?? "direct_url",
-                    sourceUrl: resolved.streamUrl ?? url,
+                    // Keep the page URL, not the resolved CDN link: the core
+                    // re-resolves (from cache) at playback time, and those
+                    // CDN links carry a deadline that expires.
+                    sourceUrl: url,
                     title: resolved.title.isEmpty ? url : resolved.title,
                     artist: resolved.artist,
                     album: nil,
@@ -250,6 +253,12 @@ final class AppState: ObservableObject {
             } else {
                 isPlaying = false
             }
+        } else if state == 4 { // Error
+            // Otherwise a failed stream just sits at 0:00 with no explanation.
+            isPlaying = false
+            let detail = player.errorMessage ?? ""
+            NSLog("Playback failed: %@", detail)
+            urlError = L10n.playbackFailed(detail: detail)
         }
     }
 }

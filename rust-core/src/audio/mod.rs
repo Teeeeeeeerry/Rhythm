@@ -77,11 +77,15 @@ impl AudioEngine {
         let stop_flag = self.stop_flag.clone();
 
         thread::spawn(move || {
-            if let Err(e) =
-                play_file_impl(&path_str, inner, state_cb.clone(), progress_cb, stop_flag)
-            {
+            if let Err(e) = play_file_impl(
+                &path_str,
+                inner.clone(),
+                state_cb.clone(),
+                progress_cb,
+                stop_flag,
+            ) {
                 log::error!("Playback error: {e}");
-                emit(&state_cb, PlayerState::Error(e.to_string()));
+                fail(&inner, &state_cb, e.to_string());
             }
         });
 
@@ -99,9 +103,15 @@ impl AudioEngine {
         let stop_flag = self.stop_flag.clone();
 
         thread::spawn(move || {
-            if let Err(e) = play_url_impl(&url, inner, state_cb.clone(), progress_cb, stop_flag) {
+            if let Err(e) = play_url_impl(
+                &url,
+                inner.clone(),
+                state_cb.clone(),
+                progress_cb,
+                stop_flag,
+            ) {
                 log::error!("Playback error: {e}");
-                emit(&state_cb, PlayerState::Error(e.to_string()));
+                fail(&inner, &state_cb, e.to_string());
             }
         });
 
@@ -237,8 +247,10 @@ fn play_url_impl(
     //    plain audio URLs.
     let resolved = resolve_url(url)?;
 
-    // 2. Open the HTTP stream — this starts the prefetch downloader.
-    let stream = HttpStream::open(&resolved.stream_url)?;
+    // 2. Open the HTTP stream — this starts the prefetch downloader. The
+    //    resolver's headers come along: Bilibili's CDN answers 403 without
+    //    the Referer yt-dlp used.
+    let stream = HttpStream::open_with_headers(&resolved.stream_url, &resolved.http_headers)?;
 
     // 3. Wait for the initial buffer so the probe/decoder doesn't stall on
     //    every read.
@@ -256,7 +268,16 @@ fn play_url_impl(
         eng.state = PlayerState::Playing;
     }
     emit(&state_cb, PlayerState::Playing);
-    set_duration(&inner, decoder.duration());
+
+    // DASH segments (Bilibili's audio streams) carry no usable duration box,
+    // so the decoder reports 0 and the UI would sit at "0:00 / 0:00". The
+    // resolver already knows the real length — use it.
+    let duration = if decoder.duration() > 0.0 {
+        decoder.duration()
+    } else {
+        resolved.duration
+    };
+    set_duration(&inner, duration);
 
     let mut output = AudioOutput::new()?;
     let out_rate = output.sample_rate();
@@ -351,6 +372,23 @@ fn emit(cb: &Arc<Mutex<Option<StateCallback>>>, state: PlayerState) {
     if let Some(ref cb) = *cb.lock().unwrap() {
         cb(state);
     }
+}
+
+/// Record a playback failure where both the callback *and* `state()` can see
+/// it.
+///
+/// Emitting alone only fires the callback; the UI polls `state()`, so a failed
+/// stream used to look like a player idling at 0:00 with nothing wrong.
+fn fail(
+    inner: &Arc<Mutex<EngineInner>>,
+    state_cb: &Arc<Mutex<Option<StateCallback>>>,
+    message: String,
+) {
+    {
+        let mut eng = inner.lock().unwrap();
+        eng.state = PlayerState::Error(message.clone());
+    }
+    emit(state_cb, PlayerState::Error(message));
 }
 
 fn emit_progress(cb: &Arc<Mutex<Option<ProgressCallback>>>, pos: f64, dur: f64) {

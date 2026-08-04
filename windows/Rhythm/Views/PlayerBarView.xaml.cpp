@@ -36,6 +36,8 @@ std::wstring PlayerBarView::UrlErrorText(const std::wstring& kind, const std::ws
         headline = L"yt-dlp 版本过旧，无法解析该站点。请升级后重试：\n  pip install -U yt-dlp";
     } else if (kind == L"invalid_url") {
         headline = L"链接无效，请输入以 http:// 或 https:// 开头的地址。";
+    } else if (kind == L"playback_failed") {
+        headline = L"播放失败。链接可能已过期，重新粘贴一次试试。";
     } else {
         return message;
     }

@@ -429,6 +429,21 @@ pub extern "C" fn rhythm_player_get_state(ptr: *mut RhythmPlayer) -> i32 {
     }
 }
 
+/// Why playback failed, when the state is Error (4); null otherwise.
+///
+/// Without this the UI can only show a stopped player sitting at 0:00 with no
+/// explanation — which is exactly how a 403 from a CDN used to look. Free
+/// with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_player_error(ptr: *mut RhythmPlayer) -> *mut c_char {
+    unsafe {
+        match ptr.as_ref().map(|p| p.0.state()) {
+            Some(PlayerState::Error(message)) => str_to_c_string(&message),
+            _ => std::ptr::null_mut(),
+        }
+    }
+}
+
 // ─── URL Resolver FFI ─────────────────────────────────────────────
 
 /// The most recent resolver failure, as JSON.

@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.3 "Germ"**.
+Initial development is complete. Current version: **v0.5.4 "Germ"**.
 
 ### Implementation Status
 
@@ -51,6 +51,7 @@ What it does:
 - Downloads only from yt-dlp's official GitHub release, verified against the published `SHA2-256SUMS`; a mismatched download is discarded
 - Checks for updates weekly in the background, and if a site rejects the current version, updates and retries once
 - Reuses an existing yt-dlp (Homebrew, MacPorts, pip, scoop, winget, …) instead of downloading its own
+- Prefers AAC/M4A audio (the bundled decoder has no Opus support) and reuses the headers yt-dlp reports — Bilibili's CDN answers 403 without a Referer
 
 To manage yt-dlp yourself:
 

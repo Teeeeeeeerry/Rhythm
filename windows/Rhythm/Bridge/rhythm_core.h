@@ -74,6 +74,10 @@ char* rhythm_last_error(void);
 // bug reports.
 char* rhythm_resolver_diagnostics(void);
 
+// Why playback failed, when rhythm_player_get_state() is 4 (Error);
+// null otherwise.
+char* rhythm_player_error(RhythmPlayer* player);
+
 // Progress of yt-dlp provisioning as JSON, e.g.
 // {"phase":"downloading","received":1048576,"total":41943040}
 // Phases: idle, checking, downloading, verifying, updating, ready, failed.

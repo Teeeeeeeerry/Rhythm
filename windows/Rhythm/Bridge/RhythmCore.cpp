@@ -189,6 +189,15 @@ void Player::Stop() { if (ptr_) rhythm_player_stop(ptr_); }
 void Player::SetVolume(float v) { if (ptr_) rhythm_player_set_volume(ptr_, v); }
 float Player::Volume() const { return ptr_ ? rhythm_player_get_volume(ptr_) : 0.0f; }
 int32_t Player::State() const { return ptr_ ? rhythm_player_get_state(ptr_) : -1; }
+
+std::wstring Player::ErrorMessage() const {
+    if (!ptr_) return {};
+    char* raw = rhythm_player_error(ptr_);
+    if (!raw) return {};
+    auto message = Utf8ToWide(raw);
+    rhythm_free_string(raw);
+    return message;
+}
 double Player::Position() const { return ptr_ ? rhythm_player_get_position(ptr_) : 0.0; }
 double Player::Duration() const { return ptr_ ? rhythm_player_get_duration(ptr_) : 0.0; }
 
@@ -235,13 +244,10 @@ ResolveOutcome Resolver::ResolveURL(const std::wstring& url) {
         rhythm_free_string(json_str);
 
         outcome.track = JsonToTrack(j);
-        // ResolvedUrl uses `stream_url` (the playable media URL), which
-        // JsonToTrack maps to Track::sourceUrl.
-        if (j.contains("stream_url") && !j["stream_url"].is_null()) {
-            outcome.track.sourceUrl = Utf8ToWide(j["stream_url"].get<std::string>());
-        } else {
-            outcome.track.sourceUrl = url;
-        }
+        // Keep the page URL, not the resolved CDN link: the core re-resolves
+        // (from cache) at playback time, and those CDN links carry a deadline
+        // that expires.
+        outcome.track.sourceUrl = url;
         outcome.ok = true;
     } catch (const json::exception& e) {
         rhythm_free_string(json_str);

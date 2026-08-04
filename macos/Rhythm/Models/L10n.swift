@@ -30,6 +30,15 @@ enum L10n {
     static let urlResolveFailed: String = isChinese ? "链接解析失败，请检查链接是否有效" : "Failed to resolve the URL. Please check it is valid."
     static let ok: String = isChinese ? "确定" : "OK"
 
+    /// Explain a playback failure (as opposed to a resolution failure).
+    static func playbackFailed(detail: String) -> String {
+        guard isChinese else {
+            return detail.isEmpty ? "Playback failed." : "Playback failed.\n\n\(detail)"
+        }
+        let headline = "播放失败。链接可能已过期，重新粘贴一次试试。"
+        return detail.isEmpty ? headline : "\(headline)\n\n详细信息：\n\(detail)"
+    }
+
     /// Describe what the resolver is doing while the user waits.
     static func resolverStatusText(phase: String, received: Int64?, total: Int64?) -> String {
         switch phase {
