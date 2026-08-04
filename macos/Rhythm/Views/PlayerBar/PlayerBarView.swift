@@ -30,6 +30,8 @@ struct PlayerBarView: View {
             .padding(.vertical, 8)
             .frame(height: 56)
 
+            urlBar
+
             ProgressView(
                 value: appState.duration > 0 ? appState.position / appState.duration : 0
             )
@@ -39,6 +41,46 @@ struct PlayerBarView: View {
             .padding(.bottom, 4)
         }
         .background(.bar)
+        .alert(
+            L10n.urlErrorTitle,
+            isPresented: Binding(
+                get: { appState.urlError != nil },
+                set: { if !$0 { appState.urlError = nil } }
+            )
+        ) {
+            Button(L10n.ok, role: .cancel) {}
+        } message: {
+            Text(appState.urlError ?? "")
+        }
+    }
+
+    /// URL input bar: paste a link and hit enter (or the play button) to
+    /// resolve and play it.
+    var urlBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "link")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField(L10n.urlPlaceholder, text: $appState.urlInput)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11))
+                .onSubmit { appState.resolveAndPlay(appState.urlInput) }
+            if appState.isResolvingURL {
+                ProgressView()
+                    .controlSize(.small)
+                    .help(L10n.urlResolving)
+            } else {
+                Button(action: { appState.resolveAndPlay(appState.urlInput) }) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 14))
+                }
+                .buttonStyle(.plain)
+                .disabled(appState.urlInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                .help(L10n.urlPlay)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
     }
 
     var trackInfo: some View {
@@ -105,7 +147,7 @@ struct PlayerBarView: View {
             Button(action: { appState.cyclePlayMode() }) {
                 Image(systemName: appState.playMode.icon)
                     .font(.caption)
-                    .foregroundStyle(appState.playMode == .sequential ? .secondary : .accent)
+                    .foregroundStyle(appState.playMode == .sequential ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
             }
             .buttonStyle(.plain)
             .help(appState.playMode.label)

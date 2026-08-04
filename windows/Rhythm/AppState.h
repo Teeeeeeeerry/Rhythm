@@ -30,6 +30,15 @@ public:
     void PlayTrack(const Track& track);
     void TogglePlayPause();
     void SetVolume(double v);
+    void ResolveAndPlay(const std::wstring& url);
+
+    /// UI-thread dispatcher for marshalling async resolver results.
+    void SetDispatcherQueue(winrt::Microsoft::UI::Dispatching::DispatcherQueue dq) {
+        dispatcher_ = dq;
+    }
+
+private:
+    winrt::Microsoft::UI::Dispatching::DispatcherQueue dispatcher_{ nullptr };
 };
 
 } // namespace rhythm

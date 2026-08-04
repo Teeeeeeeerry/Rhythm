@@ -23,6 +23,12 @@ enum L10n {
 
     static let notPlaying: String = isChinese ? "未在播放" : "Not Playing"
     static let playModeTooltip: String = isChinese ? "播放模式" : "Play Mode"
+    static let urlPlaceholder: String = isChinese ? "粘贴 YouTube / Bilibili 链接播放" : "Paste a YouTube / Bilibili URL to play"
+    static let urlPlay: String = isChinese ? "播放链接" : "Play URL"
+    static let urlResolving: String = isChinese ? "解析中…" : "Resolving…"
+    static let urlErrorTitle: String = isChinese ? "无法播放链接" : "Cannot Play URL"
+    static let urlResolveFailed: String = isChinese ? "链接解析失败，请检查链接是否有效" : "Failed to resolve the URL. Please check it is valid."
+    static let ok: String = isChinese ? "确定" : "OK"
 
     // ─── Play Mode Labels ─────────────────────────────────
 

@@ -206,7 +206,16 @@ Track Resolver::ResolveURL(const std::wstring& url) {
     }
     auto j = json::parse(json);
     rhythm_free_string(json);
-    return JsonToTrack(j);
+    auto track = JsonToTrack(j);
+    // ResolvedUrl uses `stream_url` (the playable media URL), which
+    // JsonToTrack maps to Track::sourceUrl. A failed parse still falls back
+    // to the original URL above.
+    if (j.contains("stream_url") && !j["stream_url"].is_null()) {
+        track.sourceUrl = Utf8ToWide(j["stream_url"].get<std::string>());
+    } else {
+        track.sourceUrl = url;
+    }
+    return track;
 }
 
 std::wstring Resolver::ClassifyURL(const std::wstring& url) {
