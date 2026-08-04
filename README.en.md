@@ -24,26 +24,21 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.0 "Germ"**.
-
-### Known Limitations
-
-- **URL Streaming**: The URL resolver (yt-dlp integration) is ready, but the HTTP streaming + decoding + playback pipeline is not yet implemented ([#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11)). Only local file playback works at this time.
-- **URL Input UI**: There is no UI for pasting URLs yet ([#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12)).
+Initial development is complete. Current version: **v0.5.1 "Germ"**.
 
 ### Implementation Status
 
 | Feature | Status | Issue |
 |---------|--------|-------|
-| Local audio playback (MP3/FLAC/AAC/WAV/OGG/ALAC/APE/WMA/AIFF/WavPack/MP4) | ✅ Done | — |
-| Library management + FTS5 full-text search | ✅ Done | — |
-| Playlists (mixed local/online, M3U8 import/export) | ✅ Done | — |
-| Play queue (sequential/shuffle/single-loop/list-loop) | ✅ Done | — |
-| Album cover extraction | ✅ Done | — |
-| System media keys + tray mode | ✅ Done | — |
-| Chinese/English localization | ✅ Done | — |
-| URL streaming (YouTube/Bilibili/direct links) | 🔧 Pending | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
-| URL input UI | 🔧 Pending | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
+| Local audio playback (MP3/FLAC/AAC/WAV/OGG/ALAC/APE/WMA/AIFF/WavPack/MP4) | Done | — |
+| Library management + FTS5 full-text search | Done | — |
+| Playlists (mixed local/online, M3U8 import/export) | Done | — |
+| Play queue (sequential/shuffle/single-loop/list-loop) | Done | — |
+| Album cover extraction | Done | — |
+| System media keys + tray mode | Done | — |
+| Chinese/English localization | Done | — |
+| URL streaming (YouTube/Bilibili/direct links) | Done | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
+| URL input UI | Done | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
 
 ## Build
 
@@ -63,16 +58,15 @@ cargo build --release -p rhythm-core
 # 2. Build Swift UI
 cd macos && swift build -c release
 
-# 3. Create .app bundle (output: macos/build/)
-mkdir -p build/Rhythm.app/Contents/{MacOS,Resources,Frameworks}
-cp .build/release/Rhythm build/Rhythm.app/Contents/MacOS/
-cp ../target/release/librhythm_core.dylib build/Rhythm.app/Contents/Frameworks/
-cp Rhythm/Resources/Info.plist build/Rhythm.app/Contents/
-sed -i '' 's/\$(EXECUTABLE_NAME)/Rhythm/' build/Rhythm.app/Contents/Info.plist
+# 3. Create .app bundle (output: $PROJECT_ROOT/build/)
+mkdir -p "$PROJECT_ROOT/build/Rhythm.app/Contents/"{MacOS,Resources,Frameworks}
+cp .build/release/Rhythm "$PROJECT_ROOT/build/Rhythm.app/Contents/MacOS/"
+cp ../target/release/librhythm_core.dylib "$PROJECT_ROOT/build/Rhythm.app/Contents/Frameworks/"
+cp Rhythm/Resources/Info.plist "$PROJECT_ROOT/build/Rhythm.app/Contents/"
+sed -i '' 's/\$(EXECUTABLE_NAME)/Rhythm/' "$PROJECT_ROOT/build/Rhythm.app/Contents/Info.plist"
 
-# 4. Sign and create DMG
-codesign --force --deep --sign - build/Rhythm.app
-hdiutil create -volname Rhythm -srcfolder build/Rhythm.app -ov -format UDZO build/Rhythm.dmg
+# 4. Sign
+codesign --force --deep --sign - "$PROJECT_ROOT/build/Rhythm.app"
 ```
 
 Or use the one-shot script:
