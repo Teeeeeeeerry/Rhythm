@@ -24,6 +24,9 @@ public:
     double Duration = 0.0;
     /// Last URL resolution failure, empty when the last attempt succeeded.
     std::wstring UrlError;
+    /// True while a URL resolution is in flight. Atomic: cleared from the
+    /// resolver thread when no dispatcher is available.
+    std::atomic<bool> IsResolvingUrl{ false };
     /// Raised on the UI thread when a URL fails to resolve: (kind, message).
     std::function<void(const std::wstring&, const std::wstring&)> OnUrlError;
 

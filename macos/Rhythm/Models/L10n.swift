@@ -30,6 +30,34 @@ enum L10n {
     static let urlResolveFailed: String = isChinese ? "链接解析失败，请检查链接是否有效" : "Failed to resolve the URL. Please check it is valid."
     static let ok: String = isChinese ? "确定" : "OK"
 
+    /// Describe what the resolver is doing while the user waits.
+    static func resolverStatusText(phase: String, received: Int64?, total: Int64?) -> String {
+        switch phase {
+        case "checking":
+            return isChinese ? "正在准备解析组件…" : "Preparing resolver…"
+        case "downloading":
+            let progress = downloadProgress(received: received, total: total)
+            return isChinese ? "正在下载解析组件 \(progress)" : "Downloading resolver \(progress)"
+        case "verifying":
+            return isChinese ? "正在校验解析组件…" : "Verifying resolver…"
+        case "updating":
+            return isChinese ? "正在更新解析组件…" : "Updating resolver…"
+        case "failed":
+            return isChinese ? "解析组件安装失败" : "Resolver install failed"
+        default:
+            return ""
+        }
+    }
+
+    /// "12.3 / 40.1 MB" — or just the received size when the server sent no
+    /// content length.
+    private static func downloadProgress(received: Int64?, total: Int64?) -> String {
+        let mb = { (bytes: Int64) in String(format: "%.1f", Double(bytes) / 1_048_576) }
+        guard let received else { return "" }
+        guard let total, total > 0 else { return "\(mb(received)) MB" }
+        return "\(mb(received)) / \(mb(total)) MB"
+    }
+
     /// Explain a resolution failure.
     ///
     /// The core's `kind` drives a localized headline; its English `message`

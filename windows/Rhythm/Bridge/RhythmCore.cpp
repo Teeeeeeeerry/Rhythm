@@ -260,6 +260,44 @@ std::wstring Resolver::Diagnostics() {
     return result;
 }
 
+ResolverStatus Resolver::Status() {
+    ResolverStatus status;
+
+    char* raw = rhythm_resolver_status();
+    if (!raw) return status;
+
+    std::string payload(raw);
+    rhythm_free_string(raw);
+
+    try {
+        auto j = json::parse(payload);
+        if (j.contains("phase") && !j["phase"].is_null()) {
+            status.phase = Utf8ToWide(j["phase"].get<std::string>());
+        }
+        status.received = j.value("received", (int64_t)0);
+        status.total = j.value("total", (int64_t)0);
+    } catch (const json::exception&) {
+        // Leave the idle default.
+    }
+    return status;
+}
+
+std::wstring Resolver::StatusText(const ResolverStatus& status) {
+    if (status.phase == L"checking") return L"正在准备解析组件…";
+    if (status.phase == L"verifying") return L"正在校验解析组件…";
+    if (status.phase == L"updating") return L"正在更新解析组件…";
+    if (status.phase == L"failed") return L"解析组件安装失败";
+    if (status.phase == L"downloading") {
+        auto mb = [](int64_t bytes) { return static_cast<double>(bytes) / 1048576.0; };
+        if (status.total > 0) {
+            return std::format(L"正在下载解析组件 {:.1f} / {:.1f} MB",
+                               mb(status.received), mb(status.total));
+        }
+        return std::format(L"正在下载解析组件 {:.1f} MB", mb(status.received));
+    }
+    return L"";
+}
+
 std::wstring Resolver::ClassifyURL(const std::wstring& url) {
     auto u = WideToUtf8(url);
     char* result = rhythm_classify_url(u.c_str());

@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.2 "Germ"**.
+Initial development is complete. Current version: **v0.5.3 "Germ"**.
 
 ### Implementation Status
 
@@ -39,24 +39,27 @@ Initial development is complete. Current version: **v0.5.2 "Germ"**.
 | Chinese/English localization | Done | — |
 | URL streaming (YouTube/Bilibili/direct links) | Done | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
 | URL input UI | Done | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
-| Resolver error reporting + yt-dlp auto-discovery | Done | [#21](https://github.com/Teeeeeeeerry/Rhythm/issues/21) |
+| Resolver error reporting + yt-dlp auto-install | Done | [#21](https://github.com/Teeeeeeeerry/Rhythm/issues/21) |
 
 ## Playing online links
 
-Playing YouTube / Bilibili links requires **yt-dlp** on the system (direct audio URLs do not):
+**Nothing to install.** Paste a YouTube / Bilibili link and it plays — on the first link, Rhythm downloads the yt-dlp build it needs (~36 MB), showing progress next to the URL field. It is downloaded once.
+
+What it does:
+
+- Keeps its copy in `~/Library/Application Support/Rhythm/bin/` (Windows: `%LOCALAPPDATA%\Rhythm\bin\`)
+- Downloads only from yt-dlp's official GitHub release, verified against the published `SHA2-256SUMS`; a mismatched download is discarded
+- Checks for updates weekly in the background, and if a site rejects the current version, updates and retries once
+- Reuses an existing yt-dlp (Homebrew, MacPorts, pip, scoop, winget, …) instead of downloading its own
+
+To manage yt-dlp yourself:
 
 ```bash
-brew install yt-dlp          # macOS
-winget install yt-dlp        # Windows
+export RHYTHM_NO_AUTO_INSTALL=1               # turn off auto-download
+export RHYTHM_YTDLP_PATH=/your/path/to/yt-dlp # use your own binary
 ```
 
-An app launched from Finder / the Dock does not inherit your shell's PATH, so Rhythm probes the usual install locations itself (Homebrew, MacPorts, pip, scoop, winget, …). If yours lives somewhere else, point Rhythm at it:
-
-```bash
-export RHYTHM_YTDLP_PATH=/your/path/to/yt-dlp
-```
-
-When resolution fails, the app says why — not installed, timed out, network error, video unavailable, yt-dlp too old — and writes the details to a log:
+When resolution fails, the app says why — network error, timeout, video unavailable, yt-dlp too old — and writes the details to a log:
 
 - macOS: `~/Library/Logs/Rhythm/resolver.log`
 - Windows: `%LOCALAPPDATA%\Rhythm\logs\resolver.log`
@@ -66,7 +69,7 @@ When resolution fails, the app says why — not installed, timed out, network er
 ### Prerequisites
 
 - **Rust** 1.70+ ([rustup.rs](https://rustup.rs))
-- **yt-dlp** (for URL resolution; optional if only playing local files)
+- yt-dlp needs no prior install: the app fetches it on the first online link
 - **macOS**: Xcode 15+ or Command Line Tools + Swift 5.9+
 - **Windows**: Visual Studio 2022 + Windows App SDK + CMake 3.20+
 

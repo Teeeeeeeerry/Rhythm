@@ -500,6 +500,35 @@ pub extern "C" fn rhythm_resolver_diagnostics() -> *mut c_char {
     str_to_c_string(&resolver::diagnostics().to_string())
 }
 
+/// Progress of yt-dlp provisioning as JSON, e.g.
+/// `{"phase":"downloading","received":1048576,"total":41943040}`.
+///
+/// Phases: idle, checking, downloading, verifying, updating, ready, failed.
+/// The UI polls this while a resolution is in flight so a first-run download
+/// doesn't look like a hang. Free with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_resolver_status() -> *mut c_char {
+    let json = serde_json::to_string(&resolver::install::status()).unwrap_or_default();
+    str_to_c_string(&json)
+}
+
+/// Install or update Rhythm's own yt-dlp copy now. Returns the binary path,
+/// or null on failure — call `rhythm_last_error` for the reason. Blocks for
+/// the duration of the download. Free with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_install_ytdlp() -> *mut c_char {
+    match resolver::install::update_now() {
+        Ok(path) => {
+            clear_last_resolve_error();
+            str_to_c_string(&path.display().to_string())
+        }
+        Err(failure) => {
+            set_last_resolve_error(&failure);
+            std::ptr::null_mut()
+        }
+    }
+}
+
 // ─── Play Queue FFI ───────────────────────────────────────────────
 
 /// Create a new play queue from a JSON array of tracks.

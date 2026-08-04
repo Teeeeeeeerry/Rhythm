@@ -308,3 +308,23 @@ func resolverDiagnostics() -> String {
     defer { rhythm_free_string(json) }
     return String(cString: json)
 }
+
+/// Progress of yt-dlp provisioning, polled while a resolution is running so a
+/// first-run download doesn't look like a hang.
+struct ResolverStatus: Decodable {
+    let phase: String
+    let received: Int64?
+    let total: Int64?
+    let message: String?
+
+    /// Nothing worth telling the user about.
+    var isQuiet: Bool {
+        phase == "idle" || phase == "ready"
+    }
+}
+
+func resolverStatus() -> ResolverStatus? {
+    guard let json = rhythm_resolver_status() else { return nil }
+    defer { rhythm_free_string(json) }
+    return decodeJSON(String(cString: json))
+}

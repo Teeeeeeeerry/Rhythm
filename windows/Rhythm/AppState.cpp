@@ -66,14 +66,21 @@ void AppState::ResolveAndPlay(const std::wstring& url) {
     auto last = url.find_last_not_of(L" \t\r\n");
     auto trimmed = url.substr(first, last - first + 1);
 
-    // Resolution may take a few seconds (yt-dlp); run it off the UI thread
-    // and marshal the result back.
+    // Resolution may take a few seconds (yt-dlp, plus a one-off download on
+    // first use); run it off the UI thread and marshal the result back.
+    if (IsResolvingUrl) return;
+    IsResolvingUrl = true;
+
     auto dq = dispatcher_;
     std::thread([this, trimmed, dq] {
         auto outcome = rhythm::Resolver::ResolveURL(trimmed);
-        if (!dq) return;
+        if (!dq) {
+            IsResolvingUrl = false;
+            return;
+        }
 
         dq.TryEnqueue([this, outcome] {
+            IsResolvingUrl = false;
             if (!outcome.ok) {
                 // Report the reason rather than queueing a track that cannot
                 // play — the core distinguishes a missing yt-dlp from a

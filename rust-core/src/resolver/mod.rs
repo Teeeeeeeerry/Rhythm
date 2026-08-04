@@ -1,3 +1,5 @@
+pub mod install;
+
 use crate::{RhythmError, SourceType, TrackInfo};
 use regex::Regex;
 use std::collections::HashMap;
@@ -19,10 +21,20 @@ const CACHE_MAX_CAPACITY: usize = 256;
 const CACHE_TTL: Duration = Duration::from_secs(3600); // 1 hour
 
 /// Timeout for the yt-dlp subprocess.
-const YTDLP_TIMEOUT: Duration = Duration::from_secs(30);
+///
+/// Generous because the standalone builds are PyInstaller bundles: the first
+/// run after installation unpacks ~38 MB to a temp directory before doing any
+/// work, and that cache is periodically cleaned by the OS.
+const YTDLP_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Timeout for the cheap `yt-dlp --version` probe used during discovery.
-const YTDLP_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+/// Timeout for the `yt-dlp --version` probe used during discovery. A warm
+/// binary answers in well under a second; a cold PyInstaller bundle needs
+/// several, so this is not as tight as it looks.
+const YTDLP_PROBE_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// Timeout for the smoke test right after installing, where the unpack cost
+/// is guaranteed to be paid.
+pub(crate) const YTDLP_FIRST_RUN_TIMEOUT: Duration = Duration::from_secs(90);
 
 /// Timeout for asking the user's login shell where yt-dlp lives.
 const LOGIN_SHELL_TIMEOUT: Duration = Duration::from_secs(8);
@@ -283,6 +295,9 @@ fn scan_versioned_dirs(parent: &Path, tail: &[&str]) -> Vec<PathBuf> {
 fn candidate_ytdlp_paths() -> Vec<PathBuf> {
     let mut candidates = env_override_path().into_iter().collect::<Vec<_>>();
 
+    // Rhythm's own copy, provisioned on first use.
+    candidates.extend(install::managed_ytdlp_path());
+
     candidates.extend(
         [
             "/opt/homebrew/bin/yt-dlp", // Homebrew on Apple Silicon
@@ -311,6 +326,9 @@ fn candidate_ytdlp_paths() -> Vec<PathBuf> {
 #[cfg(windows)]
 fn candidate_ytdlp_paths() -> Vec<PathBuf> {
     let mut candidates = env_override_path().into_iter().collect::<Vec<_>>();
+
+    // Rhythm's own copy, provisioned on first use.
+    candidates.extend(install::managed_ytdlp_path());
 
     if let Some(local) = env_dir("LOCALAPPDATA") {
         // winget / Microsoft Store shim
@@ -358,9 +376,14 @@ fn probe_ytdlp(path: &Path) -> bool {
 
 /// Ask a yt-dlp binary for its version string.
 fn ytdlp_version_at(path: &Path) -> Option<String> {
+    ytdlp_version_within(path, YTDLP_PROBE_TIMEOUT)
+}
+
+/// Ask a yt-dlp binary for its version, allowing a caller-chosen budget.
+pub(crate) fn ytdlp_version_within(path: &Path, timeout: Duration) -> Option<String> {
     let mut command = Command::new(path);
     command.arg("--version");
-    let output = run_with_timeout(command, YTDLP_PROBE_TIMEOUT).ok()?;
+    let output = run_with_timeout(command, timeout).ok()?;
     if !output.status.success() {
         return None;
     }
@@ -420,6 +443,33 @@ fn discover_ytdlp() -> Option<PathBuf> {
 /// Forget the cached yt-dlp location so the next call re-discovers it.
 fn forget_ytdlp_path() {
     *YTDLP_PATH.lock().unwrap() = None;
+}
+
+/// Locate yt-dlp, provisioning Rhythm's own copy when the system has none.
+///
+/// A first-time user should be able to paste a link and have it play, so a
+/// missing yt-dlp is something to fix rather than report — unless the user
+/// opted out with `RHYTHM_NO_AUTO_INSTALL`.
+fn ensure_ytdlp() -> ResolveResult<PathBuf> {
+    if let Some(path) = ytdlp_path() {
+        install::maybe_update_in_background(&path);
+        return Ok(path);
+    }
+
+    if install::auto_install_disabled() {
+        return Err(ytdlp_missing_error());
+    }
+
+    let installed = install::install(false)?;
+    *YTDLP_PATH.lock().unwrap() = Some(installed.clone());
+    Ok(installed)
+}
+
+/// Is this the copy Rhythm installed itself?
+fn is_managed(binary: &Path) -> bool {
+    install::managed_ytdlp_path()
+        .map(|managed| managed == binary)
+        .unwrap_or(false)
 }
 
 /// Return a user-friendly error when yt-dlp cannot be found.
@@ -658,21 +708,44 @@ fn resolve_direct_url(url: &str) -> ResolveResult<ResolvedUrl> {
 
 // ─── yt-dlp resolution ──────────────────────────────────────────────
 
-/// Resolve using the yt-dlp binary with a timeout.
+/// Resolve using yt-dlp, provisioning or updating it as needed.
 ///
-/// The binary is located by [`ytdlp_path`] rather than by PATH alone, and the
-/// subprocess is killed if it outruns `YTDLP_TIMEOUT`.
+/// Sites break yt-dlp regularly, so a version-related failure on Rhythm's own
+/// copy is worth one silent update-and-retry before bothering the user.
 fn resolve_with_ytdlp(url: &str, source_type: &SourceType) -> ResolveResult<ResolvedUrl> {
-    let binary = match ytdlp_path() {
-        Some(path) => path,
-        None => {
-            let failure = ytdlp_missing_error();
+    let binary = match ensure_ytdlp() {
+        Ok(binary) => binary,
+        Err(failure) => {
             log_failure(url, &failure, "");
             return Err(failure);
         }
     };
 
-    let mut command = Command::new(&binary);
+    match run_ytdlp(&binary, url, source_type) {
+        Err(failure)
+            if failure.kind == ResolveErrorKind::YtDlpOutdated && is_managed(&binary) =>
+        {
+            log::info!("resolver: yt-dlp looks outdated, updating and retrying");
+            match install::update_now() {
+                Ok(updated) => run_ytdlp(&updated, url, source_type),
+                // Keep the original diagnosis: the update failing is a
+                // side note, not the reason the URL didn't play.
+                Err(_) => Err(failure),
+            }
+        }
+        other => other,
+    }
+}
+
+/// Run yt-dlp once against `url` and parse its output.
+///
+/// The subprocess is killed if it outruns `YTDLP_TIMEOUT`.
+fn run_ytdlp(
+    binary: &Path,
+    url: &str,
+    source_type: &SourceType,
+) -> ResolveResult<ResolvedUrl> {
+    let mut command = Command::new(binary);
     command.args([
         "-f",
         "bestaudio/best",

@@ -74,6 +74,15 @@ char* rhythm_last_error(void);
 // bug reports.
 char* rhythm_resolver_diagnostics(void);
 
+// Progress of yt-dlp provisioning as JSON, e.g.
+// {"phase":"downloading","received":1048576,"total":41943040}
+// Phases: idle, checking, downloading, verifying, updating, ready, failed.
+char* rhythm_resolver_status(void);
+
+// Install or update Rhythm's own yt-dlp copy. Returns the binary path, or
+// null on failure (see rhythm_last_error). Blocks during the download.
+char* rhythm_install_ytdlp(void);
+
 // ─── M3U8 Import/Export ────────────────────────────────────────────
 
 int32_t rhythm_export_m3u8(const char* file_path, const char* tracks_json);

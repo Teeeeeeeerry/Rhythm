@@ -79,6 +79,14 @@ void PlayerBarView::Update() {
     timeText().Text(std::format(L"{}:{:02} / {}:{:02}", pm, ps, dm, ds));
 
     volumeSlider().Value(appState_->Volume * 100.0);
+
+    if (appState_->IsResolvingUrl) {
+        auto status = rhythm::Resolver::Status();
+        urlStatus().Text(status.IsQuiet() ? L"解析中…"
+                                          : rhythm::Resolver::StatusText(status));
+    } else {
+        urlStatus().Text(L"");
+    }
 }
 
 void PlayerBarView::OnPlayPauseClick(IInspectable const&, RoutedEventArgs const&) {
