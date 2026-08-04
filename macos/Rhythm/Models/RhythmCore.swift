@@ -180,7 +180,7 @@ final class RhythmQueue {
     private var ptr: OpaquePointer?
 
     init?(tracks: [Track]) {
-        let tracksJSON = (try? JSONEncoder().encode(tracks)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        let tracksJSON = encodeJSON(tracks)
         guard let ptr = rhythm_queue_create(tracksJSON) else { return nil }
         self.ptr = ptr
     }
@@ -219,8 +219,7 @@ final class RhythmQueue {
 
     func replace(tracks: [Track]) {
         guard let ptr else { return }
-        let json = (try? JSONEncoder().encode(tracks)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
-        rhythm_queue_replace(ptr, json)
+        rhythm_queue_replace(ptr, encodeJSON(tracks))
     }
 
     var hasNext: Bool {
@@ -247,7 +246,28 @@ struct ResolvedInfo: Codable {
 
 // MARK: - Helpers
 
+/// Decode a JSON string produced by the Rust core. Rust serializes with
+/// snake_case keys, so the decoder converts them to the Swift models'
+/// camelCase property names (e.g. `source_type` → `sourceType`).
 func decodeJSON<T: Decodable>(_ string: String) -> T? {
     guard let data = string.data(using: .utf8) else { return nil }
-    return try? JSONDecoder().decode(T.self, from: data)
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    return try? decoder.decode(T.self, from: data)
+}
+
+/// Encode a Swift value into JSON expected by the Rust core (snake_case keys).
+func encodeJSON<T: Encodable>(_ value: T) -> String {
+    let encoder = JSONEncoder()
+    encoder.keyEncodingStrategy = .convertToSnakeCase
+    return (try? encoder.encode(value)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+}
+
+// MARK: - URL Resolver
+
+/// Resolve a URL to a playable stream. Returns nil when resolution fails.
+func resolveURL(_ url: String) -> ResolvedInfo? {
+    guard let json = rhythm_resolve_url(url) else { return nil }
+    defer { rhythm_free_string(json) }
+    return decodeJSON(String(cString: json))
 }

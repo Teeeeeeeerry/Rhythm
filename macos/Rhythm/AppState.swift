@@ -13,6 +13,9 @@ final class AppState: ObservableObject {
     @Published var position: Double = 0
     @Published var duration: Double = 0
     @Published var playMode: PlayMode = .sequential
+    @Published var urlInput = ""
+    @Published var isResolvingURL = false
+    @Published var urlError: String?
 
     private var queue: RhythmQueue?
 
@@ -77,6 +80,69 @@ final class AppState: ObservableObject {
         if let q = RhythmQueue(tracks: queueTracks) {
             q.setMode(playMode)
             _ = q.jumpTo(track.id)
+            queue = q
+        }
+    }
+
+    /// Resolve a pasted URL (YouTube/Bilibili/direct audio) and start
+    /// playing it. Resolution may take a few seconds (yt-dlp), so it runs on
+    /// a background queue; the result is applied on the main thread.
+    func resolveAndPlay(_ input: String) {
+        let url = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty, !isResolvingURL else { return }
+        isResolvingURL = true
+        urlError = nil
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let resolved = resolveURL(url)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isResolvingURL = false
+                guard let resolved else {
+                    self.urlError = L10n.urlResolveFailed
+                    return
+                }
+                let track = Track(
+                    id: -1,
+                    filePath: nil,
+                    sourceType: resolved.sourceType ?? "direct_url",
+                    sourceUrl: resolved.streamUrl ?? url,
+                    title: resolved.title.isEmpty ? url : resolved.title,
+                    artist: resolved.artist,
+                    album: nil,
+                    albumArtist: nil,
+                    trackNumber: nil,
+                    discNumber: nil,
+                    genre: nil,
+                    year: nil,
+                    duration: resolved.duration,
+                    format: nil,
+                    bitrate: nil,
+                    sampleRate: nil,
+                    channels: nil,
+                    fileSize: nil,
+                    dateAdded: nil,
+                    lastPlayed: nil,
+                    playCount: 0,
+                    artworkPath: nil,
+                    isAvailable: true
+                )
+                self.playResolved(track)
+            }
+        }
+    }
+
+    /// Play a resolved URL track: prepend it to the library view list and
+    /// rebuild the queue so "next" continues from the previously played list.
+    private func playResolved(_ track: Track) {
+        tracks.insert(track, at: 0)
+        currentTrack = track
+        if let url = track.sourceUrl {
+            player.playURL(url)
+        }
+        isPlaying = true
+        urlInput = ""
+        if let q = RhythmQueue(tracks: tracks) {
+            q.setMode(playMode)
             queue = q
         }
     }

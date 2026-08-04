@@ -3,6 +3,7 @@
 #include "Views/SidebarView.xaml.h"
 #include "Views/LibraryView.xaml.h"
 #include "Views/PlaylistListView.xaml.h"
+#include "Views/PlayerBarView.xaml.h"
 #include "Views/TrayManager.h"
 
 namespace winrt::Rhythm::implementation {
@@ -14,6 +15,10 @@ MainWindow::MainWindow() {
     auto localFolder = winrt::Windows::Storage::ApplicationData::Current().LocalFolder();
     auto dbPath = localFolder.Path() + L"\\library.db";
     appState_.OpenDatabase(dbPath.c_str());
+
+    // Wire the player bar to the shared state
+    appState_.SetDispatcherQueue(DispatcherQueue());
+    playerBar().BindState(&appState_);
 
     // Setup tray
     TrayManager::Create(*this);
@@ -29,6 +34,7 @@ MainWindow::MainWindow() {
             appState_.Position = appState_.Player->Position();
             appState_.Duration = appState_.Player->Duration();
         }
+        playerBar().Update();
     });
     timer.Start();
 }

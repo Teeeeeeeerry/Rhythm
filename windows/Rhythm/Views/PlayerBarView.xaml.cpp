@@ -51,4 +51,15 @@ void PlayerBarView::OnVolumeChanged(IInspectable const&,
     if (appState_) appState_->SetVolume(args.NewValue() / 100.0);
 }
 
+void PlayerBarView::OnUrlPlayClick(IInspectable const&, RoutedEventArgs const&) {
+    if (appState_) appState_->ResolveAndPlay(urlBox().Text().c_str());
+}
+
+void PlayerBarView::OnUrlKeyDown(IInspectable const&,
+                                 winrt::Microsoft::UI::Xaml::Input::KeyRoutedEventArgs const& args) {
+    if (args.Key() == winrt::Windows::System::VirtualKey::Enter && appState_) {
+        appState_->ResolveAndPlay(urlBox().Text().c_str());
+    }
+}
+
 } // namespace winrt::Rhythm::Views::implementation

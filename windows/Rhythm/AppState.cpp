@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "AppState.h"
 
+#include <thread>
+
 namespace rhythm {
 
 AppState::AppState() {
@@ -56,6 +58,26 @@ void AppState::TogglePlayPause() {
 void AppState::SetVolume(double v) {
     Volume = v;
     Player->SetVolume(static_cast<float>(v));
+}
+
+void AppState::ResolveAndPlay(const std::wstring& url) {
+    auto first = url.find_first_not_of(L" \t\r\n");
+    if (first == std::wstring::npos) return;
+    auto last = url.find_last_not_of(L" \t\r\n");
+    auto trimmed = url.substr(first, last - first + 1);
+
+    // Resolution may take a few seconds (yt-dlp); run it off the UI thread
+    // and marshal the result back.
+    auto dq = dispatcher_;
+    std::thread([this, trimmed, dq] {
+        auto track = rhythm::Resolver::ResolveURL(trimmed);
+        if (dq) {
+            dq.TryEnqueue([this, track] {
+                Tracks.insert(Tracks.begin(), track);
+                PlayTrack(track);
+            });
+        }
+    }).detach();
 }
 
 } // namespace rhythm
