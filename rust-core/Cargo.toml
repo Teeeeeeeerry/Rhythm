@@ -8,7 +8,7 @@ description = "Shared core library for Rhythm music player — metadata, audio p
 
 [lib]
 name = "rhythm_core"
-crate-type = ["staticlib", "cdylib"]
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
 # Audio decoding & metadata
@@ -34,7 +34,7 @@ regex = "1"
 tokio = { version = "1", features = ["process", "io-util", "rt", "sync", "time"] }
 
 # HTTP client for streaming
-reqwest = { version = "0.12", features = ["stream", "native-tls-vendored"] }
+reqwest = { version = "0.12", features = ["stream", "blocking", "native-tls-vendored"] }
 
 # Logging
 log = "0.4"
@@ -54,3 +54,4 @@ uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 tempfile = "3"
+symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "vorbis", "wav", "alac", "pcm", "isomp4"] }
