@@ -1,3 +1,4 @@
+use crate::resolver::resolve_url;
 use crate::{PlayerState, ProgressCallback, RhythmError, RhythmResult, StateCallback};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -5,11 +6,15 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-mod decoder;
+pub mod decoder;
+pub mod http_stream;
 mod output;
+mod resampler;
 
 use decoder::AudioDecoder;
+use http_stream::HttpStream;
 use output::AudioOutput;
+use resampler::Resampler;
 
 /// Audio engine for playback of local files and network streams.
 pub struct AudioEngine {
@@ -25,6 +30,8 @@ struct EngineInner {
     volume: f32,
     duration: f64,
     position: f64,
+    /// Pending seek requested by the user; consumed by the playback thread.
+    desired_position: Option<f64>,
 }
 
 impl AudioEngine {
@@ -36,6 +43,7 @@ impl AudioEngine {
                 volume: 1.0,
                 duration: 0.0,
                 position: 0.0,
+                desired_position: None,
             })),
             state_callback: Arc::new(Mutex::new(None)),
             progress_callback: Arc::new(Mutex::new(None)),
@@ -69,14 +77,11 @@ impl AudioEngine {
         let stop_flag = self.stop_flag.clone();
 
         thread::spawn(move || {
-            if let Err(e) = play_file_impl(
-                &path_str,
-                inner,
-                state_cb,
-                progress_cb,
-                stop_flag,
-            ) {
+            if let Err(e) =
+                play_file_impl(&path_str, inner, state_cb.clone(), progress_cb, stop_flag)
+            {
                 log::error!("Playback error: {e}");
+                emit(&state_cb, PlayerState::Error(e.to_string()));
             }
         });
 
@@ -94,8 +99,9 @@ impl AudioEngine {
         let stop_flag = self.stop_flag.clone();
 
         thread::spawn(move || {
-            if let Err(e) = play_url_impl(&url, inner, state_cb, progress_cb, stop_flag) {
+            if let Err(e) = play_url_impl(&url, inner, state_cb.clone(), progress_cb, stop_flag) {
                 log::error!("Playback error: {e}");
+                emit(&state_cb, PlayerState::Error(e.to_string()));
             }
         });
 
@@ -126,19 +132,26 @@ impl AudioEngine {
         let mut inner = self.inner.lock().unwrap();
         inner.state = PlayerState::Stopped;
         inner.current_source = None;
+        inner.desired_position = None;
         self.emit_state(PlayerState::Stopped);
     }
 
-    /// Seek to a position in seconds.
+    /// Seek to a position in seconds. The seek is applied by the playback
+    /// thread at its next loop iteration.
     pub fn seek(&self, seconds: f64) -> RhythmResult<()> {
-        let inner = self.inner.lock().unwrap();
-        if seconds < 0.0 || seconds > inner.duration {
+        let mut inner = self.inner.lock().unwrap();
+        if seconds < 0.0 {
+            return Err(RhythmError::InvalidInput(format!(
+                "Seek position {seconds}s cannot be negative"
+            )));
+        }
+        if inner.duration > 0.0 && seconds > inner.duration {
             return Err(RhythmError::InvalidInput(format!(
                 "Seek position {seconds}s out of range [0, {}]",
                 inner.duration
             )));
         }
-        // Seek is handled by the decoder thread checking the desired position
+        inner.desired_position = Some(seconds);
         Ok(())
     }
 
@@ -174,12 +187,6 @@ impl AudioEngine {
             cb(state);
         }
     }
-
-    fn emit_progress(&self, position: f64, duration: f64) {
-        if let Some(ref cb) = *self.progress_callback.lock().unwrap() {
-            cb(position, duration);
-        }
-    }
 }
 
 fn play_file_impl(
@@ -197,19 +204,91 @@ fn play_file_impl(
     }
     emit(&state_cb, PlayerState::Playing);
 
-    // Open and decode the file
     let mut decoder = AudioDecoder::open_file(Path::new(path))?;
-    let duration = decoder.duration();
-
-    {
-        let mut eng = inner.lock().unwrap();
-        eng.duration = duration;
-        eng.position = 0.0;
-    }
+    set_duration(&inner, decoder.duration());
 
     let mut output = AudioOutput::new()?;
+    let out_rate = output.sample_rate();
+    let out_channels = output.channels();
+    let mut resampler =
+        Resampler::new(decoder.sample_rate(), decoder.channels(), out_rate, out_channels);
 
-    // Decode and play loop
+    run_playback_loop(
+        &mut decoder,
+        &mut output,
+        &mut resampler,
+        inner,
+        state_cb,
+        progress_cb,
+        stop_flag,
+    )
+}
+
+fn play_url_impl(
+    url: &str,
+    inner: Arc<Mutex<EngineInner>>,
+    state_cb: Arc<Mutex<Option<StateCallback>>>,
+    progress_cb: Arc<Mutex<Option<ProgressCallback>>>,
+    stop_flag: Arc<AtomicBool>,
+) -> RhythmResult<()> {
+    emit(&state_cb, PlayerState::Buffering);
+
+    // 1. Resolve the real stream URL: yt-dlp for YouTube/Bilibili, direct for
+    //    plain audio URLs.
+    let resolved = resolve_url(url)?;
+
+    // 2. Open the HTTP stream — this starts the prefetch downloader.
+    let stream = HttpStream::open(&resolved.stream_url)?;
+
+    // 3. Wait for the initial buffer so the probe/decoder doesn't stall on
+    //    every read.
+    stream.wait_initial_buffered()?;
+
+    // 4. Open the decoder on the stream. Use the URL's file extension as a
+    //    probe hint (helps when the stream lacks a standard container header).
+    let hint = stream_hint(&resolved.stream_url);
+    let mut decoder = AudioDecoder::open_source(Box::new(stream), hint)?;
+
+    // 5. Play.
+    {
+        let mut eng = inner.lock().unwrap();
+        eng.current_source = Some(url.to_string());
+        eng.state = PlayerState::Playing;
+    }
+    emit(&state_cb, PlayerState::Playing);
+    set_duration(&inner, decoder.duration());
+
+    let mut output = AudioOutput::new()?;
+    let out_rate = output.sample_rate();
+    let out_channels = output.channels();
+    let mut resampler =
+        Resampler::new(decoder.sample_rate(), decoder.channels(), out_rate, out_channels);
+
+    run_playback_loop(
+        &mut decoder,
+        &mut output,
+        &mut resampler,
+        inner,
+        state_cb,
+        progress_cb,
+        stop_flag,
+    )
+}
+
+/// Shared decode → resample → output loop. Applies pending seeks, pause, and
+/// volume, and reports progress via the callback.
+fn run_playback_loop(
+    decoder: &mut AudioDecoder,
+    output: &mut AudioOutput,
+    resampler: &mut Resampler,
+    inner: Arc<Mutex<EngineInner>>,
+    state_cb: Arc<Mutex<Option<StateCallback>>>,
+    progress_cb: Arc<Mutex<Option<ProgressCallback>>>,
+    stop_flag: Arc<AtomicBool>,
+) -> RhythmResult<()> {
+    let out_rate = output.sample_rate();
+    let out_channels = output.channels();
+
     while !stop_flag.load(Ordering::SeqCst) {
         // Check pause state
         {
@@ -220,43 +299,53 @@ fn play_file_impl(
             }
         }
 
+        // Apply a pending seek.
+        let desired = { inner.lock().unwrap().desired_position.take() };
+        if let Some(secs) = desired {
+            decoder.seek(secs)?;
+            resampler.reset();
+            set_position(&inner, decoder.position());
+            emit_progress(&progress_cb, decoder.position(), decoder.duration());
+        }
+
         match decoder.next_packet() {
-            Ok(Some(pcm_data)) => {
-                output.write(&pcm_data)?;
-                let pos = decoder.position();
-                {
-                    let mut eng = inner.lock().unwrap();
-                    eng.position = pos;
+            Ok(Some(pcm)) => {
+                // Resample the decoded chunk to the output device's format.
+                let in_frames = pcm.len() / decoder.channels().max(1) as usize;
+                let out_frames = (in_frames as f64 * f64::from(out_rate)
+                    / f64::from(decoder.sample_rate().max(1)))
+                .ceil() as usize
+                    + 1;
+                let mut out_buf = vec![0.0f32; out_frames * out_channels as usize];
+                let frames = resampler.process(&pcm, &mut out_buf);
+
+                // Apply volume.
+                let volume = inner.lock().unwrap().volume;
+                if volume < 1.0 {
+                    for s in out_buf[..frames * out_channels as usize].iter_mut() {
+                        *s *= volume;
+                    }
                 }
-                emit_progress(&progress_cb, pos, duration);
+
+                output.write(&out_buf[..frames * out_channels as usize])?;
+
+                let pos = decoder.position();
+                set_position(&inner, pos);
+                emit_progress(&progress_cb, pos, decoder.duration());
             }
             Ok(None) => break, // End of stream
-            Err(e) => {
-                emit(&state_cb, PlayerState::Error(e.to_string()));
-                return Err(e);
-            }
+            Err(e) => return Err(e),
         }
     }
 
-    emit(&state_cb, PlayerState::Finished);
+    // Natural end vs. manual stop: `stop()` already emitted Stopped.
+    if !stop_flag.load(Ordering::SeqCst) {
+        emit(&state_cb, PlayerState::Finished);
+    }
     Ok(())
 }
 
-fn play_url_impl(
-    _url: &str,
-    _inner: Arc<Mutex<EngineInner>>,
-    state_cb: Arc<Mutex<Option<StateCallback>>>,
-    _progress_cb: Arc<Mutex<Option<ProgressCallback>>>,
-    _stop_flag: Arc<AtomicBool>,
-) -> RhythmResult<()> {
-    emit(&state_cb, PlayerState::Buffering);
-
-    // TODO: Implement HTTP streaming + buffering
-    // For now, placeholder
-    emit(&state_cb, PlayerState::Playing);
-    emit(&state_cb, PlayerState::Stopped);
-    Ok(())
-}
+// ── helpers ─────────────────────────────────────────────────────────────────
 
 fn emit(cb: &Arc<Mutex<Option<StateCallback>>>, state: PlayerState) {
     if let Some(ref cb) = *cb.lock().unwrap() {
@@ -267,5 +356,32 @@ fn emit(cb: &Arc<Mutex<Option<StateCallback>>>, state: PlayerState) {
 fn emit_progress(cb: &Arc<Mutex<Option<ProgressCallback>>>, pos: f64, dur: f64) {
     if let Some(ref cb) = *cb.lock().unwrap() {
         cb(pos, dur);
+    }
+}
+
+fn set_duration(inner: &Arc<Mutex<EngineInner>>, duration: f64) {
+    let mut eng = inner.lock().unwrap();
+    eng.duration = duration;
+    eng.position = 0.0;
+}
+
+fn set_position(inner: &Arc<Mutex<EngineInner>>, position: f64) {
+    let mut eng = inner.lock().unwrap();
+    eng.position = position;
+}
+
+/// Guess a probe hint from the stream URL's file extension.
+fn stream_hint(url: &str) -> Option<&'static str> {
+    let path = url.split('?').next().unwrap_or(url);
+    let ext = path.rsplit('.').next()?.to_ascii_lowercase();
+    match ext.as_str() {
+        "mp3" => Some("mp3"),
+        "m4a" | "mp4" | "mov" => Some("m4a"),
+        "aac" => Some("aac"),
+        "flac" => Some("flac"),
+        "ogg" | "opus" => Some("ogg"),
+        "wav" => Some("wav"),
+        "aiff" | "aif" => Some("aiff"),
+        _ => None,
     }
 }
