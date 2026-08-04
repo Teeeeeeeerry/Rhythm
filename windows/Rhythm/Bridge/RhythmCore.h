@@ -103,10 +103,24 @@ private:
     RhythmPlayer* ptr_ = nullptr;
 };
 
+/// Outcome of a URL resolution: either a playable track, or why it failed.
+///
+/// `errorKind` is one of: invalid_url, yt_dlp_missing, timeout, network,
+/// unavailable, no_audio_stream, yt_dlp_outdated, internal.
+struct ResolveOutcome {
+    bool ok = false;
+    Track track;
+    std::wstring errorKind;
+    std::wstring errorMessage;
+};
+
 class Resolver {
 public:
-    static Track ResolveURL(const std::wstring& url);
+    static ResolveOutcome ResolveURL(const std::wstring& url);
     static std::wstring ClassifyURL(const std::wstring& url);
+
+    /// Resolver environment as JSON (yt-dlp path/version, PATH, log file).
+    static std::wstring Diagnostics();
 };
 
 } // namespace rhythm

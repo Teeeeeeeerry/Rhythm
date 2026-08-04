@@ -22,6 +22,10 @@ public:
     double Volume = 1.0;
     double Position = 0.0;
     double Duration = 0.0;
+    /// Last URL resolution failure, empty when the last attempt succeeded.
+    std::wstring UrlError;
+    /// Raised on the UI thread when a URL fails to resolve: (kind, message).
+    std::function<void(const std::wstring&, const std::wstring&)> OnUrlError;
 
     void OpenDatabase(const std::wstring& path);
     void RefreshLibrary();

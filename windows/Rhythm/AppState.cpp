@@ -70,13 +70,25 @@ void AppState::ResolveAndPlay(const std::wstring& url) {
     // and marshal the result back.
     auto dq = dispatcher_;
     std::thread([this, trimmed, dq] {
-        auto track = rhythm::Resolver::ResolveURL(trimmed);
-        if (dq) {
-            dq.TryEnqueue([this, track] {
-                Tracks.insert(Tracks.begin(), track);
-                PlayTrack(track);
-            });
-        }
+        auto outcome = rhythm::Resolver::ResolveURL(trimmed);
+        if (!dq) return;
+
+        dq.TryEnqueue([this, outcome] {
+            if (!outcome.ok) {
+                // Report the reason rather than queueing a track that cannot
+                // play — the core distinguishes a missing yt-dlp from a
+                // timeout, a private video, and so on (#21).
+                UrlError = outcome.errorMessage;
+                OutputDebugStringW(
+                    (L"URL resolution failed [" + outcome.errorKind + L"]: " +
+                     outcome.errorMessage + L"\n").c_str());
+                if (OnUrlError) OnUrlError(outcome.errorKind, outcome.errorMessage);
+                return;
+            }
+            UrlError.clear();
+            Tracks.insert(Tracks.begin(), outcome.track);
+            PlayTrack(outcome.track);
+        });
     }).detach();
 }
 

@@ -24,7 +24,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-初步开发完成。当前版本 **v0.5.1 "Germ"**。
+初步开发完成。当前版本 **v0.5.2 "Germ"**。
 
 ### 实现状态
 
@@ -39,6 +39,27 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 | 中英文界面 | 完成 | — |
 | URL 流式播放（YouTube/Bilibili/直链） | 完成 | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
 | URL 输入 UI | 完成 | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
+| URL 解析错误上报 + yt-dlp 自动定位 | 完成 | [#21](https://github.com/Teeeeeeeerry/Rhythm/issues/21) |
+
+## 播放在线链接
+
+播放 YouTube / Bilibili 链接需要系统里装有 **yt-dlp**（直链音频文件不需要）：
+
+```bash
+brew install yt-dlp          # macOS
+winget install yt-dlp        # Windows
+```
+
+从访达 / Dock 启动的应用不会继承终端的 PATH，因此 Rhythm 会主动探测常见安装位置（Homebrew、MacPorts、pip、scoop、winget 等）。如果你的 yt-dlp 装在别处，用环境变量指定完整路径：
+
+```bash
+export RHYTHM_YTDLP_PATH=/your/path/to/yt-dlp
+```
+
+解析失败时，应用会直接说明原因（未安装 / 超时 / 网络错误 / 视频不可用 / 需要升级 yt-dlp），详细记录写入日志：
+
+- macOS：`~/Library/Logs/Rhythm/resolver.log`
+- Windows：`%LOCALAPPDATA%\Rhythm\logs\resolver.log`
 
 ## 构建
 

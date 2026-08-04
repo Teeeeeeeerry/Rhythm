@@ -194,28 +194,70 @@ double Player::Duration() const { return ptr_ ? rhythm_player_get_duration(ptr_)
 
 // ─── Resolver ───────────────────────────────────────────────────────
 
-Track Resolver::ResolveURL(const std::wstring& url) {
+/// Read the core's last resolution failure. Falls back to a generic message
+/// when no payload is available.
+static ResolveOutcome LastResolveFailure() {
+    ResolveOutcome outcome;
+    outcome.ok = false;
+    outcome.errorKind = L"internal";
+    outcome.errorMessage = L"Failed to resolve the URL.";
+
+    char* raw = rhythm_last_error();
+    if (!raw) return outcome;
+
+    std::string payload(raw);
+    rhythm_free_string(raw);
+
+    try {
+        auto j = json::parse(payload);
+        if (j.contains("kind") && !j["kind"].is_null()) {
+            outcome.errorKind = Utf8ToWide(j["kind"].get<std::string>());
+        }
+        if (j.contains("message") && !j["message"].is_null()) {
+            outcome.errorMessage = Utf8ToWide(j["message"].get<std::string>());
+        }
+    } catch (const json::exception&) {
+        // Keep the generic message.
+    }
+    return outcome;
+}
+
+ResolveOutcome Resolver::ResolveURL(const std::wstring& url) {
     auto u = WideToUtf8(url);
-    char* json = rhythm_resolve_url(u.c_str());
-    if (!json) {
-        Track t;
-        t.title = Utf8ToWide(u);
-        t.sourceType = L"direct_url";
-        t.sourceUrl = url;
-        return t;
+    char* json_str = rhythm_resolve_url(u.c_str());
+    // A null return means the core recorded a reason — surface it instead of
+    // handing the UI an unplayable placeholder track (#21).
+    if (!json_str) return LastResolveFailure();
+
+    ResolveOutcome outcome;
+    try {
+        auto j = json::parse(json_str);
+        rhythm_free_string(json_str);
+
+        outcome.track = JsonToTrack(j);
+        // ResolvedUrl uses `stream_url` (the playable media URL), which
+        // JsonToTrack maps to Track::sourceUrl.
+        if (j.contains("stream_url") && !j["stream_url"].is_null()) {
+            outcome.track.sourceUrl = Utf8ToWide(j["stream_url"].get<std::string>());
+        } else {
+            outcome.track.sourceUrl = url;
+        }
+        outcome.ok = true;
+    } catch (const json::exception& e) {
+        rhythm_free_string(json_str);
+        outcome.ok = false;
+        outcome.errorKind = L"internal";
+        outcome.errorMessage = L"Malformed resolver response: " + Utf8ToWide(e.what());
     }
-    auto j = json::parse(json);
-    rhythm_free_string(json);
-    auto track = JsonToTrack(j);
-    // ResolvedUrl uses `stream_url` (the playable media URL), which
-    // JsonToTrack maps to Track::sourceUrl. A failed parse still falls back
-    // to the original URL above.
-    if (j.contains("stream_url") && !j["stream_url"].is_null()) {
-        track.sourceUrl = Utf8ToWide(j["stream_url"].get<std::string>());
-    } else {
-        track.sourceUrl = url;
-    }
-    return track;
+    return outcome;
+}
+
+std::wstring Resolver::Diagnostics() {
+    char* raw = rhythm_resolver_diagnostics();
+    if (!raw) return L"{}";
+    auto result = Utf8ToWide(raw);
+    rhythm_free_string(raw);
+    return result;
 }
 
 std::wstring Resolver::ClassifyURL(const std::wstring& url) {

@@ -78,8 +78,19 @@ int32_t rhythm_queue_has_previous(RhythmQueue* queue);
 
 // ─── URL Resolver API ──────────────────────────────────────────────
 
+// Returns JSON ResolvedUrl, or null on failure — call rhythm_last_error()
+// for the reason.
 char* rhythm_resolve_url(const char* url);
 char* rhythm_classify_url(const char* url);
+
+// Last resolver failure as JSON {"kind": "...", "message": "..."}, or null
+// if the last resolution succeeded. Kinds: invalid_url, yt_dlp_missing,
+// timeout, network, unavailable, no_audio_stream, yt_dlp_outdated, internal.
+char* rhythm_last_error(void);
+
+// Resolver environment as JSON (yt-dlp path/version, PATH, log file), for
+// bug reports.
+char* rhythm_resolver_diagnostics(void);
 
 // ─── M3U8 Import/Export ────────────────────────────────────────────
 

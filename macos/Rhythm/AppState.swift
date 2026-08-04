@@ -93,12 +93,20 @@ final class AppState: ObservableObject {
         isResolvingURL = true
         urlError = nil
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let resolved = resolveURL(url)
+            let result = resolveURL(url)
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.isResolvingURL = false
-                guard let resolved else {
-                    self.urlError = L10n.urlResolveFailed
+                let resolved: ResolvedInfo
+                switch result {
+                case .success(let info):
+                    resolved = info
+                case .failure(let error):
+                    // Show what actually went wrong instead of a generic
+                    // failure — the core distinguishes a missing yt-dlp from
+                    // a timeout, a private video, and so on (#21).
+                    NSLog("URL resolution failed [%@]: %@", error.kind, error.message)
+                    self.urlError = L10n.urlResolveError(kind: error.kind, detail: error.message)
                     return
                 }
                 let track = Track(

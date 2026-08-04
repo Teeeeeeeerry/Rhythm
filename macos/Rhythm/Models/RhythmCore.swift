@@ -244,6 +244,19 @@ struct ResolvedInfo: Codable {
     let thumbnailUrl: String?
 }
 
+/// A resolution failure reported by the Rust core.
+///
+/// `kind` is one of: invalid_url, yt_dlp_missing, timeout, network,
+/// unavailable, no_audio_stream, yt_dlp_outdated, internal. `message` is the
+/// English detail, including install commands and yt-dlp's own output.
+struct ResolveError: Codable, Error {
+    let kind: String
+    let message: String
+
+    /// Fallback used when the core returns no error payload at all.
+    static let unknown = ResolveError(kind: "internal", message: L10n.urlResolveFailed)
+}
+
 // MARK: - Helpers
 
 /// Decode a JSON string produced by the Rust core. Rust serializes with
@@ -265,9 +278,33 @@ func encodeJSON<T: Encodable>(_ value: T) -> String {
 
 // MARK: - URL Resolver
 
-/// Resolve a URL to a playable stream. Returns nil when resolution fails.
-func resolveURL(_ url: String) -> ResolvedInfo? {
-    guard let json = rhythm_resolve_url(url) else { return nil }
+/// Resolve a URL to a playable stream.
+///
+/// On failure the core records why (yt-dlp missing, timeout, private video…),
+/// which is far more useful to show than a generic "resolution failed" (#21).
+func resolveURL(_ url: String) -> Result<ResolvedInfo, ResolveError> {
+    guard let json = rhythm_resolve_url(url) else {
+        return .failure(lastResolveError() ?? .unknown)
+    }
+    defer { rhythm_free_string(json) }
+
+    guard let resolved: ResolvedInfo = decodeJSON(String(cString: json)) else {
+        return .failure(ResolveError(kind: "internal", message: "Malformed resolver response"))
+    }
+    return .success(resolved)
+}
+
+/// The core's most recent resolution failure, if any.
+func lastResolveError() -> ResolveError? {
+    guard let json = rhythm_last_error() else { return nil }
     defer { rhythm_free_string(json) }
     return decodeJSON(String(cString: json))
+}
+
+/// Resolver environment (yt-dlp path/version, PATH, log file) as raw JSON.
+/// Useful when a user needs to attach it to a bug report.
+func resolverDiagnostics() -> String {
+    guard let json = rhythm_resolver_diagnostics() else { return "{}" }
+    defer { rhythm_free_string(json) }
+    return String(cString: json)
 }

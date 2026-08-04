@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.1 "Germ"**.
+Initial development is complete. Current version: **v0.5.2 "Germ"**.
 
 ### Implementation Status
 
@@ -39,6 +39,27 @@ Initial development is complete. Current version: **v0.5.1 "Germ"**.
 | Chinese/English localization | Done | — |
 | URL streaming (YouTube/Bilibili/direct links) | Done | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
 | URL input UI | Done | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
+| Resolver error reporting + yt-dlp auto-discovery | Done | [#21](https://github.com/Teeeeeeeerry/Rhythm/issues/21) |
+
+## Playing online links
+
+Playing YouTube / Bilibili links requires **yt-dlp** on the system (direct audio URLs do not):
+
+```bash
+brew install yt-dlp          # macOS
+winget install yt-dlp        # Windows
+```
+
+An app launched from Finder / the Dock does not inherit your shell's PATH, so Rhythm probes the usual install locations itself (Homebrew, MacPorts, pip, scoop, winget, …). If yours lives somewhere else, point Rhythm at it:
+
+```bash
+export RHYTHM_YTDLP_PATH=/your/path/to/yt-dlp
+```
+
+When resolution fails, the app says why — not installed, timed out, network error, video unavailable, yt-dlp too old — and writes the details to a log:
+
+- macOS: `~/Library/Logs/Rhythm/resolver.log`
+- Windows: `%LOCALAPPDATA%\Rhythm\logs\resolver.log`
 
 ## Build
 
