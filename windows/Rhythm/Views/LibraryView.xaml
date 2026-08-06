@@ -34,7 +34,7 @@
                         </Border>
                         <TextBlock Grid.Column="3" Text="{Binding DurationFormatted}"
                                    FontSize="12"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Foreground="{ThemeResource RhythmTextSecondaryBrush}"
                                    VerticalAlignment="Center" />
                     </Grid>
                 </DataTemplate>
@@ -44,7 +44,7 @@
         <TextBlock x:Name="emptyMessage" Grid.Row="1"
                    Text="资料库为空 — 点击 + 导入音乐文件夹"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Foreground="{ThemeResource RhythmTextSecondaryBrush}"
                    Visibility="Collapsed" />
     </Grid>
 </UserControl>

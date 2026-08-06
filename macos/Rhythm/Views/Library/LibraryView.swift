@@ -46,15 +46,15 @@ struct LibraryView: View {
         VStack(spacing: 16) {
             Image(systemName: "music.note.list")
                 .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.rhythmTextSecondary)
             Text(L10n.libraryEmpty)
                 .font(.title3)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.rhythmTextSecondary)
             Text(L10n.isChinese
                  ? "点击工具栏 + 按钮导入音乐文件或文件夹"
                  : "Click the + button in the toolbar to import music files or folders")
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.rhythmTextTertiary)
             Button(L10n.importTooltip) {
                 importFolder()
             }

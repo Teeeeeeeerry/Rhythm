@@ -33,7 +33,7 @@
                                        TextTrimming="CharacterEllipsis" />
                             <TextBlock Text="{Binding Artist}"
                                        FontSize="11"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                       Foreground="{ThemeResource RhythmTextSecondaryBrush}" />
                         </StackPanel>
                         <Border Grid.Column="1" Padding="4,1" Margin="4,0"
                                 CornerRadius="3" Background="Transparent">
@@ -42,7 +42,7 @@
                         </Border>
                         <TextBlock Grid.Column="2" Text="{Binding DurationFormatted}"
                                    FontSize="12" Margin="4,0"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                   Foreground="{ThemeResource RhythmTextSecondaryBrush}" />
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>

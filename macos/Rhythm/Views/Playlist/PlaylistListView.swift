@@ -26,7 +26,7 @@ struct PlaylistListView: View {
                                      ? "\(pl.tracks.count) 首"
                                      : "\(pl.tracks.count) tracks")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.rhythmTextSecondary)
                             }
                         }
                         .contentShape(Rectangle())
@@ -76,10 +76,10 @@ struct PlaylistListView: View {
         VStack(spacing: 12) {
             Image(systemName: "list.bullet")
                 .font(.system(size: 40))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.rhythmTextSecondary)
             Text(L10n.isChinese ? "暂无播放列表" : "No playlists yet")
                 .font(.title3)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.rhythmTextSecondary)
             Button(L10n.newPlaylist) { showNewPlaylist = true }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

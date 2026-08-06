@@ -75,14 +75,14 @@ struct PlaylistDetailView: View {
         VStack {
             Image(systemName: "music.note")
                 .font(.system(size: 32))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.rhythmTextSecondary)
             Text(L10n.isChinese ? "列表为空" : "Playlist is empty")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.rhythmTextSecondary)
             Text(L10n.isChinese
                  ? "从资料库右键添加歌曲"
                  : "Right-click a track in Library to add it here")
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.rhythmTextTertiary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
