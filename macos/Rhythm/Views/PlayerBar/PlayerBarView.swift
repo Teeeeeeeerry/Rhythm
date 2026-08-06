@@ -5,7 +5,9 @@ struct PlayerBarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Divider()
+            Rectangle()
+                .fill(.rhythmBorder)
+                .frame(height: 1)
             HStack(spacing: 12) {
                 trackInfo
                 Spacer()
@@ -14,7 +16,7 @@ struct PlayerBarView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "speaker.fill")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.rhythmTextSecondary)
                     Slider(value: $appState.volume, in: 0...1) { _ in
                         appState.player.setVolume(Float(appState.volume))
                     }
@@ -22,7 +24,7 @@ struct PlayerBarView: View {
                 }
                 Text(formattedTime)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.rhythmTextSecondary)
                     .monospacedDigit()
                     .frame(width: 80, alignment: .trailing)
             }
@@ -36,11 +38,11 @@ struct PlayerBarView: View {
                 value: appState.duration > 0 ? appState.position / appState.duration : 0
             )
             .progressViewStyle(.linear)
-            .tint(.accentColor)
+            .tint(.rhythmAccent)
             .padding(.horizontal, 16)
             .padding(.bottom, 4)
         }
-        .background(.bar)
+        .background(.rhythmSurface)
         .alert(
             L10n.urlErrorTitle,
             isPresented: Binding(
@@ -60,7 +62,7 @@ struct PlayerBarView: View {
         HStack(spacing: 6) {
             Image(systemName: "link")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.rhythmTextSecondary)
             TextField(L10n.urlPlaceholder, text: $appState.urlInput)
                 .textFieldStyle(.plain)
                 .font(.system(size: 11))
@@ -71,7 +73,7 @@ struct PlayerBarView: View {
                 if !appState.urlStatus.isEmpty {
                     Text(appState.urlStatus)
                         .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.rhythmTextSecondary)
                         .lineLimit(1)
                         .fixedSize()
                 }
@@ -102,7 +104,7 @@ struct PlayerBarView: View {
                 if let artist = appState.currentTrack?.artist {
                     Text(artist)
                         .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.rhythmTextSecondary)
                         .lineLimit(1)
                 }
             }
@@ -121,12 +123,12 @@ struct PlayerBarView: View {
                     .cornerRadius(4)
             } else {
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(.quaternary)
+                    .fill(.rhythmElevated)
                     .frame(width: 36, height: 36)
                     .overlay(
                         Image(systemName: "music.note")
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.rhythmTextSecondary)
                     )
             }
         }
@@ -156,7 +158,7 @@ struct PlayerBarView: View {
             Button(action: { appState.cyclePlayMode() }) {
                 Image(systemName: appState.playMode.icon)
                     .font(.caption)
-                    .foregroundStyle(appState.playMode == .sequential ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
+                    .foregroundStyle(appState.playMode == .sequential ? AnyShapeStyle(.rhythmTextSecondary) : AnyShapeStyle(.rhythmAccent))
             }
             .buttonStyle(.plain)
             .help(appState.playMode.label)

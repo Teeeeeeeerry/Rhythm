@@ -1,0 +1,32 @@
+<!-- Brand colour palette: #011F26 / #0D464D / #ABC8D4
+     Dark-first palette.  Default = dark, Light = light.
+     Views reference semantic brush names only — no hex values in view XAML. -->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.ThemeDictionaries>
+        <!-- Dark mode: base #011F26, elevated #0D464D, accent/text #ABC8D4 -->
+        <ResourceDictionary x:Key="Default">
+            <SolidColorBrush x:Key="RhythmAccentBrush" Color="#ABC8D4" />
+            <SolidColorBrush x:Key="RhythmSurfaceBrush" Color="#011F26" />
+            <SolidColorBrush x:Key="RhythmElevatedBrush" Color="#0D464D" />
+            <SolidColorBrush x:Key="RhythmTextPrimaryBrush" Color="#ABC8D4" />
+            <SolidColorBrush x:Key="RhythmTextSecondaryBrush" Color="#B2ABC8D4" />
+            <!-- #ABC8D4 @ 0.15 for panel-separating stroke -->
+            <SolidColorBrush x:Key="RhythmBorderBrush" Color="#26ABC8D4" />
+        </ResourceDictionary>
+
+        <!-- Light mode: accent/text #0D464D (10.50:1 on white), #ABC8D4 for borders only -->
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="RhythmAccentBrush" Color="#0D464D" />
+            <SolidColorBrush x:Key="RhythmSurfaceBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="RhythmElevatedBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="RhythmTextPrimaryBrush" Color="#0D464D" />
+            <SolidColorBrush x:Key="RhythmTextSecondaryBrush" Color="#990D464D" />
+            <!-- #ABC8D4 @ 0.30 for panel-separating stroke -->
+            <SolidColorBrush x:Key="RhythmBorderBrush" Color="#4DABC8D4" />
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+
+</ResourceDictionary>

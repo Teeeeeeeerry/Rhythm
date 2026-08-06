@@ -26,7 +26,7 @@
                         <TextBlock Grid.Column="1" Text="{Binding Name}"
                                    VerticalAlignment="Center" Margin="8,0" />
                         <TextBlock Grid.Column="2" FontSize="12"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Foreground="{ThemeResource RhythmTextSecondaryBrush}"
                                    Text="{Binding TrackCount}" />
                     </Grid>
                 </DataTemplate>
@@ -36,7 +36,7 @@
         <TextBlock x:Name="emptyMessage" Grid.Row="1"
                    Text="暂无播放列表"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Foreground="{ThemeResource RhythmTextSecondaryBrush}"
                    Visibility="Collapsed" />
     </Grid>
 </UserControl>

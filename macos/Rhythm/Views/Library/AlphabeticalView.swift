@@ -6,7 +6,7 @@ struct AlphabeticalView: View {
     var body: some View {
         let sections = groupByFirstLetter()
         if sections.isEmpty {
-            Text("无内容").foregroundStyle(.secondary)
+            Text("无内容").foregroundStyle(.rhythmTextSecondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollViewReader { proxy in

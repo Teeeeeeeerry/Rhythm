@@ -6,7 +6,7 @@ struct ArtistAlbumView: View {
     var body: some View {
         let grouped = groupByArtistAlbum()
         if grouped.isEmpty {
-            Text("无内容").foregroundStyle(.secondary)
+            Text("无内容").foregroundStyle(.rhythmTextSecondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List {
@@ -55,12 +55,12 @@ struct AlbumRow: View {
                     .cornerRadius(4)
             } else {
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(.quaternary)
+                    .fill(.rhythmElevated)
                     .frame(width: 48, height: 48)
                     .overlay(
                         Image(systemName: "music.note.list")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.rhythmTextSecondary)
                     )
             }
 
@@ -88,14 +88,14 @@ struct TrackRowView: View {
                 if let artist = track.artist {
                     Text(artist)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.rhythmTextSecondary)
                 }
             }
             Spacer()
             SourceTagView(sourceType: track.sourceType)
             Text(track.durationFormatted)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.rhythmTextSecondary)
                 .monospacedDigit()
         }
         .padding(.vertical, 1)
