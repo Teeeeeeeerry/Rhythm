@@ -34,7 +34,7 @@ struct PlaylistDetailView: View {
         }
         .fileImporter(
             isPresented: $showImportSheet,
-            allowedContentTypes: [.plainText, .audio],
+            allowedContentTypes: [.plainText],
             allowsMultipleSelection: false
         ) { result in
             if case .success(let urls) = result, let url = urls.first {

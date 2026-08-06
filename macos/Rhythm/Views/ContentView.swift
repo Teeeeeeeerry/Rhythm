@@ -41,16 +41,22 @@ struct ContentView: View {
         ) { _ in
             appState.updatePlaybackProgress()
         }
+        .alert(L10n.isChinese ? "导入结果" : "Import Result", isPresented: $appState.showImportAlert) {
+            Button(L10n.ok, role: .cancel) {}
+        } message: {
+            Text(appState.importAlertMessage ?? "")
+        }
     }
 
     private func importFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = "导入"
-        if panel.runModal() == .OK, let url = panel.url {
-            appState.importDirectory(url)
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.audio]
+        panel.prompt = L10n.isChinese ? "导入" : "Import"
+        if panel.runModal() == .OK {
+            appState.importURLs(panel.urls)
         }
     }
 }

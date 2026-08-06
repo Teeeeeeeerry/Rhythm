@@ -120,7 +120,11 @@ enum L10n {
     static let byArtistAlbum: String = isChinese ? "按艺人/专辑" : "By Artist/Album"
     static let byLetter: String = isChinese ? "按首字母" : "A–Z"
     static let searchPlaceholder: String = isChinese ? "搜索..." : "Search..."
-    static let importTooltip: String = isChinese ? "导入文件夹" : "Import Folder"
+    static let importTooltip: String = isChinese ? "导入音乐" : "Import Music"
+
+    static func importedTracks(_ count: Int) -> String {
+        isChinese ? "已导入 \(count) 首歌曲" : "Imported \(count) track\(count == 1 ? "" : "s")."
+    }
 
     // ─── Playlist ─────────────────────────────────────────
 

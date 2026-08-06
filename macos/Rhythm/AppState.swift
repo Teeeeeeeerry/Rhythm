@@ -23,6 +23,10 @@ final class AppState: ObservableObject {
     /// user should know about, like a first-run yt-dlp download.
     @Published var urlStatus = ""
 
+    // Import feedback
+    @Published var importAlertMessage: String?
+    @Published var showImportAlert = false
+
     private var queue: RhythmQueue?
     private var resolverStatusTimer: Timer?
 
@@ -58,7 +62,75 @@ final class AppState: ObservableObject {
     func importDirectory(_ url: URL) {
         guard let lib = library else { return }
         let count = lib.importDirectory(url.path)
-        if count > 0 { refreshLibrary() }
+        if count > 0 {
+            refreshLibrary()
+            importAlertMessage = L10n.importedTracks(count)
+            showImportAlert = true
+        } else if count == 0 {
+            importAlertMessage = L10n.isChinese
+                ? "该目录中未找到支持的音频文件"
+                : "No supported audio files found in this directory."
+            showImportAlert = true
+        } else {
+            importAlertMessage = L10n.isChinese
+                ? "导入失败，请检查目录是否可访问"
+                : "Import failed. Please check that the directory is accessible."
+            showImportAlert = true
+        }
+    }
+
+    func importFile(_ url: URL) {
+        guard let lib = library else { return }
+        let result = lib.importFile(url.path)
+        if result > 0 {
+            refreshLibrary()
+            importAlertMessage = L10n.importedTracks(result)
+            showImportAlert = true
+        } else if result == 0 {
+            importAlertMessage = L10n.isChinese
+                ? "不支持的音频格式"
+                : "Unsupported audio format."
+            showImportAlert = true
+        } else {
+            importAlertMessage = L10n.isChinese
+                ? "导入失败，文件可能已损坏或无法读取"
+                : "Import failed. The file may be corrupted or unreadable."
+            showImportAlert = true
+        }
+    }
+
+    /// Dispatch a list of URLs — files go to `importFile`, directories to
+    /// `importDirectory`.
+    func importURLs(_ urls: [URL]) {
+        var imported = 0
+        var failed = 0
+        for url in urls {
+            let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+            if isDir {
+                let count = library?.importDirectory(url.path) ?? -1
+                if count > 0 { imported += count } else if count < 0 { failed += 1 }
+            } else {
+                let r = library?.importFile(url.path) ?? -1
+                if r > 0 { imported += 1 } else if r < 0 { failed += 1 }
+            }
+        }
+        if imported > 0 { refreshLibrary() }
+        if imported > 0 && failed == 0 {
+            importAlertMessage = L10n.importedTracks(imported)
+        } else if imported > 0 {
+            importAlertMessage = L10n.isChinese
+                ? "已导入 \(imported) 首，\(failed) 个失败"
+                : "Imported \(imported) tracks, \(failed) failed."
+        } else if failed > 0 {
+            importAlertMessage = L10n.isChinese
+                ? "全部导入失败，请检查文件是否支持"
+                : "All imports failed. Check that the files are supported."
+        } else {
+            importAlertMessage = L10n.isChinese
+                ? "未找到支持的音频文件"
+                : "No supported audio files found."
+        }
+        showImportAlert = true
     }
 
     func search(_ query: String) {
