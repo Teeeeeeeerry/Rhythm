@@ -14,6 +14,9 @@ final class AppState: ObservableObject {
     @Published var duration: Double = 0
     @Published var playMode: PlayMode = .sequential
     @Published var urlInput = ""
+    /// The core is resolving/connecting/prebuffering — real work, but nothing
+    /// to show on the progress bar yet.
+    @Published var isBuffering = false
     @Published var isResolvingURL = false
     @Published var urlError: String?
     /// What the resolver is doing right now — empty unless it's something the
@@ -215,6 +218,9 @@ final class AppState: ObservableObject {
         if isPlaying {
             player.pause()
             isPlaying = false
+            // Nothing polls while paused, so this would otherwise stay stuck on
+            // whatever it was when the user hit pause.
+            isBuffering = false
         } else {
             if currentTrack != nil {
                 player.resume()
@@ -266,6 +272,7 @@ final class AppState: ObservableObject {
         duration = player.duration
 
         let state = player.state
+        isBuffering = state == 3
         if state == 5 { // Finished
             if queue?.hasNext == true {
                 playNext()

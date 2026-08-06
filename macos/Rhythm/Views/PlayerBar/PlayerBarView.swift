@@ -164,6 +164,9 @@ struct PlayerBarView: View {
     }
 
     var formattedTime: String {
+        // Resolving + connecting + prebuffering can take a while on a link;
+        // showing 0:00 / 0:00 for all of it reads as a dead player (#23).
+        if appState.isBuffering { return L10n.buffering }
         let pos = appState.position
         let dur = appState.duration
         let pm = Int(pos) / 60

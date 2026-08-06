@@ -16,7 +16,6 @@ use std::time::Duration;
 /// Speaks just enough HTTP/1.1 for reqwest: HEAD-less GET, Range headers,
 /// 200/206 responses, Content-Range/Content-Length.
 struct RangeServer {
-    body: Vec<u8>,
     addr: String,
     stop: Arc<AtomicBool>,
     handle: Option<thread::JoinHandle<()>>,
@@ -28,7 +27,7 @@ impl RangeServer {
         let addr = listener.local_addr().unwrap().to_string();
         let stop = Arc::new(AtomicBool::new(false));
         let stop2 = stop.clone();
-        let server_body = body.clone();
+        let server_body = body;
         let handle = thread::spawn(move || {
             // Non-blocking accept loop so the thread can observe the stop
             // flag instead of blocking on accept forever.
@@ -50,7 +49,6 @@ impl RangeServer {
             }
         });
         RangeServer {
-            body,
             addr,
             stop,
             handle: Some(handle),
@@ -304,3 +302,34 @@ fn test_http_stream_blocks_until_initial_buffer() {
     thread::sleep(Duration::from_millis(100));
 }
 
+
+/// `SeekFrom::Current` is resolved against `read_pos`, which used to be
+/// updated only by `read()`. A relative seek issued straight after an absolute
+/// one therefore computed its offset from a stale position — the pattern
+/// symphonia's MP4 probe uses on every open (#23).
+#[test]
+fn test_http_stream_relative_seek_after_absolute_seek() {
+    let body = (0..4096u32).flat_map(|i| i.to_le_bytes()).collect::<Vec<_>>();
+    let server = RangeServer::start(body);
+
+    let mut stream = HttpStream::open(&server.url()).unwrap();
+    stream.wait_initial_buffered().unwrap();
+
+    // Absolute seek, then a relative no-op before any read: the reported
+    // position must not drift.
+    stream.seek(SeekFrom::Start(2048)).unwrap();
+    let here = stream.seek(SeekFrom::Current(0)).unwrap();
+    assert_eq!(here, 2048, "relative seek resolved against a stale read_pos");
+
+    // And a relative step must land where it claims.
+    let next = stream.seek(SeekFrom::Current(1024)).unwrap();
+    assert_eq!(next, 3072);
+
+    let mut buf = [0u8; 4];
+    stream.read_exact(&mut buf).unwrap();
+    assert_eq!(
+        u32::from_le_bytes(buf),
+        768,
+        "byte 3072 is u32 index 768; reading elsewhere means the seek lied"
+    );
+}
