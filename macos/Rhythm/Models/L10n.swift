@@ -138,7 +138,11 @@ enum L10n {
 
     // ─── Tray ─────────────────────────────────────────────
 
+    /// Initial title only; the tray menu swaps in `trayPlay` / `trayPause`
+    /// on each validation pass.
     static let trayPlayPause: String = isChinese ? "播放 / 暂停" : "Play / Pause"
+    static let trayPlay: String = isChinese ? "播放" : "Play"
+    static let trayPause: String = isChinese ? "暂停" : "Pause"
     static let trayNext: String = isChinese ? "下一首" : "Next Track"
     static let trayPrev: String = isChinese ? "上一首" : "Previous Track"
     static let trayShow: String = isChinese ? "显示主窗口" : "Show Window"

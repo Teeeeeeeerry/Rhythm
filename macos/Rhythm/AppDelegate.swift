@@ -25,7 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
-            NSApp.windows.first?.makeKeyAndOrderFront(nil)
+            // `windows.first` can be the status item's own window or a SwiftUI
+            // auxiliary one; only a main-capable window is the app window.
+            NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
         }
         return true
     }

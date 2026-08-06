@@ -191,13 +191,32 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: - Transport Availability
+    //
+    // The tray menu validates against these (#24). They mirror exactly what
+    // the transport methods below will actually do, so a menu item is never
+    // enabled for an action that would silently no-op.
+
+    /// `togglePlayPause` needs either something playing or something to start.
+    var canTogglePlayback: Bool {
+        currentTrack != nil || !tracks.isEmpty
+    }
+
+    var canPlayNext: Bool {
+        queue?.hasNext ?? false
+    }
+
+    var canPlayPrevious: Bool {
+        queue?.hasPrevious ?? false
+    }
+
     /// Toggle between play and pause.
     func togglePlayPause() {
         if isPlaying {
             player.pause()
             isPlaying = false
         } else {
-            if let track = currentTrack {
+            if currentTrack != nil {
                 player.resume()
                 isPlaying = true
             } else if let first = tracks.first {
