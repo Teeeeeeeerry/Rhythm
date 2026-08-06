@@ -207,12 +207,8 @@ fn play_file_impl(
     stop_flag: Arc<AtomicBool>,
 ) -> RhythmResult<()> {
     // Update state
-    {
-        let mut eng = inner.lock().unwrap();
-        eng.current_source = Some(path.to_string());
-        eng.state = PlayerState::Playing;
-    }
-    emit(&state_cb, PlayerState::Playing);
+    inner.lock().unwrap().current_source = Some(path.to_string());
+    set_state(&inner, &state_cb, PlayerState::Playing);
 
     let mut decoder = AudioDecoder::open_file(Path::new(path))?;
     set_duration(&inner, decoder.duration());
@@ -241,7 +237,12 @@ fn play_url_impl(
     progress_cb: Arc<Mutex<Option<ProgressCallback>>>,
     stop_flag: Arc<AtomicBool>,
 ) -> RhythmResult<()> {
-    emit(&state_cb, PlayerState::Buffering);
+    // Buffering has to be recorded, not just emitted: the UI polls `state()`
+    // rather than registering a callback, so an emit-only Buffering left it
+    // showing the *previous* state for the whole resolve + connect + prebuffer
+    // window — which is why a stuck stream read as an idle player at 0:00 with
+    // no error (#23). Same reasoning as `fail()` below.
+    set_state(&inner, &state_cb, PlayerState::Buffering);
 
     // 1. Resolve the real stream URL: yt-dlp for YouTube/Bilibili, direct for
     //    plain audio URLs.
@@ -262,12 +263,8 @@ fn play_url_impl(
     let mut decoder = AudioDecoder::open_source(Box::new(stream), hint)?;
 
     // 5. Play.
-    {
-        let mut eng = inner.lock().unwrap();
-        eng.current_source = Some(url.to_string());
-        eng.state = PlayerState::Playing;
-    }
-    emit(&state_cb, PlayerState::Playing);
+    inner.lock().unwrap().current_source = Some(url.to_string());
+    set_state(&inner, &state_cb, PlayerState::Playing);
 
     // DASH segments (Bilibili's audio streams) carry no usable duration box,
     // so the decoder reports 0 and the UI would sit at "0:00 / 0:00". The
@@ -374,21 +371,28 @@ fn emit(cb: &Arc<Mutex<Option<StateCallback>>>, state: PlayerState) {
     }
 }
 
-/// Record a playback failure where both the callback *and* `state()` can see
+/// Record a state transition where both the callback *and* `state()` can see
 /// it.
 ///
-/// Emitting alone only fires the callback; the UI polls `state()`, so a failed
-/// stream used to look like a player idling at 0:00 with nothing wrong.
+/// Emitting alone only fires the callback; the UI polls `state()`, so any
+/// transition that skips `inner.state` is invisible to it.
+fn set_state(
+    inner: &Arc<Mutex<EngineInner>>,
+    state_cb: &Arc<Mutex<Option<StateCallback>>>,
+    state: PlayerState,
+) {
+    inner.lock().unwrap().state = state.clone();
+    emit(state_cb, state);
+}
+
+/// Record a playback failure. A failed stream used to look like a player
+/// idling at 0:00 with nothing wrong.
 fn fail(
     inner: &Arc<Mutex<EngineInner>>,
     state_cb: &Arc<Mutex<Option<StateCallback>>>,
     message: String,
 ) {
-    {
-        let mut eng = inner.lock().unwrap();
-        eng.state = PlayerState::Error(message.clone());
-    }
-    emit(state_cb, PlayerState::Error(message));
+    set_state(inner, state_cb, PlayerState::Error(message));
 }
 
 fn emit_progress(cb: &Arc<Mutex<Option<ProgressCallback>>>, pos: f64, dur: f64) {
@@ -414,7 +418,10 @@ fn stream_hint(url: &str) -> Option<&'static str> {
     let ext = path.rsplit('.').next()?.to_ascii_lowercase();
     match ext.as_str() {
         "mp3" => Some("mp3"),
-        "m4a" | "mp4" | "mov" => Some("m4a"),
+        // `m4s` is a DASH segment — what Bilibili's CDN serves. The resolver
+        // already special-cases it; this table used to not, so those streams
+        // reached the probe with no hint at all (#23).
+        "m4a" | "mp4" | "mov" | "m4s" => Some("m4a"),
         "aac" => Some("aac"),
         "flac" => Some("flac"),
         "ogg" | "opus" => Some("ogg"),

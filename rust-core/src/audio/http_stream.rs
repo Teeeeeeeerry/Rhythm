@@ -15,6 +15,12 @@ const CHUNK_SIZE: usize = 64 * 1024;
 const HIGH_WATER: usize = 1024 * 1024;
 const INITIAL_WATER: usize = 256 * 1024;
 
+/// How long to wait for the TCP/TLS handshake.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long a single read from the response body may stall before the stream
+/// is considered dead. Per-operation, not a ceiling on the whole download.
+const READ_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// Shared state between the download (prefetch) thread and the reader.
 struct HttpBuffer {
     /// Buffered bytes. The byte at `data[0]` is at absolute position `pos`.
@@ -96,9 +102,17 @@ impl HttpStream {
             }
         }
 
+        // On the *blocking* client `timeout` scopes to a single connect/read/
+        // write operation — `impl Read for Response` re-arms it on every
+        // `read()` — so this bounds one CHUNK_SIZE read, not the whole
+        // download. Don't confuse it with the async client's identically named
+        // setter, which does cover the entire request and would cap playback
+        // at 30s. Adding an explicit connect timeout just makes a dead host
+        // fail in 10s instead of 30.
         let client = reqwest::blocking::Client::builder()
             .user_agent("Rhythm/0.1")
-            .timeout(Duration::from_secs(30))
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(READ_TIMEOUT)
             .build()
             .map_err(|e| RhythmError::Network(format!("Failed to build HTTP client: {e}")))?;
 
@@ -339,6 +353,11 @@ impl Seek for HttpStream {
         }
         let target = target as u64;
         self.seek_to(target)?;
+        // `read_pos` is the basis for `SeekFrom::Current`, and it used to be
+        // updated only by `read()` — so a relative seek issued before the next
+        // read computed its offset from a stale position. symphonia's MP4
+        // probe does exactly that (#23).
+        self.read_pos = target;
         Ok(target)
     }
 }

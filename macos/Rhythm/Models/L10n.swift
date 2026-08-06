@@ -136,6 +136,8 @@ enum L10n {
     static let play: String = isChinese ? "播放" : "Play"
     static let addToPlaylist: String = isChinese ? "添加到播放列表" : "Add to Playlist"
 
+    static let buffering: String = isChinese ? "缓冲中…" : "Buffering…"
+
     // ─── Tray ─────────────────────────────────────────────
 
     /// Initial title only; the tray menu swaps in `trayPlay` / `trayPause`
