@@ -358,7 +358,11 @@ fn run_playback_loop(
 
     // Natural end vs. manual stop: `stop()` already emitted Stopped.
     if !stop_flag.load(Ordering::SeqCst) {
-        emit(&state_cb, PlayerState::Finished);
+        // Drain the output queue before the stream is torn down so the
+        // listener hears the tail of the last decoded packet instead of
+        // having it clipped by the cpal stream drop (#28).
+        output.drain();
+        set_state(&inner, &state_cb, PlayerState::Finished);
     }
     Ok(())
 }

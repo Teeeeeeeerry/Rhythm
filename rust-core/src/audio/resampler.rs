@@ -16,6 +16,10 @@ pub struct Resampler {
     out_channels: u16,
     /// Source position (in input frames) of the next output frame.
     src_pos: f64,
+    /// Last input frame from the previous `process` call, one sample per
+    /// input channel. Used for correct interpolation across block boundaries
+    /// so the output doesn't repeat the last sample of every chunk.
+    prev_tail: Vec<f32>,
 }
 
 impl Resampler {
@@ -28,6 +32,7 @@ impl Resampler {
             out_rate: out_rate.max(1),
             out_channels: out_channels.max(1),
             src_pos: 0.0,
+            prev_tail: Vec::new(),
         }
     }
 
@@ -40,6 +45,7 @@ impl Resampler {
     /// Reset the resampler's phase (e.g. after a seek).
     pub fn reset(&mut self) {
         self.src_pos = 0.0;
+        self.prev_tail.clear();
     }
 
     /// Resample as many complete output frames as possible from `input`
@@ -68,15 +74,48 @@ impl Resampler {
             }
             let idx = src.floor() as usize;
             let frac = (src - idx as f64) as f32;
-            let next = (idx + 1).min(in_frames - 1);
+            let next = if idx + 1 < in_frames {
+                idx + 1
+            } else {
+                // At the last frame of this block: cross-block interpolation
+                // uses the stored previous-block tail when available,
+                // otherwise clamps to the current last frame.
+                idx
+            };
 
             for ch in 0..self.out_channels as usize {
                 let s0 = Self::sample_at(input, idx, ch, self.in_channels);
-                let s1 = Self::sample_at(input, next, ch, self.in_channels);
+                let s1 = if next == idx && !self.prev_tail.is_empty() {
+                    // Use the tail from the previous block for proper
+                    // cross-block interpolation.
+                    Self::sample_at(&self.prev_tail, 0, ch, self.in_channels)
+                } else {
+                    Self::sample_at(input, next, ch, self.in_channels)
+                };
                 output[written * self.out_channels as usize + ch] = s0 + (s1 - s0) * frac;
             }
             written += 1;
             self.src_pos += step;
+        }
+
+        // Wrap the phase accumulator back into this block's coordinate system
+        // so the *next* call starts from the correct position instead of
+        // immediately hitting `src >= in_frames` and returning 0 (#28).
+        self.src_pos -= in_frames as f64;
+        if self.src_pos < 0.0 {
+            self.src_pos = 0.0;
+        }
+
+        // Stash the last input frame for cross-block interpolation on the
+        // next call. Without this every block boundary repeats the last
+        // sample instead of interpolating toward the next block's first
+        // sample, producing periodic subtle distortion.
+        let tail_len = self.in_channels as usize;
+        if input.len() >= tail_len {
+            self.prev_tail
+                .resize(tail_len, 0.0);
+            let start = input.len() - tail_len;
+            self.prev_tail.copy_from_slice(&input[start..]);
         }
 
         written
@@ -147,5 +186,63 @@ mod tests {
         assert!((out[1] - 0.5).abs() < 1e-6);
         assert_eq!(out[2], 1.0);
         assert_eq!(out[3], 1.0); // clamped to last input frame
+    }
+
+    /// Regression test for #28: after the first block `src_pos` was never
+    /// wrapped back, so every subsequent call returned 0 frames — the song
+    /// went silent and the progress bar raced to the end on empty buffers.
+    #[test]
+    fn multi_block_44k_to_48k_continuous_output() {
+        let mut r = Resampler::new(44100, 2, 48000, 2);
+        let mut total_written = 0usize;
+        let blocks: Vec<Vec<f32>> = (0..5)
+            .map(|b| {
+                (0..1024 * 2)
+                    .map(|i| (b * 1024 * 2 + i) as f32 / 1000.0)
+                    .collect()
+            })
+            .collect();
+        let block_frames = 1024;
+
+        for block in &blocks {
+            let out_frames =
+                (block_frames as f64 * 48000.0 / 44100.0).ceil() as usize + 1;
+            let mut out = vec![0.0f32; out_frames * 2];
+            let n = r.process(block, &mut out);
+            total_written += n;
+        }
+
+        // 5 blocks of 1024 frames at ratio 48/44.1 ≈ 1.0884 each.
+        // Total output should be ~5572 frames; a bug returning 0 after the
+        // first block would give only ~1115.
+        let expected = (5.0 * block_frames as f64 * 48000.0 / 44100.0).ceil() as usize;
+        let diff = (total_written as isize - expected as isize).unsigned_abs();
+        assert!(
+            diff <= 3,
+            "total written {total_written} far from expected ~{expected} (diff {diff})"
+        );
+    }
+
+    /// Identity resampler (same rate, same channels) must also work across
+    /// multiple calls — the wrapping bug affected every ratio equally.
+    #[test]
+    fn multi_block_identity_continuous_output() {
+        let mut r = Resampler::new(48000, 2, 48000, 2);
+        assert!(r.is_identity());
+        let mut total_written = 0usize;
+        let block_frames = 1024;
+
+        for b in 0..5 {
+            let block: Vec<f32> = (0..block_frames * 2)
+                .map(|i| (b * block_frames * 2 + i) as f32)
+                .collect();
+            let mut out = vec![0.0f32; block_frames * 2];
+            let n = r.process(&block, &mut out);
+            total_written += n;
+            // Identity: every call should produce exactly block_frames output.
+            assert_eq!(n, block_frames, "block {b}: expected {block_frames} frames, got {n}");
+        }
+
+        assert_eq!(total_written, 5 * 1024);
     }
 }
