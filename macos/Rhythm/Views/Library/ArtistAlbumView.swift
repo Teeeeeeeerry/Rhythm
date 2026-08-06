@@ -100,6 +100,7 @@ struct TrackRowView: View {
         }
         .padding(.vertical, 1)
         .contentShape(Rectangle())
+        .onTapGesture { appState.selectedTrackID = track.id }
         .onTapGesture(count: 2) { appState.playTrack(track) }
         .contextMenu {
             Button(L10n.play) { appState.playTrack(track) }
@@ -112,6 +113,10 @@ struct TrackRowView: View {
                         }
                     }
                 }
+            }
+            Divider()
+            Button(L10n.deleteFromLibrary, role: .destructive) {
+                appState.requestDeleteTrack(track)
             }
         }
     }

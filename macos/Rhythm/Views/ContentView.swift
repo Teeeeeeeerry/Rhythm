@@ -19,6 +19,7 @@ struct ContentView: View {
             }
         }
         .onAppear { appState.openDatabase() }
+        .onDeleteCommand { appState.deleteSelectedTrack() }
         .toolbar {
             ToolbarItemGroup {
                 if appState.selectedView == .library {
@@ -45,6 +46,16 @@ struct ContentView: View {
             Button(L10n.ok, role: .cancel) {}
         } message: {
             Text(appState.importAlertMessage ?? "")
+        }
+        .alert(L10n.deleteConfirmTitle, isPresented: $appState.showDeleteConfirmation) {
+            Button(L10n.cancel, role: .cancel) {
+                appState.trackToDelete = nil
+            }
+            Button(L10n.deleteButton, role: .destructive) {
+                appState.confirmDeleteTrack()
+            }
+        } message: {
+            Text(appState.trackToDelete.map { L10n.deleteConfirmMessage($0.title) } ?? "")
         }
     }
 
