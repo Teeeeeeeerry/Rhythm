@@ -20,6 +20,11 @@ final class RhythmLibrary {
         return Int(rhythm_library_import(ptr, path))
     }
 
+    func importFile(_ path: String) -> Int {
+        guard let ptr else { return -1 }
+        return Int(rhythm_library_import_file(ptr, path))
+    }
+
     func allTracks() -> [Track] {
         guard let ptr, let json = rhythm_library_get_all_tracks(ptr) else { return [] }
         defer { rhythm_free_string(json) }

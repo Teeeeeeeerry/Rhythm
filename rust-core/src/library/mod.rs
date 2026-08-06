@@ -565,6 +565,37 @@ impl Library {
 
         Ok(count)
     }
+
+    /// Import a single audio file into the library.
+    ///
+    /// Uses `is_supported_audio` as the gate, extracts metadata & artwork,
+    /// then delegates to `add_track`. Returns 1 on success, or an error
+    /// if the file is not a supported audio format or cannot be read.
+    pub fn import_file(&self, file_path: &Path) -> RhythmResult<i32> {
+        use crate::metadata::{is_supported_audio, extract_track_info, extract_artwork};
+
+        if !is_supported_audio(file_path) {
+            return Err(crate::RhythmError::InvalidInput(format!(
+                "Unsupported audio format: {}",
+                file_path.display()
+            )));
+        }
+
+        let mut track = extract_track_info(file_path)?;
+
+        // Artwork cache goes next to the file (unlike directory imports,
+        // where .rhythm_artwork sits next to the imported directory).
+        let artwork_cache = file_path
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join(".rhythm_artwork");
+        if let Ok(Some(art_path)) = extract_artwork(file_path, &artwork_cache) {
+            track.artwork_path = Some(art_path);
+        }
+
+        self.add_track(&track)?;
+        Ok(1)
+    }
 }
 
 fn row_to_track(row: &rusqlite::Row<'_>) -> rusqlite::Result<TrackInfo> {

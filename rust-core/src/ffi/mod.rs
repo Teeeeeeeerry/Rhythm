@@ -100,6 +100,28 @@ pub extern "C" fn rhythm_library_import(ptr: *mut RhythmLibrary, dir: *const c_c
     }
 }
 
+/// Import a single audio file into the library.
+/// Returns 1 on success, 0 if the file is not a supported audio format,
+/// or -1 on error.
+#[no_mangle]
+pub extern "C" fn rhythm_library_import_file(
+    ptr: *mut RhythmLibrary,
+    file_path: *const c_char,
+) -> i32 {
+    if ptr.is_null() {
+        return -1;
+    }
+    let lib = unsafe { &(*ptr).0 };
+    let path = unsafe { c_str_to_str(file_path) };
+    match lib.import_file(Path::new(path)) {
+        Ok(count) => count as i32,
+        Err(e) => {
+            log::error!("Import file failed: {e}");
+            -1
+        }
+    }
+}
+
 /// Get all tracks as a JSON string. Caller must free with `rhythm_free_string`.
 #[no_mangle]
 pub extern "C" fn rhythm_library_get_all_tracks(ptr: *mut RhythmLibrary) -> *mut c_char {

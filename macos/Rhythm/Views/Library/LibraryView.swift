@@ -51,8 +51,8 @@ struct LibraryView: View {
                 .font(.title3)
                 .foregroundStyle(.secondary)
             Text(L10n.isChinese
-                 ? "点击工具栏 + 按钮导入音乐文件夹"
-                 : "Click the + button in the toolbar to import a music folder")
+                 ? "点击工具栏 + 按钮导入音乐文件或文件夹"
+                 : "Click the + button in the toolbar to import music files or folders")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             Button(L10n.importTooltip) {
@@ -66,10 +66,12 @@ struct LibraryView: View {
     private func importFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
-        panel.canChooseFiles = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.audio]
         panel.prompt = L10n.isChinese ? "导入" : "Import"
-        if panel.runModal() == .OK, let url = panel.url {
-            appState.importDirectory(url)
+        if panel.runModal() == .OK {
+            appState.importURLs(panel.urls)
         }
     }
 }
