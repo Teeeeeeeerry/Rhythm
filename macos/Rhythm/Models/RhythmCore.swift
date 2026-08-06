@@ -69,6 +69,13 @@ final class RhythmLibrary {
         _ = rhythm_library_delete_playlist(ptr, id)
     }
 
+    /// Delete a track from the library. Returns true if a row was actually
+    /// deleted, false when the id didn't match any track.
+    func removeTrack(_ id: Int64) -> Bool {
+        guard let ptr else { return false }
+        return rhythm_library_remove_track(ptr, id) == 0
+    }
+
     func recordPlay(_ trackId: Int64) {
         guard let ptr else { return }
         _ = rhythm_library_record_play(ptr, trackId)

@@ -139,6 +139,13 @@ enum L10n {
 
     static let play: String = isChinese ? "播放" : "Play"
     static let addToPlaylist: String = isChinese ? "添加到播放列表" : "Add to Playlist"
+    static let deleteFromLibrary: String = isChinese ? "从资料库删除" : "Delete from Library"
+
+    static let deleteConfirmTitle: String = isChinese ? "确认删除" : "Confirm Deletion"
+    static func deleteConfirmMessage(_ title: String) -> String {
+        isChinese ? "确定要从资料库中删除「\(title)」吗？\n此操作不可撤销。" : "Are you sure you want to delete \"\(title)\" from the library?\nThis action cannot be undone."
+    }
+    static let deleteButton: String = isChinese ? "删除" : "Delete"
 
     static let buffering: String = isChinese ? "缓冲中…" : "Buffering…"
 

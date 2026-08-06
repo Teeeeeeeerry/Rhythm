@@ -27,6 +27,11 @@ final class AppState: ObservableObject {
     @Published var importAlertMessage: String?
     @Published var showImportAlert = false
 
+    // Delete confirmation
+    @Published var trackToDelete: Track?
+    @Published var showDeleteConfirmation = false
+    @Published var selectedTrackID: Int64?
+
     private var queue: RhythmQueue?
     private var resolverStatusTimer: Timer?
 
@@ -131,6 +136,39 @@ final class AppState: ObservableObject {
                 : "No supported audio files found."
         }
         showImportAlert = true
+    }
+
+    /// Request deletion of a track — shows a confirmation dialog.
+    func requestDeleteTrack(_ track: Track) {
+        trackToDelete = track
+        showDeleteConfirmation = true
+    }
+
+    /// Delete the currently selected track (triggered by Delete key).
+    func deleteSelectedTrack() {
+        guard let id = selectedTrackID,
+              let track = tracks.first(where: { $0.id == id }) else { return }
+        requestDeleteTrack(track)
+    }
+
+    /// Actually delete the track after user confirms.
+    func confirmDeleteTrack() {
+        guard let track = trackToDelete else { return }
+        defer {
+            trackToDelete = nil
+        }
+
+        // If the deleted track is currently playing, stop playback and
+        // clear the queue so "next" doesn't try to play a dead track.
+        if currentTrack?.id == track.id {
+            player.stop()
+            isPlaying = false
+            currentTrack = nil
+            queue = nil
+        }
+
+        _ = library?.removeTrack(track.id)
+        refreshLibrary()
     }
 
     func search(_ query: String) {
