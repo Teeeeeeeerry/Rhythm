@@ -189,33 +189,119 @@ void Player::Stop() { if (ptr_) rhythm_player_stop(ptr_); }
 void Player::SetVolume(float v) { if (ptr_) rhythm_player_set_volume(ptr_, v); }
 float Player::Volume() const { return ptr_ ? rhythm_player_get_volume(ptr_) : 0.0f; }
 int32_t Player::State() const { return ptr_ ? rhythm_player_get_state(ptr_) : -1; }
+
+std::wstring Player::ErrorMessage() const {
+    if (!ptr_) return {};
+    char* raw = rhythm_player_error(ptr_);
+    if (!raw) return {};
+    auto message = Utf8ToWide(raw);
+    rhythm_free_string(raw);
+    return message;
+}
 double Player::Position() const { return ptr_ ? rhythm_player_get_position(ptr_) : 0.0; }
 double Player::Duration() const { return ptr_ ? rhythm_player_get_duration(ptr_) : 0.0; }
 
 // ─── Resolver ───────────────────────────────────────────────────────
 
-Track Resolver::ResolveURL(const std::wstring& url) {
+/// Read the core's last resolution failure. Falls back to a generic message
+/// when no payload is available.
+static ResolveOutcome LastResolveFailure() {
+    ResolveOutcome outcome;
+    outcome.ok = false;
+    outcome.errorKind = L"internal";
+    outcome.errorMessage = L"Failed to resolve the URL.";
+
+    char* raw = rhythm_last_error();
+    if (!raw) return outcome;
+
+    std::string payload(raw);
+    rhythm_free_string(raw);
+
+    try {
+        auto j = json::parse(payload);
+        if (j.contains("kind") && !j["kind"].is_null()) {
+            outcome.errorKind = Utf8ToWide(j["kind"].get<std::string>());
+        }
+        if (j.contains("message") && !j["message"].is_null()) {
+            outcome.errorMessage = Utf8ToWide(j["message"].get<std::string>());
+        }
+    } catch (const json::exception&) {
+        // Keep the generic message.
+    }
+    return outcome;
+}
+
+ResolveOutcome Resolver::ResolveURL(const std::wstring& url) {
     auto u = WideToUtf8(url);
-    char* json = rhythm_resolve_url(u.c_str());
-    if (!json) {
-        Track t;
-        t.title = Utf8ToWide(u);
-        t.sourceType = L"direct_url";
-        t.sourceUrl = url;
-        return t;
+    char* json_str = rhythm_resolve_url(u.c_str());
+    // A null return means the core recorded a reason — surface it instead of
+    // handing the UI an unplayable placeholder track (#21).
+    if (!json_str) return LastResolveFailure();
+
+    ResolveOutcome outcome;
+    try {
+        auto j = json::parse(json_str);
+        rhythm_free_string(json_str);
+
+        outcome.track = JsonToTrack(j);
+        // Keep the page URL, not the resolved CDN link: the core re-resolves
+        // (from cache) at playback time, and those CDN links carry a deadline
+        // that expires.
+        outcome.track.sourceUrl = url;
+        outcome.ok = true;
+    } catch (const json::exception& e) {
+        rhythm_free_string(json_str);
+        outcome.ok = false;
+        outcome.errorKind = L"internal";
+        outcome.errorMessage = L"Malformed resolver response: " + Utf8ToWide(e.what());
     }
-    auto j = json::parse(json);
-    rhythm_free_string(json);
-    auto track = JsonToTrack(j);
-    // ResolvedUrl uses `stream_url` (the playable media URL), which
-    // JsonToTrack maps to Track::sourceUrl. A failed parse still falls back
-    // to the original URL above.
-    if (j.contains("stream_url") && !j["stream_url"].is_null()) {
-        track.sourceUrl = Utf8ToWide(j["stream_url"].get<std::string>());
-    } else {
-        track.sourceUrl = url;
+    return outcome;
+}
+
+std::wstring Resolver::Diagnostics() {
+    char* raw = rhythm_resolver_diagnostics();
+    if (!raw) return L"{}";
+    auto result = Utf8ToWide(raw);
+    rhythm_free_string(raw);
+    return result;
+}
+
+ResolverStatus Resolver::Status() {
+    ResolverStatus status;
+
+    char* raw = rhythm_resolver_status();
+    if (!raw) return status;
+
+    std::string payload(raw);
+    rhythm_free_string(raw);
+
+    try {
+        auto j = json::parse(payload);
+        if (j.contains("phase") && !j["phase"].is_null()) {
+            status.phase = Utf8ToWide(j["phase"].get<std::string>());
+        }
+        status.received = j.value("received", (int64_t)0);
+        status.total = j.value("total", (int64_t)0);
+    } catch (const json::exception&) {
+        // Leave the idle default.
     }
-    return track;
+    return status;
+}
+
+std::wstring Resolver::StatusText(const ResolverStatus& status) {
+    if (status.phase == L"checking") return L"正在准备解析组件…";
+    if (status.phase == L"verifying") return L"正在校验解析组件…";
+    if (status.phase == L"updating") return L"正在更新解析组件…";
+    if (status.phase == L"failed") return L"解析组件安装失败";
+    if (status.phase == L"downloading") {
+        auto mb = [](int64_t bytes) { return static_cast<double>(bytes) / 1048576.0; };
+        if (status.total > 0) {
+            return std::format(L"正在下载解析组件 {:.1f} / {:.1f} MB",
+                               mb(status.received), mb(status.total));
+        }
+        return std::format(L"正在下载解析组件 {:.1f} MB", mb(status.received));
+    }
+    return L"";
 }
 
 std::wstring Resolver::ClassifyURL(const std::wstring& url) {

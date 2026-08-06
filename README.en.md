@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.1 "Germ"**.
+Initial development is complete. Current version: **v0.5.4 "Germ"**.
 
 ### Implementation Status
 
@@ -39,13 +39,38 @@ Initial development is complete. Current version: **v0.5.1 "Germ"**.
 | Chinese/English localization | Done | — |
 | URL streaming (YouTube/Bilibili/direct links) | Done | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
 | URL input UI | Done | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
+| Resolver error reporting + yt-dlp auto-install | Done | [#21](https://github.com/Teeeeeeeerry/Rhythm/issues/21) |
+
+## Playing online links
+
+**Nothing to install.** Paste a YouTube / Bilibili link and it plays — on the first link, Rhythm downloads the yt-dlp build it needs (~36 MB), showing progress next to the URL field. It is downloaded once.
+
+What it does:
+
+- Keeps its copy in `~/Library/Application Support/Rhythm/bin/` (Windows: `%LOCALAPPDATA%\Rhythm\bin\`)
+- Downloads only from yt-dlp's official GitHub release, verified against the published `SHA2-256SUMS`; a mismatched download is discarded
+- Checks for updates weekly in the background, and if a site rejects the current version, updates and retries once
+- Reuses an existing yt-dlp (Homebrew, MacPorts, pip, scoop, winget, …) instead of downloading its own
+- Prefers AAC/M4A audio (the bundled decoder has no Opus support) and reuses the headers yt-dlp reports — Bilibili's CDN answers 403 without a Referer
+
+To manage yt-dlp yourself:
+
+```bash
+export RHYTHM_NO_AUTO_INSTALL=1               # turn off auto-download
+export RHYTHM_YTDLP_PATH=/your/path/to/yt-dlp # use your own binary
+```
+
+When resolution fails, the app says why — network error, timeout, video unavailable, yt-dlp too old — and writes the details to a log:
+
+- macOS: `~/Library/Logs/Rhythm/resolver.log`
+- Windows: `%LOCALAPPDATA%\Rhythm\logs\resolver.log`
 
 ## Build
 
 ### Prerequisites
 
 - **Rust** 1.70+ ([rustup.rs](https://rustup.rs))
-- **yt-dlp** (for URL resolution; optional if only playing local files)
+- yt-dlp needs no prior install: the app fetches it on the first online link
 - **macOS**: Xcode 15+ or Command Line Tools + Swift 5.9+
 - **Windows**: Visual Studio 2022 + Windows App SDK + CMake 3.20+
 

@@ -24,7 +24,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-初步开发完成。当前版本 **v0.5.1 "Germ"**。
+初步开发完成。当前版本 **v0.5.4 "Germ"**。
 
 ### 实现状态
 
@@ -39,13 +39,38 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 | 中英文界面 | 完成 | — |
 | URL 流式播放（YouTube/Bilibili/直链） | 完成 | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
 | URL 输入 UI | 完成 | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
+| URL 解析错误上报 + yt-dlp 自动安装 | 完成 | [#21](https://github.com/Teeeeeeeerry/Rhythm/issues/21) |
+
+## 播放在线链接
+
+**开箱即用，无需手动安装任何东西。** 粘贴 YouTube / Bilibili 链接就能播——首次播放时 Rhythm 会自动下载解析所需的 yt-dlp（约 36 MB），下载进度显示在链接输入框旁边，之后不再重复下载。
+
+具体行为：
+
+- 组件存放在 `~/Library/Application Support/Rhythm/bin/`（Windows：`%LOCALAPPDATA%\Rhythm\bin\`）
+- 只从 yt-dlp 官方 GitHub Release 下载，并按官方发布的 `SHA2-256SUMS` 校验，校验不通过即丢弃
+- 每 7 天在后台检查一次更新；如果某个站点因版本过旧解析失败，会自动升级后重试一次
+- 系统里已经装了 yt-dlp（Homebrew、MacPorts、pip、scoop、winget 等）则直接复用，不会重复下载
+- 优先选择 AAC/M4A 音轨（内置解码器不支持 Opus），并沿用 yt-dlp 报告的请求头——B 站 CDN 缺少 Referer 会返回 403
+
+如果需要自己管理 yt-dlp：
+
+```bash
+export RHYTHM_NO_AUTO_INSTALL=1              # 关闭自动下载
+export RHYTHM_YTDLP_PATH=/your/path/to/yt-dlp # 指定自己的二进制
+```
+
+解析失败时，应用会直接说明原因（网络错误 / 超时 / 视频不可用 / 需要升级 yt-dlp），详细记录写入日志：
+
+- macOS：`~/Library/Logs/Rhythm/resolver.log`
+- Windows：`%LOCALAPPDATA%\Rhythm\logs\resolver.log`
 
 ## 构建
 
 ### 前置依赖
 
 - **Rust** 1.70+（[rustup.rs](https://rustup.rs)）
-- **yt-dlp**（URL 解析，可选：仅本地播放时不需要）
+- yt-dlp 无需预先安装：首次播放在线链接时由应用自动获取
 - **macOS**：Xcode 15+ 或 Command Line Tools + Swift 5.9+
 - **Windows**：Visual Studio 2022 + Windows App SDK + CMake 3.20+
 

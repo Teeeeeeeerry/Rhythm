@@ -96,6 +96,8 @@ public:
     void SetVolume(float volume);
     float Volume() const;
     int32_t State() const;
+    /// Why playback failed, when State() is 4 (Error); empty otherwise.
+    std::wstring ErrorMessage() const;
     double Position() const;
     double Duration() const;
 
@@ -103,10 +105,42 @@ private:
     RhythmPlayer* ptr_ = nullptr;
 };
 
+/// Outcome of a URL resolution: either a playable track, or why it failed.
+///
+/// `errorKind` is one of: invalid_url, yt_dlp_missing, timeout, network,
+/// unavailable, no_audio_stream, yt_dlp_outdated, internal.
+struct ResolveOutcome {
+    bool ok = false;
+    Track track;
+    std::wstring errorKind;
+    std::wstring errorMessage;
+};
+
+/// Progress of yt-dlp provisioning. `phase` is one of: idle, checking,
+/// downloading, verifying, updating, ready, failed.
+struct ResolverStatus {
+    std::wstring phase = L"idle";
+    int64_t received = 0;
+    int64_t total = 0;
+
+    /// Nothing worth telling the user about.
+    bool IsQuiet() const { return phase == L"idle" || phase == L"ready"; }
+};
+
 class Resolver {
 public:
-    static Track ResolveURL(const std::wstring& url);
+    static ResolveOutcome ResolveURL(const std::wstring& url);
     static std::wstring ClassifyURL(const std::wstring& url);
+
+    /// Resolver environment as JSON (yt-dlp path/version, PATH, log file).
+    static std::wstring Diagnostics();
+
+    /// Poll while a resolution runs: a fresh install downloads yt-dlp on the
+    /// first link, which should read as progress rather than a stall.
+    static ResolverStatus Status();
+
+    /// Localized description of a provisioning status, empty when quiet.
+    static std::wstring StatusText(const ResolverStatus& status);
 };
 
 } // namespace rhythm

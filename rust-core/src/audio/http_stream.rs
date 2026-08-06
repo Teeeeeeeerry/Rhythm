@@ -1,5 +1,5 @@
 use crate::{RhythmError, RhythmResult};
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::io::{Read, Seek, SeekFrom};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -49,6 +49,8 @@ pub struct HttpStream {
 struct HttpStreamInner {
     client: reqwest::blocking::Client,
     url: String,
+    /// Extra headers every request must carry (Referer, User-Agent, …).
+    headers: reqwest::header::HeaderMap,
     buffer: Mutex<HttpBuffer>,
     /// Signals buffer changes (new data, seek, eof, error, stop).
     /// Always paired with the `buffer` mutex.
@@ -67,6 +69,33 @@ impl HttpStream {
     /// Start streaming `url`. The initial request (headers + Range support
     /// detection) is issued synchronously so errors surface immediately.
     pub fn open(url: &str) -> RhythmResult<Self> {
+        Self::open_with_headers(url, &BTreeMap::new())
+    }
+
+    /// Start streaming `url`, sending `headers` on every request.
+    ///
+    /// Media CDNs commonly reject requests that don't look like they came
+    /// from the site: Bilibili answers 403 without a `Referer` pointing back
+    /// at the video page. yt-dlp reports the headers it used, and passing
+    /// them through verbatim is what makes those streams playable.
+    pub fn open_with_headers(
+        url: &str,
+        headers: &BTreeMap<String, String>,
+    ) -> RhythmResult<Self> {
+        let mut header_map = reqwest::header::HeaderMap::new();
+        for (name, value) in headers {
+            match (
+                reqwest::header::HeaderName::try_from(name.as_str()),
+                reqwest::header::HeaderValue::from_str(value),
+            ) {
+                (Ok(name), Ok(value)) => {
+                    header_map.insert(name, value);
+                }
+                // Skip anything malformed rather than failing the playback.
+                _ => log::warn!("http_stream: ignoring invalid header {name}"),
+            }
+        }
+
         let client = reqwest::blocking::Client::builder()
             .user_agent("Rhythm/0.1")
             .timeout(Duration::from_secs(30))
@@ -76,6 +105,7 @@ impl HttpStream {
         let inner = Arc::new(HttpStreamInner {
             client,
             url: url.to_string(),
+            headers: header_map,
             buffer: Mutex::new(HttpBuffer {
                 data: VecDeque::with_capacity(HIGH_WATER),
                 pos: 0,
@@ -141,6 +171,7 @@ impl HttpStreamInner {
         let resp = self
             .client
             .get(&self.url)
+            .headers(self.headers.clone())
             .header(reqwest::header::RANGE, format!("bytes={offset}-"))
             .send()
             .map_err(|e| RhythmError::Network(format!("GET {} failed: {e}", self.url)))?;

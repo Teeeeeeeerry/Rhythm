@@ -30,6 +30,83 @@ enum L10n {
     static let urlResolveFailed: String = isChinese ? "链接解析失败，请检查链接是否有效" : "Failed to resolve the URL. Please check it is valid."
     static let ok: String = isChinese ? "确定" : "OK"
 
+    /// Explain a playback failure (as opposed to a resolution failure).
+    static func playbackFailed(detail: String) -> String {
+        guard isChinese else {
+            return detail.isEmpty ? "Playback failed." : "Playback failed.\n\n\(detail)"
+        }
+        let headline = "播放失败。链接可能已过期，重新粘贴一次试试。"
+        return detail.isEmpty ? headline : "\(headline)\n\n详细信息：\n\(detail)"
+    }
+
+    /// Describe what the resolver is doing while the user waits.
+    static func resolverStatusText(phase: String, received: Int64?, total: Int64?) -> String {
+        switch phase {
+        case "checking":
+            return isChinese ? "正在准备解析组件…" : "Preparing resolver…"
+        case "downloading":
+            let progress = downloadProgress(received: received, total: total)
+            return isChinese ? "正在下载解析组件 \(progress)" : "Downloading resolver \(progress)"
+        case "verifying":
+            return isChinese ? "正在校验解析组件…" : "Verifying resolver…"
+        case "updating":
+            return isChinese ? "正在更新解析组件…" : "Updating resolver…"
+        case "failed":
+            return isChinese ? "解析组件安装失败" : "Resolver install failed"
+        default:
+            return ""
+        }
+    }
+
+    /// "12.3 / 40.1 MB" — or just the received size when the server sent no
+    /// content length.
+    private static func downloadProgress(received: Int64?, total: Int64?) -> String {
+        let mb = { (bytes: Int64) in String(format: "%.1f", Double(bytes) / 1_048_576) }
+        guard let received else { return "" }
+        guard let total, total > 0 else { return "\(mb(received)) MB" }
+        return "\(mb(received)) / \(mb(total)) MB"
+    }
+
+    /// Explain a resolution failure.
+    ///
+    /// The core's `kind` drives a localized headline; its English `message`
+    /// carries the actionable detail (install commands, yt-dlp's own output)
+    /// and is appended so nothing is lost on an unrecognised kind.
+    static func urlResolveError(kind: String, detail: String) -> String {
+        guard isChinese else { return detail }
+
+        let headline: String
+        switch kind {
+        case "yt_dlp_missing":
+            headline = """
+                未找到 yt-dlp。播放 YouTube / Bilibili 链接需要先安装它：
+                  brew install yt-dlp
+
+                如果已经安装：从访达启动的应用不会继承终端的 PATH，\
+                请把 RHYTHM_YTDLP_PATH 设为 yt-dlp 的完整路径（用 which yt-dlp 查看）。
+                """
+        case "timeout":
+            headline = "解析超时。请检查网络连接后重试。"
+        case "network":
+            headline = "网络错误，无法访问该链接。请检查网络、代理或 VPN 设置。"
+        case "unavailable":
+            headline = "该视频无法访问：可能是私享、已删除、年龄限制、会员专属或所在地区不可用。"
+        case "no_audio_stream":
+            headline = "该链接没有可播放的音频流。"
+        case "yt_dlp_outdated":
+            headline = """
+                yt-dlp 版本过旧，无法解析该站点。请升级后重试：
+                  brew upgrade yt-dlp
+                """
+        case "invalid_url":
+            headline = "链接无效，请输入以 http:// 或 https:// 开头的地址。"
+        default:
+            return detail
+        }
+
+        return "\(headline)\n\n详细信息：\n\(detail)"
+    }
+
     // ─── Play Mode Labels ─────────────────────────────────
 
     static let modeSequential: String = isChinese ? "顺序" : "Sequential"

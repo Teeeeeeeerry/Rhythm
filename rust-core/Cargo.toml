@@ -46,6 +46,9 @@ thiserror = "2"
 # File hashing for duplicate detection
 blake3 = "1"
 
+# Verifying downloaded yt-dlp releases against their published SHA-256 sums
+sha2 = "0.10"
+
 # Random for shuffle
 rand = "0.8"
 

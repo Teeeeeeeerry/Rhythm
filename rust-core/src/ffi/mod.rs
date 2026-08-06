@@ -14,7 +14,7 @@ use crate::{PlayerState, TrackInfo};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
 // ─── Opaque Handle Types ───────────────────────────────────────────
 
@@ -429,15 +429,58 @@ pub extern "C" fn rhythm_player_get_state(ptr: *mut RhythmPlayer) -> i32 {
     }
 }
 
+/// Why playback failed, when the state is Error (4); null otherwise.
+///
+/// Without this the UI can only show a stopped player sitting at 0:00 with no
+/// explanation — which is exactly how a 403 from a CDN used to look. Free
+/// with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_player_error(ptr: *mut RhythmPlayer) -> *mut c_char {
+    unsafe {
+        match ptr.as_ref().map(|p| p.0.state()) {
+            Some(PlayerState::Error(message)) => str_to_c_string(&message),
+            _ => std::ptr::null_mut(),
+        }
+    }
+}
+
 // ─── URL Resolver FFI ─────────────────────────────────────────────
 
-/// Resolve a URL to a playable stream. Returns JSON ResolvedUrl or null.
+/// The most recent resolver failure, as JSON.
+///
+/// A null return from `rhythm_resolve_url` used to be the only signal the UI
+/// got, which reduced every distinct failure — yt-dlp missing, timeout,
+/// private video — to a single generic "resolution failed" alert (#21).
+static LAST_RESOLVE_ERROR: LazyLock<Mutex<Option<String>>> = LazyLock::new(|| Mutex::new(None));
+
+fn set_last_resolve_error(failure: &resolver::ResolveFailure) {
+    let json = serde_json::to_string(failure).unwrap_or_else(|_| {
+        format!(
+            "{{\"kind\":\"internal\",\"message\":{}}}",
+            serde_json::Value::String(failure.message.clone())
+        )
+    });
+    *LAST_RESOLVE_ERROR.lock().unwrap() = Some(json);
+}
+
+fn clear_last_resolve_error() {
+    *LAST_RESOLVE_ERROR.lock().unwrap() = None;
+}
+
+/// Resolve a URL to a playable stream. Returns JSON ResolvedUrl, or null on
+/// failure — call `rhythm_last_error` for the reason.
 #[no_mangle]
 pub extern "C" fn rhythm_resolve_url(url: *const c_char) -> *mut c_char {
     let u = unsafe { c_str_to_str(url) };
     match resolver::resolve_url(u) {
-        Ok(resolved) => str_to_c_string(&serde_json::to_string(&resolved).unwrap_or_default()),
-        Err(_) => std::ptr::null_mut(),
+        Ok(resolved) => {
+            clear_last_resolve_error();
+            str_to_c_string(&serde_json::to_string(&resolved).unwrap_or_default())
+        }
+        Err(failure) => {
+            set_last_resolve_error(&failure);
+            std::ptr::null_mut()
+        }
     }
 }
 
@@ -447,7 +490,57 @@ pub extern "C" fn rhythm_classify_url(url: *const c_char) -> *mut c_char {
     let u = unsafe { c_str_to_str(url) };
     match resolver::classify_url(u) {
         Ok(source_type) => str_to_c_string(&source_type.to_string()),
-        Err(_) => std::ptr::null_mut(),
+        Err(failure) => {
+            set_last_resolve_error(&failure);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// The last resolver failure as JSON `{"kind": "...", "message": "..."}`, or
+/// null if the last resolution succeeded. Free with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_last_error() -> *mut c_char {
+    match LAST_RESOLVE_ERROR.lock().unwrap().as_deref() {
+        Some(json) => str_to_c_string(json),
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// Resolver environment as JSON: yt-dlp path and version, the
+/// `RHYTHM_YTDLP_PATH` override, the inherited PATH, and the log file
+/// location. Intended for bug reports. Free with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_resolver_diagnostics() -> *mut c_char {
+    str_to_c_string(&resolver::diagnostics().to_string())
+}
+
+/// Progress of yt-dlp provisioning as JSON, e.g.
+/// `{"phase":"downloading","received":1048576,"total":41943040}`.
+///
+/// Phases: idle, checking, downloading, verifying, updating, ready, failed.
+/// The UI polls this while a resolution is in flight so a first-run download
+/// doesn't look like a hang. Free with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_resolver_status() -> *mut c_char {
+    let json = serde_json::to_string(&resolver::install::status()).unwrap_or_default();
+    str_to_c_string(&json)
+}
+
+/// Install or update Rhythm's own yt-dlp copy now. Returns the binary path,
+/// or null on failure — call `rhythm_last_error` for the reason. Blocks for
+/// the duration of the download. Free with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_install_ytdlp() -> *mut c_char {
+    match resolver::install::update_now() {
+        Ok(path) => {
+            clear_last_resolve_error();
+            str_to_c_string(&path.display().to_string())
+        }
+        Err(failure) => {
+            set_last_resolve_error(&failure);
+            std::ptr::null_mut()
+        }
     }
 }
 

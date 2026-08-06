@@ -16,8 +16,12 @@ final class AppState: ObservableObject {
     @Published var urlInput = ""
     @Published var isResolvingURL = false
     @Published var urlError: String?
+    /// What the resolver is doing right now — empty unless it's something the
+    /// user should know about, like a first-run yt-dlp download.
+    @Published var urlStatus = ""
 
     private var queue: RhythmQueue?
+    private var resolverStatusTimer: Timer?
 
     var dbURL: URL {
         let appSupport = FileManager.default.urls(
@@ -84,6 +88,33 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Watch the core's provisioning status while a resolution runs. The
+    /// first URL a fresh install plays downloads yt-dlp (~40 MB), and that
+    /// should read as progress rather than as a stall.
+    private func startResolverStatusPolling() {
+        urlStatus = ""
+        resolverStatusTimer?.invalidate()
+        resolverStatusTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) {
+            [weak self] _ in
+            guard let self else { return }
+            guard let status = resolverStatus(), !status.isQuiet else {
+                self.urlStatus = ""
+                return
+            }
+            self.urlStatus = L10n.resolverStatusText(
+                phase: status.phase,
+                received: status.received,
+                total: status.total
+            )
+        }
+    }
+
+    private func stopResolverStatusPolling() {
+        resolverStatusTimer?.invalidate()
+        resolverStatusTimer = nil
+        urlStatus = ""
+    }
+
     /// Resolve a pasted URL (YouTube/Bilibili/direct audio) and start
     /// playing it. Resolution may take a few seconds (yt-dlp), so it runs on
     /// a background queue; the result is applied on the main thread.
@@ -92,20 +123,33 @@ final class AppState: ObservableObject {
         guard !url.isEmpty, !isResolvingURL else { return }
         isResolvingURL = true
         urlError = nil
+        startResolverStatusPolling()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let resolved = resolveURL(url)
+            let result = resolveURL(url)
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.isResolvingURL = false
-                guard let resolved else {
-                    self.urlError = L10n.urlResolveFailed
+                self.stopResolverStatusPolling()
+                let resolved: ResolvedInfo
+                switch result {
+                case .success(let info):
+                    resolved = info
+                case .failure(let error):
+                    // Show what actually went wrong instead of a generic
+                    // failure — the core distinguishes a missing yt-dlp from
+                    // a timeout, a private video, and so on (#21).
+                    NSLog("URL resolution failed [%@]: %@", error.kind, error.message)
+                    self.urlError = L10n.urlResolveError(kind: error.kind, detail: error.message)
                     return
                 }
                 let track = Track(
                     id: -1,
                     filePath: nil,
                     sourceType: resolved.sourceType ?? "direct_url",
-                    sourceUrl: resolved.streamUrl ?? url,
+                    // Keep the page URL, not the resolved CDN link: the core
+                    // re-resolves (from cache) at playback time, and those
+                    // CDN links carry a deadline that expires.
+                    sourceUrl: url,
                     title: resolved.title.isEmpty ? url : resolved.title,
                     artist: resolved.artist,
                     album: nil,
@@ -209,6 +253,12 @@ final class AppState: ObservableObject {
             } else {
                 isPlaying = false
             }
+        } else if state == 4 { // Error
+            // Otherwise a failed stream just sits at 0:00 with no explanation.
+            isPlaying = false
+            let detail = player.errorMessage ?? ""
+            NSLog("Playback failed: %@", detail)
+            urlError = L10n.playbackFailed(detail: detail)
         }
     }
 }

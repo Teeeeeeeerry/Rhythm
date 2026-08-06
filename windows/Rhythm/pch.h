@@ -20,3 +20,5 @@
 #include <optional>
 #include <algorithm>
 #include <format>
+#include <functional>
+#include <atomic>

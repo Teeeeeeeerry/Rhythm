@@ -33,6 +33,17 @@ MainWindow::MainWindow() {
         if (appState_.IsPlaying) {
             appState_.Position = appState_.Player->Position();
             appState_.Duration = appState_.Player->Duration();
+
+            // Otherwise a failed stream just sits at 0:00 with no explanation.
+            if (appState_.Player->State() == 4) {
+                appState_.IsPlaying = false;
+                auto detail = appState_.Player->ErrorMessage();
+                appState_.UrlError = detail;
+                OutputDebugStringW((L"Playback failed: " + detail + L"\n").c_str());
+                if (appState_.OnUrlError) {
+                    appState_.OnUrlError(L"playback_failed", detail);
+                }
+            }
         }
         playerBar().Update();
     });
