@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.4 "Germ"**.
+Initial development is complete. Current version: **v0.5.5 "Germ"**.
 
 ### Implementation Status
 
@@ -40,6 +40,7 @@ Initial development is complete. Current version: **v0.5.4 "Germ"**.
 | URL streaming (YouTube/Bilibili/direct links) | Done | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
 | URL input UI | Done | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
 | Resolver error reporting + yt-dlp auto-install | Done | [#21](https://github.com/Teeeeeeeerry/Rhythm/issues/21) |
+| Tray menu usability fix | Done | [#24](https://github.com/Teeeeeeeerry/Rhythm/issues/24) |
 
 ## Playing online links
 

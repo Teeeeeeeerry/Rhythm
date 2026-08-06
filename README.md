@@ -24,7 +24,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-初步开发完成。当前版本 **v0.5.4 "Germ"**。
+初步开发完成。当前版本 **v0.5.5 "Germ"**。
 
 ### 实现状态
 
@@ -40,6 +40,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 | URL 流式播放（YouTube/Bilibili/直链） | 完成 | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
 | URL 输入 UI | 完成 | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
 | URL 解析错误上报 + yt-dlp 自动安装 | 完成 | [#21](https://github.com/Teeeeeeeerry/Rhythm/issues/21) |
+| 托盘菜单可用性修复 | 完成 | [#24](https://github.com/Teeeeeeeerry/Rhythm/issues/24) |
 
 ## 播放在线链接
 
