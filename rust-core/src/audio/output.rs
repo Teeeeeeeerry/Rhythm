@@ -9,9 +9,12 @@ use std::time::Duration;
 /// the audio callback drains in real time; the bound provides backpressure so
 /// decoding never runs ahead of playback.
 pub struct AudioOutput {
+    // `tx` is declared *before* `_stream` so the Drop glue runs sender-drop
+    // first: the callback sees the disconnect and can drain any remaining
+    // blocks before the stream itself is torn down.
+    tx: Option<SyncSender<Vec<f32>>>,
     // Keep the stream alive for the lifetime of the output.
     _stream: cpal::Stream,
-    tx: SyncSender<Vec<f32>>,
     sample_rate: u32,
     channels: u16,
 }
@@ -130,8 +133,8 @@ impl AudioOutput {
         })?;
 
         Ok(AudioOutput {
+            tx: Some(tx),
             _stream: stream,
-            tx,
             sample_rate,
             channels,
         })
@@ -140,10 +143,29 @@ impl AudioOutput {
     /// Write interleaved f32 PCM to the audio output. Blocks when the output
     /// queue is full (backpressure against the decode loop).
     pub fn write(&mut self, data: &[f32]) -> RhythmResult<()> {
-        self.tx.send(data.to_vec()).map_err(|e| {
-            RhythmError::Output(format!("Audio output channel closed: {e}"))
-        })?;
+        if let Some(ref tx) = self.tx {
+            tx.send(data.to_vec()).map_err(|e| {
+                RhythmError::Output(format!("Audio output channel closed: {e}"))
+            })?;
+        }
         Ok(())
+    }
+
+    /// Drain the output queue before the stream is torn down.
+    ///
+    /// After the decode loop ends naturally, there may be up to
+    /// `QUEUE_DEPTH` blocks still buffered in the channel plus whatever the
+    /// `PcmPump` callback hasn't consumed yet. Dropping the sender signals
+    /// end-of-stream to the callback; waiting here lets those blocks play
+    /// out before the caller drops `_stream` and stops the device.
+    pub fn drain(&mut self) {
+        // Drop the sender — the callback will finish consuming whatever is
+        // still queued, then output silence until the stream is dropped.
+        self.tx.take();
+        // Each block is at most a decoded packet (~1024 frames); the channel
+        // holds at most QUEUE_DEPTH blocks. Add 50 ms safety margin.
+        let max_ms = QUEUE_DEPTH as u64 * 1024 * 1000 / self.sample_rate as u64 + 50;
+        std::thread::sleep(std::time::Duration::from_millis(max_ms));
     }
 
     /// The device's sample rate; decoded audio must be resampled to this.
