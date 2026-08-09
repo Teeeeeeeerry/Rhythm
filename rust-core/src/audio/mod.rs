@@ -1,7 +1,7 @@
 use crate::resolver::resolve_url;
 use crate::{PlayerState, ProgressCallback, RhythmError, RhythmResult, StateCallback};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -17,11 +17,16 @@ use output::AudioOutput;
 use resampler::Resampler;
 
 /// Audio engine for playback of local files and network streams.
+///
+/// Uses a generation counter so that a new `play_file` / `play_url` call
+/// automatically stops the previous playback thread — the old thread sees a
+/// mismatch and exits its loop, preventing two cpal output streams from
+/// mixing on the same device (#51).
 pub struct AudioEngine {
     inner: Arc<Mutex<EngineInner>>,
     state_callback: Arc<Mutex<Option<StateCallback>>>,
     progress_callback: Arc<Mutex<Option<ProgressCallback>>>,
-    stop_flag: Arc<AtomicBool>,
+    generation: Arc<AtomicU64>,
 }
 
 struct EngineInner {
@@ -47,7 +52,7 @@ impl AudioEngine {
             })),
             state_callback: Arc::new(Mutex::new(None)),
             progress_callback: Arc::new(Mutex::new(None)),
-            stop_flag: Arc::new(AtomicBool::new(false)),
+            generation: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -69,12 +74,14 @@ impl AudioEngine {
             return Err(RhythmError::FileNotFound(path_str));
         }
 
-        self.stop_flag.store(false, Ordering::SeqCst);
+        // Bump the generation so any in-flight playback thread exits its loop
+        // on the next iteration (#51).
+        let my_gen = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
 
         let inner = self.inner.clone();
         let state_cb = self.state_callback.clone();
         let progress_cb = self.progress_callback.clone();
-        let stop_flag = self.stop_flag.clone();
+        let generation = self.generation.clone();
 
         thread::spawn(move || {
             if let Err(e) = play_file_impl(
@@ -82,7 +89,8 @@ impl AudioEngine {
                 inner.clone(),
                 state_cb.clone(),
                 progress_cb,
-                stop_flag,
+                generation,
+                my_gen,
             ) {
                 log::error!("Playback error: {e}");
                 fail(&inner, &state_cb, e.to_string());
@@ -94,13 +102,15 @@ impl AudioEngine {
 
     /// Play from a network URL stream.
     pub fn play_url(&self, url: &str) -> RhythmResult<()> {
-        self.stop_flag.store(false, Ordering::SeqCst);
+        // Bump the generation so any in-flight playback thread exits its loop
+        // on the next iteration (#51).
+        let my_gen = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
 
         let url = url.to_string();
         let inner = self.inner.clone();
         let state_cb = self.state_callback.clone();
         let progress_cb = self.progress_callback.clone();
-        let stop_flag = self.stop_flag.clone();
+        let generation = self.generation.clone();
 
         thread::spawn(move || {
             if let Err(e) = play_url_impl(
@@ -108,7 +118,8 @@ impl AudioEngine {
                 inner.clone(),
                 state_cb.clone(),
                 progress_cb,
-                stop_flag,
+                generation,
+                my_gen,
             ) {
                 log::error!("Playback error: {e}");
                 fail(&inner, &state_cb, e.to_string());
@@ -138,7 +149,9 @@ impl AudioEngine {
 
     /// Stop playback.
     pub fn stop(&self) {
-        self.stop_flag.store(true, Ordering::SeqCst);
+        // Bump the generation so the playback thread sees a mismatch and
+        // exits its loop (#51).
+        self.generation.fetch_add(1, Ordering::SeqCst);
         let mut inner = self.inner.lock().unwrap();
         inner.state = PlayerState::Stopped;
         inner.current_source = None;
@@ -204,7 +217,8 @@ fn play_file_impl(
     inner: Arc<Mutex<EngineInner>>,
     state_cb: Arc<Mutex<Option<StateCallback>>>,
     progress_cb: Arc<Mutex<Option<ProgressCallback>>>,
-    stop_flag: Arc<AtomicBool>,
+    generation: Arc<AtomicU64>,
+    my_gen: u64,
 ) -> RhythmResult<()> {
     // Update state
     inner.lock().unwrap().current_source = Some(path.to_string());
@@ -226,7 +240,8 @@ fn play_file_impl(
         inner,
         state_cb,
         progress_cb,
-        stop_flag,
+        generation,
+        my_gen,
     )
 }
 
@@ -235,7 +250,8 @@ fn play_url_impl(
     inner: Arc<Mutex<EngineInner>>,
     state_cb: Arc<Mutex<Option<StateCallback>>>,
     progress_cb: Arc<Mutex<Option<ProgressCallback>>>,
-    stop_flag: Arc<AtomicBool>,
+    generation: Arc<AtomicU64>,
+    my_gen: u64,
 ) -> RhythmResult<()> {
     // Buffering has to be recorded, not just emitted: the UI polls `state()`
     // rather than registering a callback, so an emit-only Buffering left it
@@ -289,12 +305,17 @@ fn play_url_impl(
         inner,
         state_cb,
         progress_cb,
-        stop_flag,
+        generation,
+        my_gen,
     )
 }
 
 /// Shared decode → resample → output loop. Applies pending seeks, pause, and
 /// volume, and reports progress via the callback.
+///
+/// The loop exits when the global generation counter no longer matches
+/// `my_gen` — this happens when `stop()`, `play_file()`, or `play_url()` is
+/// called while the thread is running (#51).
 fn run_playback_loop(
     decoder: &mut AudioDecoder,
     output: &mut AudioOutput,
@@ -302,12 +323,13 @@ fn run_playback_loop(
     inner: Arc<Mutex<EngineInner>>,
     state_cb: Arc<Mutex<Option<StateCallback>>>,
     progress_cb: Arc<Mutex<Option<ProgressCallback>>>,
-    stop_flag: Arc<AtomicBool>,
+    generation: Arc<AtomicU64>,
+    my_gen: u64,
 ) -> RhythmResult<()> {
     let out_rate = output.sample_rate();
     let out_channels = output.channels();
 
-    while !stop_flag.load(Ordering::SeqCst) {
+    while generation.load(Ordering::SeqCst) == my_gen {
         // Check pause state
         {
             let eng = inner.lock().unwrap();
@@ -357,7 +379,7 @@ fn run_playback_loop(
     }
 
     // Natural end vs. manual stop: `stop()` already emitted Stopped.
-    if !stop_flag.load(Ordering::SeqCst) {
+    if generation.load(Ordering::SeqCst) == my_gen {
         // Drain the output queue before the stream is torn down so the
         // listener hears the tail of the last decoded packet instead of
         // having it clipped by the cpal stream drop (#28).
