@@ -184,6 +184,7 @@ final class AppState: ObservableObject {
     /// Play a track with a specific queue (e.g., from a playlist).
     func playTrack(_ track: Track, queueTracks: [Track]) {
         currentTrack = track
+        player.stop() // #51: stop old playback before starting new
         switch track.sourceType {
         case "local":
             if let path = track.filePath { player.playFile(path) }
@@ -293,6 +294,7 @@ final class AppState: ObservableObject {
     private func playResolved(_ track: Track) {
         tracks.insert(track, at: 0)
         currentTrack = track
+        player.stop() // #51: stop old playback before starting new
         if let url = track.sourceUrl {
             player.playURL(url)
         }
@@ -346,6 +348,7 @@ final class AppState: ObservableObject {
         guard let q = queue, let nextTrack = q.next() else { return }
         currentTrack = nextTrack
         isPlaying = true
+        player.stop() // #51: stop old playback before starting new
         switch nextTrack.sourceType {
         case "local":
             if let path = nextTrack.filePath { player.playFile(path) }
@@ -360,6 +363,7 @@ final class AppState: ObservableObject {
         guard let q = queue, let prevTrack = q.previous() else { return }
         currentTrack = prevTrack
         isPlaying = true
+        player.stop() // #51: stop old playback before starting new
         switch prevTrack.sourceType {
         case "local":
             if let path = prevTrack.filePath { player.playFile(path) }
