@@ -55,10 +55,15 @@ struct LibraryView: View {
                  : "Click the + button in the toolbar to import music files or folders")
                 .font(.caption)
                 .foregroundStyle(.rhythmTextTertiary)
-            Button(L10n.importTooltip) {
-                importFolder()
+            if appState.isImporting {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Button(L10n.importTooltip) {
+                    importFolder()
+                }
+                .padding(.top, 4)
             }
-            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

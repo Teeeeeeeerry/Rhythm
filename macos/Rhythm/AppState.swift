@@ -26,6 +26,7 @@ final class AppState: ObservableObject {
     // Import feedback
     @Published var importAlertMessage: String?
     @Published var showImportAlert = false
+    @Published var isImporting = false
 
     // Delete confirmation
     @Published var trackToDelete: Track?
@@ -105,37 +106,48 @@ final class AppState: ObservableObject {
     }
 
     /// Dispatch a list of URLs — files go to `importFile`, directories to
-    /// `importDirectory`.
+    /// `importDirectory`.  Runs on a background queue so the UI stays
+    /// responsive during metadata extraction and SQLite writes (#38).
     func importURLs(_ urls: [URL]) {
-        var imported = 0
-        var failed = 0
-        for url in urls {
-            let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-            if isDir {
-                let count = library?.importDirectory(url.path) ?? -1
-                if count > 0 { imported += count } else if count < 0 { failed += 1 }
-            } else {
-                let r = library?.importFile(url.path) ?? -1
-                if r > 0 { imported += 1 } else if r < 0 { failed += 1 }
+        guard !isImporting else { return }
+        isImporting = true
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            var imported = 0
+            var failed = 0
+            for url in urls {
+                guard let self else { return }
+                let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+                if isDir {
+                    let count = self.library?.importDirectory(url.path) ?? -1
+                    if count > 0 { imported += count } else if count < 0 { failed += 1 }
+                } else {
+                    let r = self.library?.importFile(url.path) ?? -1
+                    if r > 0 { imported += 1 } else if r < 0 { failed += 1 }
+                }
+            }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isImporting = false
+                if imported > 0 { self.refreshLibrary() }
+                if imported > 0 && failed == 0 {
+                    self.importAlertMessage = L10n.importedTracks(imported)
+                } else if imported > 0 {
+                    self.importAlertMessage = L10n.isChinese
+                        ? "已导入 \(imported) 首，\(failed) 个失败"
+                        : "Imported \(imported) tracks, \(failed) failed."
+                } else if failed > 0 {
+                    self.importAlertMessage = L10n.isChinese
+                        ? "全部导入失败，请检查文件是否支持"
+                        : "All imports failed. Check that the files are supported."
+                } else {
+                    self.importAlertMessage = L10n.isChinese
+                        ? "未找到支持的音频文件"
+                        : "No supported audio files found."
+                }
+                self.showImportAlert = true
             }
         }
-        if imported > 0 { refreshLibrary() }
-        if imported > 0 && failed == 0 {
-            importAlertMessage = L10n.importedTracks(imported)
-        } else if imported > 0 {
-            importAlertMessage = L10n.isChinese
-                ? "已导入 \(imported) 首，\(failed) 个失败"
-                : "Imported \(imported) tracks, \(failed) failed."
-        } else if failed > 0 {
-            importAlertMessage = L10n.isChinese
-                ? "全部导入失败，请检查文件是否支持"
-                : "All imports failed. Check that the files are supported."
-        } else {
-            importAlertMessage = L10n.isChinese
-                ? "未找到支持的音频文件"
-                : "No supported audio files found."
-        }
-        showImportAlert = true
     }
 
     /// Request deletion of a track — shows a confirmation dialog.

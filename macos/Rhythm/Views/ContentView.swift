@@ -23,10 +23,16 @@ struct ContentView: View {
         .toolbar {
             ToolbarItemGroup {
                 if appState.selectedView == .library {
-                    Button(action: importFolder) {
-                        Image(systemName: "plus")
+                    if appState.isImporting {
+                        ProgressView()
+                            .controlSize(.small)
+                            .help(L10n.isChinese ? "正在导入…" : "Importing…")
+                    } else {
+                        Button(action: importFolder) {
+                            Image(systemName: "plus")
+                        }
+                        .help(L10n.importTooltip)
                     }
-                    .help(L10n.importTooltip)
                 }
                 TextField(L10n.searchPlaceholder, text: $appState.searchQuery)
                     .textFieldStyle(.roundedBorder)
