@@ -77,6 +77,13 @@ impl Library {
             CREATE INDEX IF NOT EXISTS idx_tracks_source_type ON tracks(source_type);
             CREATE INDEX IF NOT EXISTS idx_tracks_file_path ON tracks(file_path);
 
+            -- Partial unique index: prevent duplicate URL tracks at the
+            -- database level, even if the application-level dedup in
+            -- add_track() is bypassed (#40).
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_tracks_source_url_unique
+                ON tracks(source_url)
+                WHERE source_url IS NOT NULL AND source_type != 'local';
+
             CREATE TABLE IF NOT EXISTS playlists (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
@@ -150,7 +157,7 @@ impl Library {
 
         // Check for duplicate by source_url (URL tracks — YouTube, Bilibili,
         // direct URL, etc.). Without this, resolving the same URL twice would
-        // insert a new row every time (#39).
+        // insert a new row every time (#40).
         if track.file_path.is_none() {
             if let Some(ref url) = track.source_url {
                 let existing: Option<i64> = conn
