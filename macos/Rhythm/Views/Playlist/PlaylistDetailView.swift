@@ -1,6 +1,9 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import RhythmCore
+#if SWIFT_PACKAGE
+import RhythmTheme
+#endif
 
 struct PlaylistDetailView: View {
     let playlist: Playlist

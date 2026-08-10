@@ -4,7 +4,8 @@ import SwiftUI
 
 /// Resolves the effective appearance so high-contrast variants don't fall
 /// back to the static `Color` defaults and miss the brand palette.
-private func isDark(_ appearance: NSAppearance) -> Bool {
+/// internal（非 private）：L1 测试（@testable import）需测 isDark 矩阵。
+func isDark(_ appearance: NSAppearance) -> Bool {
     let match = appearance.bestMatch(from: [
         .darkAqua, .aqua,
         .accessibilityHighContrastDarkAqua, .accessibilityHighContrastAqua,
@@ -17,13 +18,17 @@ private func isDark(_ appearance: NSAppearance) -> Bool {
 /// Dark-first palette exposed as `ShapeStyle` statics so SwiftUI modifiers
 /// (`.foregroundStyle`, `.fill`, `.background`, `.tint`) resolve them
 /// through the standard `ShapeStyle` member-lookup path.
+///
+/// 成员必须 `public`：跨模块（RhythmTheme → Rhythm）的隐式成员查找
+/// 基于协议 `ShapeStyle` 展开；internal 成员不可见会让求解器走错误路径，
+/// 引发 type-check 超时与泛型推断连锁失败。
 extension ShapeStyle where Self == Color {
 
     // MARK: Accent
 
     /// Accent / interactive elements.
     /// Dark: #ABC8D4   Light: #0D464D (10.50:1 on white)
-    static var rhythmAccent: Color {
+    public static var rhythmAccent: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0xAB / 255.0, green: 0xC8 / 255.0, blue: 0xD4 / 255.0, alpha: 1.0)
@@ -35,7 +40,7 @@ extension ShapeStyle where Self == Color {
 
     /// Deepest background.
     /// Dark: #011F26   Light: white
-    static var rhythmSurface: Color {
+    public static var rhythmSurface: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0x01 / 255.0, green: 0x1F / 255.0, blue: 0x26 / 255.0, alpha: 1.0)
@@ -49,7 +54,7 @@ extension ShapeStyle where Self == Color {
     /// In light mode this is intentionally the same as `rhythmSurface` —
     /// the brand palette is dark-first and light-mode layering relies on
     /// shadows and borders rather than colour difference (see `rhythmBorder`).
-    static var rhythmElevated: Color {
+    public static var rhythmElevated: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0x0D / 255.0, green: 0x46 / 255.0, blue: 0x4D / 255.0, alpha: 1.0)
@@ -61,7 +66,7 @@ extension ShapeStyle where Self == Color {
 
     /// Primary text.
     /// Dark: #ABC8D4   Light: #0D464D
-    static var rhythmTextPrimary: Color {
+    public static var rhythmTextPrimary: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0xAB / 255.0, green: 0xC8 / 255.0, blue: 0xD4 / 255.0, alpha: 1.0)
@@ -71,7 +76,7 @@ extension ShapeStyle where Self == Color {
 
     /// Secondary / muted text.
     /// Dark: #ABC8D4 @ 0.7   Light: #0D464D @ 0.6
-    static var rhythmTextSecondary: Color {
+    public static var rhythmTextSecondary: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0xAB / 255.0, green: 0xC8 / 255.0, blue: 0xD4 / 255.0, alpha: 0.7)
@@ -81,7 +86,7 @@ extension ShapeStyle where Self == Color {
 
     /// Tertiary / hint text.
     /// Dark: #ABC8D4 @ 0.55   Light: #0D464D @ 0.4
-    static var rhythmTextTertiary: Color {
+    public static var rhythmTextTertiary: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0xAB / 255.0, green: 0xC8 / 255.0, blue: 0xD4 / 255.0, alpha: 0.55)
@@ -96,7 +101,7 @@ extension ShapeStyle where Self == Color {
     /// #0D464D / #011F26 is only 1.63:1, so adjacent panels need a border
     /// to stay legible.
     /// Dark: #ABC8D4 @ 0.15   Light: #ABC8D4 @ 0.30
-    static var rhythmBorder: Color {
+    public static var rhythmBorder: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0xAB / 255.0, green: 0xC8 / 255.0, blue: 0xD4 / 255.0, alpha: 0.15)
@@ -115,7 +120,7 @@ extension ShapeStyle where Self == Color {
 
     /// 本地 — blue-slate, stays closest to the brand teal family.
     /// Dark: #8ABCD0   Light: #3A7A8C
-    static var rhythmSourceLocal: Color {
+    public static var rhythmSourceLocal: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0x8A / 255.0, green: 0xBC / 255.0, blue: 0xD0 / 255.0, alpha: 1.0)
@@ -125,7 +130,7 @@ extension ShapeStyle where Self == Color {
 
     /// YouTube — muted terracotta (warm, complementary to teal).
     /// Dark: #D49573   Light: #8B4A28
-    static var rhythmSourceYoutube: Color {
+    public static var rhythmSourceYoutube: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0xD4 / 255.0, green: 0x95 / 255.0, blue: 0x73 / 255.0, alpha: 1.0)
@@ -136,7 +141,7 @@ extension ShapeStyle where Self == Color {
     /// Bilibili — dusty rose (restrained pink, nod to B站 brand without the
     /// saturation clash).
     /// Dark: #C88DA8   Light: #8C4D68
-    static var rhythmSourceBilibili: Color {
+    public static var rhythmSourceBilibili: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0xC8 / 255.0, green: 0x8D / 255.0, blue: 0xA8 / 255.0, alpha: 1.0)
@@ -146,7 +151,7 @@ extension ShapeStyle where Self == Color {
 
     /// 链接 — sage green (teal-adjacent, natural extension of the palette).
     /// Dark: #8CB89A   Light: #4C785A
-    static var rhythmSourceUrl: Color {
+    public static var rhythmSourceUrl: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0x8C / 255.0, green: 0xB8 / 255.0, blue: 0x9A / 255.0, alpha: 1.0)
