@@ -161,6 +161,49 @@ void Library::RecordPlay(int64_t trackId) {
     rhythm_library_record_play(ptr_, trackId);
 }
 
+static std::string TrackToJson(const Track& t) {
+    json j;
+    j["id"] = t.id;
+    if (t.filePath) j["file_path"] = WideToUtf8(*t.filePath);
+    j["source_type"] = WideToUtf8(t.sourceType);
+    if (t.sourceUrl) j["source_url"] = WideToUtf8(*t.sourceUrl);
+    j["title"] = WideToUtf8(t.title);
+    if (t.artist) j["artist"] = WideToUtf8(*t.artist);
+    if (t.album) j["album"] = WideToUtf8(*t.album);
+    if (t.albumArtist) j["album_artist"] = WideToUtf8(*t.albumArtist);
+    if (t.trackNumber) j["track_number"] = *t.trackNumber;
+    if (t.discNumber) j["disc_number"] = *t.discNumber;
+    if (t.genre) j["genre"] = WideToUtf8(*t.genre);
+    if (t.year) j["year"] = *t.year;
+    j["duration"] = t.duration;
+    if (t.format) j["format"] = WideToUtf8(*t.format);
+    if (t.bitrate) j["bitrate"] = *t.bitrate;
+    if (t.sampleRate) j["sample_rate"] = *t.sampleRate;
+    if (t.channels) j["channels"] = *t.channels;
+    if (t.fileSize) j["file_size"] = *t.fileSize;
+    if (t.dateAdded) j["date_added"] = WideToUtf8(*t.dateAdded);
+    if (t.lastPlayed) j["last_played"] = WideToUtf8(*t.lastPlayed);
+    j["play_count"] = t.playCount;
+    if (t.artworkPath) j["artwork_path"] = WideToUtf8(*t.artworkPath);
+    j["is_available"] = t.isAvailable;
+    return j.dump();
+}
+
+Track Library::AddTrack(const Track& track) {
+    if (!ptr_) return track;
+    auto json = TrackToJson(track);
+    char* result = rhythm_library_add_track(ptr_, json.c_str());
+    if (!result) return track;
+    auto saved = JsonToTrack(json::parse(result));
+    rhythm_free_string(result);
+    return saved;
+}
+
+bool Library::RemoveTrack(int64_t id) {
+    if (!ptr_) return false;
+    return rhythm_library_remove_track(ptr_, id) == 0;
+}
+
 // ─── Player ─────────────────────────────────────────────────────────
 
 Player::Player() {
