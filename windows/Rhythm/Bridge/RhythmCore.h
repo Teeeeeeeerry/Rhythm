@@ -45,21 +45,21 @@ struct Track {
     }
 
     std::wstring SourceColor() const {
-        if (sourceType == L"local") return L"Blue";
-        if (sourceType == L"youtube") return L"Red";
-        if (sourceType == L"bilibili") return L"HotPink";
-        if (sourceType == L"direct_url") return L"Green";
+        if (sourceType == L"local") return L"#8ABCD0";
+        if (sourceType == L"youtube") return L"#D49573";
+        if (sourceType == L"bilibili") return L"#C88DA8";
+        if (sourceType == L"direct_url") return L"#8CB89A";
         return L"Gray";
     }
 
     /// Capsule badge background brush — foreground colour at 15 % opacity,
     /// matching the macOS `.background(color.opacity(0.15))` treatment.
     winrt::Microsoft::UI::Xaml::Media::SolidColorBrush SourceBackgroundBrush() const {
-        uint8_t r = 128, g = 128, b = 128;
-        if (sourceType == L"local")      { r = 0;   g = 0;   b = 255; }
-        else if (sourceType == L"youtube")  { r = 255; g = 0;   b = 0; }
-        else if (sourceType == L"bilibili") { r = 255; g = 105; b = 180; }
-        else if (sourceType == L"direct_url") { r = 0;   g = 128; b = 0; }
+        uint8_t r = 128, g = 128, b = 128;  // fallback: grey
+        if (sourceType == L"local")      { r = 0x8A; g = 0xBC; b = 0xD0; }
+        else if (sourceType == L"youtube")  { r = 0xD4; g = 0x95; b = 0x73; }
+        else if (sourceType == L"bilibili") { r = 0xC8; g = 0x8D; b = 0xA8; }
+        else if (sourceType == L"direct_url") { r = 0x8C; g = 0xB8; b = 0x9A; }
 
         return winrt::Microsoft::UI::Xaml::Media::SolidColorBrush(
             winrt::Windows::UI::Color{38, r, g, b});  // A=38 ≈ 15 %

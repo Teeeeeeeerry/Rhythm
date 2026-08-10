@@ -128,10 +128,10 @@ struct SourceTagView: View {
 
     var color: Color {
         switch sourceType {
-        case "local": .blue
-        case "youtube": .red
-        case "bilibili": .pink
-        case "direct_url": .green
+        case "local": .rhythmSourceLocal
+        case "youtube": .rhythmSourceYoutube
+        case "bilibili": .rhythmSourceBilibili
+        case "direct_url": .rhythmSourceUrl
         default: .gray
         }
     }
