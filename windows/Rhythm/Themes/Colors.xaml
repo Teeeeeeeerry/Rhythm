@@ -13,6 +13,7 @@
             <SolidColorBrush x:Key="RhythmElevatedBrush" Color="#0D464D" />
             <SolidColorBrush x:Key="RhythmTextPrimaryBrush" Color="#ABC8D4" />
             <SolidColorBrush x:Key="RhythmTextSecondaryBrush" Color="#B2ABC8D4" />
+            <SolidColorBrush x:Key="RhythmTextTertiaryBrush" Color="#8CABC8D4" />
             <!-- #ABC8D4 @ 0.15 for panel-separating stroke -->
             <SolidColorBrush x:Key="RhythmBorderBrush" Color="#26ABC8D4" />
         </ResourceDictionary>
@@ -24,6 +25,7 @@
             <SolidColorBrush x:Key="RhythmElevatedBrush" Color="#FFFFFF" />
             <SolidColorBrush x:Key="RhythmTextPrimaryBrush" Color="#0D464D" />
             <SolidColorBrush x:Key="RhythmTextSecondaryBrush" Color="#990D464D" />
+            <SolidColorBrush x:Key="RhythmTextTertiaryBrush" Color="#660D464D" />
             <!-- #ABC8D4 @ 0.30 for panel-separating stroke -->
             <SolidColorBrush x:Key="RhythmBorderBrush" Color="#4DABC8D4" />
         </ResourceDictionary>
