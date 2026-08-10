@@ -30,7 +30,8 @@
                     <Grid ColumnDefinitions="*,Auto,Auto" Padding="8,4">
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="{Binding Title}"
-                                       TextTrimming="CharacterEllipsis" />
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{ThemeResource RhythmTextPrimaryBrush}" />
                             <TextBlock Text="{Binding Artist}"
                                        FontSize="11"
                                        Foreground="{ThemeResource RhythmTextSecondaryBrush}" />
