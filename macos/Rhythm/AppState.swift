@@ -325,6 +325,8 @@ final class AppState: ObservableObject {
         queue?.hasPrevious ?? false
     }
 
+    var canStop: Bool { isPlaying }
+
     /// Toggle between play and pause.
     func togglePlayPause() {
         if isPlaying {
@@ -371,6 +373,19 @@ final class AppState: ObservableObject {
             if let url = prevTrack.sourceUrl { player.playURL(url) }
         }
         library?.recordPlay(prevTrack.id)
+    }
+
+    /// Stop playback entirely: stop the engine, reset transport state, clear
+    /// the current track and queue.  The player bar reverts to its idle state
+    /// and the tray / app menu can gate on `canStop`.
+    func stop() {
+        player.stop()
+        isPlaying = false
+        isBuffering = false
+        currentTrack = nil
+        queue = nil
+        position = 0
+        duration = 0
     }
 
     /// Cycle to the next play mode.

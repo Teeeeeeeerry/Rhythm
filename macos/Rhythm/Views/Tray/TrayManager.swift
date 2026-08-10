@@ -25,6 +25,8 @@ final class TrayManager: NSObject {
         // isn't on it — so `autoenablesItems` greyed out the whole menu,
         // including Quit (#24).
         menu.addItem(item(L10n.trayPlayPause, #selector(togglePlay)))
+        menu.addItem(item(L10n.trayStop, #selector(stopPlayback)))
+        menu.addItem(.separator())
         menu.addItem(item(L10n.trayNext, #selector(nextTrack)))
         menu.addItem(item(L10n.trayPrev, #selector(previousTrack)))
         menu.addItem(.separator())
@@ -54,6 +56,10 @@ final class TrayManager: NSObject {
 
     @objc private func togglePlay() {
         appState?.togglePlayPause()
+    }
+
+    @objc private func stopPlayback() {
+        appState?.stop()
     }
 
     @objc private func nextTrack() {
@@ -93,6 +99,8 @@ extension TrayManager: NSMenuItemValidation {
             guard let appState else { return false }
             menuItem.title = appState.isPlaying ? L10n.trayPause : L10n.trayPlay
             return appState.canTogglePlayback
+        case #selector(stopPlayback):
+            return appState?.canStop ?? false
         case #selector(nextTrack):
             return appState?.canPlayNext ?? false
         case #selector(previousTrack):
