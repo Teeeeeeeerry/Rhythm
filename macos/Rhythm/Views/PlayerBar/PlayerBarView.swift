@@ -1,4 +1,7 @@
 import SwiftUI
+#if SWIFT_PACKAGE
+import RhythmTheme
+#endif
 
 struct PlayerBarView: View {
     @EnvironmentObject var appState: AppState

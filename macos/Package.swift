@@ -9,15 +9,24 @@ let package = Package(
             name: "RhythmCore",
             path: "Rhythm/Bridge"
         ),
+        .target(
+            name: "RhythmTheme",
+            path: "RhythmTheme"
+        ),
         .executableTarget(
             name: "Rhythm",
-            dependencies: ["RhythmCore"],
+            dependencies: ["RhythmCore", "RhythmTheme"],
             path: "Rhythm",
             exclude: ["Bridge", "Resources"],
             linkerSettings: [
                 .linkedLibrary("rhythm_core"),
                 .unsafeFlags(["-L", "../target/release"]),
             ]
+        ),
+        .testTarget(
+            name: "RhythmThemeTests",
+            dependencies: ["RhythmTheme"],
+            path: "Tests/RhythmThemeTests"
         ),
     ]
 )

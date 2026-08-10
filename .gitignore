@@ -22,6 +22,16 @@ windows/windows/
 build/
 dist/
 
+# Test artifacts (docs/testing)
+docs/testing/logs/
+docs/testing/**/out/
+*.xcresult
+build/artifacts/
+__pycache__/
+
+# Diagnostic dumps
+问题报告.md
+
 # IDE
 .vscode/
 .idea/
