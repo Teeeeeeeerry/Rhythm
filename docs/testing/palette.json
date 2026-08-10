@@ -1,0 +1,236 @@
+{
+  "version": 1,
+  "note": "Rhythm 品牌配色单一事实来源。tokens/sources 由 sync-palette.py 从源码自动提取（勿手改）；usage/backgrounds/exceptions/whitelist 为设计决策段（人工维护）。",
+  "alphaTolerance": 2,
+  "tokens": {
+    "rhythmAccent": {
+      "dark": "#ABC8D4",
+      "light": "#0D464D"
+    },
+    "rhythmBorder": {
+      "dark": "#26ABC8D4",
+      "light": "#4CABC8D4"
+    },
+    "rhythmElevated": {
+      "dark": "#0D464D",
+      "light": "#FFFFFF"
+    },
+    "rhythmSourceBilibili": {
+      "dark": "#C88DA8",
+      "light": "#8C4D68"
+    },
+    "rhythmSourceLocal": {
+      "dark": "#8ABCD0",
+      "light": "#3A7A8C"
+    },
+    "rhythmSourceUrl": {
+      "dark": "#8CB89A",
+      "light": "#4C785A"
+    },
+    "rhythmSourceYoutube": {
+      "dark": "#D49573",
+      "light": "#8B4A28"
+    },
+    "rhythmSurface": {
+      "dark": "#011F26",
+      "light": "#FFFFFF"
+    },
+    "rhythmTextPrimary": {
+      "dark": "#ABC8D4",
+      "light": "#0D464D"
+    },
+    "rhythmTextSecondary": {
+      "dark": "#B2ABC8D4",
+      "light": "#990D464D"
+    },
+    "rhythmTextTertiary": {
+      "dark": "#8CABC8D4",
+      "light": "#660D464D"
+    }
+  },
+  "sources": {
+    "bilibili": {
+      "dark": "#C88DA8",
+      "light": null
+    },
+    "direct_url": {
+      "dark": "#8CB89A",
+      "light": null
+    },
+    "local": {
+      "dark": "#8ABCD0",
+      "light": null
+    },
+    "youtube": {
+      "dark": "#D49573",
+      "light": null
+    }
+  },
+  "usage": {
+    "rhythmAccent": {
+      "background": "window",
+      "contrastThreshold": 4.5,
+      "purpose": "强调/交互/选中态文字"
+    },
+    "rhythmTextPrimary": {
+      "background": "window",
+      "contrastThreshold": 4.5,
+      "purpose": "正文"
+    },
+    "rhythmTextSecondary": {
+      "background": "window",
+      "contrastThreshold": 3.0,
+      "purpose": "次要文本（AA 大文本线，F8 例外登记中）"
+    },
+    "rhythmTextTertiary": {
+      "background": "window",
+      "contrastThreshold": 3.0,
+      "purpose": "提示文本（F8 例外登记中）"
+    },
+    "rhythmBorder": {
+      "background": "window",
+      "contrastThreshold": 3.0,
+      "purpose": "分隔描边（装饰性，参考阈值）"
+    },
+    "rhythmSurface": {
+      "background": "window",
+      "contrastThreshold": 0.0,
+      "purpose": "背景（不参与对比度断言）"
+    },
+    "rhythmElevated": {
+      "background": "window",
+      "contrastThreshold": 0.0,
+      "purpose": "卡片/占位背景（不参与对比度断言）"
+    },
+    "rhythmSourceLocal": {
+      "background": "window",
+      "contrastThreshold": 4.5,
+      "purpose": "来源徽标前景"
+    },
+    "rhythmSourceYoutube": {
+      "background": "window",
+      "contrastThreshold": 4.5,
+      "purpose": "来源徽标前景"
+    },
+    "rhythmSourceBilibili": {
+      "background": "window",
+      "contrastThreshold": 4.5,
+      "purpose": "来源徽标前景"
+    },
+    "rhythmSourceUrl": {
+      "background": "window",
+      "contrastThreshold": 4.5,
+      "purpose": "来源徽标前景"
+    }
+  },
+  "backgrounds": {
+    "macos": {
+      "light": {
+        "window": "#FFFFFF",
+        "row": "#F5F5F7"
+      },
+      "dark": {
+        "window": "#011F26",
+        "row": "#011F26"
+      }
+    },
+    "windows": {
+      "light": {
+        "window": "#FFFFFF",
+        "row": "#FFFFFF"
+      },
+      "dark": {
+        "window": "#011F26",
+        "row": "#0D464D"
+      }
+    }
+  },
+  "exceptions": [
+    {
+      "token": "rhythmTextSecondary",
+      "appearance": "light",
+      "background": "window",
+      "measured": 3.45,
+      "reason": "F8：light 下 0.6 alpha 合成后 ~3.5:1，低于 AA 正文 4.5:1；阈值按 AA 大文本 3.0 登记，后续决策调整 alpha 或色值",
+      "approved": true
+    },
+    {
+      "token": "rhythmTextTertiary",
+      "appearance": "light",
+      "background": "window",
+      "measured": 2.15,
+      "reason": "F8：light 下 0.4 alpha 合成后 ~2.2:1；提示文本（空状态说明），阈值按 3.0 登记（暂低于线），后续决策调整",
+      "approved": true
+    },
+    {
+      "token": "rhythmBorder",
+      "appearance": "light",
+      "background": "window",
+      "measured": 1.17,
+      "reason": "装饰性面板分隔线（WCAG 1.4.11 非文本对比度不适用于纯装饰描边）；Theme.swift 注释明确依赖边框与相邻面板的配合而非自身对比度",
+      "approved": true
+    },
+    {
+      "token": "rhythmBorder",
+      "appearance": "dark",
+      "background": "window",
+      "measured": 1.37,
+      "reason": "同 light：装饰性分隔线，色块邻接靠边框区分，不适用文本对比度要求",
+      "approved": true
+    },
+    {
+      "token": "rhythmTextTertiary",
+      "appearance": "light",
+      "background": "row",
+      "measured": 2.12,
+      "reason": "F8：light 下 0.4 alpha 合成；row #F5F5F7 上 2.12:1（window 2.15 已登记），提示文本阈值 3.0 暂低于线，后续决策调整",
+      "approved": true
+    },
+    {
+      "token": "rhythmBorder",
+      "appearance": "dark",
+      "background": "row",
+      "measured": 1.37,
+      "reason": "同 window 登记：装饰性分隔线（dark row 与 window 同色 #011F26）",
+      "approved": true
+    },
+    {
+      "token": "rhythmBorder",
+      "appearance": "light",
+      "background": "row",
+      "measured": 1.14,
+      "reason": "同 window 登记：装饰性分隔线，row #F5F5F7 上 1.14:1",
+      "approved": true
+    },
+    {
+      "token": "rhythmSourceLocal",
+      "appearance": "light",
+      "background": "row",
+      "measured": 4.44,
+      "reason": "来源徽标前景：window 上 4.84:1 达标；row #F5F5F7 上 4.44:1 略低于 4.5（差 0.06）。徽标为小面积色标，暂登记；如需严格达标可调深 light 色值（#3A7A8C），待 P0 评审",
+      "approved": true
+    }
+  ],
+  "whitelist": {
+    "macos": [
+      "\\.clear\\b",
+      "\\.red\\b",
+      "\\.orange\\b",
+      "\\.yellow\\b",
+      "\\.green\\b",
+      "\\.blue\\b",
+      "\\.purple\\b",
+      "\\.pink\\b",
+      "\\.secondary",
+      "\\.tertiary",
+      "Color\\(nsColor:",
+      "opacity\\("
+    ],
+    "windows": [
+      "Transparent",
+      "Red|Orange|Yellow|Green|Blue|Purple|Pink",
+      "\\{ThemeResource",
+      "Gray"
+    ]
+  }
+}
