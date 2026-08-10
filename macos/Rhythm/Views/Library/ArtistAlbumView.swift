@@ -101,6 +101,11 @@ struct TrackRowView: View {
         }
         .padding(.vertical, 1)
         .contentShape(Rectangle())
+        .background(
+            appState.selectedTrackID == track.id
+                ? AnyShapeStyle(.rhythmAccent.opacity(0.12))
+                : AnyShapeStyle(.clear)
+        )
         .onTapGesture { appState.selectedTrackID = track.id }
         .onTapGesture(count: 2) { appState.playTrack(track) }
         .contextMenu {

@@ -69,6 +69,7 @@ struct PlaylistListView: View {
             }
             .padding()
             .frame(width: 280, height: 140)
+            .background(.rhythmSurface)
         }
     }
 
