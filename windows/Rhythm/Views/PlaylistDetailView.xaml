@@ -37,7 +37,8 @@
                                        Foreground="{ThemeResource RhythmTextSecondaryBrush}" />
                         </StackPanel>
                         <Border Grid.Column="1" Padding="4,1" Margin="4,0"
-                                CornerRadius="3" Background="Transparent">
+                                CornerRadius="3"
+                                Background="{Binding SourceBackgroundBrush}">
                             <TextBlock Text="{Binding SourceTag}" FontSize="10"
                                        Foreground="{Binding SourceColor}" />
                         </Border>

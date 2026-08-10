@@ -28,7 +28,8 @@
                                    Foreground="{ThemeResource RhythmTextPrimaryBrush}" />
                         <Border Grid.Column="2" Padding="4,1"
                                 Margin="8,0"
-                                CornerRadius="3" Background="Transparent">
+                                CornerRadius="3"
+                                Background="{Binding SourceBackgroundBrush}">
                             <TextBlock Text="{Binding SourceTag}"
                                        FontSize="10"
                                        Foreground="{Binding SourceColor}" />

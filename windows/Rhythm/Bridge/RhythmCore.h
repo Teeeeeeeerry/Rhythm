@@ -51,6 +51,19 @@ struct Track {
         if (sourceType == L"direct_url") return L"Green";
         return L"Gray";
     }
+
+    /// Capsule badge background brush — foreground colour at 15 % opacity,
+    /// matching the macOS `.background(color.opacity(0.15))` treatment.
+    winrt::Microsoft::UI::Xaml::Media::SolidColorBrush SourceBackgroundBrush() const {
+        uint8_t r = 128, g = 128, b = 128;
+        if (sourceType == L"local")      { r = 0;   g = 0;   b = 255; }
+        else if (sourceType == L"youtube")  { r = 255; g = 0;   b = 0; }
+        else if (sourceType == L"bilibili") { r = 255; g = 105; b = 180; }
+        else if (sourceType == L"direct_url") { r = 0;   g = 128; b = 0; }
+
+        return winrt::Microsoft::UI::Xaml::Media::SolidColorBrush(
+            winrt::Windows::UI::Color{38, r, g, b});  // A=38 ≈ 15 %
+    }
 };
 
 struct Playlist {
