@@ -144,7 +144,7 @@ impl Library {
             if let Some(id) = existing {
                 // Update instead of insert
                 self.update_track_impl(&conn, id, track)?;
-                return self.get_track_by_id(id);
+                return self.get_track_by_id_impl(&conn, id);
             }
         }
 
@@ -177,7 +177,7 @@ impl Library {
         )?;
 
         let id = conn.last_insert_rowid();
-        self.get_track_by_id(id)
+        self.get_track_by_id_impl(&conn, id)
     }
 
     /// Update an existing track.
@@ -213,9 +213,8 @@ impl Library {
         Ok(())
     }
 
-    /// Get a track by its database ID.
-    pub fn get_track_by_id(&self, id: i64) -> RhythmResult<TrackInfo> {
-        let conn = self.conn.lock().unwrap();
+    /// Get a track by its database ID (lock-free, call with conn already held).
+    fn get_track_by_id_impl(&self, conn: &Connection, id: i64) -> RhythmResult<TrackInfo> {
         let mut stmt = conn.prepare(
             "SELECT id, file_path, source_type, source_url, title, artist, album,
              album_artist, track_number, disc_number, genre, year, duration, format,
@@ -225,6 +224,12 @@ impl Library {
         )?;
 
         stmt.query_row(params![id], |row| row_to_track(row)).map_err(|e| e.into())
+    }
+
+    /// Get a track by its database ID.
+    pub fn get_track_by_id(&self, id: i64) -> RhythmResult<TrackInfo> {
+        let conn = self.conn.lock().unwrap();
+        self.get_track_by_id_impl(&conn, id)
     }
 
     /// Get all tracks in the library.
