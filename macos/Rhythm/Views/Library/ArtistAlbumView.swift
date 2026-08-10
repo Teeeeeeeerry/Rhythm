@@ -84,6 +84,7 @@ struct TrackRowView: View {
         HStack {
             VStack(alignment: .leading, spacing: 1) {
                 Text(track.title)
+                    .foregroundStyle(.rhythmTextPrimary)
                     .lineLimit(1)
                 if let artist = track.artist {
                     Text(artist)
