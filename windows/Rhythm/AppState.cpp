@@ -93,8 +93,11 @@ void AppState::ResolveAndPlay(const std::wstring& url) {
                 return;
             }
             UrlError.clear();
-            Tracks.insert(Tracks.begin(), outcome.track);
-            PlayTrack(outcome.track);
+            // Persist to database first — AddTrack returns the track
+            // with its real database id (#39).
+            auto saved = Library ? Library->AddTrack(outcome.track) : outcome.track;
+            Tracks.insert(Tracks.begin(), saved);
+            PlayTrack(saved);
         });
     }).detach();
 }

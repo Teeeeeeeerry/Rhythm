@@ -301,13 +301,16 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Play a resolved URL track: prepend it to the library view list and
-    /// rebuild the queue so "next" continues from the previously played list.
+    /// Play a resolved URL track: persist it to the library so it survives
+    /// restarts, then prepend it to the in-memory list and rebuild the queue
+    /// so "next" continues from the previously played list (#39).
     private func playResolved(_ track: Track) {
-        tracks.insert(track, at: 0)
-        currentTrack = track
+        // Persist to database first — the returned track has the real id.
+        let saved = library?.addTrack(track) ?? track
+        tracks.insert(saved, at: 0)
+        currentTrack = saved
         player.stop() // #51: stop old playback before starting new
-        if let url = track.sourceUrl {
+        if let url = saved.sourceUrl {
             player.playURL(url)
         }
         isPlaying = true

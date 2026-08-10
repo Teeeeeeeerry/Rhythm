@@ -78,6 +78,11 @@ public:
     void RemoveFromPlaylist(int64_t playlistId, int64_t trackId);
     void DeletePlaylist(int64_t id);
     void RecordPlay(int64_t trackId);
+    /// Persist a track to the library. Returns the track with its
+    /// database id, or the original on failure (#39).
+    Track AddTrack(const Track& track);
+    /// Delete a track from the library. Returns true if a row was deleted.
+    bool RemoveTrack(int64_t id);
 
 private:
     RhythmLibrary* ptr_ = nullptr;

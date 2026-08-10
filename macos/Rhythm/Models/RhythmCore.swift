@@ -71,6 +71,15 @@ final class RhythmLibrary {
 
     /// Delete a track from the library. Returns true if a row was actually
     /// deleted, false when the id didn't match any track.
+    /// Add a track to the library. Returns the saved track with its
+    /// database id, or nil on failure. For URL tracks this is the
+    /// persistence step that keeps them across restarts (#39).
+    func addTrack(_ track: Track) -> Track? {
+        guard let ptr, let json = rhythm_library_add_track(ptr, encodeJSON(track)) else { return nil }
+        defer { rhythm_free_string(json) }
+        return decodeJSON(String(cString: json))
+    }
+
     func removeTrack(_ id: Int64) -> Bool {
         guard let ptr else { return false }
         return rhythm_library_remove_track(ptr, id) == 0

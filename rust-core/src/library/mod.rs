@@ -131,7 +131,7 @@ impl Library {
     pub fn add_track(&self, track: &TrackInfo) -> RhythmResult<TrackInfo> {
         let conn = self.conn.lock().unwrap();
 
-        // Check for duplicate by file_path
+        // Check for duplicate by file_path (local files)
         if let Some(ref fp) = track.file_path {
             let existing: Option<i64> = conn
                 .query_row(
@@ -145,6 +145,26 @@ impl Library {
                 // Update instead of insert
                 self.update_track_impl(&conn, id, track)?;
                 return self.get_track_by_id_impl(&conn, id);
+            }
+        }
+
+        // Check for duplicate by source_url (URL tracks — YouTube, Bilibili,
+        // direct URL, etc.). Without this, resolving the same URL twice would
+        // insert a new row every time (#39).
+        if track.file_path.is_none() {
+            if let Some(ref url) = track.source_url {
+                let existing: Option<i64> = conn
+                    .query_row(
+                        "SELECT id FROM tracks WHERE source_url = ?1 AND source_type != 'local'",
+                        params![url],
+                        |row| row.get(0),
+                    )
+                    .ok();
+
+                if let Some(id) = existing {
+                    self.update_track_impl(&conn, id, track)?;
+                    return self.get_track_by_id_impl(&conn, id);
+                }
             }
         }
 
