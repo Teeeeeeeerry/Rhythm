@@ -149,6 +149,12 @@ struct PlayerBarView: View {
             .buttonStyle(.plain)
             .keyboardShortcut(.space, modifiers: [])
 
+            Button(action: { appState.stop() }) {
+                Image(systemName: "stop.fill")
+            }
+            .buttonStyle(.plain)
+            .disabled(!appState.isPlaying)
+
             Button(action: { appState.playNext() }) {
                 Image(systemName: "forward.fill")
             }

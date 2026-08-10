@@ -156,6 +156,7 @@ enum L10n {
     static let trayPlayPause: String = isChinese ? "播放 / 暂停" : "Play / Pause"
     static let trayPlay: String = isChinese ? "播放" : "Play"
     static let trayPause: String = isChinese ? "暂停" : "Pause"
+    static let trayStop: String = isChinese ? "停止" : "Stop"
     static let trayNext: String = isChinese ? "下一首" : "Next Track"
     static let trayPrev: String = isChinese ? "上一首" : "Previous Track"
     static let trayShow: String = isChinese ? "显示主窗口" : "Show Window"
@@ -170,6 +171,7 @@ enum L10n {
 
     static let menuPlayback: String = isChinese ? "播放" : "Playback"
     static let menuPlayPause: String = isChinese ? "播放/暂停" : "Play/Pause"
+    static let menuStop: String = isChinese ? "停止" : "Stop"
     static let menuNext: String = isChinese ? "下一首" : "Next Track"
     static let menuPrev: String = isChinese ? "上一首" : "Previous Track"
     static let menuToggleMode: String = isChinese ? "切换播放模式" : "Cycle Play Mode"

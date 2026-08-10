@@ -23,6 +23,8 @@ struct RhythmApp: App {
             CommandMenu(L10n.menuPlayback) {
                 Button(L10n.menuPlayPause) { appState.togglePlayPause() }
                     .keyboardShortcut(.space, modifiers: [])
+                Button(L10n.menuStop) { appState.stop() }
+                    .keyboardShortcut(".", modifiers: [.command])
                 Button(L10n.menuNext) { appState.playNext() }
                     .keyboardShortcut(.rightArrow, modifiers: [.command])
                 Button(L10n.menuPrev) { appState.playPrevious() }
