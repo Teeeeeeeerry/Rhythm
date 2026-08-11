@@ -63,6 +63,13 @@ final class AppState: ObservableObject {
         guard let lib = library else { return }
         tracks = lib.allTracks()
         playlists = lib.allPlaylists()
+
+        // #69: keep the play queue in sync so newly imported tracks are
+        // reachable via "next" and deleted tracks are removed.
+        if let q = queue, let current = currentTrack {
+            q.replace(tracks: tracks)
+            if current.id >= 0 { _ = q.jumpTo(current.id) }
+        }
     }
 
     func importDirectory(_ url: URL) {
