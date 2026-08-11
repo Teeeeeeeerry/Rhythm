@@ -302,12 +302,12 @@ final class AppState: ObservableObject {
     }
 
     /// Play a resolved URL track: persist it to the library so it survives
-    /// restarts, then prepend it to the in-memory list and rebuild the queue
-    /// so "next" continues from the previously played list (#39).
+    /// restarts, then refresh the in-memory list from DB and rebuild the queue
+    /// so "next" continues from the full library (#39, #66).
     private func playResolved(_ track: Track) {
         // Persist to database first — the returned track has the real id.
         let saved = library?.addTrack(track) ?? track
-        tracks.insert(saved, at: 0)
+        refreshLibrary() // #66: reload from DB instead of manual insert for data consistency
         currentTrack = saved
         player.stop() // #51: stop old playback before starting new
         if let url = saved.sourceUrl {
@@ -317,6 +317,8 @@ final class AppState: ObservableObject {
         urlInput = ""
         if let q = RhythmQueue(tracks: tracks) {
             q.setMode(playMode)
+            // Position the queue at the newly saved track by its real DB id.
+            if saved.id >= 0 { _ = q.jumpTo(saved.id) }
             queue = q
         }
     }

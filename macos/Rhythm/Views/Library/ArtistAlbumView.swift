@@ -3,20 +3,35 @@ import SwiftUI
 import RhythmTheme
 #endif
 
+/// ForEach ID 载体 — 艺人分组，id 为艺人名（groupByArtistAlbum 保证唯一）。
+private struct ArtistSection: Identifiable {
+    let id: String
+    let name: String
+    let albums: [AlbumEntry]
+}
+
+/// ForEach ID 载体 — 专辑分组。id 为 "艺人|专辑" 组合键，
+/// 避免跨艺人 "Unknown Album" 字符串 ID 碰撞（#66）。
+private struct AlbumEntry: Identifiable {
+    let id: String
+    let name: String
+    let tracks: [Track]
+}
+
 struct ArtistAlbumView: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        let grouped = groupByArtistAlbum()
-        if grouped.isEmpty {
+        let sections = groupByArtistAlbum()
+        if sections.isEmpty {
             Text("无内容").foregroundStyle(.rhythmTextSecondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List {
-                ForEach(grouped, id: \.0) { artist, albums in
-                    Section(artist) {
-                        ForEach(albums, id: \.0) { album, tracks in
-                            AlbumRow(album: album, tracks: tracks)
+                ForEach(sections) { section in
+                    Section(section.name) {
+                        ForEach(section.albums) { entry in
+                            AlbumRow(album: entry.name, tracks: entry.tracks)
                         }
                     }
                 }
@@ -25,7 +40,7 @@ struct ArtistAlbumView: View {
         }
     }
 
-    private func groupByArtistAlbum() -> [(String, [(String, [Track])])] {
+    private func groupByArtistAlbum() -> [ArtistSection] {
         var artists: [String: [String: [Track]]] = [:]
         for track in appState.tracks {
             let artist = track.artist ?? "Unknown Artist"
@@ -34,10 +49,16 @@ struct ArtistAlbumView: View {
         }
         return artists
             .map { (artist, albums) in
-                (artist, albums.map { ($0.key, $0.value.sorted { ($0.discNumber ?? 0, $0.trackNumber ?? 0) < ($1.discNumber ?? 0, $1.trackNumber ?? 0) }) }
-                    .sorted { $0.0 < $1.0 })
+                let entries = albums.map { (album, tracks) in
+                    AlbumEntry(
+                        id: "\(artist)|\(album)",
+                        name: album,
+                        tracks: tracks.sorted { ($0.discNumber ?? 0, $0.trackNumber ?? 0) < ($1.discNumber ?? 0, $1.trackNumber ?? 0) }
+                    )
+                }.sorted { $0.name < $1.name }
+                return ArtistSection(id: artist, name: artist, albums: entries)
             }
-            .sorted { $0.0 < $1.0 }
+            .sorted { $0.name < $1.name }
     }
 }
 
