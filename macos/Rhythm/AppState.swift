@@ -248,10 +248,11 @@ final class AppState: ObservableObject {
         urlStatus = ""
     }
 
-    /// Resolve a pasted URL (YouTube/Bilibili/direct audio) and start
-    /// playing it. Resolution may take a few seconds (yt-dlp), so it runs on
-    /// a background queue; the result is applied on the main thread.
-    func resolveAndPlay(_ input: String) {
+    /// Resolve a pasted URL (YouTube/Bilibili/direct audio) and import the
+    /// track into the library without interrupting playback. Resolution may
+    /// take a few seconds (yt-dlp), so it runs on a background queue; the
+    /// result is applied on the main thread.
+    func resolveAndImport(_ input: String) {
         let url = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !url.isEmpty, !isResolvingURL else { return }
         isResolvingURL = true
@@ -303,15 +304,26 @@ final class AppState: ObservableObject {
                     artworkPath: nil,
                     isAvailable: true
                 )
-                self.playResolved(track)
+                self.importResolved(track)
             }
         }
+    }
+
+    /// Import a resolved URL track into the library without starting
+    /// playback — same behaviour as local file import (#71).
+    func importResolved(_ track: Track) {
+        // Persist to database first — the returned track has the real id.
+        let saved = library?.addTrack(track) ?? track
+        refreshLibrary() // #66: reload from DB instead of manual insert for data consistency
+        urlInput = ""
+        importAlertMessage = L10n.importedTracks(1)
+        showImportAlert = true
     }
 
     /// Play a resolved URL track: persist it to the library so it survives
     /// restarts, then refresh the in-memory list from DB and rebuild the queue
     /// so "next" continues from the full library (#39, #66).
-    private func playResolved(_ track: Track) {
+    func playResolved(_ track: Track) {
         // Persist to database first — the returned track has the real id.
         let saved = library?.addTrack(track) ?? track
         refreshLibrary() // #66: reload from DB instead of manual insert for data consistency
