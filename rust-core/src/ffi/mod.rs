@@ -422,6 +422,20 @@ pub extern "C" fn rhythm_player_get_volume(ptr: *mut RhythmPlayer) -> f32 {
     unsafe { ptr.as_ref().map(|p| p.0.volume()).unwrap_or(0.0) }
 }
 
+/// Seek to a position in seconds. Returns 0 on success, -1 on error
+/// (null pointer, negative position, or position out of range).
+#[no_mangle]
+pub extern "C" fn rhythm_player_seek(ptr: *mut RhythmPlayer, seconds: f64) -> i32 {
+    if ptr.is_null() {
+        return -1;
+    }
+    let player = unsafe { &(*ptr).0 };
+    match player.seek(seconds) {
+        Ok(_) => 0,
+        Err(_) => -1,
+    }
+}
+
 /// Get current playback position in seconds.
 #[no_mangle]
 pub extern "C" fn rhythm_player_get_position(ptr: *mut RhythmPlayer) -> f64 {

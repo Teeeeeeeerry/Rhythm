@@ -440,6 +440,12 @@ final class AppState: ObservableObject {
             urlError = L10n.playbackFailed(detail: detail)
         }
     }
+
+    /// Seek to a position in the current track (seconds).
+    func seek(to seconds: Double) {
+        player.seek(seconds)
+        position = seconds
+    }
 }
 
 enum SidebarItem: String, CaseIterable, Identifiable {
