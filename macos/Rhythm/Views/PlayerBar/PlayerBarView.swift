@@ -78,7 +78,7 @@ struct PlayerBarView: View {
             TextField(L10n.urlPlaceholder, text: $appState.urlInput)
                 .textFieldStyle(.plain)
                 .font(.system(size: 11))
-                .onSubmit { appState.resolveAndPlay(appState.urlInput) }
+                .onSubmit { appState.resolveAndImport(appState.urlInput) }
             if appState.isResolvingURL {
                 // A fresh install downloads yt-dlp on the first link, which
                 // takes long enough that a bare spinner reads as a hang.
@@ -93,7 +93,7 @@ struct PlayerBarView: View {
                     .controlSize(.small)
                     .help(appState.urlStatus.isEmpty ? L10n.urlResolving : appState.urlStatus)
             } else {
-                Button(action: { appState.resolveAndPlay(appState.urlInput) }) {
+                Button(action: { appState.resolveAndImport(appState.urlInput) }) {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 14))
                 }

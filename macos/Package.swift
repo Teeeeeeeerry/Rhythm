@@ -28,5 +28,10 @@ let package = Package(
             dependencies: ["RhythmTheme"],
             path: "Tests/RhythmThemeTests"
         ),
+        .testTarget(
+            name: "AppStateTests",
+            dependencies: ["Rhythm"],
+            path: "Tests/AppStateTests"
+        ),
     ]
 )
