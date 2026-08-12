@@ -151,6 +151,11 @@ final class RhythmPlayer {
         return String(cString: raw)
     }
 
+    func seek(_ seconds: Double) {
+        guard let ptr else { return }
+        _ = rhythm_player_seek(ptr, seconds)
+    }
+
     var position: Double {
         guard let ptr else { return 0 }
         return rhythm_player_get_position(ptr)

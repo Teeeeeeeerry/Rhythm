@@ -51,6 +51,7 @@ void rhythm_player_resume(RhythmPlayer* player);
 void rhythm_player_stop(RhythmPlayer* player);
 void rhythm_player_set_volume(RhythmPlayer* player, float volume);
 float rhythm_player_get_volume(RhythmPlayer* player);
+int32_t rhythm_player_seek(RhythmPlayer* player, double seconds);
 double rhythm_player_get_position(RhythmPlayer* player);
 double rhythm_player_get_duration(RhythmPlayer* player);
 int32_t rhythm_player_get_state(RhythmPlayer* player);

@@ -5,6 +5,8 @@ import RhythmTheme
 
 struct PlayerBarView: View {
     @EnvironmentObject var appState: AppState
+    @State private var isSeeking = false
+    @State private var seekFraction: Double = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -37,13 +39,20 @@ struct PlayerBarView: View {
 
             urlBar
 
-            ProgressView(
-                value: appState.duration > 0 ? appState.position / appState.duration : 0
-            )
-            .progressViewStyle(.linear)
+            Slider(value: $seekFraction, in: 0...1) { editing in
+                isSeeking = editing
+                if !editing, appState.duration > 0 {
+                    appState.seek(to: seekFraction * appState.duration)
+                }
+            }
             .tint(.rhythmAccent)
             .padding(.horizontal, 16)
             .padding(.bottom, 4)
+            .onChange(of: appState.position) {
+                if !isSeeking, appState.duration > 0 {
+                    seekFraction = appState.position / appState.duration
+                }
+            }
         }
         .background(.rhythmSurface)
         .alert(
