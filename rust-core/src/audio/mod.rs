@@ -1,4 +1,4 @@
-use crate::resolver::resolve_url;
+use crate::resolver::{resolve_url, ResolveResult, ResolvedUrl};
 use crate::{PlayerState, ProgressCallback, RhythmError, RhythmResult, StateCallback};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -16,6 +16,41 @@ use http_stream::HttpStream;
 use output::AudioOutput;
 use resampler::Resampler;
 
+/// URL resolution seam: turns a user-entered URL into a playable stream URL.
+///
+/// The production resolver (`resolve_url`) shells out to yt-dlp for YouTube /
+/// Bilibili links and fetches direct audio URLs itself. Tests inject stubs so
+/// the `play_url` path can be exercised without network or subprocess access.
+/// Introduced as part of the Wave 1 minimum seam
+/// (docs/testing/behavior/audio-engine.md, AE-04/AE-05/AE-28).
+pub type UrlResolver = Arc<dyn Fn(&str) -> ResolveResult<ResolvedUrl> + Send + Sync>;
+
+/// Decode seam: everything the playback loop needs from a decoder.
+///
+/// `AudioDecoder` (symphonia) is the production implementation; tests inject
+/// fakes that hand out pre-canned packets with scripted failures and pacing.
+/// Abstracting this lets the playback loop run on a test thread with no audio
+/// device or real media (docs/testing/behavior/audio-engine.md).
+pub trait Decoder {
+    fn next_packet(&mut self) -> RhythmResult<Option<Vec<f32>>>;
+    fn seek(&mut self, seconds: f64) -> RhythmResult<()>;
+    fn position(&self) -> f64;
+    fn duration(&self) -> f64;
+    fn sample_rate(&self) -> u32;
+    fn channels(&self) -> u16;
+}
+
+/// Output seam: everything the playback loop needs from an audio sink.
+///
+/// `AudioOutput` (cpal) is the production implementation; tests inject an
+/// in-memory collector so decoded audio is assertable.
+pub trait Sink {
+    fn sample_rate(&self) -> u32;
+    fn channels(&self) -> u16;
+    fn write(&mut self, data: &[f32]) -> RhythmResult<()>;
+    fn drain(&mut self);
+}
+
 /// Audio engine for playback of local files and network streams.
 ///
 /// Uses a generation counter so that a new `play_file` / `play_url` call
@@ -27,6 +62,7 @@ pub struct AudioEngine {
     state_callback: Arc<Mutex<Option<StateCallback>>>,
     progress_callback: Arc<Mutex<Option<ProgressCallback>>>,
     generation: Arc<AtomicU64>,
+    resolver: UrlResolver,
 }
 
 struct EngineInner {
@@ -41,6 +77,13 @@ struct EngineInner {
 
 impl AudioEngine {
     pub fn new() -> Self {
+        AudioEngine::new_with_resolver(Arc::new(resolve_url))
+    }
+
+    /// Test seam: construct an engine whose URL resolution goes through
+    /// `resolver` instead of the real yt-dlp / direct-fetch pipeline.
+    #[doc(hidden)]
+    pub fn new_with_resolver(resolver: UrlResolver) -> Self {
         AudioEngine {
             inner: Arc::new(Mutex::new(EngineInner {
                 current_source: None,
@@ -53,6 +96,7 @@ impl AudioEngine {
             state_callback: Arc::new(Mutex::new(None)),
             progress_callback: Arc::new(Mutex::new(None)),
             generation: Arc::new(AtomicU64::new(0)),
+            resolver,
         }
     }
 
@@ -74,8 +118,105 @@ impl AudioEngine {
             return Err(RhythmError::FileNotFound(path_str));
         }
 
-        // Bump the generation so any in-flight playback thread exits its loop
-        // on the next iteration (#51).
+        let path = path.to_path_buf();
+        self.play_file_with(
+            path_str,
+            move || {
+                let decoder = AudioDecoder::open_file(&path)?;
+                Ok((decoder, None))
+            },
+            |_| AudioOutput::new(),
+        )
+    }
+
+    /// Test seam: like `play_file`, but `open_decoder` / `open_sink` build the
+    /// decoder and output (e.g. fakes) instead of the production
+    /// `AudioDecoder` / `AudioOutput`. The decoder may hand back a fallback
+    /// duration used when it reports none (DASH streams).
+    #[doc(hidden)]
+    pub fn play_file_with<D, S>(
+        &self,
+        source: String,
+        open_decoder: impl FnOnce() -> RhythmResult<(D, Option<f64>)> + Send + 'static,
+        open_sink: impl FnOnce(&D) -> RhythmResult<S> + Send + 'static,
+    ) -> RhythmResult<()>
+    where
+        D: Decoder,
+        S: Sink,
+    {
+        self.spawn_playback(source, PlayerState::Playing, open_decoder, open_sink)
+    }
+
+    /// Play from a network URL stream.
+    pub fn play_url(&self, url: &str) -> RhythmResult<()> {
+        self.play_url_with(
+            url,
+            |resolved| {
+                // Open the HTTP stream — this starts the prefetch downloader. The
+                // resolver's headers come along: Bilibili's CDN answers 403 without
+                // the Referer yt-dlp used.
+                let stream =
+                    HttpStream::open_with_headers(&resolved.stream_url, &resolved.http_headers)?;
+
+                // Wait for the initial buffer so the probe/decoder doesn't stall on
+                // every read.
+                stream.wait_initial_buffered()?;
+
+                // Use the URL's file extension as a probe hint (helps when the
+                // stream lacks a standard container header).
+                let hint = stream_hint(&resolved.stream_url);
+                let decoder = AudioDecoder::open_source(Box::new(stream), hint)?;
+                Ok((decoder, Some(resolved.duration)))
+            },
+            |_| AudioOutput::new(),
+        )
+    }
+
+    /// Test seam: like `play_url`, but `open_decoder` receives the resolved
+    /// URL and may substitute a fake decoder / stream instead of the real
+    /// `HttpStream` + `AudioDecoder` pipeline. The engine's resolver (see
+    /// `new_with_resolver`) still runs first on the playback thread.
+    #[doc(hidden)]
+    pub fn play_url_with<D, S>(
+        &self,
+        url: &str,
+        open_decoder: impl FnOnce(ResolvedUrl) -> RhythmResult<(D, Option<f64>)> + Send + 'static,
+        open_sink: impl FnOnce(&D) -> RhythmResult<S> + Send + 'static,
+    ) -> RhythmResult<()>
+    where
+        D: Decoder,
+        S: Sink,
+    {
+        let url = url.to_string();
+        let resolver = self.resolver.clone();
+        self.spawn_playback(
+            url.clone(),
+            PlayerState::Buffering,
+            move || {
+                let resolved = resolver(&url)?;
+                open_decoder(resolved)
+            },
+            open_sink,
+        )
+    }
+
+    /// Bump the generation and start a playback thread running
+    /// `drive_playback`. The previous thread (if any) sees the mismatch and
+    /// exits its loop (#51).
+    /// `D` / `S` are created on the playback thread itself, so unlike the
+    /// factory closures they need no `Send` bound (cpal's stream handle is
+    /// not `Send`, and it never has to be).
+    fn spawn_playback<D, S>(
+        &self,
+        source: String,
+        pre_state: PlayerState,
+        open_decoder: impl FnOnce() -> RhythmResult<(D, Option<f64>)> + Send + 'static,
+        open_sink: impl FnOnce(&D) -> RhythmResult<S> + Send + 'static,
+    ) -> RhythmResult<()>
+    where
+        D: Decoder,
+        S: Sink,
+    {
         let my_gen = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
 
         let inner = self.inner.clone();
@@ -84,8 +225,11 @@ impl AudioEngine {
         let generation = self.generation.clone();
 
         thread::spawn(move || {
-            if let Err(e) = play_file_impl(
-                &path_str,
+            if let Err(e) = drive_playback(
+                source,
+                pre_state,
+                open_decoder,
+                open_sink,
                 inner.clone(),
                 state_cb.clone(),
                 progress_cb,
@@ -100,33 +244,38 @@ impl AudioEngine {
         Ok(())
     }
 
-    /// Play from a network URL stream.
-    pub fn play_url(&self, url: &str) -> RhythmResult<()> {
-        // Bump the generation so any in-flight playback thread exits its loop
-        // on the next iteration (#51).
-        let my_gen = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
-
-        let url = url.to_string();
-        let inner = self.inner.clone();
-        let state_cb = self.state_callback.clone();
-        let progress_cb = self.progress_callback.clone();
-        let generation = self.generation.clone();
-
-        thread::spawn(move || {
-            if let Err(e) = play_url_impl(
-                &url,
-                inner.clone(),
-                state_cb.clone(),
-                progress_cb,
-                generation,
-                my_gen,
-            ) {
-                log::error!("Playback error: {e}");
-                fail(&inner, &state_cb, e.to_string());
-            }
-        });
-
-        Ok(())
+    /// Test seam: run the playback loop synchronously on the caller's thread
+    /// with injected fakes — no spawned thread, no audio device. Engine
+    /// controls (`pause` / `resume` / `seek` / `stop`) can be driven from a
+    /// sibling thread while the loop runs, exactly as they are in production.
+    ///
+    /// The generation starts at the current counter value, so `stop()` or a
+    /// new `play_*` call bumps it and ends the loop the same way it ends a
+    /// spawned playback thread.
+    #[doc(hidden)]
+    pub fn run_playback_with<D, S>(
+        &self,
+        source: String,
+        pre_state: PlayerState,
+        open_decoder: impl FnOnce() -> RhythmResult<(D, Option<f64>)>,
+        open_sink: impl FnOnce(&D) -> RhythmResult<S>,
+    ) -> RhythmResult<()>
+    where
+        D: Decoder,
+        S: Sink,
+    {
+        let my_gen = self.generation.load(Ordering::SeqCst);
+        drive_playback(
+            source,
+            pre_state,
+            open_decoder,
+            open_sink,
+            self.inner.clone(),
+            self.state_callback.clone(),
+            self.progress_callback.clone(),
+            self.generation.clone(),
+            my_gen,
+        )
     }
 
     /// Pause playback.
@@ -205,6 +354,12 @@ impl AudioEngine {
         self.inner.lock().unwrap().position
     }
 
+    /// Test seam: the source recorded for the current playback request.
+    #[doc(hidden)]
+    pub fn current_source(&self) -> Option<String> {
+        self.inner.lock().unwrap().current_source.clone()
+    }
+
     fn emit_state(&self, state: PlayerState) {
         if let Some(ref cb) = *self.state_callback.lock().unwrap() {
             cb(state);
@@ -212,87 +367,50 @@ impl AudioEngine {
     }
 }
 
-fn play_file_impl(
-    path: &str,
+/// Shared playback driver for files and URLs: record the source, emit the
+/// pre-open state, open decoder and sink, then run the loop.
+///
+/// Files emit `Playing` before the (fast) open. URLs emit `Buffering` for the
+/// slow resolve + connect + prebuffer window and only then `Playing` — the
+/// Buffering state has to be recorded, not just emitted, because the UI polls
+/// `state()` rather than registering a callback (#23).
+fn drive_playback<D, S>(
+    source: String,
+    pre_state: PlayerState,
+    open_decoder: impl FnOnce() -> RhythmResult<(D, Option<f64>)>,
+    open_sink: impl FnOnce(&D) -> RhythmResult<S>,
     inner: Arc<Mutex<EngineInner>>,
     state_cb: Arc<Mutex<Option<StateCallback>>>,
     progress_cb: Arc<Mutex<Option<ProgressCallback>>>,
     generation: Arc<AtomicU64>,
     my_gen: u64,
-) -> RhythmResult<()> {
-    // Update state
-    inner.lock().unwrap().current_source = Some(path.to_string());
-    set_state(&inner, &state_cb, PlayerState::Playing);
+) -> RhythmResult<()>
+where
+    D: Decoder,
+    S: Sink,
+{
+    inner.lock().unwrap().current_source = Some(source);
+    set_state(&inner, &state_cb, pre_state.clone());
 
-    let mut decoder = AudioDecoder::open_file(Path::new(path))?;
-    set_duration(&inner, decoder.duration());
+    let (mut decoder, fallback_duration) = open_decoder()?;
 
-    let mut output = AudioOutput::new()?;
-    let out_rate = output.sample_rate();
-    let out_channels = output.channels();
-    let mut resampler =
-        Resampler::new(decoder.sample_rate(), decoder.channels(), out_rate, out_channels);
-
-    run_playback_loop(
-        &mut decoder,
-        &mut output,
-        &mut resampler,
-        inner,
-        state_cb,
-        progress_cb,
-        generation,
-        my_gen,
-    )
-}
-
-fn play_url_impl(
-    url: &str,
-    inner: Arc<Mutex<EngineInner>>,
-    state_cb: Arc<Mutex<Option<StateCallback>>>,
-    progress_cb: Arc<Mutex<Option<ProgressCallback>>>,
-    generation: Arc<AtomicU64>,
-    my_gen: u64,
-) -> RhythmResult<()> {
-    // Buffering has to be recorded, not just emitted: the UI polls `state()`
-    // rather than registering a callback, so an emit-only Buffering left it
-    // showing the *previous* state for the whole resolve + connect + prebuffer
-    // window — which is why a stuck stream read as an idle player at 0:00 with
-    // no error (#23). Same reasoning as `fail()` below.
-    set_state(&inner, &state_cb, PlayerState::Buffering);
-
-    // 1. Resolve the real stream URL: yt-dlp for YouTube/Bilibili, direct for
-    //    plain audio URLs.
-    let resolved = resolve_url(url)?;
-
-    // 2. Open the HTTP stream — this starts the prefetch downloader. The
-    //    resolver's headers come along: Bilibili's CDN answers 403 without
-    //    the Referer yt-dlp used.
-    let stream = HttpStream::open_with_headers(&resolved.stream_url, &resolved.http_headers)?;
-
-    // 3. Wait for the initial buffer so the probe/decoder doesn't stall on
-    //    every read.
-    stream.wait_initial_buffered()?;
-
-    // 4. Open the decoder on the stream. Use the URL's file extension as a
-    //    probe hint (helps when the stream lacks a standard container header).
-    let hint = stream_hint(&resolved.stream_url);
-    let mut decoder = AudioDecoder::open_source(Box::new(stream), hint)?;
-
-    // 5. Play.
-    inner.lock().unwrap().current_source = Some(url.to_string());
-    set_state(&inner, &state_cb, PlayerState::Playing);
+    // The URL path already emitted Buffering; now that the stream is open,
+    // announce the real transition to Playing.
+    if pre_state != PlayerState::Playing {
+        set_state(&inner, &state_cb, PlayerState::Playing);
+    }
 
     // DASH segments (Bilibili's audio streams) carry no usable duration box,
     // so the decoder reports 0 and the UI would sit at "0:00 / 0:00". The
-    // resolver already knows the real length — use it.
+    // resolver already knows the real length — use it as the fallback.
     let duration = if decoder.duration() > 0.0 {
         decoder.duration()
     } else {
-        resolved.duration
+        fallback_duration.unwrap_or(0.0)
     };
     set_duration(&inner, duration);
 
-    let mut output = AudioOutput::new()?;
+    let mut output = open_sink(&decoder)?;
     let out_rate = output.sample_rate();
     let out_channels = output.channels();
     let mut resampler =
@@ -316,9 +434,9 @@ fn play_url_impl(
 /// The loop exits when the global generation counter no longer matches
 /// `my_gen` — this happens when `stop()`, `play_file()`, or `play_url()` is
 /// called while the thread is running (#51).
-fn run_playback_loop(
-    decoder: &mut AudioDecoder,
-    output: &mut AudioOutput,
+fn run_playback_loop<D: Decoder + ?Sized, S: Sink + ?Sized>(
+    decoder: &mut D,
+    output: &mut S,
     resampler: &mut Resampler,
     inner: Arc<Mutex<EngineInner>>,
     state_cb: Arc<Mutex<Option<StateCallback>>>,
@@ -439,7 +557,7 @@ fn set_position(inner: &Arc<Mutex<EngineInner>>, position: f64) {
 }
 
 /// Guess a probe hint from the stream URL's file extension.
-fn stream_hint(url: &str) -> Option<&'static str> {
+pub fn stream_hint(url: &str) -> Option<&'static str> {
     let path = url.split('?').next().unwrap_or(url);
     let ext = path.rsplit('.').next()?.to_ascii_lowercase();
     match ext.as_str() {

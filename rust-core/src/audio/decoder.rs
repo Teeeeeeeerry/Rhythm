@@ -222,6 +222,33 @@ impl AudioDecoder {
     }
 }
 
+/// The playback loop's view of a decoder (Wave 1 seam, see `audio::Decoder`).
+impl super::Decoder for AudioDecoder {
+    fn next_packet(&mut self) -> RhythmResult<Option<Vec<f32>>> {
+        AudioDecoder::next_packet(self)
+    }
+
+    fn seek(&mut self, seconds: f64) -> RhythmResult<()> {
+        AudioDecoder::seek(self, seconds)
+    }
+
+    fn position(&self) -> f64 {
+        AudioDecoder::position(self)
+    }
+
+    fn duration(&self) -> f64 {
+        AudioDecoder::duration(self)
+    }
+
+    fn sample_rate(&self) -> u32 {
+        AudioDecoder::sample_rate(self)
+    }
+
+    fn channels(&self) -> u16 {
+        AudioDecoder::channels(self)
+    }
+}
+
 /// Convert a decoded `AudioBufferRef` into interleaved f32 PCM.
 fn convert_to_interleaved(decoded: symphonia::core::audio::AudioBufferRef<'_>) -> RhythmResult<Vec<f32>> {
     let mut buf = AudioBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
