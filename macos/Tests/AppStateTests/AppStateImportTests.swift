@@ -9,60 +9,7 @@ import Foundation
 /// Seams under test:
 /// 1. importResolved — persists to library, refreshes, shows alert, does NOT play
 /// 2. playResolved (regression) — persists, refreshes, AND starts playback
-final class AppStateImportTests: XCTestCase {
-    var appState: AppState!
-    var tempDir: URL!
-    var dbPath: String!
-
-    override func setUp() {
-        super.setUp()
-        appState = AppState()
-        tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("RhythmTests-\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(
-            at: tempDir, withIntermediateDirectories: true)
-        dbPath = tempDir.appendingPathComponent("test.db").path
-        appState.library = RhythmLibrary(path: dbPath)
-    }
-
-    override func tearDown() {
-        appState.player.stop()
-        appState = nil
-        if let dir = tempDir {
-            try? FileManager.default.removeItem(at: dir)
-        }
-        super.tearDown()
-    }
-
-    // MARK: - Helpers
-
-    func makeTrack(id: Int64 = -1) -> Track {
-        Track(
-            id: id,
-            filePath: nil,
-            sourceType: "direct_url",
-            sourceUrl: "https://example.com/test.mp3",
-            title: "Test Track",
-            artist: "Test Artist",
-            album: nil,
-            albumArtist: nil,
-            trackNumber: nil,
-            discNumber: nil,
-            genre: nil,
-            year: nil,
-            duration: 180.0,
-            format: nil,
-            bitrate: nil,
-            sampleRate: nil,
-            channels: nil,
-            fileSize: nil,
-            dateAdded: nil,
-            lastPlayed: nil,
-            playCount: 0,
-            artworkPath: nil,
-            isAvailable: true
-        )
-    }
+final class AppStateImportTests: AppStatePlaybackTestCase {
 
     // MARK: - Seam 1: importResolved (does NOT play)
 

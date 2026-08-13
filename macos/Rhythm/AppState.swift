@@ -2,7 +2,7 @@ import SwiftUI
 
 final class AppState: ObservableObject {
     @Published var library: RhythmLibrary?
-    @Published var player = RhythmPlayer()
+    @Published var player: RhythmPlayerProtocol = RhythmPlayer()
     @Published var selectedView: SidebarItem = .library
     @Published var searchQuery = ""
     @Published var tracks: [Track] = []
@@ -36,6 +36,10 @@ final class AppState: ObservableObject {
     private var queue: RhythmQueue?
     private var resolverStatusTimer: Timer?
 
+    /// Test seam: injectable resolver. Defaults to the global function that
+    /// shells out to the Rust core (real yt-dlp chain).
+    var resolver: (String) -> Result<ResolvedInfo, ResolveError> = { resolveURL($0) }
+
     var dbURL: URL {
         let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
@@ -55,7 +59,13 @@ final class AppState: ObservableObject {
     }
 
     func openDatabase() {
-        library = RhythmLibrary(path: dbURL.path)
+        openDatabase(at: dbURL)
+    }
+
+    /// Test seam: open a library at an arbitrary path (tests use a temp DB
+    /// instead of touching the real application-support library).
+    func openDatabase(at url: URL) {
+        library = RhythmLibrary(path: url.path)
         refreshLibrary()
     }
 
@@ -248,6 +258,12 @@ final class AppState: ObservableObject {
         urlStatus = ""
     }
 
+    /// Test seam: whether the status-polling timer is currently scheduled.
+    /// Read-only mirror of the timer's lifecycle (AS-30).
+    var isPollingResolverStatus: Bool {
+        resolverStatusTimer != nil
+    }
+
     /// Resolve a pasted URL (YouTube/Bilibili/direct audio) and import the
     /// track into the library without interrupting playback. Resolution may
     /// take a few seconds (yt-dlp), so it runs on a background queue; the
@@ -259,9 +275,9 @@ final class AppState: ObservableObject {
         urlError = nil
         startResolverStatusPolling()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let result = resolveURL(url)
+            guard let self else { return }
+            let result = self.resolver(url)
             DispatchQueue.main.async {
-                guard let self else { return }
                 self.isResolvingURL = false
                 self.stopResolverStatusPolling()
                 let resolved: ResolvedInfo
