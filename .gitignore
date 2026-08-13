@@ -22,9 +22,9 @@ windows/windows/
 build/
 dist/
 
-# Test artifacts (docs/testing)
-docs/testing/logs/
-docs/testing/**/out/
+# Test artifacts (testing/)
+testing/logs/
+testing/**/out/
 *.xcresult
 build/artifacts/
 __pycache__/
