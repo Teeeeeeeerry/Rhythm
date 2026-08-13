@@ -20,6 +20,9 @@ pub struct RangeServer {
 }
 
 impl RangeServer {
+    // Not every test target uses both helpers (streaming.rs uses this one,
+    // audio_engine.rs uses start_with_path), so keep the dead-code lint quiet.
+    #[allow(dead_code)]
     pub fn start(body: Vec<u8>) -> Self {
         Self::start_with_path(body, "/test")
     }
@@ -115,6 +118,16 @@ fn handle_connection(stream: &mut TcpStream, body: &[u8]) {
 
     let total = body.len() as u64;
     let (status, content_range, start, end) = match range {
+        Some((start, _end)) if start >= total => {
+            // An open-ended range starting past the body (what a seek to the
+            // very end emits) must get 416, not an index panic in the
+            // detached handler thread.
+            let response = format!(
+                "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{total}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            let _ = stream.write_all(response.as_bytes());
+            return;
+        }
         Some((start, end)) => {
             let start = start.min(total);
             let end = end.min(total.saturating_sub(1)).max(start);

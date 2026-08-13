@@ -1,6 +1,6 @@
 # AudioEngine 行为清单
 
-- 模块：`rust-core/src/audio/mod.rs`（`AudioEngine`、`play_file_impl`/`play_url_impl`、`run_playback_loop`、`stream_hint`）
+- 模块：`rust-core/src/audio/mod.rs`（`AudioEngine`、`drive_playback`/`spawn_playback`、`run_playback_loop`、`stream_hint`；测试接缝 `Decoder`/`Sink`、`run_playback_with`、`play_file_with`/`play_url_with`、`new_with_resolver`、`open_resolved_stream`）
 - 历史回归：`#35`（Finished 未落地）、`#51`+`#52`（双流叠加）、`#23`（失败状态不可见）、`#28`（尾帧被截）
 - 接缝需求（最小接缝）：`run_playback_loop` 目前依赖具体 `AudioDecoder`/`AudioOutput`/`Resampler`。将解码、输出抽象为 trait（`Decoder`/`Sink` 或泛型参数），测试注入假解码器（预制包流、可控包数）与假输出（内存收集），循环逻辑从线程中解耦（`run_playback_loop` 在测试线程直调）。公共 API 的"快速失败"路径（文件不存在等）无需接缝。
 - 测试途径：Rust `cargo test`（unit + 集成）。
