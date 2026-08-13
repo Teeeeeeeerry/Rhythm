@@ -3,6 +3,8 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
 use std::time::Duration;
 
+use super::Sink;
+
 /// Audio output abstraction over cpal.
 /// Connects to the platform's native audio API (CoreAudio on macOS, WASAPI on
 /// Windows). PCM (interleaved f32) is pushed through a bounded channel that
@@ -176,6 +178,25 @@ impl AudioOutput {
     /// The device's channel count; decoded audio must be mapped to this.
     pub fn channels(&self) -> u16 {
         self.channels
+    }
+}
+
+/// The playback loop's view of an audio sink (Wave 1 seam, see `audio::Sink`).
+impl Sink for AudioOutput {
+    fn sample_rate(&self) -> u32 {
+        AudioOutput::sample_rate(self)
+    }
+
+    fn channels(&self) -> u16 {
+        AudioOutput::channels(self)
+    }
+
+    fn write(&mut self, data: &[f32]) -> RhythmResult<()> {
+        AudioOutput::write(self, data)
+    }
+
+    fn drain(&mut self) {
+        AudioOutput::drain(self)
     }
 }
 
