@@ -93,7 +93,26 @@ final class RhythmLibrary {
 
 // MARK: - Player Wrapper
 
-final class RhythmPlayer {
+/// The playback surface `AppState` orchestrates against.
+///
+/// Test seam: tests inject a spy implementation to assert the exact call
+/// sequence (e.g. `stop()` before `playFile` — #51) without touching the
+/// audio engine.
+protocol RhythmPlayerProtocol {
+    func playFile(_ path: String)
+    func playURL(_ url: String)
+    func pause()
+    func resume()
+    func stop()
+    func setVolume(_ v: Float)
+    func seek(_ seconds: Double)
+    var position: Double { get }
+    var duration: Double { get }
+    var state: Int32 { get }
+    var errorMessage: String? { get }
+}
+
+final class RhythmPlayer: RhythmPlayerProtocol {
     private var ptr: OpaquePointer?
 
     init() {
