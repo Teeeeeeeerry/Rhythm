@@ -149,27 +149,9 @@ impl AudioEngine {
 
     /// Play from a network URL stream.
     pub fn play_url(&self, url: &str) -> RhythmResult<()> {
-        self.play_url_with(
-            url,
-            |resolved| {
-                // Open the HTTP stream — this starts the prefetch downloader. The
-                // resolver's headers come along: Bilibili's CDN answers 403 without
-                // the Referer yt-dlp used.
-                let stream =
-                    HttpStream::open_with_headers(&resolved.stream_url, &resolved.http_headers)?;
-
-                // Wait for the initial buffer so the probe/decoder doesn't stall on
-                // every read.
-                stream.wait_initial_buffered()?;
-
-                // Use the URL's file extension as a probe hint (helps when the
-                // stream lacks a standard container header).
-                let hint = stream_hint(&resolved.stream_url);
-                let decoder = AudioDecoder::open_source(Box::new(stream), hint)?;
-                Ok((decoder, Some(resolved.duration)))
-            },
-            |_| AudioOutput::new(),
-        )
+        self.play_url_with(url, |resolved| open_resolved_stream(&resolved), |_| {
+            AudioOutput::new()
+        })
     }
 
     /// Test seam: like `play_url`, but `open_decoder` receives the resolved
@@ -249,9 +231,10 @@ impl AudioEngine {
     /// controls (`pause` / `resume` / `seek` / `stop`) can be driven from a
     /// sibling thread while the loop runs, exactly as they are in production.
     ///
-    /// The generation starts at the current counter value, so `stop()` or a
-    /// new `play_*` call bumps it and ends the loop the same way it ends a
-    /// spawned playback thread.
+    /// Bumps the generation like `spawn_playback`, so it also terminates any
+    /// live playback loop on the same engine (the #51 contract works in both
+    /// directions), and `stop()` / a later `play_*` ends this loop the same
+    /// way it ends a spawned playback thread.
     #[doc(hidden)]
     pub fn run_playback_with<D, S>(
         &self,
@@ -264,7 +247,7 @@ impl AudioEngine {
         D: Decoder,
         S: Sink,
     {
-        let my_gen = self.generation.load(Ordering::SeqCst);
+        let my_gen = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
         drive_playback(
             source,
             pre_state,
@@ -374,6 +357,29 @@ impl AudioEngine {
 /// slow resolve + connect + prebuffer window and only then `Playing` — the
 /// Buffering state has to be recorded, not just emitted, because the UI polls
 /// `state()` rather than registering a callback (#23).
+/// The production URL stream → decoder pipeline, shared by `play_url` and the
+/// AE tests so the latter always exercise the real open path (headers,
+/// prebuffer wait, probe hint).
+#[doc(hidden)]
+pub fn open_resolved_stream(
+    resolved: &ResolvedUrl,
+) -> RhythmResult<(AudioDecoder, Option<f64>)> {
+    // Open the HTTP stream — this starts the prefetch downloader. The
+    // resolver's headers come along: Bilibili's CDN answers 403 without
+    // the Referer yt-dlp used.
+    let stream = HttpStream::open_with_headers(&resolved.stream_url, &resolved.http_headers)?;
+
+    // Wait for the initial buffer so the probe/decoder doesn't stall on
+    // every read.
+    stream.wait_initial_buffered()?;
+
+    // Use the URL's file extension as a probe hint (helps when the stream
+    // lacks a standard container header).
+    let hint = stream_hint(&resolved.stream_url);
+    let decoder = AudioDecoder::open_source(Box::new(stream), hint)?;
+    Ok((decoder, Some(resolved.duration)))
+}
+
 fn drive_playback<D, S>(
     source: String,
     pre_state: PlayerState,
@@ -389,7 +395,12 @@ where
     D: Decoder,
     S: Sink,
 {
-    inner.lock().unwrap().current_source = Some(source);
+    // Files record their source before the (fast) open, URLs only once the
+    // stream actually opened — a failed resolve must not clobber the source
+    // of the track that was playing.
+    if pre_state == PlayerState::Playing {
+        inner.lock().unwrap().current_source = Some(source.clone());
+    }
     set_state(&inner, &state_cb, pre_state.clone());
 
     let (mut decoder, fallback_duration) = open_decoder()?;
@@ -397,6 +408,7 @@ where
     // The URL path already emitted Buffering; now that the stream is open,
     // announce the real transition to Playing.
     if pre_state != PlayerState::Playing {
+        inner.lock().unwrap().current_source = Some(source);
         set_state(&inner, &state_cb, PlayerState::Playing);
     }
 
