@@ -67,3 +67,4 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         ${CMAKE_CURRENT_SOURCE_DIR}/../target/release/rhythm_core.dll
         $<TARGET_FILE_DIR:${PROJECT_NAME}>
 )
+
