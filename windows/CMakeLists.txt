@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Rhythm VERSION 0.5.30 LANGUAGES CXX)
+project(Rhythm VERSION 0.5.31 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -50,6 +50,12 @@ add_executable(${PROJECT_NAME} WIN32 ${SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Rhythm
 )
+
+# The sources contain Chinese literals (import feedback, status texts);
+# force UTF-8 so MSVC reads them regardless of the system code page.
+if(MSVC)
+    target_compile_options(${PROJECT_NAME} PRIVATE /utf-8)
+endif()
 
 # Link WinUI 3
 target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -102,8 +108,7 @@ add_executable(RhythmTests ${TEST_SOURCES})
 target_compile_definitions(RhythmTests PRIVATE CATCH_AMALGAMATED_CUSTOM_MAIN)
 
 # The test sources contain Chinese literals; force UTF-8 so MSVC reads them
-# regardless of the system code page. (The main target has the same latent
-# issue — registered, not fixed here.)
+# regardless of the system code page (the main target sets the same flag).
 if(MSVC)
     target_compile_options(RhythmTests PRIVATE /utf-8)
 endif()

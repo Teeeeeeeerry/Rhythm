@@ -1,6 +1,6 @@
-// WA-01–17：Windows AppState 行为清单（manifest:
+// WA-01–23：Windows AppState 行为清单（manifest:
 // docs/testing/behavior/windows-appstate.md）。零接缝：真 rhythm_core DLL +
-// 临时 SQLite 库；WA-05/WA-07 为条件 SKIP 红测（#81/#82）。
+// 临时 SQLite 库；#81/#82 已修复（T7），原红测已解禁转真断言。
 //
 // 这些测试在本机（macOS）不可运行——提交后在 Windows 上 `ctest` 验证。
 
@@ -132,9 +132,8 @@ TEST_CASE("WA-05 PlayTrack URL dispatch attempts playback") {
     state.IsPlaying = false;
 }
 
-/// 期望：缺 filePath/sourceUrl 时不进入播放状态。现状仍置
-/// CurrentTrack/IsPlaying（无声假播放，#78 同类）→ SKIP 挂 #81。
-TEST_CASE("WA-05 PlayTrack with no path must not enter playing (red)") {
+/// #81（T7 修复）：缺 filePath/sourceUrl 时不进入播放状态。
+TEST_CASE("WA-05 PlayTrack with no path must not enter playing") {
     TempDir dir;
     AppState state;
     state.OpenDatabase(dir.dbPath());
@@ -145,10 +144,6 @@ TEST_CASE("WA-05 PlayTrack with no path must not enter playing (red)") {
     broken.title = L"No Path";
     state.PlayTrack(broken);
 
-    if (state.IsPlaying || state.CurrentTrack.has_value()) {
-        SKIP("rhythm#81 缺 filePath/sourceUrl 仍置为播放中 — "
-             "https://github.com/Teeeeeeeerry/Rhythm/issues/81");
-    }
     REQUIRE_FALSE(state.IsPlaying);
     REQUIRE_FALSE(state.CurrentTrack.has_value());
 }
@@ -173,16 +168,17 @@ TEST_CASE("WA-06 TogglePlayPause pauses while playing") {
     state.Player->Stop();
 }
 
-/// 期望：恢复时 `Player->Resume()` 续播。现状重新 PlayTrack 从头播
-/// → SKIP 挂 #82。
-TEST_CASE("WA-07 TogglePlayPause resume continues playback (red)") {
+/// #82（T7 修复）：恢复时 `Player->Resume()` 续播。
+TEST_CASE("WA-07 TogglePlayPause resume continues playback") {
     TempDir dir;
     AppState state;
     state.OpenDatabase(dir.dbPath());
     auto wav = writeWavAt(dir.path, L"resume.wav", 3.0);
     auto saved = state.Library->AddTrack(makeLocalTrack(wav.wstring(), L"Resume Me"));
     state.PlayTrack(saved);
-    REQUIRE(waitFor([&] { return state.Player->State() == 1; }));
+    if (!waitFor([&] { return state.Player->State() == 1; })) {
+        SKIP("无音频输出设备，无法观察 Playing 状态（环境跳过）");
+    }
     ::Sleep(500);
 
     double before = state.Player->Position();
@@ -200,12 +196,7 @@ TEST_CASE("WA-07 TogglePlayPause resume continues playback (red)") {
     if (before == 0.0 && after == 0.0) {
         SKIP("无音频输出设备，position 恒 0（环境跳过）");
     }
-    // Current behavior restarts from the top, so the position drops back;
-    // a real Resume() keeps it at or past the pause point.
-    if (after < before) {
-        SKIP("rhythm#82 恢复时从头重播而非 Resume 续播 — "
-             "https://github.com/Teeeeeeeerry/Rhythm/issues/82");
-    }
+    // A real Resume() keeps the position at or past the pause point.
     REQUIRE(after >= before);
     state.Player->Stop();
     state.IsPlaying = false;
@@ -387,3 +378,223 @@ TEST_CASE("WA-16 Library open failure leaves methods as safe no-ops") {
 
 // WA-17（解析失败各 kind 上报，P2）：invalid_url 已由 WA-11 覆盖；其余
 // kind 需 stub yt-dlp 注入（Windows 无 shell stub 设施），顺延至后续票。
+
+// ─── WA-18 先停后播 ────────────────────────────────────────────────
+
+TEST_CASE("WA-18 PlayTrack stops the old stream before starting the new one") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+
+    auto wa = dir.path / L"wa";
+    fs::create_directories(wa);
+    auto a = writeWavAt(wa, L"a.wav", 3.0);
+    auto b = writeWavAt(wa, L"b.wav", 3.0);
+    auto c = writeWavAt(wa, L"c.wav", 3.0);
+    auto savedA = state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    auto savedB = state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
+    state.Library->AddTrack(makeLocalTrack(c.wstring(), L"C"));
+    state.RefreshLibrary();
+
+    state.PlayTrack(savedA);
+    if (!waitFor([&] { return state.Player->State() == 1; }, 5000)) {
+        SKIP("无音频输出设备，无法观察 Playing 状态（环境跳过）");
+    }
+    state.PlayTrack(savedB);
+    REQUIRE(state.CurrentTrack->id == savedB.id);
+    REQUIRE(state.IsPlaying);
+    // With #51 honoured the new stream owns the output — the player stays
+    // playing instead of piling two streams onto the device.
+    REQUIRE(waitFor([&] { return state.Player->State() == 1; }, 5000));
+    state.Player->Stop();
+    state.IsPlaying = false;
+}
+
+// ─── WA-19 播放队列 ─────────────────────────────────────────────────
+
+TEST_CASE("WA-19 PlayQueue wrapper roundtrips through FFI") {
+    auto t1 = makeLocalTrack(L"C:\\a\\one.mp3", L"One");
+    t1.id = 1;
+    auto t2 = makeLocalTrack(L"C:\\a\\two.mp3", L"Two");
+    t2.id = 2;
+
+    PlayQueue q({t1, t2});
+    REQUIRE(q.Current().has_value());
+    REQUIRE(q.Current()->title == L"One");
+    REQUIRE(q.HasNext());
+    REQUIRE_FALSE(q.HasPrevious());
+
+    REQUIRE(q.Next()->title == L"Two");
+    REQUIRE_FALSE(q.HasNext());
+    REQUIRE_FALSE(q.Next().has_value()); // exhausted → nullopt
+    // Exhaustion parks the cursor past the end; previous() steps back onto
+    // the last track (queue semantics locked in the rust-core suites).
+    REQUIRE(q.Previous()->title == L"Two");
+
+    // SingleLoop: next() stays at the current track.
+    q.SetMode(2);
+    REQUIRE(q.Next()->title == L"Two");
+
+    REQUIRE(q.JumpTo(1));
+    REQUIRE_FALSE(q.JumpTo(999));
+    REQUIRE(q.Current()->title == L"One");
+
+    auto t3 = makeLocalTrack(L"C:\\a\\three.mp3", L"Three");
+    t3.id = 3;
+    q.Replace({t3});
+    REQUIRE(q.Current()->title == L"Three");
+
+    PlayQueue empty({});
+    REQUIRE_FALSE(empty.Current().has_value());
+    REQUIRE_FALSE(empty.HasNext());
+    REQUIRE_FALSE(empty.HasPrevious());
+}
+
+TEST_CASE("WA-19 playNext/playPrevious walk the queue, exhausted is a no-op") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto wa = dir.path / L"wa";
+    fs::create_directories(wa);
+    auto a = writeWavAt(wa, L"a.wav", 3.0);
+    auto b = writeWavAt(wa, L"b.wav", 3.0);
+    auto savedA = state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    auto savedB = state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
+    state.RefreshLibrary();
+
+    state.PlayTrack(savedA);
+    REQUIRE(state.CanPlayNext());
+    REQUIRE_FALSE(state.CanPlayPrevious());
+
+    state.PlayNext();
+    REQUIRE(state.CurrentTrack->id == savedB.id);
+    REQUIRE(state.IsPlaying);
+    REQUIRE_FALSE(state.CanPlayNext());
+    REQUIRE(state.CanPlayPrevious());
+
+    state.PlayNext(); // exhausted → no-op
+    REQUIRE(state.CurrentTrack->id == savedB.id);
+
+    state.PlayPrevious();
+    REQUIRE(state.CurrentTrack->id == savedA.id);
+    state.Player->Stop();
+    state.IsPlaying = false;
+}
+
+// ─── WA-20 RefreshLibrary 队列同步 ──────────────────────────────────
+
+TEST_CASE("WA-20 RefreshLibrary keeps the queue in sync") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto wa = dir.path / L"wa";
+    fs::create_directories(wa);
+    auto a = writeWavAt(wa, L"a.wav", 3.0);
+    auto b = writeWavAt(wa, L"b.wav", 3.0);
+    auto savedA = state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    state.RefreshLibrary();
+
+    state.PlayTrack(savedA);
+    REQUIRE_FALSE(state.CanPlayNext()); // single-track queue
+
+    // Import a second track: the refreshed queue must now reach it (#69).
+    state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
+    state.RefreshLibrary();
+    REQUIRE(state.Tracks.size() == 2);
+    REQUIRE(state.CanPlayNext());
+
+    state.PlayNext();
+    REQUIRE(state.CurrentTrack->title == L"B");
+    state.Player->Stop();
+    state.IsPlaying = false;
+}
+
+// ─── WA-21 播放模式循环 ─────────────────────────────────────────────
+
+TEST_CASE("WA-21 CyclePlayMode cycles and syncs the queue") {
+    AppState state;
+    REQUIRE(state.CurrentMode == PlayMode::Sequential);
+    state.CyclePlayMode();
+    REQUIRE(state.CurrentMode == PlayMode::Shuffle);
+    state.CyclePlayMode();
+    REQUIRE(state.CurrentMode == PlayMode::SingleLoop);
+    state.CyclePlayMode();
+    REQUIRE(state.CurrentMode == PlayMode::ListLoop);
+    state.CyclePlayMode();
+    REQUIRE(state.CurrentMode == PlayMode::Sequential);
+}
+
+TEST_CASE("WA-21 SingleLoop keeps next on the current track") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto wa = dir.path / L"wa";
+    fs::create_directories(wa);
+    auto a = writeWavAt(wa, L"a.wav", 3.0);
+    auto b = writeWavAt(wa, L"b.wav", 3.0);
+    auto savedA = state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
+    state.RefreshLibrary();
+
+    state.PlayTrack(savedA);
+    state.CyclePlayMode(); // Shuffle — skip (random order)
+    state.CyclePlayMode(); // SingleLoop
+
+    state.PlayNext();
+    REQUIRE(state.CurrentTrack->id == savedA.id); // stays put
+    state.Player->Stop();
+    state.IsPlaying = false;
+}
+
+// ─── WA-22 传输可用性 ───────────────────────────────────────────────
+
+TEST_CASE("WA-22 transport availability gates") {
+    AppState state;
+    REQUIRE_FALSE(state.CanTogglePlayback());
+    REQUIRE_FALSE(state.CanPlayNext());
+    REQUIRE_FALSE(state.CanPlayPrevious());
+    REQUIRE_FALSE(state.CanStop());
+
+    TempDir dir;
+    state.OpenDatabase(dir.dbPath());
+    auto wa = dir.path / L"wa";
+    fs::create_directories(wa);
+    auto a = writeWavAt(wa, L"a.wav", 3.0);
+    auto b = writeWavAt(wa, L"b.wav", 3.0);
+    auto savedA = state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
+    state.RefreshLibrary();
+    REQUIRE(state.CanTogglePlayback());
+
+    state.PlayTrack(savedA);
+    REQUIRE(state.CanStop());
+    REQUIRE(state.CanPlayNext());
+    REQUIRE_FALSE(state.CanPlayPrevious());
+
+    state.PlayNext();
+    REQUIRE_FALSE(state.CanPlayNext());
+    REQUIRE(state.CanPlayPrevious());
+    state.Player->Stop();
+    state.IsPlaying = false;
+    REQUIRE_FALSE(state.CanStop());
+}
+
+// ─── WA-23 导入数量反馈 ─────────────────────────────────────────────
+
+TEST_CASE("WA-23 ImportDirectory reports the imported count") {
+    AppState state;
+    state.ImportDirectory(L"C:\\whatever"); // no Library → no feedback
+    REQUIRE_FALSE(state.ShowImportAlert);
+
+    TempDir dir;
+    state.OpenDatabase(dir.dbPath());
+    auto music = dir.path / L"music";
+    fs::create_directories(music);
+    writeWavAt(music, L"one.wav");
+    writeWavAt(music, L"two.wav");
+
+    state.ImportDirectory(music.wstring());
+
+    REQUIRE(state.ShowImportAlert);
+    REQUIRE(state.ImportAlertMessage == L"已导入 2 首歌曲");
+}

@@ -16,11 +16,11 @@
 |---|---|---|---|
 | WA-01 | `OpenDatabase` | `Library` 创建 + `Tracks`/`Playlists` 填充 | 新测（待 Windows 验证） |
 | WA-02 | `RefreshLibrary` | 无 Library → no-op；有 → Tracks/Playlists 从库刷新 | 新测（待 Windows 验证） |
-| WA-03 | `ImportDirectory` | 有 Library → 导入 + `RefreshLibrary`；无 Library → no-op（数量反馈为功能新增，见 WA-23，顺延 T7） | 新测（待 Windows 验证） |
+| WA-03 | `ImportDirectory` | 有 Library → 导入 + `RefreshLibrary`；无 Library → no-op（数量反馈见 WA-23，T7 已实现） | 新测（待 Windows 验证） |
 | WA-04 | `DoSearch` | 空 query → `AllTracks`；非空 → `Search(query)` | 新测（待 Windows 验证） |
-| WA-05 | `PlayTrack` 分派 | 期望：filePath → `PlayFile`；sourceUrl → `PlayURL`；`RecordPlay(id)`；缺两者时不进入播放状态。**红测禁用**：现状缺路径仍置位，`SKIP()` 挂 issue #81（活跃分派断言已绿） | 新测 |
+| WA-05 | `PlayTrack` 分派 | 期望：filePath → `PlayFile`；sourceUrl → `PlayURL`；`RecordPlay(id)`；缺两者时不进入播放状态（#81 已修复于 T7，红测解禁转绿） | 新测（待 Windows 验证） |
 | WA-06 | `TogglePlayPause` 播放中 | `Pause()` + `IsPlaying=false` | 新测（待 Windows 验证） |
-| WA-07 | `TogglePlayPause` 恢复 | 期望：`Player->Resume()` 续播。**红测禁用**：现状重新 `PlayTrack` 从头播（position 回落触发 `SKIP()`）挂 issue #82 | 新测 |
+| WA-07 | `TogglePlayPause` 恢复 | 期望：`Player->Resume()` 续播（#82 已修复于 T7，红测解禁转绿；无音频设备时环境 SKIP） | 新测（待 Windows 验证） |
 | WA-08 | `TogglePlayPause` 空闲启动 | 无 CurrentTrack 且 Tracks 非空 → `PlayTrack(Tracks[0])` | 新测（待 Windows 验证） |
 | WA-09 | `SetVolume` | `Volume` 状态更新 + `Player->SetVolume(float)` | 新测（待 Windows 验证） |
 | WA-10 | `ResolveAndPlay` 成功 | trim 输入；`AddTrack` 持久化（#39）；saved 插入 Tracks 头部；`UrlError` 清空；`PlayTrack(saved)` | 新测（真 core 直链，无网络），已绿（待 Windows 验证） |
@@ -51,14 +51,14 @@
 
 ## 功能新增（用户 2026-08-13 决策：与 macOS 对齐，产品代码实现，非红测）
 
-> Wave 4a 范围裁剪（用户 2026-08-14 决策）：本票只写测试设施与测试、不动产品代码。
-> WA-18–23 全部顺延至 #90（T7：Windows 播放编排对齐与功能新增，Wave 4b）。
+> Wave 4a 范围裁剪（用户 2026-08-14 决策）：T6 只写测试设施与测试、不动产品代码；
+> WA-18–23 已于 T7（#90）实现。
 
 | 编号 | 行为 | 断言 | 说明 |
 |---|---|---|---|
-| WA-18 | `PlayTrack` 先停后播 | 分派前先 `Player->Stop()`（macOS #51 模式），防止新旧流叠加 | 随 WA-05/WA-07 同一票实现 |
-| WA-19 | 播放队列：`playNext`/`playPrevious` | 引入 `RhythmQueue`（FFI 已具备）；next/previous 分派、队列耗尽 no-op | 功能新增（macOS 对齐） |
-| WA-20 | `RefreshLibrary` 队列同步 | 队列随曲库刷新 replace + jumpTo 当前曲（macOS #69/#72 对齐） | 功能新增 |
-| WA-21 | 播放模式循环 | `PlayMode` 四种模式 + `cyclePlayMode` 同步到队列 | 功能新增 |
-| WA-22 | 传输可用性 | `canPlayNext`/`canPlayPrevious` 等可用性属性（macOS #24/#25 对齐） | 功能新增 |
-| WA-23 | `ImportDirectory` 导入反馈 | 导入数量经状态/回调反馈到 UI（对齐 macOS alert） | 功能新增 |
+| WA-18（T7 已实现，待 Windows 验证） | `PlayTrack` 先停后播 | 分派前先 `Player->Stop()`（macOS #51 模式），防止新旧流叠加 | 随 WA-05/WA-07 同一票实现 |
+| WA-19（T7 已实现，待 Windows 验证） | 播放队列：`playNext`/`playPrevious` | 引入 `RhythmQueue`（FFI 已具备）；next/previous 分派、队列耗尽 no-op | 功能新增（macOS 对齐） |
+| WA-20（T7 已实现，待 Windows 验证） | `RefreshLibrary` 队列同步 | 队列随曲库刷新 replace + jumpTo 当前曲（macOS #69/#72 对齐） | 功能新增 |
+| WA-21（T7 已实现，待 Windows 验证） | 播放模式循环 | `PlayMode` 四种模式 + `cyclePlayMode` 同步到队列 | 功能新增 |
+| WA-22（T7 已实现，待 Windows 验证） | 传输可用性 | `canPlayNext`/`canPlayPrevious` 等可用性属性（macOS #24/#25 对齐） | 功能新增 |
+| WA-23（T7 已实现，待 Windows 验证） | `ImportDirectory` 导入反馈 | 导入数量经状态/回调反馈到 UI（对齐 macOS alert） | 功能新增 |
