@@ -23,6 +23,14 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 ctest --test-dir build --output-on-failure 2>&1 | Tee-Object -FilePath (Join-Path $LogDir "l1-windows-ctest.log")
 if ($LASTEXITCODE -ne 0) { Write-Host "! ctest 失败（$LASTEXITCODE），继续 L2" }
 
+Write-Host "----- L1b: 应用工程行为测试（windows/CMakeLists.txt RhythmTests，l1-windows-rhythmtests.log）-----"
+cmake -S windows -B build-rhythm-tests 2>&1 | Tee-Object -FilePath (Join-Path $LogDir "l1-windows-rhythmtests.log")
+if ($LASTEXITCODE -ne 0) { Write-Host "! RhythmTests cmake 失败（$LASTEXITCODE）"; exit $LASTEXITCODE }
+cmake --build build-rhythm-tests --target RhythmTests --config Release 2>&1 | Tee-Object -FilePath (Join-Path $LogDir "l1-windows-rhythmtests.log") -Append
+if ($LASTEXITCODE -ne 0) { Write-Host "! RhythmTests 构建失败（$LASTEXITCODE）"; exit $LASTEXITCODE }
+ctest --test-dir build-rhythm-tests --output-on-failure 2>&1 | Tee-Object -FilePath (Join-Path $LogDir "l1-windows-rhythmtests.log") -Append
+if ($LASTEXITCODE -ne 0) { Write-Host "! RhythmTests ctest 失败（$LASTEXITCODE）"; exit $LASTEXITCODE }
+
 Write-Host "----- L2: 截屏宿主构建 + golden 像素比对（l2-windows-capture.log / l2-windows-compare.log）-----"
 cmake -S testing/l2/windows -B build-capture 2>&1 | Tee-Object -FilePath (Join-Path $LogDir "l2-windows-capture.log")
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
