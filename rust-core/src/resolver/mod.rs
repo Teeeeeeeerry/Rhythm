@@ -1565,6 +1565,66 @@ mod tests {
         assert!(json.contains("\"kind\":\"yt_dlp_missing\""));
     }
 
+    // ── Cache pruning (RS-11 / RS-24) ───────────────────────────
+
+    /// RS-11: capacity evicts the oldest entry; TTL removes expired ones.
+    #[test]
+    fn test_prune_cache_evicts_oldest_and_expired() {
+        let mut cache = HashMap::new();
+        let base = Instant::now();
+
+        // 257 fresh entries: the first (oldest) must be evicted.
+        for i in 0..257 {
+            cache.insert(
+                format!("url-{i}"),
+                CachedEntry {
+                    resolved: cache_entry_resolved(&format!("T{i}")),
+                    cached_at: base - Duration::from_secs(1000 - i as u64),
+                },
+            );
+        }
+        assert_eq!(cache.len(), 257);
+        prune_cache(&mut cache);
+        assert_eq!(cache.len(), 256, "capacity pruning to 256");
+        assert!(!cache.contains_key("url-0"), "oldest entry evicted");
+        assert!(cache.contains_key("url-256"), "newest entry kept");
+
+        // TTL boundary (RS-24): exactly one hour old is NOT < TTL → removed;
+        // one second inside the hour survives.
+        let boundary = Instant::now() - Duration::from_secs(3600);
+        let inside = Instant::now() - Duration::from_secs(3599);
+        cache.clear();
+        cache.insert(
+            "boundary".to_string(),
+            CachedEntry {
+                resolved: cache_entry_resolved("boundary"),
+                cached_at: boundary,
+            },
+        );
+        cache.insert(
+            "inside".to_string(),
+            CachedEntry {
+                resolved: cache_entry_resolved("inside"),
+                cached_at: inside,
+            },
+        );
+        prune_cache(&mut cache);
+        assert!(!cache.contains_key("boundary"), "exactly 1h old is evicted (< TTL is strict)");
+        assert!(cache.contains_key("inside"), "1s inside the TTL survives");
+    }
+
+    fn cache_entry_resolved(title: &str) -> ResolvedUrl {
+        ResolvedUrl {
+            title: title.to_string(),
+            artist: None,
+            stream_url: "https://cdn.example.com/a.m4a".into(),
+            duration: 0.0,
+            source_type: SourceType::YouTube,
+            thumbnail_url: None,
+            http_headers: Default::default(),
+        }
+    }
+
     // ── Timestamp formatting ─────────────────────────────────────
 
     #[test]

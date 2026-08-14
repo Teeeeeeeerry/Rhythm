@@ -289,3 +289,30 @@ pub fn test_url_track(
         is_available: true,
     }
 }
+
+// ─── Environment guard ───────────────────────────────────────────────
+
+/// Set an environment variable for the test's duration and restore the
+/// previous value (or unset it) on drop — panic-safe where manual
+/// save/restore pairs would leak on early unwinds.
+pub struct EnvGuard {
+    key: &'static str,
+    old: Option<std::ffi::OsString>,
+}
+
+impl EnvGuard {
+    pub fn set(key: &'static str, value: impl AsRef<std::path::Path>) -> Self {
+        let old = std::env::var_os(key);
+        std::env::set_var(key, value.as_ref());
+        EnvGuard { key, old }
+    }
+}
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        match &self.old {
+            Some(v) => std::env::set_var(self.key, v),
+            None => std::env::remove_var(self.key),
+        }
+    }
+}
