@@ -1,6 +1,8 @@
-//! Shared test infrastructure: an in-process HTTP Range server and a WAV
-//! builder. Used by `streaming.rs` (decoder / HttpStream behavior) and
-//! `audio_engine.rs` (AudioEngine state machine behavior).
+//! Shared test infrastructure: an in-process HTTP Range server, a WAV
+//! builder, and tag-writing fixtures. The Range server is used by
+//! `streaming.rs` (decoder / HttpStream behavior) and `audio_engine.rs`
+//! (AudioEngine state machine behavior); the WAV/tag fixtures by
+//! `library_behavior.rs` and `metadata_behavior.rs`.
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -189,4 +191,101 @@ pub fn make_wav_bytes(seconds: f64) -> Vec<u8> {
         wav.extend_from_slice(&0i16.to_le_bytes());
     }
     wav
+}
+
+// ─── Metadata fixtures ───────────────────────────────────────────────
+
+/// Write `seconds` of WAV silence-tone to `path` (no tags).
+pub fn write_wav(path: &std::path::Path, seconds: f64) {
+    std::fs::write(path, make_wav_bytes(seconds)).unwrap();
+}
+
+/// Write a WAV file and attach an ID3v2 tag configured by `configure`
+/// (title/artist/album/track/…, or a picture via `Tag::push_picture`).
+pub fn write_tagged_wav(
+    path: &std::path::Path,
+    seconds: f64,
+    configure: impl FnOnce(&mut lofty::tag::Tag),
+) {
+    use lofty::prelude::*;
+    write_wav(path, seconds);
+    let mut tag = lofty::tag::Tag::new(lofty::tag::TagType::Id3v2);
+    configure(&mut tag);
+    tag.save_to_path(path, lofty::config::WriteOptions::default())
+        .unwrap();
+}
+
+// ─── Track fixtures ──────────────────────────────────────────────────
+
+/// A local track with sensible defaults (the same shape as
+/// `library_integration.rs::dummy_local_track`, centralized so the
+/// behavior suites don't repeat the 19-field literal).
+pub fn test_local_track(
+    path: &str,
+    title: &str,
+    artist: Option<&str>,
+    duration: f64,
+) -> rhythm_core::TrackInfo {
+    use rhythm_core::{SourceType, TrackInfo};
+    TrackInfo {
+        id: None,
+        file_path: Some(path.to_string()),
+        source_type: SourceType::Local,
+        source_url: None,
+        title: title.to_string(),
+        artist: artist.map(String::from),
+        album: Some("Test Album".to_string()),
+        album_artist: None,
+        track_number: Some(1),
+        disc_number: Some(1),
+        genre: None,
+        year: Some(2024),
+        duration,
+        format: Some("mp3".to_string()),
+        bitrate: Some(320),
+        sample_rate: Some(44100),
+        channels: Some(2),
+        file_size: Some(5_000_000),
+        date_added: None,
+        last_played: None,
+        play_count: 0,
+        artwork_path: None,
+        is_available: true,
+    }
+}
+
+/// A URL track with sensible defaults.
+pub fn test_url_track(
+    url: &str,
+    title: &str,
+    artist: Option<&str>,
+    source_type: rhythm_core::SourceType,
+    duration: f64,
+) -> rhythm_core::TrackInfo {
+    use rhythm_core::TrackInfo;
+    TrackInfo {
+        id: None,
+        file_path: None,
+        source_type,
+        source_url: Some(url.to_string()),
+        title: title.to_string(),
+        artist: artist.map(String::from),
+        album: None,
+        album_artist: None,
+        track_number: None,
+        disc_number: None,
+        genre: None,
+        year: None,
+        duration,
+        format: None,
+        bitrate: None,
+        sample_rate: None,
+        channels: None,
+        file_size: None,
+        date_added: None,
+        last_played: None,
+        play_count: 0,
+        artwork_path: None,
+        is_available: true,
+    }
 }
