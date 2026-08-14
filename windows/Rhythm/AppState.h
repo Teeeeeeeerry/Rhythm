@@ -7,6 +7,9 @@ namespace rhythm {
 
 enum class SidebarItem { Library, Playlists };
 
+/// Playback mode for the queue (mirrors the macOS `PlayMode`).
+enum class PlayMode { Sequential = 0, Shuffle = 1, SingleLoop = 2, ListLoop = 3 };
+
 class AppState : public winrt::implements<AppState, winrt::Windows::Foundation::IInspectable> {
 public:
     AppState();
@@ -30,6 +33,15 @@ public:
     /// Raised on the UI thread when a URL fails to resolve: (kind, message).
     std::function<void(const std::wstring&, const std::wstring&)> OnUrlError;
 
+    // Import feedback (WA-23, mirrors the macOS import alert).
+    std::wstring ImportAlertMessage;
+    bool ShowImportAlert = false;
+
+    /// The play queue, rebuilt by `PlayTrack` and kept in sync by
+    /// `RefreshLibrary` (WA-19/WA-20).
+    std::unique_ptr<PlayQueue> Queue;
+    PlayMode CurrentMode = PlayMode::Sequential;
+
     void OpenDatabase(const std::wstring& path);
     void RefreshLibrary();
     void ImportDirectory(const std::wstring& path);
@@ -39,12 +51,30 @@ public:
     void SetVolume(double v);
     void ResolveAndPlay(const std::wstring& url);
 
+    /// Transport availability (WA-22, mirrors the macOS tray-menu gates).
+    bool CanTogglePlayback() const;
+    bool CanPlayNext() const;
+    bool CanPlayPrevious() const;
+    bool CanStop() const;
+
+    /// Play the next/previous track in the queue (WA-19). No-ops when the
+    /// queue is absent or exhausted.
+    void PlayNext();
+    void PlayPrevious();
+
+    /// Cycle to the next play mode (WA-21).
+    void CyclePlayMode();
+
     /// UI-thread dispatcher for marshalling async resolver results.
     void SetDispatcherQueue(winrt::Microsoft::UI::Dispatching::DispatcherQueue dq) {
         dispatcher_ = dq;
     }
 
 private:
+    /// Stop → playFile/playURL → IsPlaying → RecordPlay, shared by
+    /// PlayTrack/PlayNext/PlayPrevious (#51 ordering).
+    void StartTrack(const Track& track);
+
     winrt::Microsoft::UI::Dispatching::DispatcherQueue dispatcher_{ nullptr };
 };
 

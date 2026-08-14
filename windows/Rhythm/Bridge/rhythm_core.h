@@ -11,6 +11,7 @@ extern "C" {
 
 typedef struct RhythmLibrary RhythmLibrary;
 typedef struct RhythmPlayer RhythmPlayer;
+typedef struct RhythmQueue RhythmQueue;
 
 // ─── Library API ───────────────────────────────────────────────────
 
@@ -87,6 +88,21 @@ char* rhythm_resolver_status(void);
 // Install or update Rhythm's own yt-dlp copy. Returns the binary path, or
 // null on failure (see rhythm_last_error). Blocks during the download.
 char* rhythm_install_ytdlp(void);
+
+// ─── Play Queue API ────────────────────────────────────────────────
+// Play modes: 0=Sequential, 1=Shuffle, 2=SingleLoop, 3=ListLoop
+
+RhythmQueue* rhythm_queue_create(const char* tracks_json);
+void rhythm_queue_destroy(RhythmQueue* queue);
+
+char* rhythm_queue_current(RhythmQueue* queue);
+char* rhythm_queue_next(RhythmQueue* queue);
+char* rhythm_queue_previous(RhythmQueue* queue);
+void rhythm_queue_set_mode(RhythmQueue* queue, int32_t mode);
+int32_t rhythm_queue_jump_to(RhythmQueue* queue, int64_t track_id);
+void rhythm_queue_replace(RhythmQueue* queue, const char* tracks_json);
+int32_t rhythm_queue_has_next(RhythmQueue* queue);
+int32_t rhythm_queue_has_previous(RhythmQueue* queue);
 
 // ─── M3U8 Import/Export ────────────────────────────────────────────
 

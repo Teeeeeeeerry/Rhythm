@@ -244,6 +244,76 @@ std::wstring Player::ErrorMessage() const {
 double Player::Position() const { return ptr_ ? rhythm_player_get_position(ptr_) : 0.0; }
 double Player::Duration() const { return ptr_ ? rhythm_player_get_duration(ptr_) : 0.0; }
 
+// ─── Play Queue ─────────────────────────────────────────────────────
+
+static std::string TracksToJson(const std::vector<Track>& tracks) {
+    json j = json::array();
+    for (const auto& t : tracks) {
+        j.push_back(json::parse(TrackToJson(t)));
+    }
+    return j.dump();
+}
+
+PlayQueue::PlayQueue(const std::vector<Track>& tracks) {
+    auto json = TracksToJson(tracks);
+    ptr_ = rhythm_queue_create(json.c_str());
+}
+
+PlayQueue::~PlayQueue() {
+    if (ptr_) rhythm_queue_destroy(ptr_);
+}
+
+std::optional<Track> PlayQueue::Current() {
+    if (!ptr_) return std::nullopt;
+    char* json = rhythm_queue_current(ptr_);
+    if (!json) return std::nullopt;
+    auto track = JsonToTrack(json::parse(json));
+    rhythm_free_string(json);
+    return track;
+}
+
+std::optional<Track> PlayQueue::Next() {
+    if (!ptr_) return std::nullopt;
+    char* json = rhythm_queue_next(ptr_);
+    if (!json) return std::nullopt;
+    auto track = JsonToTrack(json::parse(json));
+    rhythm_free_string(json);
+    return track;
+}
+
+std::optional<Track> PlayQueue::Previous() {
+    if (!ptr_) return std::nullopt;
+    char* json = rhythm_queue_previous(ptr_);
+    if (!json) return std::nullopt;
+    auto track = JsonToTrack(json::parse(json));
+    rhythm_free_string(json);
+    return track;
+}
+
+void PlayQueue::SetMode(int32_t mode) {
+    if (!ptr_) return;
+    rhythm_queue_set_mode(ptr_, mode);
+}
+
+bool PlayQueue::JumpTo(int64_t trackId) {
+    if (!ptr_) return false;
+    return rhythm_queue_jump_to(ptr_, trackId) == 0;
+}
+
+void PlayQueue::Replace(const std::vector<Track>& tracks) {
+    if (!ptr_) return;
+    auto json = TracksToJson(tracks);
+    rhythm_queue_replace(ptr_, json.c_str());
+}
+
+bool PlayQueue::HasNext() const {
+    return ptr_ ? rhythm_queue_has_next(ptr_) != 0 : false;
+}
+
+bool PlayQueue::HasPrevious() const {
+    return ptr_ ? rhythm_queue_has_previous(ptr_) != 0 : false;
+}
+
 // ─── Resolver ───────────────────────────────────────────────────────
 
 /// Read the core's last resolution failure. Falls back to a generic message
