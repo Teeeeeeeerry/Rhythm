@@ -460,11 +460,23 @@ fn run_playback_loop<D: Decoder + ?Sized, S: Sink + ?Sized>(
     let out_channels = output.channels();
 
     while generation.load(Ordering::SeqCst) == my_gen {
-        // Check pause state
+        // Check pause state. A paused loop still consumes pending seeks so a
+        // drag while paused applies immediately (#77): the decoder is idle
+        // here, so seeking is safe, and resume then continues from the new
+        // position (the resampler is reset so no stale audio is replayed).
         {
-            let eng = inner.lock().unwrap();
+            let mut eng = inner.lock().unwrap();
             if eng.state == PlayerState::Paused {
-                thread::sleep(Duration::from_millis(50));
+                if let Some(secs) = eng.desired_position.take() {
+                    drop(eng);
+                    decoder.seek(secs)?;
+                    resampler.reset();
+                    set_position(&inner, decoder.position());
+                    emit_progress(&progress_cb, decoder.position(), decoder.duration());
+                } else {
+                    drop(eng);
+                    thread::sleep(Duration::from_millis(50));
+                }
                 continue;
             }
         }

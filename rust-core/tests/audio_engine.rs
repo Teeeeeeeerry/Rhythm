@@ -974,11 +974,7 @@ fn ae20_seek_with_unknown_duration_accepted() {
 /// AE-21: seek during pause must apply immediately — consume the pending
 /// position, update `position()`, and fire a progress event, so resume
 /// continues from the dragged-to spot.
-///
-/// Red test (disabled): the current loop checks Paused before consuming the
-/// pending seek, so the seek hangs until resume. Tracked as #77.
 #[test]
-#[ignore = "rhythm#77 暂停中 seek 被挂起直到 resume — https://github.com/Teeeeeeerry/Rhythm/issues/77"]
 fn ae21_seek_while_paused_applies_immediately() {
     let engine = Arc::new(AudioEngine::new());
     let rec = attach_recorders(&engine);
@@ -1016,11 +1012,13 @@ fn ae21_seek_while_paused_applies_immediately() {
     // queueing; the assertion below is about the queued seek being applied.
     engine.seek(0.75).unwrap();
 
+    // Wait for the decoder seek *and* the position publish: the loop records
+    // the seek into the probe before `set_position`, so checking seeks alone
+    // could race the position assertion on a loaded CI box.
     wait_for("seek applied while paused", Duration::from_secs(2), || {
-        !probe.seeks.lock().unwrap().is_empty()
+        !probe.seeks.lock().unwrap().is_empty() && (engine.position() - 0.75).abs() < 1e-9
     });
     assert_eq!(*probe.seeks.lock().unwrap(), vec![0.75]);
-    assert!((engine.position() - 0.75).abs() < 1e-9);
     assert!(
         rec.progress().iter().any(|&(pos, _)| (pos - 0.75).abs() < 1e-9),
         "progress callback must see the paused seek: {:?}",
