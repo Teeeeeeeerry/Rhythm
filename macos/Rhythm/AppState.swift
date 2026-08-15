@@ -212,13 +212,15 @@ final class AppState: ObservableObject {
 
     /// Play a track with a specific queue (e.g., from a playlist).
     func playTrack(_ track: Track, queueTracks: [Track]) {
+        // #78: a track with no playable location must not enter the playing
+        // state — the old code set currentTrack/isPlaying first and silently
+        // skipped the player, so the UI claimed playback with nothing audible.
+        guard let location = playableLocation(track) else { return }
         currentTrack = track
         player.stop() // #51: stop old playback before starting new
-        switch track.sourceType {
-        case "local":
-            if let path = track.filePath { player.playFile(path) }
-        default:
-            if let url = track.sourceUrl { player.playURL(url) }
+        switch location {
+        case .file(let path): player.playFile(path)
+        case .url(let url): player.playURL(url)
         }
         isPlaying = true
         library?.recordPlay(track.id)
@@ -400,14 +402,14 @@ final class AppState: ObservableObject {
     /// Play the next track in the queue.
     func playNext() {
         guard let q = queue, let nextTrack = q.next() else { return }
+        // #78: skip tracks with no playable location without touching state.
+        guard let location = playableLocation(nextTrack) else { return }
         currentTrack = nextTrack
         isPlaying = true
         player.stop() // #51: stop old playback before starting new
-        switch nextTrack.sourceType {
-        case "local":
-            if let path = nextTrack.filePath { player.playFile(path) }
-        default:
-            if let url = nextTrack.sourceUrl { player.playURL(url) }
+        switch location {
+        case .file(let path): player.playFile(path)
+        case .url(let url): player.playURL(url)
         }
         library?.recordPlay(nextTrack.id)
     }
@@ -415,16 +417,35 @@ final class AppState: ObservableObject {
     /// Play the previous track in the queue.
     func playPrevious() {
         guard let q = queue, let prevTrack = q.previous() else { return }
+        // #78: skip tracks with no playable location without touching state.
+        guard let location = playableLocation(prevTrack) else { return }
         currentTrack = prevTrack
         isPlaying = true
         player.stop() // #51: stop old playback before starting new
-        switch prevTrack.sourceType {
-        case "local":
-            if let path = prevTrack.filePath { player.playFile(path) }
-        default:
-            if let url = prevTrack.sourceUrl { player.playURL(url) }
+        switch location {
+        case .file(let path): player.playFile(path)
+        case .url(let url): player.playURL(url)
         }
         library?.recordPlay(prevTrack.id)
+    }
+
+    /// The player-reachable location of a track: local tracks need a file
+    /// path, streamed tracks a URL. Nil when nothing can be handed to the
+    /// player (#78).
+    private enum PlayableLocation {
+        case file(String)
+        case url(String)
+    }
+
+    private func playableLocation(_ track: Track) -> PlayableLocation? {
+        switch track.sourceType {
+        case "local":
+            guard let path = track.filePath else { return nil }
+            return .file(path)
+        default:
+            guard let url = track.sourceUrl else { return nil }
+            return .url(url)
+        }
     }
 
     /// Stop playback entirely: stop the engine, reset transport state, clear

@@ -14,24 +14,26 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
         XCTAssertFalse(appState.isPlaying)
     }
 
-    // MARK: - AS-28 playTrack 缺路径（红测禁用，挂 #78）
+    // MARK: - AS-28 playTrack 缺路径
 
-    /// 期望：缺 filePath/sourceUrl 时不进入播放状态。现状仍置 currentTrack/isPlaying
-    /// （无声假播放），测试在缺陷修复前跳过。修复 #78 后本测试自动转为真断言。
-    func testPlayTrack_MissingPath_DoesNotEnterPlaying() throws {
+    /// 缺 filePath/sourceUrl 时不进入播放状态：不置 currentTrack/isPlaying，
+    /// 也不碰 player（无 stop 调用）——否则出现无声假播放（#78）。
+    func testPlayTrack_MissingPath_DoesNotEnterPlaying() {
         let track = makeTrack(sourceType: "local", filePath: nil, sourceUrl: nil)
         appState.tracks = [track]
 
         appState.playTrack(track)
 
-        let stillEntersPlaying = appState.isPlaying || appState.currentTrack != nil
-        if stillEntersPlaying {
-            throw XCTSkip(
-                "rhythm#78 缺 filePath/sourceUrl 仍置播放中（无声假播放）"
-                + " — https://github.com/Teeeeeeerry/Rhythm/issues/78"
-            )
-        }
         XCTAssertFalse(appState.isPlaying, "no playable path — must not claim to be playing")
+        XCTAssertNil(appState.currentTrack)
+        XCTAssertFalse(spy.hasAnyCall)
+
+        // The streamed branch of the same guard.
+        let urlTrack = makeTrack(sourceType: "url", filePath: nil, sourceUrl: nil)
+        appState.tracks = [urlTrack]
+        appState.playTrack(urlTrack)
+
+        XCTAssertFalse(appState.isPlaying)
         XCTAssertNil(appState.currentTrack)
         XCTAssertFalse(spy.hasAnyCall)
     }
