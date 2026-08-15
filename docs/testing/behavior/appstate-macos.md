@@ -44,7 +44,7 @@
 | 编号 | 行为 | 断言 | 测试途径 |
 |---|---|---|---|
 | AS-27 | `togglePlayPause` 无曲目可播 | 无 `currentTrack` 且曲库空 → no-op（不调 player） | SpyPlayer |
-| AS-28 | `playTrack` 缺路径/URL | 缺 `filePath`/`sourceUrl` 时不进入播放状态：不置 `currentTrack`/`isPlaying`、不碰 player；playNext/playPrevious 同类分派同样跳过 | SpyPlayer |
+| AS-28 | `playTrack` 缺路径/URL | 缺 `filePath`/`sourceUrl`（含空串）时不进入播放状态：不置 `currentTrack`/`isPlaying`、不碰 player。playNext/playPrevious 跳过无位置曲目（有界 skip-loop，全死队列放弃且当前曲继续）；playResolved 同样校验；auto-advance 全死队列停止置位 | SpyPlayer |
 | AS-29 | `resolveAndImport` 并发防重入 | `isResolvingURL=true` 期间新调用被忽略；空/纯空白输入被忽略 | stub resolver + expectation |
 | AS-30 | resolver 状态轮询生命周期 | resolve 开始启动轮询、结束停止；`isQuiet` 时 `urlStatus=""` | stub resolver + `isPollingResolverStatus` 断言 |
 | AS-31 | `deleteSelectedTrack` 无匹配 | `selectedTrackID` 无对应 track → no-op | 真库 |
@@ -68,7 +68,7 @@
 
 | 编号 | 缺陷 | issue | 状态 |
 |---|---|---|---|
-| AS-28 | 缺 filePath/sourceUrl 仍置播放中（无声假播放） | [#78](https://github.com/Teeeeeeerry/Rhythm/issues/78) | 已修复（`testPlayTrack_MissingPath_DoesNotEnterPlaying` 解禁，三处分派置位前校验 playableLocation） |
+| AS-28 | 缺 filePath/sourceUrl 仍置播放中（无声假播放） | [#78](https://github.com/Teeeeeeerry/Rhythm/issues/78) | 已修复（`testPlayTrack_MissingPath_DoesNotEnterPlaying` 解禁；`testPlayNext/PlayPrevious_SkipsUnplayableTrack`、`testPlayNext_AllUnplayable_GivesUpWithoutTouchingState`、`testAutoAdvance_AllUnplayable_StopsClaimingPlayback` 覆盖 skip-loop 与 auto-advance） |
 
 ## 附注：RhythmCore 封装层
 

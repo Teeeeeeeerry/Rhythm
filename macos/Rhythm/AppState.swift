@@ -34,6 +34,9 @@ final class AppState: ObservableObject {
     @Published var selectedTrackID: Int64?
 
     private var queue: RhythmQueue?
+    /// Length of the queue backing `queue` — the skip loop in
+    /// playNext/playPrevious is bounded by this (#78).
+    private var queueTrackCount = 0
     private var resolverStatusTimer: Timer?
 
     /// Test seam: injectable resolver. Defaults to the global function that
@@ -216,6 +219,20 @@ final class AppState: ObservableObject {
         // state — the old code set currentTrack/isPlaying first and silently
         // skipped the player, so the UI claimed playback with nothing audible.
         guard let location = playableLocation(track) else { return }
+        startPlayback(track, location)
+
+        // Set up play queue
+        if let q = RhythmQueue(tracks: queueTracks) {
+            q.setMode(playMode)
+            _ = q.jumpTo(track.id)
+            queue = q
+            queueTrackCount = queueTracks.count
+        }
+    }
+
+    /// Stop the old engine, hand the location to the player, and flip the
+    /// transport state — the one place the three play paths converge.
+    private func startPlayback(_ track: Track, _ location: PlayableLocation) {
         currentTrack = track
         player.stop() // #51: stop old playback before starting new
         switch location {
@@ -224,13 +241,6 @@ final class AppState: ObservableObject {
         }
         isPlaying = true
         library?.recordPlay(track.id)
-
-        // Set up play queue
-        if let q = RhythmQueue(tracks: queueTracks) {
-            q.setMode(playMode)
-            _ = q.jumpTo(track.id)
-            queue = q
-        }
     }
 
     /// Watch the core's provisioning status while a resolution runs. The
@@ -345,18 +355,17 @@ final class AppState: ObservableObject {
         // Persist to database first — the returned track has the real id.
         let saved = library?.addTrack(track) ?? track
         refreshLibrary() // #66: reload from DB instead of manual insert for data consistency
-        currentTrack = saved
-        player.stop() // #51: stop old playback before starting new
-        if let url = saved.sourceUrl {
-            player.playURL(url)
-        }
-        isPlaying = true
+        // #78: the same no-playable-location guard as playTrack — a resolved
+        // track without a URL must not fake-play.
+        guard let location = playableLocation(saved) else { return }
+        startPlayback(saved, location)
         urlInput = ""
         if let q = RhythmQueue(tracks: tracks) {
             q.setMode(playMode)
             // Position the queue at the newly saved track by its real DB id.
             if saved.id >= 0 { _ = q.jumpTo(saved.id) }
             queue = q
+            queueTrackCount = tracks.count
         }
     }
 
@@ -393,7 +402,9 @@ final class AppState: ObservableObject {
             if currentTrack != nil {
                 player.resume()
                 isPlaying = true
-            } else if let first = tracks.first {
+            } else if let first = tracks.first(where: { playableLocation($0) != nil }) {
+                // Skip over library tracks with no playable location rather
+                // than dead-ending on tracks.first (#78).
                 playTrack(first)
             }
         }
@@ -401,37 +412,36 @@ final class AppState: ObservableObject {
 
     /// Play the next track in the queue.
     func playNext() {
-        guard let q = queue, let nextTrack = q.next() else { return }
-        // #78: skip tracks with no playable location without touching state.
-        guard let location = playableLocation(nextTrack) else { return }
-        currentTrack = nextTrack
-        isPlaying = true
-        player.stop() // #51: stop old playback before starting new
-        switch location {
-        case .file(let path): player.playFile(path)
-        case .url(let url): player.playURL(url)
+        guard let q = queue else { return }
+        // #78: skip past tracks with no playable location instead of
+        // fake-playing them. Bounded by the queue length so an all-dead
+        // queue cannot loop forever.
+        for _ in 0..<queueTrackCount {
+            guard let nextTrack = q.next() else { return }
+            guard let location = playableLocation(nextTrack) else { continue }
+            startPlayback(nextTrack, location)
+            return
         }
-        library?.recordPlay(nextTrack.id)
+        // Every remaining track is unplayable — give up without touching
+        // state; the current track keeps playing.
     }
 
     /// Play the previous track in the queue.
     func playPrevious() {
-        guard let q = queue, let prevTrack = q.previous() else { return }
-        // #78: skip tracks with no playable location without touching state.
-        guard let location = playableLocation(prevTrack) else { return }
-        currentTrack = prevTrack
-        isPlaying = true
-        player.stop() // #51: stop old playback before starting new
-        switch location {
-        case .file(let path): player.playFile(path)
-        case .url(let url): player.playURL(url)
+        guard let q = queue else { return }
+        // #78: same skip semantics as playNext, walking backwards.
+        for _ in 0..<queueTrackCount {
+            guard let prevTrack = q.previous() else { return }
+            guard let location = playableLocation(prevTrack) else { continue }
+            startPlayback(prevTrack, location)
+            return
         }
-        library?.recordPlay(prevTrack.id)
     }
 
     /// The player-reachable location of a track: local tracks need a file
     /// path, streamed tracks a URL. Nil when nothing can be handed to the
-    /// player (#78).
+    /// player (#78). Empty strings count as missing — they pass the old
+    /// nil-only check and reach the player as a doomed play call.
     private enum PlayableLocation {
         case file(String)
         case url(String)
@@ -440,10 +450,10 @@ final class AppState: ObservableObject {
     private func playableLocation(_ track: Track) -> PlayableLocation? {
         switch track.sourceType {
         case "local":
-            guard let path = track.filePath else { return nil }
+            guard let path = track.filePath, !path.isEmpty else { return nil }
             return .file(path)
         default:
-            guard let url = track.sourceUrl else { return nil }
+            guard let url = track.sourceUrl, !url.isEmpty else { return nil }
             return .url(url)
         }
     }
@@ -457,6 +467,7 @@ final class AppState: ObservableObject {
         isBuffering = false
         currentTrack = nil
         queue = nil
+        queueTrackCount = 0
         position = 0
         duration = 0
     }
@@ -477,7 +488,14 @@ final class AppState: ObservableObject {
         isBuffering = state == 3
         if state == 5 { // Finished
             if queue?.hasNext == true {
+                let before = currentTrack?.id
                 playNext()
+                if currentTrack?.id == before {
+                    // The next track was unplayable (or the queue is all
+                    // dead): stop claiming playback instead of retrying
+                    // every tick (#78).
+                    isPlaying = false
+                }
             } else {
                 isPlaying = false
             }
