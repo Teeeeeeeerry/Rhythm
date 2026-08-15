@@ -34,7 +34,7 @@
 | AE-18 | `pause` 在非 Playing 状态调用 | 无效果：状态不变、回调不发 | 直测，无接缝 |
 | AE-19 | `resume` 在非 Paused 状态调用 | 无效果：状态不变、回调不发 | 直测，无接缝 |
 | AE-20 | `duration()==0` 时 `seek` | 上限校验跳过，任意正数接受（DASH 流场景） | 直测，无接缝 |
-| AE-21 | 暂停期间的 `seek` | 期望：暂停中 seek 立即生效——消费 `desired_position`、更新 `position`、发进度回调；resume 后从新位置继续。**红测禁用**：现状代码挂起 seek 直到 resume，测试禁用挂 issue #77 | 接缝 |
+| AE-21 | 暂停期间的 `seek` | 暂停中 seek 立即生效——消费 `desired_position`、更新 `position`、发进度回调；resume 后从新位置继续 | 接缝 |
 | AE-22 | 未注册回调 | 播放/暂停/失败不崩溃，回调 emit 为 no-op | 直测 + 接缝 |
 | AE-23 | 暂停期间不产出音频 | Paused 后假输出不再收到写入，resume 后继续 | 接缝 |
 | AE-24 | `stop` 清空 pending seek | `seek` 排队后 `stop`，resume 时旧 seek 不被应用 | 接缝 |
@@ -54,7 +54,7 @@
 
 | 编号 | 缺陷 | issue | 状态 |
 |---|---|---|---|
-| AE-21 | 暂停中 seek 被挂起，直到 resume 后才生效 | [#77](https://github.com/Teeeeeeerry/Rhythm/issues/77) | 已挂接（Wave 1，`ae21_seek_while_paused_applies_immediately` 以 `#[ignore]` 禁用，修复 #77 时解禁） |
+| AE-21 | 暂停中 seek 被挂起，直到 resume 后才生效 | [#77](https://github.com/Teeeeeeerry/Rhythm/issues/77) | 已修复（`ae21_seek_while_paused_applies_immediately` 解禁，循环暂停分支消费 pending seek） |
 
 ## Decoder / HttpStream（已有测试行为对照）
 
