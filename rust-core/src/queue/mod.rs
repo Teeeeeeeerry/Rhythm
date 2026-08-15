@@ -320,4 +320,203 @@ mod tests {
         let expected: Vec<i64> = (1..=20).collect();
         assert_eq!(seen, expected);
     }
+
+    /// Q-05 (missing branch): `jump_to` on an unknown id returns false and
+    /// leaves the cursor untouched.
+    #[test]
+    fn test_jump_to_missing_id_leaves_cursor() {
+        let mut q = PlayQueue::new(vec![
+            dummy_track(1, "A"),
+            dummy_track(2, "B"),
+            dummy_track(3, "C"),
+        ]);
+        assert!(!q.jump_to(99));
+        assert_eq!(q.current().unwrap().title, "A");
+    }
+
+    /// Q-07: `replace` resets the cursor to the new first track (#72).
+    #[test]
+    fn test_replace_resets_cursor() {
+        let mut q = PlayQueue::new(vec![
+            dummy_track(1, "A"),
+            dummy_track(2, "B"),
+            dummy_track(3, "C"),
+        ]);
+        q.next(); // B
+        assert_eq!(q.current().unwrap().title, "B");
+
+        q.replace(vec![dummy_track(10, "X"), dummy_track(11, "Y")]);
+        assert_eq!(q.current().unwrap().title, "X");
+        assert!(!q.has_previous());
+    }
+
+    /// Q-08: the `has_next` matrix across modes and empty queues.
+    #[test]
+    fn test_has_next_matrix() {
+        let tracks = vec![dummy_track(1, "A"), dummy_track(2, "B")];
+
+        // Empty queue: never a next, in any mode.
+        for mode in [
+            PlayMode::Sequential,
+            PlayMode::ListLoop,
+            PlayMode::SingleLoop,
+            PlayMode::Shuffle,
+        ] {
+            let mut q = PlayQueue::new(vec![]);
+            q.set_mode(mode);
+            assert!(!q.has_next(), "{mode:?} on empty queue");
+        }
+
+        // Sequential: true before the last track, false on it.
+        let mut q = PlayQueue::new(tracks.clone());
+        q.set_mode(PlayMode::Sequential);
+        assert!(q.has_next());
+        q.next();
+        assert!(!q.has_next());
+
+        // Non-sequential: always true while non-empty.
+        for mode in [PlayMode::ListLoop, PlayMode::SingleLoop, PlayMode::Shuffle] {
+            let mut q = PlayQueue::new(tracks.clone());
+            q.set_mode(mode);
+            assert!(q.has_next(), "{mode:?}");
+        }
+    }
+
+    /// Q-09: the `has_previous` matrix across modes and empty queues.
+    #[test]
+    fn test_has_previous_matrix() {
+        let tracks = vec![dummy_track(1, "A"), dummy_track(2, "B")];
+
+        // Empty queue: never a previous, in any mode.
+        for mode in [
+            PlayMode::Sequential,
+            PlayMode::ListLoop,
+            PlayMode::SingleLoop,
+            PlayMode::Shuffle,
+        ] {
+            let mut q = PlayQueue::new(vec![]);
+            q.set_mode(mode);
+            assert!(!q.has_previous(), "{mode:?} on empty queue");
+        }
+
+        // Sequential: false at the head, true after moving.
+        let mut q = PlayQueue::new(tracks.clone());
+        q.set_mode(PlayMode::Sequential);
+        assert!(!q.has_previous());
+        q.next();
+        assert!(q.has_previous());
+
+        // Non-sequential: true while non-empty, even at the head.
+        for mode in [PlayMode::ListLoop, PlayMode::SingleLoop, PlayMode::Shuffle] {
+            let mut q = PlayQueue::new(tracks.clone());
+            q.set_mode(mode);
+            assert!(q.has_previous(), "{mode:?}");
+        }
+    }
+
+    /// Q-10: an empty queue yields no track and no navigation.
+    #[test]
+    fn test_empty_queue() {
+        let mut q = PlayQueue::new(vec![]);
+        assert!(q.current().is_none());
+        assert!(q.next().is_none());
+        assert!(q.previous().is_none());
+        assert!(!q.has_next());
+        assert!(!q.has_previous());
+    }
+
+    /// Q-11: non-sequential modes wrap `previous` at the head to the last
+    /// track of the active order.
+    #[test]
+    fn test_previous_wraps_in_non_sequential() {
+        for mode in [PlayMode::ListLoop, PlayMode::SingleLoop] {
+            let mut q = PlayQueue::new(vec![
+                dummy_track(1, "A"),
+                dummy_track(2, "B"),
+                dummy_track(3, "C"),
+            ]);
+            q.set_mode(mode);
+            assert_eq!(q.previous().unwrap().title, "C", "{mode:?}");
+        }
+
+        // Shuffle: previous walks backwards along the shuffle order; the head
+        // wraps to the shuffle order's last entry (any track).
+        let mut q = PlayQueue::new(vec![
+            dummy_track(1, "A"),
+            dummy_track(2, "B"),
+            dummy_track(3, "C"),
+        ]);
+        q.set_mode(PlayMode::Shuffle);
+        let first = q.current().unwrap().id.unwrap();
+        let wrapped = q.previous().unwrap().id.unwrap();
+        let back = q.previous().unwrap().id.unwrap();
+        assert_ne!(wrapped, back);
+        for id in [wrapped, back] {
+            assert!([1, 2, 3].contains(&id), "unexpected track id {id}");
+        }
+        q.previous();
+        assert_eq!(q.current().unwrap().id.unwrap(), first);
+    }
+
+    /// Q-12: after Sequential exhausts (cursor parked at len), `previous`
+    /// returns the last track.
+    #[test]
+    fn test_previous_after_exhaustion() {
+        let mut q = PlayQueue::new(vec![
+            dummy_track(1, "A"),
+            dummy_track(2, "B"),
+            dummy_track(3, "C"),
+        ]);
+        q.set_mode(PlayMode::Sequential);
+        q.next();
+        q.next();
+        assert!(q.next().is_none());
+        assert_eq!(q.previous().unwrap().title, "C");
+    }
+
+    /// Q-13: after a full Shuffle round the order is rebuilt and the second
+    /// round still covers every track once.
+    #[test]
+    fn test_shuffle_second_round_reshuffles() {
+        let tracks: Vec<_> = (1..=20).map(|i| dummy_track(i, &format!("T{i:02}"))).collect();
+        let mut q = PlayQueue::new(tracks);
+        q.set_mode(PlayMode::Shuffle);
+
+        for round in 0..2 {
+            let mut seen: Vec<i64> = Vec::new();
+            for _ in 0..20 {
+                seen.push(q.current().unwrap().id.unwrap());
+                q.next();
+            }
+            seen.sort();
+            let expected: Vec<i64> = (1..=20).collect();
+            assert_eq!(seen, expected, "round {round}");
+        }
+    }
+
+    /// Q-14: `PlayMode::from_i32` maps known values and falls back to
+    /// Sequential for anything else.
+    #[test]
+    fn test_play_mode_from_i32() {
+        assert_eq!(PlayMode::from_i32(0), PlayMode::Sequential);
+        assert_eq!(PlayMode::from_i32(1), PlayMode::Shuffle);
+        assert_eq!(PlayMode::from_i32(2), PlayMode::SingleLoop);
+        assert_eq!(PlayMode::from_i32(3), PlayMode::ListLoop);
+        assert_eq!(PlayMode::from_i32(4), PlayMode::Sequential);
+        assert_eq!(PlayMode::from_i32(-1), PlayMode::Sequential);
+    }
+
+    /// Q-15: `jump_to` in Shuffle mode positions the cursor via the shuffle
+    /// order.
+    #[test]
+    fn test_jump_to_in_shuffle() {
+        let mut q = PlayQueue::new(vec![
+            dummy_track(1, "A"),
+            dummy_track(2, "B"),
+            dummy_track(3, "C"),
+        ]);
+        q.set_mode(PlayMode::Shuffle);
+        assert!(q.jump_to(2));
+        assert_eq!(q.current().unwrap().id, Some(2));
+    }
 }
