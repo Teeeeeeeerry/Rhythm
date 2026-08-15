@@ -38,6 +38,70 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
         XCTAssertFalse(spy.hasAnyCall)
     }
 
+    // MARK: - AS-28b playNext/playPrevious 跳过无路径曲目
+
+    func testPlayNext_SkipsUnplayableTrack() {
+        let a = addTrackToLibrary(makeLocalTrack(title: "A", path: "/tmp/a.mp3"))
+        let b = makeTrack(sourceType: "local", filePath: nil, sourceUrl: nil)
+        let c = addTrackToLibrary(makeLocalTrack(title: "C", path: "/tmp/c.mp3"))
+        appState.tracks = [a, b, c]
+        appState.playTrack(a)
+        spy.reset()
+
+        appState.playNext()
+
+        XCTAssertEqual(appState.currentTrack, c, "must skip the unplayable B and land on C")
+        XCTAssertTrue(appState.isPlaying)
+        XCTAssertEqual(spy.calls, ["stop", "playFile:/tmp/c.mp3"])
+    }
+
+    func testPlayPrevious_SkipsUnplayableTrack() {
+        let a = addTrackToLibrary(makeLocalTrack(title: "A", path: "/tmp/a.mp3"))
+        let b = makeTrack(sourceType: "local", filePath: nil, sourceUrl: nil)
+        let c = addTrackToLibrary(makeLocalTrack(title: "C", path: "/tmp/c.mp3"))
+        appState.tracks = [a, b, c]
+        appState.playTrack(c)
+        spy.reset()
+
+        appState.playPrevious()
+
+        XCTAssertEqual(appState.currentTrack, a, "must skip the unplayable B and land on A")
+        XCTAssertTrue(appState.isPlaying)
+        XCTAssertEqual(spy.calls, ["stop", "playFile:/tmp/a.mp3"])
+    }
+
+    func testPlayNext_AllUnplayable_GivesUpWithoutTouchingState() {
+        let a = addTrackToLibrary(makeLocalTrack(title: "A", path: "/tmp/a.mp3"))
+        let b = makeTrack(sourceType: "local", filePath: nil, sourceUrl: nil)
+        let c = makeTrack(sourceType: "local", filePath: nil, sourceUrl: nil)
+        appState.tracks = [a, b, c]
+        appState.playTrack(a)
+        spy.reset()
+
+        appState.playNext()
+
+        XCTAssertEqual(appState.currentTrack, a, "current keeps playing when the rest is dead")
+        XCTAssertTrue(appState.isPlaying)
+        XCTAssertFalse(spy.hasAnyCall)
+    }
+
+    func testAutoAdvance_AllUnplayable_StopsClaimingPlayback() {
+        let a = addTrackToLibrary(makeLocalTrack(title: "A", path: "/tmp/a.mp3"))
+        let b = makeTrack(sourceType: "local", filePath: nil, sourceUrl: nil)
+        let c = makeTrack(sourceType: "local", filePath: nil, sourceUrl: nil)
+        appState.tracks = [a, b, c]
+        appState.playTrack(a)
+        spy.state = 5 // Finished
+        spy.reset()
+
+        appState.updatePlaybackProgress()
+
+        XCTAssertFalse(
+            appState.isPlaying,
+            "an all-dead queue must not retry every tick with isPlaying stuck"
+        )
+    }
+
     // MARK: - AS-29 resolveAndImport 并发防重入
 
     func testResolveAndImport_Reentrancy_Ignored() throws {
