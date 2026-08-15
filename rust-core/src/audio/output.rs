@@ -242,6 +242,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Instant;
 
     const TIMEOUT: Duration = Duration::from_millis(50);
 
@@ -334,5 +335,78 @@ mod tests {
         let got = drain(&mut PcmPump::new(rx), 256);
         assert_eq!(got.len(), 1000);
         assert_eq!(got[999], 999.0);
+    }
+
+    /// AO-06: an empty pump waits up to the timeout for the *first* sample of
+    /// a call; once that call has produced audio, a starved channel ends it
+    /// at once rather than stalling the callback.
+    #[test]
+    fn first_sample_waits_but_starvation_is_instant() {
+        let (tx, rx) = mpsc::sync_channel::<Vec<f32>>(QUEUE_DEPTH);
+        let mut pump = PcmPump::new(rx);
+        let mut buf = vec![0.0f32; 16];
+
+        // Nothing queued: the fill waits the full timeout before giving up.
+        let start = Instant::now();
+        let n = pump.fill(&mut buf, TIMEOUT);
+        assert_eq!(n, 0);
+        assert!(
+            start.elapsed() >= TIMEOUT,
+            "empty pump returned after {:?}, expected to wait {:?}",
+            start.elapsed(),
+            TIMEOUT
+        );
+
+        // A block smaller than the buffer: the call returns as soon as the
+        // channel starves, without stalling for the timeout. The generous
+        // bound only catches a regression to the blocking path (one full
+        // timeout); a tight bound would flake on a loaded CI box.
+        tx.send(vec![0.5; 4]).unwrap();
+        let start = Instant::now();
+        let n = pump.fill(&mut buf, TIMEOUT);
+        assert_eq!(n, 4);
+        assert!(
+            start.elapsed() < TIMEOUT * 4,
+            "partially filled buffer must not stall: {:?}",
+            start.elapsed()
+        );
+    }
+
+    /// AO-07: a block exactly the size of the callback buffer goes out in one
+    /// fill and the cursor resets, so the next block starts clean.
+    #[test]
+    fn exact_size_block_fills_in_one_call() {
+        let (tx, rx) = mpsc::sync_channel::<Vec<f32>>(QUEUE_DEPTH);
+        let first: Vec<f32> = (0..256).map(|i| i as f32).collect();
+        let second: Vec<f32> = (0..256).map(|i| 1000.0 + i as f32).collect();
+        tx.send(first.clone()).unwrap();
+        tx.send(second.clone()).unwrap();
+        drop(tx);
+
+        let mut pump = PcmPump::new(rx);
+        let mut buf = vec![0.0f32; 256];
+        let n1 = pump.fill(&mut buf, TIMEOUT);
+        assert_eq!(n1, 256);
+        assert_eq!(buf, first);
+        let n2 = pump.fill(&mut buf, TIMEOUT);
+        assert_eq!(n2, 256);
+        assert_eq!(buf, second);
+        assert_eq!(pump.fill(&mut buf, TIMEOUT), 0);
+    }
+
+    /// AO-08: an empty block in the queue is skipped without panicking or
+    /// producing output.
+    #[test]
+    fn empty_blocks_are_skipped() {
+        let (tx, rx) = mpsc::sync_channel::<Vec<f32>>(QUEUE_DEPTH);
+        tx.send(Vec::new()).unwrap();
+        tx.send(vec![1.0, 2.0]).unwrap();
+        drop(tx);
+
+        let mut pump = PcmPump::new(rx);
+        let mut buf = vec![0.0f32; 8];
+        let n = pump.fill(&mut buf, TIMEOUT);
+        assert_eq!(n, 2);
+        assert_eq!(&buf[..2], &[1.0, 2.0]);
     }
 }

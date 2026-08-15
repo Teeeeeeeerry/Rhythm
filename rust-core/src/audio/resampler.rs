@@ -245,4 +245,95 @@ mod tests {
 
         assert_eq!(total_written, 5 * 1024);
     }
+
+    /// RM-07: after `reset` (the seek path) the phase is cleared and output
+    /// matches a fresh instance fed the same input.
+    #[test]
+    fn reset_matches_fresh_instance() {
+        let block: Vec<f32> = (0..2048).map(|i| i as f32 / 2048.0).collect();
+
+        let mut warmed = Resampler::new(44100, 2, 48000, 2);
+        warmed.process(&block, &mut vec![0.0f32; 4096]);
+        warmed.reset();
+        let mut warmed_out = vec![0.0f32; 4096];
+        let n1 = warmed.process(&block, &mut warmed_out);
+
+        let mut fresh = Resampler::new(44100, 2, 48000, 2);
+        let mut fresh_out = vec![0.0f32; 4096];
+        let n2 = fresh.process(&block, &mut fresh_out);
+
+        assert_eq!(n1, n2);
+        assert_eq!(warmed_out[..n1 * 2], fresh_out[..n1 * 2]);
+    }
+
+    /// RM-08: empty input or output produces zero frames.
+    #[test]
+    fn empty_input_or_output_yields_zero() {
+        let mut r = Resampler::new(44100, 2, 48000, 2);
+        let mut out = vec![0.0f32; 8];
+        assert_eq!(r.process(&[], &mut out), 0);
+        assert_eq!(r.process(&[0.1, 0.2], &mut []), 0);
+    }
+
+    /// RM-09: stereo → quad mutes the extra channels; quad → stereo keeps the
+    /// first planes.
+    #[test]
+    fn channel_mapping_extra_and_missing_planes() {
+        // stereo → quad: extra channels are silent.
+        let mut up = Resampler::new(44100, 2, 44100, 4);
+        let input = vec![0.25f32, -0.75, 1.0, -1.0];
+        let mut out = vec![0.0f32; 8];
+        let n = up.process(&input, &mut out);
+        assert_eq!(n, 2);
+        assert_eq!(out, vec![0.25, -0.75, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0]);
+
+        // quad → stereo: only the first two planes survive.
+        let mut down = Resampler::new(44100, 4, 44100, 2);
+        let input = vec![1.0f32, 2.0, 3.0, 4.0];
+        let mut out = vec![0.0f32; 2];
+        let n = down.process(&input, &mut out);
+        assert_eq!(n, 1);
+        assert_eq!(out, vec![1.0, 2.0]);
+    }
+
+    /// RM-10: an output buffer smaller than one frame writes nothing and does
+    /// not consume the input — the next call still starts at the input head.
+    #[test]
+    fn short_output_buffer_consumes_nothing() {
+        let mut r = Resampler::new(44100, 2, 48000, 2);
+        let input: Vec<f32> = (0..2048).map(|i| i as f32 / 2048.0).collect();
+
+        let mut tiny = vec![0.0f32; 1];
+        assert_eq!(r.process(&input, &mut tiny), 0);
+
+        let mut out = vec![0.0f32; 4096];
+        let n = r.process(&input, &mut out);
+
+        let mut fresh = Resampler::new(44100, 2, 48000, 2);
+        let mut fresh_out = vec![0.0f32; 4096];
+        let n2 = fresh.process(&input, &mut fresh_out);
+        assert_eq!(n, n2);
+        assert_eq!(out[..n * 2], fresh_out[..n * 2]);
+    }
+
+    /// RM-11: input shorter than one frame yields zero frames.
+    #[test]
+    fn short_input_yields_zero() {
+        let mut r = Resampler::new(44100, 2, 48000, 2);
+        let mut out = vec![0.0f32; 8];
+        assert_eq!(r.process(&[0.5], &mut out), 0);
+    }
+
+    /// RM-12: extreme upsampling (8k → 192k, ×24) stays in bounds and
+    /// produces no NaN.
+    #[test]
+    fn extreme_upsampling_no_nan() {
+        let mut r = Resampler::new(8000, 1, 192000, 1);
+        let frames = 128;
+        let input: Vec<f32> = (0..frames).map(|i| i as f32).collect();
+        let mut out = vec![0.0f32; frames * 24 + 2];
+        let n = r.process(&input, &mut out);
+        assert_eq!(n, frames * 24);
+        assert!(out[..n].iter().all(|s| s.is_finite()), "NaN in output");
+    }
 }
