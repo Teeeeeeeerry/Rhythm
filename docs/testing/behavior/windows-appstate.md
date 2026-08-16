@@ -46,7 +46,7 @@
 
 | 编号 | 缺陷 | issue | 状态 |
 |---|---|---|---|
-| WA-05 | `PlayTrack` 缺 filePath/sourceUrl 仍置 `CurrentTrack`/`IsPlaying`（无声假播放，#78 同类） | [#81](https://github.com/Teeeeeeerry/Rhythm/issues/81) | 待实现票挂接（测试禁用） |
+| WA-05 | `PlayTrack` 缺 filePath/sourceUrl 仍置 `CurrentTrack`/`IsPlaying`（无声假播放，#78 同类） | [#81](https://github.com/Teeeeeeerry/Rhythm/issues/81) | 已修复于 T7（#103），红测解禁转绿 |
 | WA-07 | `TogglePlayPause` 恢复时从头重播而非 `Resume()` 续播 | [#82](https://github.com/Teeeeeeerry/Rhythm/issues/82) | 待实现票挂接（测试禁用） |
 
 ## 功能新增（用户 2026-08-13 决策：与 macOS 对齐，产品代码实现，非红测）
