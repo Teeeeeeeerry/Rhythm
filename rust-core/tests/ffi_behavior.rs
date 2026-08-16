@@ -78,10 +78,8 @@ fn ff03_import_directory_counts_and_errors() {
     rhythm_library_close(lib);
 }
 
-/// 期望：不支持格式返回 0（文档契约 "1 成功、0 不支持、-1 错误"）。
-/// 现状统一映射 -1、0 不可达（rhythm#79）。修复后本测试自动转真断言。
+/// 文档契约 "1 成功、0 不支持、-1 错误"（#79 修复后启用）。
 #[test]
-#[ignore = "rhythm#79 import_file 从不返回 0 — https://github.com/Teeeeeeeerry/Rhythm/issues/79"]
 fn ff04_import_file_unsupported_returns_zero() {
     let dir = tempfile::tempdir().unwrap();
     let txt = dir.path().join("note.txt");

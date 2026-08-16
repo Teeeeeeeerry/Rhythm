@@ -598,7 +598,7 @@ fn lb20_import_file_missing_file_errors() {
         matches!(
             err,
             rhythm_core::RhythmError::FileNotFound(_)
-                | rhythm_core::RhythmError::InvalidInput(_)
+                | rhythm_core::RhythmError::UnsupportedFormat(_)
         ),
         "Unsupported or FileNotFound is acceptable, got: {err:?}"
     );

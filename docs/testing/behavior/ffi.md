@@ -11,7 +11,7 @@
 | FF-01 | library open/close 往返 | 合法路径 → 非空句柄；close 后不泄漏崩溃；close(null) 安全 |
 | FF-02 | library open 失败 | 不可写路径 → null |
 | FF-03 | `rhythm_library_import` | 成功返回导入数；错误/空指针 → -1 |
-| FF-04 | `rhythm_library_import_file` 返回值契约 | 期望：成功 1、不支持格式 0、错误 -1（文档契约）。**红测禁用**：现状统一映射 -1、0 不可达，测试禁用挂 issue #79 |
+| FF-04 | `rhythm_library_import_file` 返回值契约 | 成功 1、不支持格式 0、错误 -1（#79 修复后启用） |
 | FF-05 | 字符串内存契约 | `get_all_tracks` 等返回 JSON 需 `rhythm_free_string` 释放；空指针入参 → null/-1 安全默认 |
 | FF-06 | `rhythm_library_add_track` JSON 往返 | 合法 JSON → 带 DB id 的 JSON；非法 JSON → null |
 | FF-07 | player create/destroy | create 非空；destroy 停播并释放；destroy(null) 安全 |
@@ -44,4 +44,4 @@
 
 | 编号 | 缺陷 | issue | 状态 |
 |---|---|---|---|
-| FF-04 | `rhythm_library_import_file` 从不返回 0：不支持格式映射为 -1，Swift 侧"不支持的音频格式"分支死代码 | [#79](https://github.com/Teeeeeeerry/Rhythm/issues/79) | 待实现票挂接（测试禁用） |
+| FF-04 | `rhythm_library_import_file` 从不返回 0：不支持格式映射为 -1，Swift 侧"不支持的音频格式"分支死代码 | [#79](https://github.com/Teeeeeeerry/Rhythm/issues/79) | 已修复（#108） |
