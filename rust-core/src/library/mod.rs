@@ -607,7 +607,7 @@ impl Library {
         use crate::metadata::{is_supported_audio, extract_track_info, extract_artwork};
 
         if !is_supported_audio(file_path) {
-            return Err(crate::RhythmError::InvalidInput(format!(
+            return Err(crate::RhythmError::UnsupportedFormat(format!(
                 "Unsupported audio format: {}",
                 file_path.display()
             )));

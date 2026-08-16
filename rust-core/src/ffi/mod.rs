@@ -115,6 +115,11 @@ pub extern "C" fn rhythm_library_import_file(
     let path = unsafe { c_str_to_str(file_path) };
     match lib.import_file(Path::new(path)) {
         Ok(count) => count as i32,
+        // Unsupported format → 0 per the documented contract (#79).
+        Err(crate::RhythmError::UnsupportedFormat(msg)) => {
+            log::warn!("Import file skipped: {msg}");
+            0
+        }
         Err(e) => {
             log::error!("Import file failed: {e}");
             -1
