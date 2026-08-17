@@ -233,11 +233,9 @@ fn md10_extract_artwork_mime_jpeg_and_other_map_to_jpg() {
     assert!(art.ends_with(".jpg"), "non-jpeg/png must fall back to .jpg, got {art}");
 }
 
-/// 期望：PNG 内嵌图缓存为 `.png`。现状 MIME 判定大小写敏感
-/// （`MimeType` Debug 为 `Png`，不含小写 `png`），落到兜底存成 `.jpg`
-/// （rhythm#94）。修复后本测试自动转真断言。
+/// 期望：PNG 内嵌图缓存为 `.png`。MIME 判定已改为大小写不敏感
+/// （rhythm#94 修复），本测试转真断言。
 #[test]
-#[ignore = "rhythm#94 PNG 图存成 .jpg — https://github.com/Teeeeeeeerry/Rhythm/issues/94"]
 fn md10_extract_artwork_mime_png_maps_to_png() {
     let dir = tempfile::tempdir().unwrap();
     let cache = dir.path().join("cache");
