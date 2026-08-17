@@ -262,9 +262,13 @@ impl AudioEngine {
     }
 
     /// Pause playback.
+    ///
+    /// #111: also accepts `Buffering` — a pause during a slow URL resolve /
+    /// prebuffer must stick, otherwise the buffered stream starts `Playing`
+    /// and pushes audio while the UI shows paused.
     pub fn pause(&self) {
         let mut inner = self.inner.lock().unwrap();
-        if inner.state == PlayerState::Playing {
+        if inner.state == PlayerState::Playing || inner.state == PlayerState::Buffering {
             inner.state = PlayerState::Paused;
             self.emit_state(PlayerState::Paused);
         }
@@ -408,8 +412,17 @@ where
     // The URL path already emitted Buffering; now that the stream is open,
     // announce the real transition to Playing.
     if pre_state != PlayerState::Playing {
-        inner.lock().unwrap().current_source = Some(source);
-        set_state(&inner, &state_cb, PlayerState::Playing);
+        // #111: a pause during Buffering must stick — only announce Playing
+        // if the state is still the pre-open one. Check and set under one
+        // lock so a pause() landing right here cannot be clobbered by an
+        // unconditional Playing transition (the exact divergence #111 fixes).
+        let mut eng = inner.lock().unwrap();
+        eng.current_source = Some(source);
+        if eng.state == pre_state {
+            eng.state = PlayerState::Playing;
+            drop(eng);
+            emit(&state_cb, PlayerState::Playing);
+        }
     }
 
     // DASH segments (Bilibili's audio streams) carry no usable duration box,
