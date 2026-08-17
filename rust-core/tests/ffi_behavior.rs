@@ -543,3 +543,26 @@ fn ff21_large_json_roundtrip() {
     }
     rhythm_queue_destroy(q);
 }
+
+// ─── FF-22 remove_track 不存在的 id 返回 -1（#98） ──────────────────
+
+#[test]
+fn ff22_remove_track_missing_id_returns_minus_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open_lib(dir.path());
+
+    // 空库：任何 id 都不存在 → -1（Swift 侧判 false）。
+    assert_eq!(rhythm_library_remove_track(lib, 999), -1);
+
+    // 加入一首真曲目后：删一次成功，再删同一 id → -1。
+    let t = track_json(0, "Gone", "/music/g.mp3");
+    let saved = rhythm_library_add_track(lib, c(&t).as_ptr());
+    assert!(!saved.is_null());
+    unsafe {
+        let v: serde_json::Value = serde_json::from_str(&take(saved)).unwrap();
+        let id = v["id"].as_i64().unwrap();
+        assert_eq!(rhythm_library_remove_track(lib, id), 0);
+        assert_eq!(rhythm_library_remove_track(lib, id), -1, "second delete must report missing (#98)");
+    }
+    rhythm_library_close(lib);
+}

@@ -231,6 +231,16 @@ fn lb07_remove_track_deletes_row_fts_and_playlist_rows() {
     assert_eq!(playlist.tracks[0].id, t2.id);
 }
 
+/// #98：不存在的 id 必须报错（0 行受影响 → NotFound），而非静默成功。
+#[test]
+fn lb07b_remove_track_missing_id_is_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open_lib(dir.path());
+
+    assert!(lib.remove_track(999).is_err(), "missing id must error (#98)");
+    assert_eq!(lib.get_all_tracks().unwrap().len(), 0);
+}
+
 // ─── LB-08 record_play ──────────────────────────────────────────────
 
 #[test]
