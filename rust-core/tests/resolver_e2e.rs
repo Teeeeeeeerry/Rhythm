@@ -376,13 +376,10 @@ fn rs19_invalid_json_is_internal() {
 
 // ─── RS-22 RHYTHM_YTDLP_PATH 覆盖：已有单测 RS-33/34 覆盖，见清单 ───
 
-// ─── RS-23 直链标题百分号解码（红测禁用，挂 #80）────────────────────
+// ─── RS-23 直链标题百分号解码 ───────────────────────────────────────
 
-/// 期望：直链标题按 URL 百分号编码规则解码（`My Song.mp3`）。
-/// 现状 `urlencoding_if_needed` 为 no-op，标题保留 `%20`（rhythm#80）。
-/// 修复后本测试自动转真断言。
+/// 直链标题按 URL 百分号编码规则解码（`My Song.mp3`）。
 #[test]
-#[ignore = "rhythm#80 直链标题不解码百分号编码 — https://github.com/Teeeeeeeerry/Rhythm/issues/80"]
 fn rs23_direct_url_title_decodes_percent_encoding() {
     let _guard = RESOLVER_E2E_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = tempfile::tempdir().unwrap();

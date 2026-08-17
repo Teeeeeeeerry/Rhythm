@@ -28,6 +28,7 @@ serde_json = "1"
 
 # URL handling
 url = "2"
+percent-encoding = "2"
 regex = "1"
 
 # Async runtime (for network streaming & yt-dlp process management)

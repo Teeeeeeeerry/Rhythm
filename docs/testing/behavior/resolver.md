@@ -39,7 +39,7 @@
 | RS-20 | 非受管副本 outdated | 不自动 update，直接报错带升级建议 |
 | RS-21 | `RHYTHM_NO_AUTO_INSTALL` | 无 yt-dlp 时 → `YtDlpMissing`（不触发安装） |
 | RS-22 | `RHYTHM_YTDLP_PATH` 覆盖 | 优先于一切发现路径（已有单测 RS-33/34 覆盖；e2e 全部场景经该覆盖注入 stub，即为持续验证） |
-| RS-23 | 直链 URL 含百分号编码 | 期望：标题按 URL 百分号编码规则正确解码。**红测禁用**：现状 no-op 不解码（`rs23_direct_url_title_decodes_percent_encoding` `#[ignore]`，取消 ignore 确认真红），挂 issue #80 |
+| RS-23 | 直链 URL 含百分号编码 | 期望：标题按 URL 百分号编码规则正确解码（e2e `rs23_direct_url_title_decodes_percent_encoding`；纯函数单测 `test_urlencoding_if_needed` 覆盖中文/空格/畸形转义/非法 UTF-8 回退） |
 | RS-24 | 缓存 TTL 边界 | `prune_cache` 直测：恰好 1 小时的条目被剔除（`< TTL` 严格边界），1 秒内保留（`test_prune_cache_evicts_oldest_and_expired`，rust-core/src/resolver/mod.rs tests） |
 
 ## 错误路径（P2 — 仅断言"错误被正确上报"）
@@ -52,7 +52,7 @@
 
 | 编号 | 缺陷 | issue | 状态 |
 |---|---|---|---|
-| RS-23 | 直链标题不解码百分号编码（`urlencoding_if_needed` 为 no-op） | [#80](https://github.com/Teeeeeeerry/Rhythm/issues/80) | 待实现票挂接（测试禁用） |
+| RS-23 | 直链标题不解码百分号编码（`urlencoding_if_needed` 为 no-op） | [#80](https://github.com/Teeeeeeerry/Rhythm/issues/80) | 已修复（红测解禁转绿） |
 
 ## 已有测试行为对照（完整性要求：每条已有测试的行为均列入清单）
 
