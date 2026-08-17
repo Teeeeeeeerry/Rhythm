@@ -18,7 +18,7 @@
 | MD-07 | `is_mp4_container` | mp4/m4a/m4b/m4v → true；其余 → false |
 | MD-08 | `extract_artwork` 内嵌图 | 写入 cache_dir，文件名 = blake3(数据).扩展名；已存在不重写（幂等）；无图 → None |
 | MD-09 | `extract_artwork` 超大图 | >1MB → 跳过返回 None |
-| MD-10 | `extract_artwork` 类型判定 | jpeg/jpg → .jpg、png → .png、其他 → .jpg（png → .png 现状失败 → #94，红测 `md10_extract_artwork_mime_png_maps_to_png` 禁用中；jpeg/其他 → .jpg 已绿） |
+| MD-10 | `extract_artwork` 类型判定 | jpeg/jpg → .jpg、png → .png、其他 → .jpg（#94 修复后全绿） |
 | MD-11 | `scan_directory` | 递归收集全部支持格式文件，返回 `TrackInfo` 列表 |
 | MD-12 | `scan_directory` 跳过隐藏目录 | `.` 开头的目录不进入 |
 | MD-13 | `scan_directory` 非目录 | `InvalidInput` |
@@ -43,7 +43,6 @@
 
 | 编号 | 缺陷 | 测试 | 状态 |
 |---|---|---|---|
-| MD-10 | MIME 判定大小写敏感（`MimeType` Debug 为大写 `Png`），PNG 内嵌图存成 `.jpg` | `md10_extract_artwork_mime_png_maps_to_png`（`#[ignore]`） | #94 待修 |
 | MD-01（format 项） | format 字段返回标签类型（"id3v2"）而非音频格式，lofty/symphonia 两路径语义不一致 | `md01_extract_track_info_full_tags`（format 断言锁定现状，附注） | #96 待修 |
 
 ## 错误路径状态

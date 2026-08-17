@@ -1,4 +1,5 @@
 use crate::{RhythmError, RhythmResult, TrackInfo, SourceType};
+use lofty::picture::MimeType;
 use std::path::Path;
 
 mod formats;
@@ -128,9 +129,12 @@ pub fn extract_artwork(path: &Path, cache_dir: &Path) -> RhythmResult<Option<Str
                 return Ok(None);
             }
 
-            let ext = match picture.mime_type().map(|m| format!("{m:?}")) {
-                Some(ref m) if m.contains("jpeg") || m.contains("jpg") => "jpg",
-                Some(ref m) if m.contains("png") => "png",
+            // Match lofty's MimeType variants directly (its Debug output is
+            // capitalized, so string matching must be case-insensitive — rhythm#94).
+            let ext = match picture.mime_type() {
+                Some(MimeType::Png) => "png",
+                Some(MimeType::Jpeg) => "jpg",
+                Some(MimeType::Unknown(ref m)) if m.to_lowercase().contains("png") => "png",
                 _ => "jpg",
             };
 
