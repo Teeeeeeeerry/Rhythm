@@ -14,7 +14,7 @@
 | LB-04 | `add_track` URL 去重（#40/#57） | 同 `source_url`（非 local）→ 更新原行；DB 层部分唯一索引兜底（绕过应用层去重时插入被拒） |
 | LB-05 | `get_all_tracks` | 按 title 大小写不敏感排序 |
 | LB-06 | `get_tracks_by_artist_album`（#66/#67） | 分组正确（缺 artist/album 回退 "Unknown Artist"/"Unknown Album"）；组内按 disc_number、track_number 排序；URL 曲目与本地曲目同组共存 |
-| LB-07 | `remove_track` | 行删除；FTS 索引同步删除；`playlist_tracks` 级联清理 |
+| LB-07 | `remove_track` | 行删除；FTS 索引同步删除；`playlist_tracks` 级联清理；不存在的 id → `NotFound` 错误（#98） |
 | LB-08 | `record_play` | `last_played` 更新、`play_count` +1 |
 | LB-09 | `verify_local_files` | 磁盘不存在的 local 曲目标记 `is_available=0` 并返回其 id 列表；存在的保持不变 |
 | LB-10 | 播放列表 CRUD | create 返回 id；rename/delete 生效且 `date_modified` 刷新 |

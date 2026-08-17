@@ -1,4 +1,4 @@
-use crate::{RhythmResult, SourceType, TrackInfo};
+use crate::{RhythmError, RhythmResult, SourceType, TrackInfo};
 use rusqlite::{params, Connection};
 use std::path::Path;
 use std::sync::Mutex;
@@ -312,9 +312,15 @@ impl Library {
     }
 
     /// Delete a track from the library.
+    ///
+    /// Errors with [`RhythmError::NotFound`] when the id matches no row,
+    /// so callers can distinguish "deleted" from "nothing to delete" (#98).
     pub fn remove_track(&self, id: i64) -> RhythmResult<()> {
         let conn = self.conn.lock().unwrap();
-        conn.execute("DELETE FROM tracks WHERE id = ?1", params![id])?;
+        let affected = conn.execute("DELETE FROM tracks WHERE id = ?1", params![id])?;
+        if affected == 0 {
+            return Err(RhythmError::NotFound(format!("track id {id}")));
+        }
         Ok(())
     }
 

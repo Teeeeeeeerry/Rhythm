@@ -26,7 +26,7 @@
 |---|---|---|
 | SW-12 | `Track` 可选字段缺省 | 缺失字段解码为 nil，不失败 |
 | SW-13 | `encodeJSON` 编码失败兜底 | 返回 `"[]"` 而非崩溃（现状防御：模型均为纯 Codable，失败分支不可达；`testSW13_EncodeJSONWellFormedValuesAlwaysEncode` 锁定） |
-| SW-14 | `RhythmLibrary.removeTrack` 不存在的 id | core 返回 -1 → false（现状返回 true → #98，红测 `testSW14_RemoveTrackMissingIdReturnsFalse` 条件 XCTSkip 禁用中） |
+| SW-14 | `RhythmLibrary.removeTrack` 不存在的 id | 0 行受影响 → core 返回 `NotFound` 错误 → FFI -1 → false（#98 已修） |
 
 ## 错误路径（P2）
 
@@ -38,7 +38,7 @@
 
 | 编号 | 缺陷 | 测试 | 状态 |
 |---|---|---|---|
-| SW-14 | `remove_track` 不检查受影响行数，0 行 DELETE 仍返回成功 → Swift `removeTrack(999) == true` | `testSW14_RemoveTrackMissingIdReturnsFalse`（条件 XCTSkip） | #98 待修 |
+| SW-14 | `remove_track` 不检查受影响行数，0 行 DELETE 仍返回成功 → Swift `removeTrack(999) == true` | `testSW14_RemoveTrackMissingIdReturnsFalse` | #98 已修（0 行受影响 → `NotFound` → FFI -1 → false，红测自动转真断言） |
 
 ## 错误路径状态
 

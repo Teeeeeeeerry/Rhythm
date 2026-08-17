@@ -39,6 +39,7 @@
 | 编号 | 行为 | 断言 |
 |---|---|---|
 | FF-21 | 大 JSON 往返（数百曲目） | 无截断、无 panic，编解码一致（已随 Wave 3b 覆盖 `ff21_large_json_roundtrip`，无需顺延） |
+| FF-22 | `rhythm_library_remove_track` 不存在的 id（#98） | 返回 -1（空库、已删 id 均验证）；真实 id 返回 0 |
 
 ## 红测登记
 

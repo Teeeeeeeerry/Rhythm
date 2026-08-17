@@ -37,6 +37,9 @@ pub enum RhythmError {
     #[error("File not found: {0}")]
     FileNotFound(String),
 
+    #[error("Not found: {0}")]
+    NotFound(String),
+
     #[error("Invalid input: {0}")]
     InvalidInput(String),
 

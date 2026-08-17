@@ -237,8 +237,9 @@ final class RhythmCoreSwiftBehaviorTests: XCTestCase {
 
     // MARK: - SW-14 removeTrack 不存在的 id
 
-    /// 期望：不存在的 id → false。现状 core 对 0 行 DELETE 仍返回成功 → true
-    /// （rhythm#98）。修复后本测试自动转真断言。
+    /// 期望：不存在的 id → false（rhythm#98 已修，skip 分支不可达）。
+    /// 若 core 回归（0 行 DELETE 仍返回成功 → true），skip 分支重新激活，
+    /// 保持红测登记语义。
     func testSW14_RemoveTrackMissingIdReturnsFalse() throws {
         let dir = makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
