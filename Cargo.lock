@@ -1589,6 +1589,7 @@ dependencies = [
  "env_logger",
  "lofty",
  "log",
+ "percent-encoding",
  "rand",
  "regex",
  "reqwest",

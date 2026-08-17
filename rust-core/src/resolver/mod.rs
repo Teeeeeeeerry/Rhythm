@@ -1181,13 +1181,18 @@ pub fn resolved_to_track(resolved: &ResolvedUrl, original_url: &str) -> TrackInf
 }
 
 /// Simple URL decoding helper.
+///
+/// #80: 直链标题取自文件名，需按百分号编码规则解码（中文/空格文件名）。
 fn urlencoding_if_needed(s: &str) -> String {
-    if s.contains('%') {
-        // Try to decode percent-encoded strings.
-        s.to_string() // Simplified — use `urlencoding` crate in production
-    } else {
-        s.to_string()
+    if !s.contains('%') {
+        return s.to_string();
     }
+    // Decode percent-escapes; invalid UTF-8 or stray `%` sequences stay as-is
+    // (percent_decode_str leaves malformed escapes untouched).
+    percent_encoding::percent_decode_str(s)
+        .decode_utf8()
+        .map(|cow| cow.into_owned())
+        .unwrap_or_else(|_| s.to_string())
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────
@@ -1271,6 +1276,22 @@ mod tests {
         assert_eq!(parse_hh_mm_ss("0:05"), Some(5.0));
         assert_eq!(parse_hh_mm_ss(""), None);
         assert_eq!(parse_hh_mm_ss("abc"), None);
+    }
+
+    // ── urlencoding_if_needed ────────────────────────────────────
+
+    #[test]
+    fn test_urlencoding_if_needed() {
+        assert_eq!(urlencoding_if_needed("My%20Song.mp3"), "My Song.mp3");
+        assert_eq!(
+            urlencoding_if_needed("%E6%88%91%E7%9A%84%E6%AD%8C.mp3"),
+            "我的歌.mp3"
+        );
+        assert_eq!(urlencoding_if_needed("plain.mp3"), "plain.mp3");
+        // Malformed escapes stay as-is rather than panic or mangle.
+        assert_eq!(urlencoding_if_needed("bad%2"), "bad%2");
+        // Invalid UTF-8 payload falls back to the raw name.
+        assert_eq!(urlencoding_if_needed("%FF%FE.mp3"), "%FF%FE.mp3");
     }
 
     // ── yt-dlp discovery ─────────────────────────────────────────
