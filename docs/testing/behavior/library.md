@@ -19,7 +19,7 @@
 | LB-09 | `verify_local_files` | 磁盘不存在的 local 曲目标记 `is_available=0` 并返回其 id 列表；存在的保持不变 |
 | LB-10 | 播放列表 CRUD | create 返回 id；rename/delete 生效且 `date_modified` 刷新 |
 | LB-11 | `add_to_playlist` | 追加到末尾 position；同曲重复添加被忽略（不产生重复行） |
-| LB-12 | `remove_from_playlist`/`reorder_playlist_track` | 删除/改序生效，`get_playlist` 按 position 返回（reorder 到已占用 position 的顺序不稳定 → #95，红测 `lb12_reorder_to_occupied_position_keeps_order` 禁用中） |
+| LB-12 | `remove_from_playlist`/`reorder_playlist_track` | 删除/改序生效，`get_playlist` 按 position 返回（reorder 到已占用 position 时其余行移位、position 无重复 → #95） |
 | LB-13 | `get_all_playlists`/`get_playlist` | 元数据完整，tracks 按 position 排序 |
 | LB-14 | `search`（FTS） | title/artist/album/genre 命中；rank 排序；上限 100；`*`/`"`/`(`/`)` 被清洗不报错 |
 | LB-15 | `import_from_directory` | 递归扫描入库；单曲失败（log warn）不中断整体；返回扫描曲目数 |
@@ -53,9 +53,7 @@
 
 ## 红测登记
 
-| 编号 | 缺陷 | 测试 | 状态 |
-|---|---|---|---|
-| LB-12 | reorder 到已占用 position 不重排其他行，`get_playlist` 顺序由行序决定 | `lb12_reorder_to_occupied_position_keeps_order`（`#[ignore]`） | #95 待修 |
+（空 — #95 已修复，`lb12_reorder_to_occupied_position_keeps_order` 已转真断言）
 
 ## 错误路径状态
 

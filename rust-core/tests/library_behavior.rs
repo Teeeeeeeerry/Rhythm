@@ -344,10 +344,8 @@ fn lb12_remove_and_reorder_playlist_tracks() {
 }
 
 /// 期望：reorder 到已占用 position 时顺序仍与操作一致（拖拽到中间位置）。
-/// 现状只改目标行 position，冲突行并存，`ORDER BY position` 顺序由行序
-/// 决定（rhythm#95）。修复后本测试自动转真断言。
+/// rhythm#95 修复后：目标行插入新位置，其余行依次移位，position 无重复。
 #[test]
-#[ignore = "rhythm#95 reorder 冲突 position 不重排 — https://github.com/Teeeeeeeerry/Rhythm/issues/95"]
 fn lb12_reorder_to_occupied_position_keeps_order() {
     let dir = tempfile::tempdir().unwrap();
     let lib = open_lib(dir.path());

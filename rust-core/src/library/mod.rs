@@ -441,6 +441,10 @@ impl Library {
     }
 
     /// Reorder a track within a playlist.
+    ///
+    /// Moves the track to `new_position` and shifts the other rows so the
+    /// playlist has no duplicate positions: the resulting `get_playlist`
+    /// order is stable and matches the drag operation (#95).
     pub fn reorder_playlist_track(
         &self,
         playlist_id: i64,
@@ -448,17 +452,51 @@ impl Library {
         new_position: i32,
     ) -> RhythmResult<()> {
         let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "UPDATE playlist_tracks SET position = ?1 WHERE playlist_id = ?2 AND track_id = ?3",
-            params![new_position, playlist_id, track_id],
-        )?;
 
-        conn.execute(
-            "UPDATE playlists SET date_modified = datetime('now') WHERE id = ?1",
-            params![playlist_id],
+        // Current order, stable by position then rowid.
+        let mut stmt = conn.prepare(
+            "SELECT pt.track_id FROM playlist_tracks pt
+             WHERE pt.playlist_id = ?1
+             ORDER BY pt.position, pt.rowid",
         )?;
+        let mut ids: Vec<i64> = stmt
+            .query_map(params![playlist_id], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
 
-        Ok(())
+        // Track not in this playlist: no-op.
+        let Some(from) = ids.iter().position(|&id| id == track_id) else {
+            return Ok(());
+        };
+
+        // Remove and re-insert at the clamped target index, shifting the rest.
+        let target = (new_position.max(0) as usize).min(ids.len() - 1);
+        let id = ids.remove(from);
+        ids.insert(target, id);
+
+        conn.execute_batch("BEGIN")?;
+        let result = (|| {
+            let mut update = conn.prepare(
+                "UPDATE playlist_tracks SET position = ?1 WHERE playlist_id = ?2 AND track_id = ?3",
+            )?;
+            for (pos, tid) in ids.iter().enumerate() {
+                update.execute(params![pos as i32, playlist_id, tid])?;
+            }
+            conn.execute(
+                "UPDATE playlists SET date_modified = datetime('now') WHERE id = ?1",
+                params![playlist_id],
+            )?;
+            Ok(())
+        })();
+        match result {
+            Ok(()) => {
+                conn.execute_batch("COMMIT")?;
+                Ok(())
+            }
+            Err(e) => {
+                conn.execute_batch("ROLLBACK")?;
+                Err(e)
+            }
+        }
     }
 
     /// Get all playlists.
