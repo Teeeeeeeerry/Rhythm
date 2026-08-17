@@ -46,9 +46,8 @@ fn md01_extract_track_info_full_tags() {
     assert_eq!(info.genre.as_deref(), Some("Rock"));
     assert_eq!(info.year, Some(2021));
     assert!((info.duration - 1.0).abs() < 0.05, "duration must be extracted");
-    // Current implementation reports the tag type ("id3v2"), not the
-    // container — locked as observed behavior.
-    assert_eq!(info.format.as_deref(), Some("id3v2"));
+    // #96: format is the container/encoding (WAV), not the tag type (id3v2).
+    assert_eq!(info.format.as_deref(), Some("wav"));
     assert_eq!(info.bitrate, Some(1411));
     assert_eq!(info.sample_rate, Some(44100));
     assert_eq!(info.channels, Some(2));
@@ -75,17 +74,17 @@ fn md02_extract_track_info_title_falls_back_to_stem() {
 /// those branches unreachable from the public API — defensive dead code
 /// today, not a defect. This test locks the observable behavior around it:
 /// the symphonia path (see MD-04) still yields a real duration and a codec
-/// format, and untagged lofty files keep their tag-type format.
+/// format, and untagged lofty files report the real container format.
 #[test]
 fn md03_duration_and_format_fallbacks_not_observable() {
     let dir = tempfile::tempdir().unwrap();
 
-    // Untagged WAV: lofty path — duration extracted (not 0.0), format = tag type.
+    // Untagged WAV: lofty path — duration extracted (not 0.0), format = container.
     let untagged = dir.path().join("plain.wav");
     common::write_wav(&untagged, 2.0);
     let info = extract_track_info(&untagged).unwrap();
     assert!((info.duration - 2.0).abs() < 0.05);
-    assert_eq!(info.format.as_deref(), Some("id3v2"));
+    assert_eq!(info.format.as_deref(), Some("wav"));
 
     // No-extension WAV: symphonia path — duration extracted, format = codec.
     let mystery = dir.path().join("mystery");

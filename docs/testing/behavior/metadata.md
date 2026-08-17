@@ -9,7 +9,7 @@
 
 | 编号 | 行为 | 断言 |
 |---|---|---|
-| MD-01 | `extract_track_info` 完整标签 | title/artist/album/track/disc/genre/year/duration/format/bitrate/sample_rate/channels 全部提取正确（format 字段现状返回标签类型 "id3v2" 而非音频格式 → #96，`md01_extract_track_info_full_tags` 锁定现状值） |
+| MD-01 | `extract_track_info` 完整标签 | title/artist/album/track/disc/genre/year/duration/format/bitrate/sample_rate/channels 全部提取正确（#96 修复后 format 返回音频格式，WAV→"wav"） |
 | MD-02 | 标题回退 | 无 title 标签 → 用文件名 stem |
 | MD-03 | duration/format 回退 | duration 缺省 0.0；format 缺省用扩展名小写（现状：两兜底分支为防御性代码，lofty 恒有 duration/format、symphonia 恒有 format，公共 API 不可达；`md03_duration_and_format_fallbacks_not_observable` 锁定可观察行为） |
 | MD-04 | lofty→symphonia 回退 | lofty 拿不到 title/duration 时 symphonia 兜底（duration 可提取） |
@@ -43,7 +43,7 @@
 
 | 编号 | 缺陷 | 测试 | 状态 |
 |---|---|---|---|
-| MD-01（format 项） | format 字段返回标签类型（"id3v2"）而非音频格式，lofty/symphonia 两路径语义不一致 | `md01_extract_track_info_full_tags`（format 断言锁定现状，附注） | #96 待修 |
+| MD-01（format 项） | format 字段返回标签类型（"id3v2"）而非音频格式，lofty/symphonia 两路径语义不一致 | `md01_extract_track_info_full_tags`（format 断言已更新为 "wav"） | #96 已修复 |
 
 ## 错误路径状态
 

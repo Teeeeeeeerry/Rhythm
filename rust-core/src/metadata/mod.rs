@@ -167,12 +167,28 @@ fn extract_raw_metadata(path: &Path) -> RhythmResult<RawMetadata> {
     extract_with_symphonia(path)
 }
 
+/// Map lofty's detected container type to the audio format name.
+/// `FileType::Mpeg` covers MP3 (and MP2/MP1) — report the common name.
+fn format_from_file_type(file_type: lofty::file::FileType) -> String {
+    use lofty::file::FileType;
+    match file_type {
+        FileType::Mpeg => "mp3".to_string(),
+        other => format!("{:?}", other).to_lowercase(),
+    }
+}
+
 fn extract_with_lofty(path: &Path) -> RhythmResult<RawMetadata> {
     use lofty::prelude::*;
     use lofty::probe::Probe;
 
-    let tagged_file = Probe::open(path)
-        .map_err(|e| RhythmError::Metadata(format!("Failed to open: {e}")))?
+    // #96: format must be the container/encoding, not the tag type — probe
+    // the file type before reading tags.
+    let probe = Probe::open(path)
+        .map_err(|e| RhythmError::Metadata(format!("Failed to open: {e}")))?;
+    let format = probe
+        .file_type()
+        .map(format_from_file_type);
+    let tagged_file = probe
         .read()
         .map_err(|e| RhythmError::Metadata(format!("Failed to read: {e}")))?;
 
@@ -194,7 +210,7 @@ fn extract_with_lofty(path: &Path) -> RhythmResult<RawMetadata> {
         genre: tag.and_then(|t| t.genre().map(|s| s.into_owned())),
         year: tag.and_then(|t| t.year()),
         duration: Some(duration),
-        format: Some(format!("{:?}", tagged_file.primary_tag_type()).to_lowercase()),
+        format,
         bitrate,
         sample_rate,
         channels,
