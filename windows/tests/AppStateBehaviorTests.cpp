@@ -219,6 +219,29 @@ TEST_CASE("WA-08 TogglePlayPause starts the first track when idle") {
     state.IsPlaying = false;
 }
 
+/// #111：非 Paused 状态下 resume 是 no-op，UI 不得进入播放状态。
+TEST_CASE("WA-08b TogglePlayPause resume only when paused") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto wav = writeWavAt(dir.path, L"resume-guard.wav", 3.0);
+    auto saved = state.Library->AddTrack(makeLocalTrack(wav.wstring(), L"Resume Guard"));
+    state.PlayTrack(saved);
+    if (!waitFor([&] { return state.Player->State() == 1; })) {
+        SKIP("无音频输出设备，无法观察 Playing 状态（环境跳过）");
+    }
+    // Engine back to Stopped while CurrentTrack is still set — the exact
+    // shape of the Error/Stopped divergence from #111.
+    state.Player->Stop();
+    state.IsPlaying = false;
+
+    state.TogglePlayPause();
+
+    REQUIRE_FALSE(state.IsPlaying);
+    REQUIRE(state.Player->State() == 0); // resume must not have fired
+    state.Player->Stop();
+}
+
 TEST_CASE("WA-15 TogglePlayPause no-ops with nothing to play") {
     AppState state;
 

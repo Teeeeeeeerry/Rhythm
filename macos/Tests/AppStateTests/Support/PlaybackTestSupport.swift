@@ -41,10 +41,12 @@ final class SpyPlayer: RhythmPlayerProtocol {
 
     func pause() {
         calls.append("pause")
+        state = 2 // mirror the engine: Paused
     }
 
     func resume() {
         calls.append("resume")
+        state = 1 // mirror the engine: Playing
     }
 
     func stop() {

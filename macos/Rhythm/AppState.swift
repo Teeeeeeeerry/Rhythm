@@ -400,8 +400,14 @@ final class AppState: ObservableObject {
             isBuffering = false
         } else {
             if currentTrack != nil {
-                player.resume()
-                isPlaying = true
+                // #111: resume only when the engine is actually paused. In
+                // any other state (Error / Stopped / Buffering) resume is a
+                // no-op, so claiming playback would desync the UI from the
+                // engine.
+                if player.state == 2 {
+                    player.resume()
+                    isPlaying = true
+                }
             } else if let first = tracks.first(where: { playableLocation($0) != nil }) {
                 // Skip over library tracks with no playable location rather
                 // than dead-ending on tracks.first (#78).

@@ -19,7 +19,7 @@
 | AS-04 | `playTrack` URL 曲目 | 非 local 来源 → `playURL(sourceUrl)`（不调 playFile） | SpyPlayer |
 | AS-05 | `playTrack(_:queueTracks:)` 自定义队列 | 队列由 `queueTracks` 构造（playlist 场景），jumpTo 目标不变 | 真 queue 断言 |
 | AS-06 | `togglePlayPause` 播放中 | `player.pause()`、`isPlaying=false`、`isBuffering=false` | SpyPlayer |
-| AS-07 | `togglePlayPause` 暂停恢复 | 有 `currentTrack` 且非播放 → `player.resume()`、`isPlaying=true` | SpyPlayer |
+| AS-07 | `togglePlayPause` 暂停恢复（#111） | 有 `currentTrack` 且引擎为 Paused(2) → `player.resume()`、`isPlaying=true`；非 Paused（Error/Stopped/Buffering）→ 不调 resume、不置 `isPlaying` | SpyPlayer |
 | AS-08 | `togglePlayPause` 空闲启动 | 无 `currentTrack` 且曲库非空 → `playTrack(tracks.first)` | SpyPlayer + 真库 |
 | AS-09 | `playNext` | 队列有 next：`currentTrack` 更新、`player.stop()` 先于分派、按 sourceType 调 playFile/playURL、`recordPlay`；无 next：no-op | SpyPlayer + 真 queue |
 | AS-10 | `playPrevious` | 对称于 AS-09 | 同上 |
@@ -69,6 +69,7 @@
 | 编号 | 缺陷 | issue | 状态 |
 |---|---|---|---|
 | AS-28 | 缺 filePath/sourceUrl 仍置播放中（无声假播放） | [#78](https://github.com/Teeeeeeerry/Rhythm/issues/78) | 已修复（`testPlayTrack_MissingPath_DoesNotEnterPlaying` 解禁；`testPlayNext/PlayPrevious_SkipsUnplayableTrack`、`testPlayNext_AllUnplayable_GivesUpWithoutTouchingState`、`testAutoAdvance_AllUnplayable_StopsClaimingPlayback` 覆盖 skip-loop 与 auto-advance） |
+| AS-07 | 非 Paused 状态 resume 被无条件当成功 → UI 误入播放态（#111） | [#111](https://github.com/Teeeeeeerry/Rhythm/issues/111) | 已修复（`testTogglePlayPause_ResumeOnlyWhenPaused`；`testTogglePlayPause_PausesWhileBuffering` 锁定 Buffering 中仍派发 pause） |
 
 ## 附注：RhythmCore 封装层
 

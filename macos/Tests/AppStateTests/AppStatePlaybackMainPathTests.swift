@@ -112,6 +112,35 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         XCTAssertTrue(appState.isPlaying)
     }
 
+    // #111: pause during Buffering must still dispatch pause — the engine
+    // honors it now, so the UI may claim stopped.
+    func testTogglePlayPause_PausesWhileBuffering() throws {
+        appState.tracks = [makeLocalTrack(path: "/tmp/p.mp3")]
+        appState.playTrack(appState.tracks[0])
+        spy.reset()
+        spy.state = 3 // Buffering
+
+        appState.togglePlayPause()
+
+        XCTAssertEqual(spy.calls, ["pause"])
+        XCTAssertFalse(appState.isPlaying)
+        XCTAssertFalse(appState.isBuffering)
+    }
+
+    // #111: resume in a non-Paused state is a no-op — the UI must not claim
+    // playback when the engine cannot resume.
+    func testTogglePlayPause_ResumeOnlyWhenPaused() throws {
+        appState.tracks = [makeLocalTrack(path: "/tmp/p.mp3")]
+        appState.playTrack(appState.tracks[0])
+        spy.reset()
+        spy.state = 4 // Error — resume is a no-op
+
+        appState.togglePlayPause()
+
+        XCTAssertFalse(appState.isPlaying, "no-op resume must not claim playback")
+        XCTAssertFalse(spy.calls.contains("resume"), "no resume dispatch outside Paused")
+    }
+
     // MARK: - AS-08 togglePlayPause 空闲启动
 
     func testTogglePlayPause_StartsFirstTrackWhenIdle() throws {

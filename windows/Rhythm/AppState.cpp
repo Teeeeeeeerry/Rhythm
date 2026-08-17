@@ -79,13 +79,20 @@ void AppState::StartTrack(const Track& track) {
 
 void AppState::TogglePlayPause() {
     if (IsPlaying) {
+        // #111: Pause() also responds in Buffering, so the engine cannot
+        // start Playing and push audio after the UI shows paused.
         Player->Pause();
         IsPlaying = false;
     } else {
         if (CurrentTrack) {
-            // #82: resume in place instead of restarting from the top.
-            Player->Resume();
-            IsPlaying = true;
+            // #111: resume in place instead of restarting from the top (#82),
+            // and only when the engine is actually Paused — in any other state
+            // (Error/Stopped/Buffering) Resume is a no-op and claiming playback
+            // would desync the UI from the engine.
+            if (Player->State() == 2) {
+                Player->Resume();
+                IsPlaying = true;
+            }
         } else if (!Tracks.empty()) {
             PlayTrack(Tracks[0]);
         }

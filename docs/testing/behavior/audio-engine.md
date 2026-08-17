@@ -55,6 +55,7 @@
 | 编号 | 缺陷 | issue | 状态 |
 |---|---|---|---|
 | AE-21 | 暂停中 seek 被挂起，直到 resume 后才生效 | [#77](https://github.com/Teeeeeeerry/Rhythm/issues/77) | 已修复（`ae21_seek_while_paused_applies_immediately` 解禁，循环暂停分支消费 pending seek） |
+| AE-31 | Buffering 中 pause 被忽略：缓冲完成后引擎照常置 Playing 并出声，UI 已显示停止 | [#111](https://github.com/Teeeeeeerry/Rhythm/issues/111) | 已修复（`ae31_pause_during_buffering_blocks_audio`：pause 在 Buffering 生效；open 完成后不再无条件置 Playing） |
 
 ## Decoder / HttpStream（已有测试行为对照）
 

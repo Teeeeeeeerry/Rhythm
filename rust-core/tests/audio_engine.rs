@@ -939,7 +939,8 @@ fn ae17_progress_callback_reports_advancing_position() {
 
 // ── 边界情况 (P1) ───────────────────────────────────────────────────────────
 
-/// AE-18: pause outside Playing is a no-op — no state change, no callback.
+/// AE-18: pause outside Playing/Buffering is a no-op — no state change, no
+/// callback (Buffering responds to pause, see AE-31/#111).
 #[test]
 fn ae18_pause_outside_playing_is_noop() {
     let engine = AudioEngine::new();
@@ -1320,6 +1321,83 @@ fn ae30_mid_stream_decode_error_terminates_loop() {
         !probe.drained.load(Ordering::SeqCst),
         "an aborted stream must not drain as if it ended naturally"
     );
+}
+
+/// AE-31 (#111): pause during Buffering must stick — the buffered stream
+/// must not force Playing and push audio while the UI shows paused.
+#[test]
+fn ae31_pause_during_buffering_blocks_audio() {
+    let hold_open = Arc::new(AtomicBool::new(true));
+    let released = hold_open.clone();
+    let resolved = stub_resolved("https://example.com/tone.wav", 42.0);
+    let engine = AudioEngine::new_with_resolver(Arc::new(move |_url| {
+        // Hold the resolve open so the engine sits in Buffering.
+        while released.load(Ordering::SeqCst) {
+            thread::sleep(Duration::from_millis(5));
+        }
+        Ok(resolved.clone())
+    }));
+    let rec = attach_recorders(&engine);
+    let sink_probe = Arc::new(SinkProbe::default());
+    let sink = FakeSink::new(44100, 2, sink_probe.clone());
+
+    engine
+        .play_url_with(
+            "https://example.com/watch?v=stub",
+            move |_resolved| {
+                Ok((
+                    FakeDecoder::endless_paced(44100, 2, 42.0, Duration::from_millis(5), 0.1),
+                    None,
+                ))
+            },
+            move |_| Ok(sink),
+        )
+        .unwrap();
+
+    wait_for_state(&engine, &rec, PlayerState::Buffering, Duration::from_secs(2));
+
+    // Pause while the stream is still opening.
+    engine.pause();
+    assert_eq!(
+        engine.state(),
+        PlayerState::Paused,
+        "pause must stick in Buffering"
+    );
+
+    // Now the open completes: the engine must stay Paused and the sink must
+    // receive nothing until resume.
+    hold_open.store(false, Ordering::SeqCst);
+    wait_for("source recorded", Duration::from_secs(2), || {
+        engine.current_source().is_some()
+    });
+    thread::sleep(Duration::from_millis(200));
+    assert_eq!(
+        engine.state(),
+        PlayerState::Paused,
+        "the opened stream must not force Playing"
+    );
+    assert!(
+        rec.states().contains(&PlayerState::Paused),
+        "Paused must reach the callback: {:?}",
+        rec.states()
+    );
+    assert!(
+        !rec.states().contains(&PlayerState::Playing),
+        "no Playing transition may fire while paused: {:?}",
+        rec.states()
+    );
+    assert_eq!(
+        sink_probe.write_count.load(Ordering::SeqCst),
+        0,
+        "no audio may reach the sink while paused"
+    );
+
+    // Resume: audio flows.
+    engine.resume();
+    wait_for("audio after resume", Duration::from_secs(5), || {
+        sink_probe.write_count.load(Ordering::SeqCst) > 0
+    });
+    engine.stop();
 }
 
 
