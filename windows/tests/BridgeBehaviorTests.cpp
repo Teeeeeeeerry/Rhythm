@@ -114,15 +114,18 @@ TEST_CASE("WB-05 AddTrack roundtrip preserves every field") {
     REQUIRE(saved.album == L"专辑");
     REQUIRE(saved.trackNumber == 3);
     REQUIRE(saved.discNumber == 2);
-    // JsonToTrack drops several core fields (rhythm#101) — locked as
-    // observed: genre roundtrips as nullopt today.
-    REQUIRE_FALSE(saved.genre.has_value());
+    // #101: JsonToTrack now parses every core field.
+    REQUIRE(saved.albumArtist == L"专辑艺术家");
+    REQUIRE(saved.genre == L"摇滚");
     REQUIRE(saved.year == 2021);
     REQUIRE(saved.duration == 123.5);
     REQUIRE(saved.format == L"mp3");
     REQUIRE(saved.bitrate == 320);
     REQUIRE(saved.sampleRate == 44100);
     REQUIRE(saved.channels == 2);
+    REQUIRE(saved.fileSize == 1'000'000);
+    REQUIRE(saved.dateAdded.has_value()); // the DB stamps the insert time
+    REQUIRE_FALSE(saved.lastPlayed.has_value()); // fresh insert → NULL
     REQUIRE(saved.playCount == 0); // the DB resets the count on insert
     REQUIRE(saved.isAvailable == false);
 }
@@ -142,8 +145,12 @@ TEST_CASE("WB-05 missing optional fields roundtrip as nullopt") {
     REQUIRE_FALSE(saved.sourceUrl.has_value());
     REQUIRE_FALSE(saved.artist.has_value());
     REQUIRE_FALSE(saved.album.has_value());
+    REQUIRE_FALSE(saved.albumArtist.has_value());
     REQUIRE_FALSE(saved.trackNumber.has_value());
+    REQUIRE_FALSE(saved.genre.has_value());
     REQUIRE_FALSE(saved.format.has_value());
+    REQUIRE_FALSE(saved.fileSize.has_value());
+    REQUIRE_FALSE(saved.lastPlayed.has_value());
     REQUIRE_FALSE(saved.artworkPath.has_value());
 }
 

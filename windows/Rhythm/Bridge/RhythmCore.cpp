@@ -37,6 +37,8 @@ static Track JsonToTrack(const json& j) {
         t.artist = Utf8ToWide(j["artist"].get<std::string>());
     if (j.contains("album") && !j["album"].is_null())
         t.album = Utf8ToWide(j["album"].get<std::string>());
+    if (j.contains("album_artist") && !j["album_artist"].is_null())
+        t.albumArtist = Utf8ToWide(j["album_artist"].get<std::string>());
     t.duration = j.value("duration", 0.0);
     if (j.contains("format") && !j["format"].is_null())
         t.format = Utf8ToWide(j["format"].get<std::string>());
@@ -52,6 +54,14 @@ static Track JsonToTrack(const json& j) {
         ? std::optional(j["sample_rate"].get<int32_t>()) : std::nullopt;
     t.channels = j.contains("channels") && !j["channels"].is_null()
         ? std::optional(j["channels"].get<int32_t>()) : std::nullopt;
+    if (j.contains("genre") && !j["genre"].is_null())
+        t.genre = Utf8ToWide(j["genre"].get<std::string>());
+    if (j.contains("file_size") && !j["file_size"].is_null())
+        t.fileSize = std::optional(j["file_size"].get<int64_t>());
+    if (j.contains("date_added") && !j["date_added"].is_null())
+        t.dateAdded = Utf8ToWide(j["date_added"].get<std::string>());
+    if (j.contains("last_played") && !j["last_played"].is_null())
+        t.lastPlayed = Utf8ToWide(j["last_played"].get<std::string>());
     t.playCount = j.value("play_count", 0);
     t.isAvailable = j.value("is_available", true);
     if (j.contains("artwork_path") && !j["artwork_path"].is_null())
