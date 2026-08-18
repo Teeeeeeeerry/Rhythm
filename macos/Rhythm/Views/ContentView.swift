@@ -26,7 +26,7 @@ struct ContentView: View {
                     if appState.isImporting {
                         ProgressView()
                             .controlSize(.small)
-                            .help(L10n.isChinese ? "正在导入…" : "Importing…")
+                            .help(L10n.importing)
                     } else {
                         Button(action: importFolder) {
                             Image(systemName: "plus")
@@ -48,7 +48,7 @@ struct ContentView: View {
         ) { _ in
             appState.updatePlaybackProgress()
         }
-        .alert(L10n.isChinese ? "导入结果" : "Import Result", isPresented: $appState.showImportAlert) {
+        .alert(L10n.importResultTitle, isPresented: $appState.showImportAlert) {
             Button(L10n.ok, role: .cancel) {}
         } message: {
             Text(appState.importAlertMessage ?? "")
@@ -71,7 +71,7 @@ struct ContentView: View {
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = true
         panel.allowedContentTypes = [.audio]
-        panel.prompt = L10n.isChinese ? "导入" : "Import"
+        panel.prompt = L10n.importButton
         if panel.runModal() == .OK {
             appState.importURLs(panel.urls)
         }

@@ -38,8 +38,8 @@ struct Track: Identifiable, Codable, Equatable {
     var sourceTag: String {
         switch sourceType {
         case "local": L10n.tagLocal
-        case "youtube": "YT"
-        case "bilibili": "B站"
+        case "youtube": L10n.tagYoutube
+        case "bilibili": L10n.tagBilibili
         case "direct_url": L10n.tagLink
         default: ""
         }
