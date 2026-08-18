@@ -57,11 +57,11 @@ EOF
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
-| `check-color-parity.py` | 🔴 | **F1**：C++ source 色缺 light 变体（P0 修复项） |
-| `check-contrast.py` | 🟢 | 36 组合全达标或已登记例外（F8 两项 + border 装饰线已登记） |
-| `check-forbidden-colors.py` | 🔴 | **F4**：SourceTagView 回退 `.gray`（P0 修复项） |
-| `check-token-coverage.py` | 🔴 | **F2**：Windows SidebarView 零品牌化（P0 修复项） |
-| `check-doc-drift.py` | 🟢 | 文档色值全部收录于 palette.json |
+| `check-color-parity.py` | FAIL | **F1**：C++ source 色缺 light 变体（P0 修复项） |
+| `check-contrast.py` | PASS | 36 组合全达标或已登记例外（F8 两项 + border 装饰线已登记） |
+| `check-forbidden-colors.py` | FAIL | **F4**：SourceTagView 回退 `.gray`（P0 修复项） |
+| `check-token-coverage.py` | FAIL | **F2**：Windows SidebarView 零品牌化（P0 修复项） |
+| `check-doc-drift.py` | PASS | 文档色值全部收录于 palette.json |
 
 L0 全绿 = P0（F1–F5）完成。合并门槛见 deep-testing-plan.md §7。
 
