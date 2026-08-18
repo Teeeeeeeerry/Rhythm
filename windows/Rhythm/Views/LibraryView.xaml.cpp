@@ -29,9 +29,11 @@ void LibraryView::OnTrackClick(IInspectable const&, ItemClickEventArgs const& ar
 
 void LibraryView::PopulateArtistAlbum() {
     if (!appState_) return;
-    auto& tracks = appState_->Tracks;
-    if (tracks.empty()) { ShowEmptyMessage(true); return; }
+    if (appState_->Tracks.empty()) { ShowEmptyMessage(true); return; }
     ShowEmptyMessage(false);
+
+    // Sort a copy so the shared AppState::Tracks order is never mutated
+    auto tracks = appState_->Tracks;
 
     // Sort by artist then album then track number
     std::sort(tracks.begin(), tracks.end(),
@@ -55,9 +57,11 @@ void LibraryView::PopulateArtistAlbum() {
 
 void LibraryView::PopulateAlphabetical() {
     if (!appState_) return;
-    auto& tracks = appState_->Tracks;
-    if (tracks.empty()) { ShowEmptyMessage(true); return; }
+    if (appState_->Tracks.empty()) { ShowEmptyMessage(true); return; }
     ShowEmptyMessage(false);
+
+    // Sort a copy so the shared AppState::Tracks order is never mutated
+    auto tracks = appState_->Tracks;
 
     std::sort(tracks.begin(), tracks.end(),
         [](const auto& a, const auto& b) { return a.title < b.title; });
