@@ -251,6 +251,15 @@ std::wstring Player::ErrorMessage() const {
     rhythm_free_string(raw);
     return message;
 }
+
+std::wstring Player::ErrorKind() const {
+    if (!ptr_) return {};
+    char* raw = rhythm_player_error_kind(ptr_);
+    if (!raw) return {};
+    auto kind = Utf8ToWide(raw);
+    rhythm_free_string(raw);
+    return kind;
+}
 double Player::Position() const { return ptr_ ? rhythm_player_get_position(ptr_) : 0.0; }
 double Player::Duration() const { return ptr_ ? rhythm_player_get_duration(ptr_) : 0.0; }
 

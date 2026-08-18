@@ -509,8 +509,9 @@ final class AppState: ObservableObject {
             // Otherwise a failed stream just sits at 0:00 with no explanation.
             isPlaying = false
             let detail = player.errorMessage ?? ""
+            let kind = player.errorKind
             NSLog("Playback failed: %@", detail)
-            urlError = L10n.playbackFailed(detail: detail)
+            urlError = L10n.playbackFailed(kind: kind, detail: detail)
         }
     }
 

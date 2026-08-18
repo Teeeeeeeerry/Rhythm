@@ -50,12 +50,18 @@
 | AE-29 | HTTP 流打开/缓冲失败 | 同 AE-26 | 接缝 + stub 流报错 |
 | AE-30 | 循环中解码错误 | `next_packet` 返回 Err → 循环终止，同 AE-26 | 接缝（假解码器中途报错） |
 
+| AE-38 | HTTP 403（未过期）播放失败 | 触发一次"淘汰缓存 + 绕过缓存重解析 + 重开流"，播放恢复；失败分类不残留（#120） | 接缝（stub resolver 计数 + open 首败 403 后成功）`ae38_http_403_retries_with_fresh_resolution_once` |
+| AE-39 | 链接真过期（`expire` 已过）播放失败 | 同样重解析重试一次；重试仍败 → Error，`last_error_kind()==Expired`（#120） | 接缝 `ae39_expired_link_retries_with_fresh_resolution` |
+| AE-40 | 非 HTTP 播放失败 | 不重试：resolver 仅调一次；`last_error_kind()==None`（#120） | 接缝 `ae40_non_http_failure_does_not_retry` |
+| AE-41 | 生产恢复钩子 | 淘汰回调与 fresh resolver 各执行一次，缓存 resolver 不再被调（#120） | 接缝 + `with_recovery` `ae41_recovery_hooks_evict_and_resolve_fresh` |
+
 ## 红测登记
 
 | 编号 | 缺陷 | issue | 状态 |
 |---|---|---|---|
 | AE-21 | 暂停中 seek 被挂起，直到 resume 后才生效 | [#77](https://github.com/Teeeeeeerry/Rhythm/issues/77) | 已修复（`ae21_seek_while_paused_applies_immediately` 解禁，循环暂停分支消费 pending seek） |
 | AE-31 | Buffering 中 pause 被忽略：缓冲完成后引擎照常置 Playing 并出声，UI 已显示停止 | [#111](https://github.com/Teeeeeeerry/Rhythm/issues/111) | 已修复（`ae31_pause_during_buffering_blocks_audio`：pause 在 Buffering 生效；open 完成后不再无条件置 Playing） |
+| AE-38 | 播放 403 一律误报"链接已过期"、重贴无效（缓存 1h 不失效、无重试） | [#120](https://github.com/Teeeeeeerry/Rhythm/issues/120) | 已修复（结构化 `RhythmError::Http` 分类 expire/403；播放 403 淘汰缓存 + 绕过缓存重解析重试一次；`rhythm_player_error_kind` 暴露分类） |
 
 ## Decoder / HttpStream（已有测试行为对照）
 

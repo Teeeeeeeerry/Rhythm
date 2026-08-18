@@ -485,6 +485,26 @@ pub extern "C" fn rhythm_player_error(ptr: *mut RhythmPlayer) -> *mut c_char {
     }
 }
 
+/// Classification of the last playback failure, when it was HTTP: "expired" |
+/// "cdn_rejected" | "other"; null otherwise (#120).
+///
+/// The error *message* is the same raw network text as before; this lets the
+/// UI swap its headline between "link expired, re-paste it" (which is only
+/// true for `expired`) and "the CDN rejected your network" (`cdn_rejected`).
+/// Free with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_player_error_kind(ptr: *mut RhythmPlayer) -> *mut c_char {
+    use crate::HttpErrorKind;
+    unsafe {
+        match ptr.as_ref().and_then(|p| p.0.last_error_kind()) {
+            Some(HttpErrorKind::Expired) => str_to_c_string("expired"),
+            Some(HttpErrorKind::CdnRejected) => str_to_c_string("cdn_rejected"),
+            Some(HttpErrorKind::Other) => str_to_c_string("other"),
+            None => std::ptr::null_mut(),
+        }
+    }
+}
+
 // ─── URL Resolver FFI ─────────────────────────────────────────────
 
 /// The most recent resolver failure, as JSON.

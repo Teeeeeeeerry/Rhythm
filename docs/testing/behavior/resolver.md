@@ -41,6 +41,9 @@
 | RS-22 | `RHYTHM_YTDLP_PATH` 覆盖 | 优先于一切发现路径（已有单测 RS-33/34 覆盖；e2e 全部场景经该覆盖注入 stub，即为持续验证） |
 | RS-23 | 直链 URL 含百分号编码 | 期望：标题按 URL 百分号编码规则正确解码（e2e `rs23_direct_url_title_decodes_percent_encoding`；纯函数单测 `test_urlencoding_if_needed` 覆盖中文/空格/畸形转义/非法 UTF-8 回退） |
 | RS-24 | 缓存 TTL 边界 | `prune_cache` 直测：恰好 1 小时的条目被剔除（`< TTL` 严格边界），1 秒内保留（`test_prune_cache_evicts_oldest_and_expired`，rust-core/src/resolver/mod.rs tests） |
+| RS-44 | 播放侧 403 缓存失效（#120） | `evict_resolution` 删除页面 URL 条目 → 下次 resolve 走真实解析（`test_evict_resolution_drops_poisoned_entry`） |
+| RS-45 | 绕过缓存重解析（#120） | `resolve_url_fresh` 不读缓存、成功后仍写缓存（`test_resolve_url_fresh_bypasses_cache`） |
+| RS-46 | 播放侧 403 诊断日志（#120） | `log_playback_http` 向 resolver.log 追加分类/status/expire/mt/ip，best-effort |
 
 ## 错误路径（P2 — 仅断言"错误被正确上报"）
 

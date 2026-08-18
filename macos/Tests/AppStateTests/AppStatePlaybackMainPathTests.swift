@@ -284,6 +284,38 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
                       "the core's detail must be visible (#23)")
     }
 
+    // #120: an HTTP failure classified "expired" keeps the old "re-paste the
+    // link" advice — that is the one case where re-pasting can help.
+    func testUpdatePlaybackProgress_Error_ExpiredKind_KeepsRepasteAdvice() throws {
+        appState.tracks = [makeLocalTrack(path: "/tmp/p.mp3")]
+        appState.playTrack(appState.tracks[0])
+        spy.state = 4 // Error
+        spy.errorKind = "expired"
+        spy.errorMessage = "GET …/videoplayback failed: HTTP 403"
+
+        appState.updatePlaybackProgress()
+
+        XCTAssertTrue(appState.urlError!.contains("重新粘贴"),
+                      "expired links may still be re-pasted: \(appState.urlError!)")
+    }
+
+    // #120: a CDN rejecting a still-valid URL must NOT advise re-pasting —
+    // the retry already re-resolved, and the network side is the problem.
+    func testUpdatePlaybackProgress_Error_CdnRejectedKind_BlamesNetwork() throws {
+        appState.tracks = [makeLocalTrack(path: "/tmp/p.mp3")]
+        appState.playTrack(appState.tracks[0])
+        spy.state = 4 // Error
+        spy.errorKind = "cdn_rejected"
+        spy.errorMessage = "GET …/videoplayback failed: HTTP 403"
+
+        appState.updatePlaybackProgress()
+
+        XCTAssertTrue(appState.urlError!.contains("网络"),
+                      "cdn rejection is a network-side problem: \(appState.urlError!)")
+        XCTAssertFalse(appState.urlError!.contains("重新粘贴"),
+                       "re-pasting cannot fix a CDN rejection: \(appState.urlError!)")
+    }
+
     // MARK: - AS-16 seek
 
     func testSeek_ForwardsAndUpdatesOptimistically() throws {

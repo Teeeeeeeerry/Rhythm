@@ -31,11 +31,24 @@ enum L10n {
     static let ok: String = isChinese ? "确定" : "OK"
 
     /// Explain a playback failure (as opposed to a resolution failure).
-    static func playbackFailed(detail: String) -> String {
+    ///
+    /// `kind` is the core's classification of HTTP failures (#120): a link
+    /// that genuinely expired ("expired") keeps the old "re-paste it" advice;
+    /// a CDN refusing a still-valid URL ("cdn_rejected") gets the truthful
+    /// "your network is being rejected" copy — re-pasting cannot help there.
+    static func playbackFailed(kind: String?, detail: String) -> String {
         guard isChinese else {
             return detail.isEmpty ? "Playback failed." : "Playback failed.\n\n\(detail)"
         }
-        let headline = "播放失败。链接可能已过期，重新粘贴一次试试。"
+        let headline: String
+        switch kind {
+        case "expired":
+            headline = "播放失败。链接可能已过期，重新粘贴一次试试。"
+        case "cdn_rejected":
+            headline = "播放失败。YouTube 拒绝了当前网络的请求（可能与 ISP 或 VPN 有关），换网络或稍后再试。"
+        default:
+            headline = "播放失败。"
+        }
         return detail.isEmpty ? headline : "\(headline)\n\n详细信息：\n\(detail)"
     }
 

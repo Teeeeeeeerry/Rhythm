@@ -1,5 +1,5 @@
-use crate::resolver::{resolve_url, ResolveResult, ResolvedUrl};
-use crate::{PlayerState, ProgressCallback, RhythmError, RhythmResult, StateCallback};
+use crate::resolver::{evict_resolution, resolve_url, resolve_url_fresh, ResolveResult, ResolvedUrl};
+use crate::{HttpErrorKind, PlayerState, ProgressCallback, RhythmError, RhythmResult, StateCallback};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -63,6 +63,13 @@ pub struct AudioEngine {
     progress_callback: Arc<Mutex<Option<ProgressCallback>>>,
     generation: Arc<AtomicU64>,
     resolver: UrlResolver,
+    /// Cache-bypass re-resolution, wired only in production (#120). When a
+    /// stream URL is rejected, the engine evicts the cached resolution and
+    /// re-resolves with this (freshly signed URL) instead of the cache that
+    /// would hand back the same dead link.
+    fresh_resolver: Option<UrlResolver>,
+    /// Cache eviction for the #120 recovery; wired only in production.
+    evictor: Option<Arc<dyn Fn(&str) + Send + Sync>>,
 }
 
 struct EngineInner {
@@ -73,11 +80,17 @@ struct EngineInner {
     position: f64,
     /// Pending seek requested by the user; consumed by the playback thread.
     desired_position: Option<f64>,
+    /// Classification of the last playback failure, when it was an HTTP one
+    /// (#120). Lets the UI say "the link expired" vs "the CDN rejected it".
+    last_http_error: Option<HttpErrorKind>,
 }
 
 impl AudioEngine {
     pub fn new() -> Self {
+        // #120 recovery: a rejected stream URL (403 on a still-valid URL, or
+        // a genuinely expired one) is retried once with a fresh resolution.
         AudioEngine::new_with_resolver(Arc::new(resolve_url))
+            .with_recovery(Arc::new(resolve_url_fresh), Arc::new(evict_resolution))
     }
 
     /// Test seam: construct an engine whose URL resolution goes through
@@ -92,12 +105,28 @@ impl AudioEngine {
                 duration: 0.0,
                 position: 0.0,
                 desired_position: None,
+                last_http_error: None,
             })),
             state_callback: Arc::new(Mutex::new(None)),
             progress_callback: Arc::new(Mutex::new(None)),
             generation: Arc::new(AtomicU64::new(0)),
             resolver,
+            fresh_resolver: None,
+            evictor: None,
         }
+    }
+
+    /// Test seam: wire the #120 cache-bypass recovery (fresh re-resolution +
+    /// eviction) onto an engine built with a stub resolver.
+    #[doc(hidden)]
+    pub fn with_recovery(
+        mut self,
+        fresh_resolver: UrlResolver,
+        evictor: Arc<dyn Fn(&str) + Send + Sync>,
+    ) -> Self {
+        self.fresh_resolver = Some(fresh_resolver);
+        self.evictor = Some(evictor);
+        self
     }
 
     /// Register a callback for state changes (Playing, Paused, Stopped, Error, etc.)
@@ -158,11 +187,14 @@ impl AudioEngine {
     /// URL and may substitute a fake decoder / stream instead of the real
     /// `HttpStream` + `AudioDecoder` pipeline. The engine's resolver (see
     /// `new_with_resolver`) still runs first on the playback thread.
+    ///
+    /// `FnMut`, not `FnOnce`: the #120 recovery calls it a second time with a
+    /// fresh resolution when the first stream URL was rejected.
     #[doc(hidden)]
     pub fn play_url_with<D, S>(
         &self,
         url: &str,
-        open_decoder: impl FnOnce(ResolvedUrl) -> RhythmResult<(D, Option<f64>)> + Send + 'static,
+        mut open_decoder: impl FnMut(ResolvedUrl) -> RhythmResult<(D, Option<f64>)> + Send + 'static,
         open_sink: impl FnOnce(&D) -> RhythmResult<S> + Send + 'static,
     ) -> RhythmResult<()>
     where
@@ -171,12 +203,38 @@ impl AudioEngine {
     {
         let url = url.to_string();
         let resolver = self.resolver.clone();
+        let fresh_resolver = self.fresh_resolver.clone();
+        let evictor = self.evictor.clone();
         self.spawn_playback(
             url.clone(),
             PlayerState::Buffering,
             move || {
                 let resolved = resolver(&url)?;
-                open_decoder(resolved)
+                let first = open_decoder(resolved);
+                match first {
+                    Ok(pair) => Ok(pair),
+                    Err(e) if is_retryable_http(&e) => {
+                        // #120: the stream URL was rejected — either the link
+                        // genuinely expired or the CDN refused a valid one.
+                        // Either way the cached resolution is useless: evict
+                        // it, re-resolve bypassing the cache (freshly signed
+                        // URL), and retry the open once. Stub resolvers don't
+                        // cache, so an unwired engine just resolves again.
+                        if let RhythmError::Http(http) = &e {
+                            crate::resolver::log_playback_http(&url, http);
+                        }
+                        log::warn!("audio: stream URL rejected ({e}); re-resolving {url}");
+                        if let Some(evict) = &evictor {
+                            evict(&url);
+                        }
+                        let fresh = match &fresh_resolver {
+                            Some(fresh) => fresh(&url)?,
+                            None => resolver(&url)?,
+                        };
+                        open_decoder(fresh)
+                    }
+                    Err(e) => Err(e),
+                }
             },
             open_sink,
         )
@@ -219,7 +277,7 @@ impl AudioEngine {
                 my_gen,
             ) {
                 log::error!("Playback error: {e}");
-                fail(&inner, &state_cb, e.to_string());
+                fail(&inner, &state_cb, &e);
             }
         });
 
@@ -339,6 +397,13 @@ impl AudioEngine {
     /// Get current playback position.
     pub fn position(&self) -> f64 {
         self.inner.lock().unwrap().position
+    }
+
+    /// Classification of the last playback failure, when it was an HTTP one
+    /// (expired link vs CDN rejection vs other). `None` when the last failure
+    /// was not HTTP, or there was none (#120).
+    pub fn last_error_kind(&self) -> Option<HttpErrorKind> {
+        self.inner.lock().unwrap().last_http_error
     }
 
     /// Test seam: the source recorded for the current playback request.
@@ -568,12 +633,34 @@ fn set_state(
 
 /// Record a playback failure. A failed stream used to look like a player
 /// idling at 0:00 with nothing wrong.
+///
+/// HTTP failures also record their classification so the UI can pick a
+/// truthful message ("link expired" vs "CDN rejected your network") (#120).
 fn fail(
     inner: &Arc<Mutex<EngineInner>>,
     state_cb: &Arc<Mutex<Option<StateCallback>>>,
-    message: String,
+    error: &RhythmError,
 ) {
-    set_state(inner, state_cb, PlayerState::Error(message));
+    let mut eng = inner.lock().unwrap();
+    eng.last_http_error = match error {
+        RhythmError::Http(http) => Some(http.kind),
+        _ => None,
+    };
+    drop(eng);
+    set_state(inner, state_cb, PlayerState::Error(error.to_string()));
+}
+
+/// Should a failed stream open trigger a cache-bypass re-resolve + retry?
+///
+/// Yes for a genuinely expired link (a fresh resolve returns a new signed
+/// URL) and for a CDN-rejected one (the cached URL may be the problem); no
+/// for anything else — 5xx/DNS/TLS re-resolution cannot help (#120).
+fn is_retryable_http(error: &RhythmError) -> bool {
+    matches!(
+        error,
+        RhythmError::Http(http)
+            if http.kind == HttpErrorKind::Expired || http.kind == HttpErrorKind::CdnRejected
+    )
 }
 
 fn emit_progress(cb: &Arc<Mutex<Option<ProgressCallback>>>, pos: f64, dur: f64) {

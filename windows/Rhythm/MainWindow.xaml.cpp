@@ -41,7 +41,16 @@ MainWindow::MainWindow() {
                 appState_.UrlError = detail;
                 OutputDebugStringW((L"Playback failed: " + detail + L"\n").c_str());
                 if (appState_.OnUrlError) {
-                    appState_.OnUrlError(L"playback_failed", detail);
+                    // #120: classify HTTP failures so the dialog can tell a
+                    // genuinely expired link from a CDN rejection.
+                    auto kind = appState_.Player->ErrorKind();
+                    std::wstring kindCode = L"playback_failed";
+                    if (kind == L"expired") {
+                        kindCode = L"playback_expired";
+                    } else if (kind == L"cdn_rejected") {
+                        kindCode = L"playback_cdn_rejected";
+                    }
+                    appState_.OnUrlError(kindCode, detail);
                 }
             }
         }

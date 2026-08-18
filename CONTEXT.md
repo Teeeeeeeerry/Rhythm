@@ -59,6 +59,8 @@ scripts/            build-macos.sh / build-rust-macos.sh / build-windows.*
 - **URL 曲目存页面 URL 不存 CDN 链接**：CDN 链接带过期 deadline，播放时从缓存重新解析
 - **刷新列表必须从 DB 重载**（`refreshLibrary`）：手动拼接 tracks 会导致 ForEach ID 碰撞（#66）和队列失同步（#69）
 - **播放新曲目前必须 `player.stop()`**：旧播放线程不终止会抢占输出设备（#51）
+- **YouTube 403 ≠ 链接过期**：googlevideo URL 有效期 ~6h（`expire`-`mt`），播放 403 时先解码 `expire` 判断；未过期却 403 是网络侧拒绝（常见于 ISP 托管的 Google Global Cache 节点 `cache.google.com` 故障、或出口 IP 被 YouTube 拉黑），换网络/VPN 才是出路（见 docs/issues/2026-08-18-youtube-403-misreported-as-expired.md）。#120 已修复：core 用 `RhythmError::Http` 分类（expired/cdn_rejected/other），UI 按分类给文案——仅真过期才建议重贴
+- **解析缓存不淘汰失败条目**：`RESOLVED_CACHE`（1h TTL）命中即返回，播放 403 不会清条目——重贴同一链接在 TTL 内必然拿到同一个坏 CDN URL，用户建议"重新粘贴"结构性无效。#120 已修复：播放 403/过期时引擎淘汰条目并 `resolve_url_fresh` 绕过缓存重解析一次，仍败才报错
 
 ## 文档地图
 
@@ -67,4 +69,5 @@ scripts/            build-macos.sh / build-rust-macos.sh / build-windows.*
 | README.md / README.en.md | 人 | 功能总览、架构介绍、下载安装 |
 | docs/deep-testing-plan.md | 人 | 主题色彩测试方案（L0-L4） |
 | docs/testing/ | 人+agent | 测试基础设施：palette 同步、对比检查脚本、各层测试源码 |
+| docs/issues/ | 人+agent | 已调查并辑录的 bug 报告（issue 草稿，可直接贴 GitHub） |
 | 本文 CONTEXT.md | agent | 领域词汇 + 导航 + 约定 |
