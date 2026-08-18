@@ -64,13 +64,13 @@
         <ListViewItem Tag="Library">
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <SymbolIcon Symbol="MusicInfo" />
-                <TextBlock Text="资料库" />
+                <TextBlock x:Name="sidebarLibrary" />
             </StackPanel>
         </ListViewItem>
         <ListViewItem Tag="Playlists">
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <SymbolIcon Symbol="List" />
-                <TextBlock Text="播放列表" />
+                <TextBlock x:Name="sidebarPlaylists" />
             </StackPanel>
         </ListViewItem>
     </ListView>

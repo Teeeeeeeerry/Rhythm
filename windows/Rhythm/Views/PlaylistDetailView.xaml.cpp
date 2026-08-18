@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "PlaylistDetailView.xaml.h"
+#include "L10n.h"
 
 #include <nlohmann/json.hpp>
 
@@ -57,6 +58,9 @@ std::string SerializeTracks(const std::vector<rhythm::Track>& tracks) {
 
 PlaylistDetailView::PlaylistDetailView() {
     InitializeComponent();
+    // #141: copy from the language layer.
+    btnImport().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::ImportM3U8() }));
+    btnExport().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::ExportM3U8() }));
 }
 
 void PlaylistDetailView::OnNavigatedTo(Navigation::NavigationEventArgs const& args) {

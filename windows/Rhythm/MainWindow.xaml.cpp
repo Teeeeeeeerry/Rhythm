@@ -5,11 +5,21 @@
 #include "Views/PlaylistListView.xaml.h"
 #include "Views/PlayerBarView.xaml.h"
 #include "Views/TrayManager.h"
+#include "L10n.h"
 
 namespace winrt::Rhythm::implementation {
 
 MainWindow::MainWindow() {
     InitializeComponent();
+
+    // #141: all static copy comes from the language layer (system UI
+    // language, manual override in L10n::SetOverrideLanguage).
+    navLibrary().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::LibraryTab() }));
+    navPlaylists().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::PlaylistsTab() }));
+    btnImport().ToolTip(winrt::box_value(winrt::hstring{ rhythm::L10n::ImportFolderTooltip() }));
+    searchBox().PlaceholderText(rhythm::L10n::SearchPlaceholder());
+    comboArtistAlbum().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::ByArtistAlbum() }));
+    comboByLetter().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::ByLetter() }));
 
     // Open database in AppData
     auto localFolder = winrt::Windows::Storage::ApplicationData::Current().LocalFolder();

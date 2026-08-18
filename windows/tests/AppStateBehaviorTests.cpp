@@ -651,5 +651,7 @@ TEST_CASE("WA-23 ImportDirectory reports the imported count") {
     state.ImportDirectory(music.wstring());
 
     REQUIRE(state.ShowImportAlert);
-    REQUIRE(state.ImportAlertMessage == L"已导入 2 首歌曲");
+    // #141: copy comes from the language layer, so assert against it
+    // (system-language agnostic, mirrors the macOS suite).
+    REQUIRE(state.ImportAlertMessage == L10n::ImportedTracks(2));
 }

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "AppState.h"
+#include "L10n.h"
 
 #include <thread>
 
@@ -33,13 +34,13 @@ void AppState::ImportDirectory(const std::wstring& path) {
     // WA-23: mirror the macOS import alert, including its zero/failure arms.
     if (count > 0) {
         RefreshLibrary();
-        ImportAlertMessage = std::format(L"已导入 {} 首歌曲", count);
+        ImportAlertMessage = L10n::ImportedTracks(count);
         ShowImportAlert = true;
     } else if (count == 0) {
-        ImportAlertMessage = L"该目录中未找到支持的音频文件";
+        ImportAlertMessage = L10n::ImportNoFiles();
         ShowImportAlert = true;
     } else {
-        ImportAlertMessage = L"导入失败，请检查目录是否可访问";
+        ImportAlertMessage = L10n::ImportFailed();
         ShowImportAlert = true;
     }
 }

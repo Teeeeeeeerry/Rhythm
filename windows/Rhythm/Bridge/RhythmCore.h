@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pch.h"
+#include "L10n.h"
 #include <rhythm_core.h>
 
 namespace rhythm {
@@ -46,11 +47,7 @@ struct Track {
     }
 
     std::wstring SourceTag() const {
-        if (sourceType == L"local") return L"本地";
-        if (sourceType == L"youtube") return L"YT";
-        if (sourceType == L"bilibili") return L"B站";
-        if (sourceType == L"direct_url") return L"链接";
-        return L"";
+        return L10n::SourceTag(sourceType);
     }
 
     /// Badge foreground colour for a source type, theme-aware (F1, #121).

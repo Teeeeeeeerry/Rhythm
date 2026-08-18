@@ -21,8 +21,8 @@
             IsSettingsVisible="False"
             SelectionChanged="OnNavSelectionChanged">
             <NavigationView.MenuItems>
-                <NavigationViewItem Icon="MusicInfo" Content="资料库" Tag="Library" />
-                <NavigationViewItem Icon="List" Content="播放列表" Tag="Playlists" />
+                <NavigationViewItem x:Name="navLibrary" Icon="MusicInfo" Content="" Tag="Library" />
+                <NavigationViewItem x:Name="navPlaylists" Icon="List" Content="" Tag="Playlists" />
             </NavigationView.MenuItems>
 
             <Grid>
@@ -33,20 +33,19 @@
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8"
                             Margin="12,8,12,4">
-                    <Button x:Name="btnImport" Click="OnImportClick" ToolTipService.ToolTip="导入文件夹">
+                    <Button x:Name="btnImport" Click="OnImportClick">
                         <SymbolIcon Symbol="Add" />
                     </Button>
                     <AutoSuggestBox
                         x:Name="searchBox"
-                        PlaceholderText="搜索..."
                         Width="200"
                         QuerySubmitted="OnSearchSubmitted"
                         TextChanged="OnSearchTextChanged" />
                     <ComboBox x:Name="viewModeCombo"
                               SelectionChanged="OnViewModeChanged"
                               SelectedIndex="0">
-                        <ComboBoxItem Content="按艺人/专辑" />
-                        <ComboBoxItem Content="按首字母" />
+                        <ComboBoxItem x:Name="comboArtistAlbum" />
+                        <ComboBoxItem x:Name="comboByLetter" />
                     </ComboBox>
                 </StackPanel>
 

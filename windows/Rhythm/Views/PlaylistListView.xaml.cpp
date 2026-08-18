@@ -1,10 +1,14 @@
 #include "pch.h"
 #include "PlaylistListView.xaml.h"
+#include "L10n.h"
 
 namespace winrt::Rhythm::Views::implementation {
 
 PlaylistListView::PlaylistListView() {
     InitializeComponent();
+    // #141: copy from the language layer.
+    newPlaylistText().Text(rhythm::L10n::NewPlaylist());
+    emptyMessage().Text(rhythm::L10n::PlaylistEmpty());
 }
 
 void PlaylistListView::OnNavigatedTo(Navigation::NavigationEventArgs const& args) {
@@ -17,14 +21,14 @@ void PlaylistListView::OnNewPlaylistClick(IInspectable const&, RoutedEventArgs c
 
     // Simple name input dialog
     auto tb = TextBox();
-    tb.PlaceholderText(L"播放列表名称");
+    tb.PlaceholderText(rhythm::L10n::PlaylistNamePlaceholder());
     tb.Width(200);
 
     auto dialog = ContentDialog();
-    dialog.Title(box_value(L"新建播放列表"));
+    dialog.Title(winrt::box_value(winrt::hstring{ rhythm::L10n::NewPlaylist() }));
     dialog.Content(tb);
-    dialog.PrimaryButtonText(L"创建");
-    dialog.CloseButtonText(L"取消");
+    dialog.PrimaryButtonText(rhythm::L10n::Create());
+    dialog.CloseButtonText(rhythm::L10n::Cancel());
     dialog.XamlRoot().XamlRoot();
     dialog.DefaultButton(ContentDialogButton::Primary);
 
