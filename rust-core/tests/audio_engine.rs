@@ -1592,4 +1592,189 @@ fn ae41_recovery_hooks_evict_and_resolve_fresh() {
     assert_eq!(open_calls.load(Ordering::SeqCst), 2);
 }
 
+/// AE-42 (#134): a stale playback thread's failure must not clobber the newer
+/// playback. Track A's URL open blocks (the tens-of-seconds resolve window);
+/// track B starts and is audibly Playing; A's open then fails — the old
+/// thread must NOT write Error over B's state, emit an Error callback, or
+/// leak its HTTP classification into `last_error_kind()`.
+#[test]
+fn ae42_stale_failure_does_not_clobber_new_playback() {
+    let (a_entered, a_entered_rx) = std::sync::mpsc::channel();
+    let (a_release, a_release_rx) = std::sync::mpsc::channel();
+
+    let resolved = stub_resolved("http://127.0.0.1:1/slow.m4s", 0.0);
+    let engine = Arc::new(AudioEngine::new_with_resolver(Arc::new(move |_url| Ok(resolved.clone()))));
+    let rec = attach_recorders(&engine);
+
+    // Track A: the slow URL — its open blocks until released, then fails with
+    // a non-retryable HTTP error (500 → `Other`, no #120 re-resolve).
+    let e1 = engine.clone();
+    let a_handle = thread::spawn(move || {
+        e1.play_url_with(
+            "https://example.com/slow-a",
+            move |_resolved| {
+                a_entered.send(()).unwrap();
+                a_release_rx.recv().unwrap();
+                Err(RhythmError::Http(HttpError::from_status(
+                    500,
+                    "https://rr.example/videoplayback",
+                )))
+            },
+            |_: &FakeDecoder| -> RhythmResult<FakeSink> {
+                panic!("stale A must never open a sink");
+            },
+        )
+        .unwrap();
+    });
+    a_entered_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+
+    // Track B: normal playback on the same engine — bumps the generation.
+    let b_sink_probe = Arc::new(SinkProbe::default());
+    let b_sink = FakeSink::new(44100, 2, b_sink_probe.clone());
+    engine
+        .play_url_with(
+            "https://example.com/fast-b",
+            move |_resolved| Ok((FakeDecoder::endless_paced(44100, 2, 10.0, Duration::from_millis(5), 0.1), None)),
+            move |_| Ok(b_sink),
+        )
+        .unwrap();
+    wait_for("B flowing", Duration::from_secs(5), || {
+        b_sink_probe.write_count.load(Ordering::SeqCst) > 0
+    });
+    assert_eq!(engine.state(), PlayerState::Playing);
+
+    // Release A's slow open — it fails. The stale thread must not touch B.
+    a_release.send(()).unwrap();
+    a_handle.join().unwrap();
+    thread::sleep(Duration::from_millis(300));
+
+    assert_eq!(
+        engine.state(),
+        PlayerState::Playing,
+        "stale A's failure must not clobber B's Playing state"
+    );
+    assert!(
+        !rec.states()
+            .iter()
+            .any(|s| matches!(s, PlayerState::Error(_))),
+        "stale A's failure must not emit an Error callback: {:?}",
+        rec.states()
+    );
+    assert_eq!(
+        engine.last_error_kind(),
+        None,
+        "stale A's HTTP classification must not leak into B's playback"
+    );
+
+    // B is still audibly flowing after A's stale failure.
+    let writes_after = b_sink_probe.write_count.load(Ordering::SeqCst);
+    wait_for("B still flowing after A failed", Duration::from_secs(5), || {
+        b_sink_probe.write_count.load(Ordering::SeqCst) > writes_after
+    });
+}
+
+/// AE-43 (#134): a stale playback thread whose slow open eventually SUCCEEDS
+/// must not claim the source, announce Playing, or open a sink — the newer
+/// playback owns all of those. Tracks A and B are both URL playbacks
+/// (Buffering); A's open finishes while B is still resolving.
+#[test]
+fn ae43_stale_success_does_not_touch_new_playback() {
+    let (a_entered, a_entered_rx) = std::sync::mpsc::channel();
+    let (a_release, a_release_rx) = std::sync::mpsc::channel();
+    let (b_entered, b_entered_rx) = std::sync::mpsc::channel();
+    let (b_release, b_release_rx) = std::sync::mpsc::channel();
+
+    let resolved = stub_resolved("http://127.0.0.1:1/slow.m4s", 0.0);
+    let engine = Arc::new(AudioEngine::new_with_resolver(Arc::new(move |_url| Ok(resolved.clone()))));
+
+    let a_sink_opens = Arc::new(AtomicUsize::new(0));
+    let a_sink_opens2 = a_sink_opens.clone();
+    let e1 = engine.clone();
+    let a_handle = thread::spawn(move || {
+        e1.play_url_with(
+            "https://example.com/slow-a",
+            move |_resolved| {
+                a_entered.send(()).unwrap();
+                a_release_rx.recv().unwrap();
+                Ok((FakeDecoder::new(44100, 2, 999.0).end(), None))
+            },
+            move |_: &FakeDecoder| {
+                a_sink_opens2.fetch_add(1, Ordering::SeqCst);
+                Ok(FakeSink::new(44100, 2, Arc::new(SinkProbe::default())))
+            },
+        )
+        .unwrap();
+    });
+    a_entered_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+
+    let b_sink_probe = Arc::new(SinkProbe::default());
+    let b_sink = FakeSink::new(44100, 2, b_sink_probe.clone());
+    let e2 = engine.clone();
+    let b_handle = thread::spawn(move || {
+        e2.play_url_with(
+            "https://example.com/slow-b",
+            move |_resolved| {
+                b_entered.send(()).unwrap();
+                b_release_rx.recv().unwrap();
+                Ok((
+                    FakeDecoder::endless_paced(
+                        44100,
+                        2,
+                        10.0,
+                        Duration::from_millis(5),
+                        0.1,
+                    ),
+                    None,
+                ))
+            },
+            move |_| Ok(b_sink),
+        )
+        .unwrap();
+    });
+    b_entered_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert_eq!(engine.state(), PlayerState::Buffering);
+
+    // A's open succeeds first — but A is stale (B bumped the generation).
+    a_release.send(()).unwrap();
+    a_handle.join().unwrap();
+    thread::sleep(Duration::from_millis(300));
+
+    assert_eq!(
+        engine.state(),
+        PlayerState::Buffering,
+        "stale A must not announce Playing over B's still-resolving state"
+    );
+    assert_eq!(
+        engine.current_source(),
+        None,
+        "stale A must not claim the source while B is resolving"
+    );
+    assert_eq!(
+        a_sink_opens.load(Ordering::SeqCst),
+        0,
+        "stale A must not open a sink"
+    );
+
+    // B's open completes: it owns Playing, the source, and the output.
+    b_release.send(()).unwrap();
+    b_handle.join().unwrap();
+    wait_for("B playing", Duration::from_secs(5), || {
+        engine.state() == PlayerState::Playing
+    });
+    assert_eq!(
+        engine.current_source(),
+        Some("https://example.com/slow-b".to_string()),
+        "B must own the source"
+    );
+    assert_eq!(engine.duration(), 10.0, "B's duration must survive");
+    wait_for("B flowing", Duration::from_secs(5), || {
+        b_sink_probe.write_count.load(Ordering::SeqCst) > 0
+    });
+    assert_eq!(
+        a_sink_opens.load(Ordering::SeqCst),
+        0,
+        "stale A must never open a sink"
+    );
+}
+
 

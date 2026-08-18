@@ -151,15 +151,28 @@ fn signed_url_params(url: &str) -> (Option<i64>, Option<i64>, Option<String>) {
 mod tests {
     use super::*;
 
+    // Pure parse fixture for `signed_url_params` / display tests (no clock
+    // dependency — only the classification test above needs live timestamps).
     const SIGNED: &str = "https://rr2---sn-55goxu-hxas.googlevideo.com/videoplayback?mt=1787020361&expire=1787042504&ip=138.25.4.51&itag=140&c=ANDROID_VR";
 
     #[test]
     fn http_error_403_on_valid_url_is_cdn_rejected() {
         // The #120 case: URL signed minutes ago, expire hours away, yet 403.
-        let error = HttpError::from_status(403, SIGNED);
+        // Timestamps are computed so the test never goes stale (the original
+        // hardcoded 2026-08-18 URL expired and flipped this to `Expired`).
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let url = format!(
+            "https://rr2---sn-55goxu-hxas.googlevideo.com/videoplayback?mt={}&expire={}&ip=138.25.4.51&itag=140&c=ANDROID_VR",
+            now - 120,
+            now + 3600
+        );
+        let error = HttpError::from_status(403, &url);
         assert_eq!(error.kind, HttpErrorKind::CdnRejected);
-        assert_eq!(error.expire, Some(1787042504));
-        assert_eq!(error.issued_at, Some(1787020361));
+        assert_eq!(error.expire, Some(now + 3600));
+        assert_eq!(error.issued_at, Some(now - 120));
         assert_eq!(error.ip.as_deref(), Some("138.25.4.51"));
         assert_eq!(error.status, Some(403));
         assert!(error.message.contains("HTTP 403"));

@@ -62,6 +62,8 @@
 | AE-21 | 暂停中 seek 被挂起，直到 resume 后才生效 | [#77](https://github.com/Teeeeeeerry/Rhythm/issues/77) | 已修复（`ae21_seek_while_paused_applies_immediately` 解禁，循环暂停分支消费 pending seek） |
 | AE-31 | Buffering 中 pause 被忽略：缓冲完成后引擎照常置 Playing 并出声，UI 已显示停止 | [#111](https://github.com/Teeeeeeerry/Rhythm/issues/111) | 已修复（`ae31_pause_during_buffering_blocks_audio`：pause 在 Buffering 生效；open 完成后不再无条件置 Playing） |
 | AE-38 | 播放 403 一律误报"链接已过期"、重贴无效（缓存 1h 不失效、无重试） | [#120](https://github.com/Teeeeeeerry/Rhythm/issues/120) | 已修复（结构化 `RhythmError::Http` 分类 expire/403；播放 403 淘汰缓存 + 绕过缓存重解析重试一次；`rhythm_player_error_kind` 暴露分类） |
+| AE-42 | 陈旧线程解析失败打断新曲目：A 慢解析失败 + B 已开播 → 旧线程把共享状态置 Error、弹假失败 | [#134](https://github.com/Teeeeeeerry/Rhythm/issues/134) | 已修复（`fail`/`set_state` 写入前校验 `generation == my_gen`，陈旧时直接返回：`ae42_stale_failure_does_not_clobber_new_playback`） |
+| AE-43 | 陈旧线程 open 成功后仍抢占：claim source、置 Playing、开 cpal sink，与新曲目争抢输出 | [#134](https://github.com/Teeeeeeerry/Rhythm/issues/134) | 已修复（open 完成后 generation 已前进则直接返回，不 claim source / 不置 Playing / 不开 sink：`ae43_stale_success_does_not_touch_new_playback`） |
 
 ## Decoder / HttpStream（已有测试行为对照）
 
