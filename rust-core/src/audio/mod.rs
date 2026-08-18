@@ -265,6 +265,7 @@ impl AudioEngine {
         let generation = self.generation.clone();
 
         thread::spawn(move || {
+            let gen_for_fail = generation.clone();
             if let Err(e) = drive_playback(
                 source,
                 pre_state,
@@ -277,7 +278,10 @@ impl AudioEngine {
                 my_gen,
             ) {
                 log::error!("Playback error: {e}");
-                fail(&inner, &state_cb, &e);
+                // #134: `fail` itself guards on the generation, so a stale
+                // thread (superseded by a newer play / stop while its open
+                // was in flight) cannot clobber the newer playback's state.
+                fail(&inner, &state_cb, &gen_for_fail, my_gen, &e);
             }
         });
 
@@ -470,9 +474,20 @@ where
     if pre_state == PlayerState::Playing {
         inner.lock().unwrap().current_source = Some(source.clone());
     }
-    set_state(&inner, &state_cb, pre_state.clone());
+    // #134: a `stop()` / newer `play_*` racing in before this thread even
+    // starts must not be overwritten by this stale thread's pre-open state.
+    set_state_if_current(&inner, &state_cb, &generation, my_gen, pre_state.clone());
 
     let (mut decoder, fallback_duration) = open_decoder()?;
+
+    // #134: the open can take tens of seconds (URL resolve + connect +
+    // prebuffer). A newer playback or a `stop()` has advanced the generation
+    // meanwhile — this thread is stale: it must not claim the source,
+    // announce Playing, clobber the duration, or open a sink for the current
+    // playback to fight over.
+    if generation.load(Ordering::SeqCst) != my_gen {
+        return Ok(());
+    }
 
     // The URL path already emitted Buffering; now that the stream is open,
     // announce the real transition to Playing.
@@ -631,16 +646,41 @@ fn set_state(
     emit(state_cb, state);
 }
 
+/// #134: like `set_state`, but a no-op once a newer playback (or `stop()`)
+/// has advanced the generation — a stale thread must never write state over
+/// the current playback.
+fn set_state_if_current(
+    inner: &Arc<Mutex<EngineInner>>,
+    state_cb: &Arc<Mutex<Option<StateCallback>>>,
+    generation: &Arc<AtomicU64>,
+    my_gen: u64,
+    state: PlayerState,
+) {
+    if generation.load(Ordering::SeqCst) != my_gen {
+        return;
+    }
+    set_state(inner, state_cb, state);
+}
+
 /// Record a playback failure. A failed stream used to look like a player
 /// idling at 0:00 with nothing wrong.
 ///
 /// HTTP failures also record their classification so the UI can pick a
 /// truthful message ("link expired" vs "CDN rejected your network") (#120).
+///
+/// #134: only the current generation may record a failure — a stale thread's
+/// failure must not clobber the newer playback's state or its HTTP
+/// classification.
 fn fail(
     inner: &Arc<Mutex<EngineInner>>,
     state_cb: &Arc<Mutex<Option<StateCallback>>>,
+    generation: &Arc<AtomicU64>,
+    my_gen: u64,
     error: &RhythmError,
 ) {
+    if generation.load(Ordering::SeqCst) != my_gen {
+        return;
+    }
     let mut eng = inner.lock().unwrap();
     eng.last_http_error = match error {
         RhythmError::Http(http) => Some(http.kind),
