@@ -83,6 +83,9 @@ void AppState::TogglePlayPause() {
         // start Playing and push audio after the UI shows paused.
         Player->Pause();
         IsPlaying = false;
+        // #137: nothing polls while paused, so this would otherwise stay
+        // stuck on whatever it was when the user hit pause.
+        IsBuffering = false;
     } else {
         if (CurrentTrack) {
             // #111: resume in place instead of restarting from the top (#82),

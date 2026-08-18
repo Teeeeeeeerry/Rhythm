@@ -22,6 +22,9 @@ public:
     std::vector<Playlist> Playlists;
     std::optional<Track> CurrentTrack;
     bool IsPlaying = false;
+    /// True while the engine is buffering (state 3); polled by the progress
+    /// timer and shown in the player bar (mirrors macOS `isBuffering`).
+    bool IsBuffering = false;
     double Volume = 1.0;
     double Position = 0.0;
     double Duration = 0.0;

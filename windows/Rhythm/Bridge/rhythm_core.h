@@ -59,6 +59,7 @@ int32_t rhythm_player_get_state(RhythmPlayer* player);
 //   2 = Paused
 //   3 = Buffering
 //   4 = Error
+//   5 = Finished (track ended naturally)
 
 // ─── URL Resolver API ──────────────────────────────────────────────
 
