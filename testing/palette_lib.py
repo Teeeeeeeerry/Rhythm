@@ -264,6 +264,11 @@ def parse_xaml_colors(path: Path) -> dict[str, dict[str, Color]]:
 # Windows RhythmCore.h 解析（source 徽标色）
 # ---------------------------------------------------------------------------
 
+# F1 修复后（#121）：theme 感知三元形式，一行带 dark + light 双端值
+_CPP_SOURCE_RET_THEMED = re.compile(
+    r'if \(sourceType == L"(\w+)"\)\s*return isDarkTheme \? '
+    r'L"#([0-9A-Fa-f]{6})" : L"#([0-9A-Fa-f]{6})";'
+)
 _CPP_SOURCE_RET = re.compile(r'if \(sourceType == L"(\w+)"\) return L"#([0-9A-Fa-f]{6})";')
 _CPP_SOURCE_RGB = re.compile(
     r'if \(sourceType == L"(\w+)"\)\s*\{ r = (0x[0-9A-Fa-f]+); g = (0x[0-9A-Fa-f]+); b = (0x[0-9A-Fa-f]+); \}'
@@ -275,12 +280,18 @@ _CPP_FALLBACK_GRAY = re.compile(r"return L\"Gray\";")
 def parse_cpp_sources(path: Path) -> dict:
     """→ {"sources": {type: {"dark": Color, "light": Color|None}}, "alpha": int, "gray_fallback": bool}。
 
-    F1 未修复前 light 变体为 None（parity / coverage 脚本据此报缺口）。
+    F1（#121）修复后 light 变体来自 theme 感知签名的三元表达式；旧式单值
+    行仍可解析（light=None），供回归对照。
     """
     text = path.read_text(encoding="utf-8")
     sources: dict[str, dict] = {}
+    for m in _CPP_SOURCE_RET_THEMED.finditer(text):
+        sources[m.group(1)] = {
+            "dark": from_hex("#" + m.group(2)),
+            "light": from_hex("#" + m.group(3)),
+        }
     for m in _CPP_SOURCE_RET.finditer(text):
-        sources[m.group(1)] = {"dark": from_hex("#" + m.group(2)), "light": None}
+        sources.setdefault(m.group(1), {"dark": from_hex("#" + m.group(2)), "light": None})
     alpha = 255
     am = _CPP_SOURCE_ALPHA.search(text)
     if am:

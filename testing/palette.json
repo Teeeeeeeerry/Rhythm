@@ -51,19 +51,19 @@
   "sources": {
     "bilibili": {
       "dark": "#C88DA8",
-      "light": null
+      "light": "#8C4D68"
     },
     "direct_url": {
       "dark": "#8CB89A",
-      "light": null
+      "light": "#4C785A"
     },
     "local": {
       "dark": "#8ABCD0",
-      "light": null
+      "light": "#3A7A8C"
     },
     "youtube": {
       "dark": "#D49573",
-      "light": null
+      "light": "#8B4A28"
     }
   },
   "usage": {

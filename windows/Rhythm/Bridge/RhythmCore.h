@@ -5,6 +5,15 @@
 
 namespace rhythm {
 
+/// Effective app theme: the app never pins `Application.RequestedTheme`, so
+/// the UI follows the system (the same resolution ThemeDictionaries use for
+/// `ActualTheme`). Light foreground text ⇒ dark system theme.
+inline bool IsDarkTheme() {
+    auto fg = winrt::Windows::UI::ViewManagement::UISettings()
+                  .GetColorValue(winrt::Windows::UI::ViewManagement::UIColorType::Foreground);
+    return (fg.R + fg.G + fg.B) / 3 >= 128;
+}
+
 struct Track {
     int64_t id = 0;
     std::optional<std::wstring> filePath;
@@ -44,12 +53,20 @@ struct Track {
         return L"";
     }
 
+    /// Badge foreground colour for a source type, theme-aware (F1, #121).
+    /// Dark/light values mirror macOS Theme.swift `rhythmSource*`.
+    /// Unknown sources fall back to the teal text colour — never system Gray (F4).
+    std::wstring SourceColor(std::wstring_view sourceType, bool isDarkTheme) const {
+        if (sourceType == L"local")      return isDarkTheme ? L"#8ABCD0" : L"#3A7A8C";
+        if (sourceType == L"youtube")    return isDarkTheme ? L"#D49573" : L"#8B4A28";
+        if (sourceType == L"bilibili")   return isDarkTheme ? L"#C88DA8" : L"#8C4D68";
+        if (sourceType == L"direct_url") return isDarkTheme ? L"#8CB89A" : L"#4C785A";
+        return isDarkTheme ? L"#ABC8D4" : L"#0D464D";  // teal textPrimary
+    }
+
+    /// Binding surface: resolves the effective theme (see `IsDarkTheme`).
     std::wstring SourceColor() const {
-        if (sourceType == L"local") return L"#8ABCD0";
-        if (sourceType == L"youtube") return L"#D49573";
-        if (sourceType == L"bilibili") return L"#C88DA8";
-        if (sourceType == L"direct_url") return L"#8CB89A";
-        return L"Gray";
+        return SourceColor(sourceType, IsDarkTheme());
     }
 
     /// Capsule badge background brush — foreground colour at 15 % opacity,

@@ -13,6 +13,7 @@
 #include <winrt/Windows.Storage.h>
 #include <winrt/Windows.Storage.Pickers.h>
 #include <winrt/Windows.System.h>
+#include <winrt/Windows.UI.ViewManagement.h>
 
 #include <string>
 #include <vector>

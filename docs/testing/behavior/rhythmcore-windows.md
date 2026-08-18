@@ -10,7 +10,7 @@
 |---|---|---|---|
 | WB-01 | `Track::DurationFormatted` | 秒 → `m:ss` 格式（秒位零填充） | 新测 |
 | WB-02 | `Track::SourceTag` | local→本地、youtube→YT、bilibili→B站、direct_url→链接、未知→空串 | 新测 |
-| WB-03 | `Track::SourceColor` | 四种来源各自色值；未知 → "Gray"。（F1 修复后签名可能带 theme 参数，测试随修复更新） | 新测 |
+| WB-03 | `Track::SourceColor(sourceType, isDarkTheme)` | 四种来源 dark/light 双端色值（与 macOS Theme.swift 一致，#121）；未知来源回退 teal 文字色（dark `#ABC8D4` / light `#0D464D`），非系统 Gray（F4） | 新测 |
 | WB-04 | `Track::SourceBackgroundBrush` | A=38 的 SolidColorBrush、RGB 与 SourceColor 一致、未知回退灰 | 新测（apartment） |
 | WB-05 | `JsonToTrack`/`TrackToJson` 往返 | 各字段保真；null 可选字段 → `nullopt`；缺省字段取默认（#101 已修复：album_artist/genre/file_size/date_added/last_played 全部解析；date_added 由 DB 插入时盖章、last_played 新插入为 NULL） | 新测（待 Windows 验证） |
 | WB-06 | `Utf8ToWide`/`WideToUtf8` 往返 | 中文/emoji 标题转换无损坏；空串安全 | 新测 |
