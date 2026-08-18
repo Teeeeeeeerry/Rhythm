@@ -3,6 +3,15 @@
 //! All functions use opaque pointers to pass Rust objects across FFI boundaries.
 //! The UI layer creates/destroys objects via these functions and never accesses
 //! Rust internals directly.
+//!
+//! # Safety (#143)
+//!
+//! Every export taking raw pointers is declared `unsafe extern "C"`: callers
+//! must pass pointers that are valid for the handle's lifetime and, for
+//! `*const c_char`, NUL-terminated. Null pointers are handled by each export
+//! (or its helpers): error/no-op for handles, empty input for strings. The
+//! keyword is invisible to C/C++/Swift callers but states the contract
+//! honestly.
 
 use crate::audio::AudioEngine;
 use crate::library::Library;
@@ -61,7 +70,10 @@ fn json_to_track(json: &str) -> Option<TrackInfo> {
 /// Create a new library, opening or creating the database at `db_path`.
 /// Returns an opaque pointer to the Library, or null on error.
 #[no_mangle]
-pub extern "C" fn rhythm_library_open(db_path: *const c_char) -> *mut RhythmLibrary {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_open(db_path: *const c_char) -> *mut RhythmLibrary {
     let path = unsafe { c_str_to_str(db_path) };
     match Library::open(Path::new(path)) {
         Ok(lib) => Box::into_raw(Box::new(RhythmLibrary(lib))),
@@ -74,7 +86,10 @@ pub extern "C" fn rhythm_library_open(db_path: *const c_char) -> *mut RhythmLibr
 
 /// Destroy a library handle and free resources.
 #[no_mangle]
-pub extern "C" fn rhythm_library_close(ptr: *mut RhythmLibrary) {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_close(ptr: *mut RhythmLibrary) {
     if !ptr.is_null() {
         unsafe {
             let _ = Box::from_raw(ptr);
@@ -85,7 +100,10 @@ pub extern "C" fn rhythm_library_close(ptr: *mut RhythmLibrary) {
 /// Scan a directory and import all audio files into the library.
 /// Returns the number of tracks imported, or -1 on error.
 #[no_mangle]
-pub extern "C" fn rhythm_library_import(ptr: *mut RhythmLibrary, dir: *const c_char) -> i32 {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_import(ptr: *mut RhythmLibrary, dir: *const c_char) -> i32 {
     if ptr.is_null() {
         return -1;
     }
@@ -104,7 +122,10 @@ pub extern "C" fn rhythm_library_import(ptr: *mut RhythmLibrary, dir: *const c_c
 /// Returns 1 on success, 0 if the file is not a supported audio format,
 /// or -1 on error.
 #[no_mangle]
-pub extern "C" fn rhythm_library_import_file(
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_import_file(
     ptr: *mut RhythmLibrary,
     file_path: *const c_char,
 ) -> i32 {
@@ -114,7 +135,7 @@ pub extern "C" fn rhythm_library_import_file(
     let lib = unsafe { &(*ptr).0 };
     let path = unsafe { c_str_to_str(file_path) };
     match lib.import_file(Path::new(path)) {
-        Ok(count) => count as i32,
+        Ok(count) => count,
         // Unsupported format → 0 per the documented contract (#79).
         Err(crate::RhythmError::UnsupportedFormat(msg)) => {
             log::warn!("Import file skipped: {msg}");
@@ -129,7 +150,10 @@ pub extern "C" fn rhythm_library_import_file(
 
 /// Get all tracks as a JSON string. Caller must free with `rhythm_free_string`.
 #[no_mangle]
-pub extern "C" fn rhythm_library_get_all_tracks(ptr: *mut RhythmLibrary) -> *mut c_char {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_get_all_tracks(ptr: *mut RhythmLibrary) -> *mut c_char {
     if ptr.is_null() {
         return std::ptr::null_mut();
     }
@@ -142,7 +166,10 @@ pub extern "C" fn rhythm_library_get_all_tracks(ptr: *mut RhythmLibrary) -> *mut
 
 /// Search the library. Returns JSON array of matching tracks.
 #[no_mangle]
-pub extern "C" fn rhythm_library_search(
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_search(
     ptr: *mut RhythmLibrary,
     query: *const c_char,
 ) -> *mut c_char {
@@ -159,7 +186,10 @@ pub extern "C" fn rhythm_library_search(
 
 /// Add a track from JSON. Returns the track with its database ID, or null.
 #[no_mangle]
-pub extern "C" fn rhythm_library_add_track(
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_add_track(
     ptr: *mut RhythmLibrary,
     track_json: *const c_char,
 ) -> *mut c_char {
@@ -180,7 +210,10 @@ pub extern "C" fn rhythm_library_add_track(
 
 /// Remove a track by ID. Returns 0 on success, -1 on error.
 #[no_mangle]
-pub extern "C" fn rhythm_library_remove_track(ptr: *mut RhythmLibrary, track_id: i64) -> i32 {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_remove_track(ptr: *mut RhythmLibrary, track_id: i64) -> i32 {
     if ptr.is_null() {
         return -1;
     }
@@ -193,7 +226,10 @@ pub extern "C" fn rhythm_library_remove_track(ptr: *mut RhythmLibrary, track_id:
 
 /// Verify all local files exist. Returns JSON array of unavailable track IDs.
 #[no_mangle]
-pub extern "C" fn rhythm_library_verify_files(ptr: *mut RhythmLibrary) -> *mut c_char {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_verify_files(ptr: *mut RhythmLibrary) -> *mut c_char {
     if ptr.is_null() {
         return std::ptr::null_mut();
     }
@@ -206,7 +242,10 @@ pub extern "C" fn rhythm_library_verify_files(ptr: *mut RhythmLibrary) -> *mut c
 
 /// Get all playlists as JSON.
 #[no_mangle]
-pub extern "C" fn rhythm_library_get_playlists(ptr: *mut RhythmLibrary) -> *mut c_char {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_get_playlists(ptr: *mut RhythmLibrary) -> *mut c_char {
     if ptr.is_null() {
         return std::ptr::null_mut();
     }
@@ -219,7 +258,10 @@ pub extern "C" fn rhythm_library_get_playlists(ptr: *mut RhythmLibrary) -> *mut 
 
 /// Create a new playlist. Returns the playlist ID, or -1 on error.
 #[no_mangle]
-pub extern "C" fn rhythm_library_create_playlist(
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_create_playlist(
     ptr: *mut RhythmLibrary,
     name: *const c_char,
     description: *const c_char,
@@ -233,15 +275,15 @@ pub extern "C" fn rhythm_library_create_playlist(
         let s = c_str_to_str(description);
         if s.is_empty() { None } else { Some(s) }
     };
-    match lib.create_playlist(n, d) {
-        Ok(id) => id,
-        Err(_) => -1,
-    }
+    lib.create_playlist(n, d).unwrap_or(-1)
 }
 
 /// Add a track to a playlist. Returns 0 on success.
 #[no_mangle]
-pub extern "C" fn rhythm_library_playlist_add(
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_playlist_add(
     ptr: *mut RhythmLibrary,
     playlist_id: i64,
     track_id: i64,
@@ -258,7 +300,10 @@ pub extern "C" fn rhythm_library_playlist_add(
 
 /// Remove a track from a playlist. Returns 0 on success.
 #[no_mangle]
-pub extern "C" fn rhythm_library_playlist_remove(
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_playlist_remove(
     ptr: *mut RhythmLibrary,
     playlist_id: i64,
     track_id: i64,
@@ -275,7 +320,10 @@ pub extern "C" fn rhythm_library_playlist_remove(
 
 /// Delete a playlist entirely. Returns 0 on success.
 #[no_mangle]
-pub extern "C" fn rhythm_library_delete_playlist(ptr: *mut RhythmLibrary, playlist_id: i64) -> i32 {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_delete_playlist(ptr: *mut RhythmLibrary, playlist_id: i64) -> i32 {
     if ptr.is_null() {
         return -1;
     }
@@ -288,7 +336,10 @@ pub extern "C" fn rhythm_library_delete_playlist(ptr: *mut RhythmLibrary, playli
 
 /// Mark a track as played (update last_played and play_count).
 #[no_mangle]
-pub extern "C" fn rhythm_library_record_play(ptr: *mut RhythmLibrary, track_id: i64) -> i32 {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_record_play(ptr: *mut RhythmLibrary, track_id: i64) -> i32 {
     if ptr.is_null() {
         return -1;
     }
@@ -303,7 +354,10 @@ pub extern "C" fn rhythm_library_record_play(ptr: *mut RhythmLibrary, track_id: 
 
 /// Extract metadata from a local audio file. Returns JSON TrackInfo, or null.
 #[no_mangle]
-pub extern "C" fn rhythm_metadata_extract(path: *const c_char) -> *mut c_char {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_metadata_extract(path: *const c_char) -> *mut c_char {
     let p = unsafe { c_str_to_str(path) };
     match metadata::extract_track_info(Path::new(p)) {
         Ok(track) => str_to_c_string(&track_to_json(&track)),
@@ -313,7 +367,10 @@ pub extern "C" fn rhythm_metadata_extract(path: *const c_char) -> *mut c_char {
 
 /// Scan a directory for audio files. Returns JSON array of TrackInfo.
 #[no_mangle]
-pub extern "C" fn rhythm_metadata_scan(dir: *const c_char) -> *mut c_char {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_metadata_scan(dir: *const c_char) -> *mut c_char {
     let p = unsafe { c_str_to_str(dir) };
     match metadata::scan_directory(Path::new(p)) {
         Ok(tracks) => str_to_c_string(&serde_json::to_string(&tracks).unwrap_or_default()),
@@ -324,7 +381,10 @@ pub extern "C" fn rhythm_metadata_scan(dir: *const c_char) -> *mut c_char {
 /// Extract cover art from a local audio file and save to cache directory.
 /// Returns the file path of the saved artwork, or null if none found.
 #[no_mangle]
-pub extern "C" fn rhythm_metadata_extract_artwork(
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_metadata_extract_artwork(
     file_path: *const c_char,
     cache_dir: *const c_char,
 ) -> *mut c_char {
@@ -348,7 +408,10 @@ pub extern "C" fn rhythm_player_create() -> *mut RhythmPlayer {
 
 /// Destroy a player handle.
 #[no_mangle]
-pub extern "C" fn rhythm_player_destroy(ptr: *mut RhythmPlayer) {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_destroy(ptr: *mut RhythmPlayer) {
     if !ptr.is_null() {
         let player = unsafe { Box::from_raw(ptr) };
         player.0.stop();
@@ -357,7 +420,10 @@ pub extern "C" fn rhythm_player_destroy(ptr: *mut RhythmPlayer) {
 
 /// Play a local file by path. Returns 0 on success.
 #[no_mangle]
-pub extern "C" fn rhythm_player_play_file(
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_play_file(
     ptr: *mut RhythmPlayer,
     path: *const c_char,
 ) -> i32 {
@@ -374,7 +440,10 @@ pub extern "C" fn rhythm_player_play_file(
 
 /// Play a URL stream. Returns 0 on success.
 #[no_mangle]
-pub extern "C" fn rhythm_player_play_url(
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_play_url(
     ptr: *mut RhythmPlayer,
     url: *const c_char,
 ) -> i32 {
@@ -391,7 +460,10 @@ pub extern "C" fn rhythm_player_play_url(
 
 /// Pause playback.
 #[no_mangle]
-pub extern "C" fn rhythm_player_pause(ptr: *mut RhythmPlayer) {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_pause(ptr: *mut RhythmPlayer) {
     if let Some(player) = unsafe { ptr.as_ref() } {
         player.0.pause();
     }
@@ -399,7 +471,10 @@ pub extern "C" fn rhythm_player_pause(ptr: *mut RhythmPlayer) {
 
 /// Resume playback.
 #[no_mangle]
-pub extern "C" fn rhythm_player_resume(ptr: *mut RhythmPlayer) {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_resume(ptr: *mut RhythmPlayer) {
     if let Some(player) = unsafe { ptr.as_ref() } {
         player.0.resume();
     }
@@ -407,7 +482,10 @@ pub extern "C" fn rhythm_player_resume(ptr: *mut RhythmPlayer) {
 
 /// Stop playback.
 #[no_mangle]
-pub extern "C" fn rhythm_player_stop(ptr: *mut RhythmPlayer) {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_stop(ptr: *mut RhythmPlayer) {
     if let Some(player) = unsafe { ptr.as_ref() } {
         player.0.stop();
     }
@@ -415,7 +493,10 @@ pub extern "C" fn rhythm_player_stop(ptr: *mut RhythmPlayer) {
 
 /// Set volume (0.0 - 1.0).
 #[no_mangle]
-pub extern "C" fn rhythm_player_set_volume(ptr: *mut RhythmPlayer, volume: f32) {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_set_volume(ptr: *mut RhythmPlayer, volume: f32) {
     if let Some(player) = unsafe { ptr.as_ref() } {
         player.0.set_volume(volume);
     }
@@ -423,14 +504,20 @@ pub extern "C" fn rhythm_player_set_volume(ptr: *mut RhythmPlayer, volume: f32) 
 
 /// Get current volume.
 #[no_mangle]
-pub extern "C" fn rhythm_player_get_volume(ptr: *mut RhythmPlayer) -> f32 {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_get_volume(ptr: *mut RhythmPlayer) -> f32 {
     unsafe { ptr.as_ref().map(|p| p.0.volume()).unwrap_or(0.0) }
 }
 
 /// Seek to a position in seconds. Returns 0 on success, -1 on error
 /// (null pointer, negative position, or position out of range).
 #[no_mangle]
-pub extern "C" fn rhythm_player_seek(ptr: *mut RhythmPlayer, seconds: f64) -> i32 {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_seek(ptr: *mut RhythmPlayer, seconds: f64) -> i32 {
     if ptr.is_null() {
         return -1;
     }
@@ -443,19 +530,28 @@ pub extern "C" fn rhythm_player_seek(ptr: *mut RhythmPlayer, seconds: f64) -> i3
 
 /// Get current playback position in seconds.
 #[no_mangle]
-pub extern "C" fn rhythm_player_get_position(ptr: *mut RhythmPlayer) -> f64 {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_get_position(ptr: *mut RhythmPlayer) -> f64 {
     unsafe { ptr.as_ref().map(|p| p.0.position()).unwrap_or(0.0) }
 }
 
 /// Get media duration in seconds.
 #[no_mangle]
-pub extern "C" fn rhythm_player_get_duration(ptr: *mut RhythmPlayer) -> f64 {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_get_duration(ptr: *mut RhythmPlayer) -> f64 {
     unsafe { ptr.as_ref().map(|p| p.0.duration()).unwrap_or(0.0) }
 }
 
 /// Get player state: 0=Stopped, 1=Playing, 2=Paused, 3=Buffering, 4=Error, 5=Finished
 #[no_mangle]
-pub extern "C" fn rhythm_player_get_state(ptr: *mut RhythmPlayer) -> i32 {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_get_state(ptr: *mut RhythmPlayer) -> i32 {
     unsafe {
         ptr.as_ref()
             .map(|p| match p.0.state() {
@@ -476,7 +572,10 @@ pub extern "C" fn rhythm_player_get_state(ptr: *mut RhythmPlayer) -> i32 {
 /// explanation — which is exactly how a 403 from a CDN used to look. Free
 /// with `rhythm_free_string`.
 #[no_mangle]
-pub extern "C" fn rhythm_player_error(ptr: *mut RhythmPlayer) -> *mut c_char {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_error(ptr: *mut RhythmPlayer) -> *mut c_char {
     unsafe {
         match ptr.as_ref().map(|p| p.0.state()) {
             Some(PlayerState::Error(message)) => str_to_c_string(&message),
@@ -493,7 +592,10 @@ pub extern "C" fn rhythm_player_error(ptr: *mut RhythmPlayer) -> *mut c_char {
 /// true for `expired`) and "the CDN rejected your network" (`cdn_rejected`).
 /// Free with `rhythm_free_string`.
 #[no_mangle]
-pub extern "C" fn rhythm_player_error_kind(ptr: *mut RhythmPlayer) -> *mut c_char {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_player_error_kind(ptr: *mut RhythmPlayer) -> *mut c_char {
     use crate::HttpErrorKind;
     unsafe {
         match ptr.as_ref().and_then(|p| p.0.last_error_kind()) {
@@ -531,7 +633,10 @@ fn clear_last_resolve_error() {
 /// Resolve a URL to a playable stream. Returns JSON ResolvedUrl, or null on
 /// failure — call `rhythm_last_error` for the reason.
 #[no_mangle]
-pub extern "C" fn rhythm_resolve_url(url: *const c_char) -> *mut c_char {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_resolve_url(url: *const c_char) -> *mut c_char {
     let u = unsafe { c_str_to_str(url) };
     match resolver::resolve_url(u) {
         Ok(resolved) => {
@@ -547,7 +652,10 @@ pub extern "C" fn rhythm_resolve_url(url: *const c_char) -> *mut c_char {
 
 /// Classify a URL. Returns the source type string ("youtube", "bilibili", "direct_url", "local").
 #[no_mangle]
-pub extern "C" fn rhythm_classify_url(url: *const c_char) -> *mut c_char {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_classify_url(url: *const c_char) -> *mut c_char {
     let u = unsafe { c_str_to_str(url) };
     match resolver::classify_url(u) {
         Ok(source_type) => str_to_c_string(&source_type.to_string()),
@@ -610,7 +718,10 @@ pub extern "C" fn rhythm_install_ytdlp() -> *mut c_char {
 /// Create a new play queue from a JSON array of tracks.
 /// Returns opaque handle, or null on error.
 #[no_mangle]
-pub extern "C" fn rhythm_queue_create(tracks_json: *const c_char) -> *mut RhythmQueue {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_queue_create(tracks_json: *const c_char) -> *mut RhythmQueue {
     let json = unsafe { c_str_to_str(tracks_json) };
     let tracks: Vec<TrackInfo> = match serde_json::from_str(json) {
         Ok(t) => t,
@@ -621,7 +732,10 @@ pub extern "C" fn rhythm_queue_create(tracks_json: *const c_char) -> *mut Rhythm
 
 /// Destroy a queue handle.
 #[no_mangle]
-pub extern "C" fn rhythm_queue_destroy(ptr: *mut RhythmQueue) {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_queue_destroy(ptr: *mut RhythmQueue) {
     if !ptr.is_null() {
         unsafe { let _ = Box::from_raw(ptr); }
     }
@@ -629,7 +743,10 @@ pub extern "C" fn rhythm_queue_destroy(ptr: *mut RhythmQueue) {
 
 /// Get the current track as JSON. Caller must free with `rhythm_free_string`.
 #[no_mangle]
-pub extern "C" fn rhythm_queue_current(ptr: *mut RhythmQueue) -> *mut c_char {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_queue_current(ptr: *mut RhythmQueue) -> *mut c_char {
     if ptr.is_null() { return std::ptr::null_mut(); }
     let q = unsafe { &(*ptr).0 };
     let guard = q.lock().unwrap();
@@ -641,11 +758,14 @@ pub extern "C" fn rhythm_queue_current(ptr: *mut RhythmQueue) -> *mut c_char {
 
 /// Advance to the next track and return it as JSON. Returns null if exhausted.
 #[no_mangle]
-pub extern "C" fn rhythm_queue_next(ptr: *mut RhythmQueue) -> *mut c_char {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_queue_next(ptr: *mut RhythmQueue) -> *mut c_char {
     if ptr.is_null() { return std::ptr::null_mut(); }
     let q = unsafe { &(*ptr).0 };
     let mut guard = q.lock().unwrap();
-    match guard.next() {
+    match guard.advance() {
         Some(t) => str_to_c_string(&serde_json::to_string(t).unwrap_or_default()),
         None => std::ptr::null_mut(),
     }
@@ -653,7 +773,10 @@ pub extern "C" fn rhythm_queue_next(ptr: *mut RhythmQueue) -> *mut c_char {
 
 /// Move to the previous track and return it as JSON.
 #[no_mangle]
-pub extern "C" fn rhythm_queue_previous(ptr: *mut RhythmQueue) -> *mut c_char {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_queue_previous(ptr: *mut RhythmQueue) -> *mut c_char {
     if ptr.is_null() { return std::ptr::null_mut(); }
     let q = unsafe { &(*ptr).0 };
     let mut guard = q.lock().unwrap();
@@ -665,7 +788,10 @@ pub extern "C" fn rhythm_queue_previous(ptr: *mut RhythmQueue) -> *mut c_char {
 
 /// Set the play mode: 0=Sequential, 1=Shuffle, 2=SingleLoop, 3=ListLoop
 #[no_mangle]
-pub extern "C" fn rhythm_queue_set_mode(ptr: *mut RhythmQueue, mode: i32) {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_queue_set_mode(ptr: *mut RhythmQueue, mode: i32) {
     if ptr.is_null() { return; }
     let q = unsafe { &(*ptr).0 };
     let mut guard = q.lock().unwrap();
@@ -674,7 +800,10 @@ pub extern "C" fn rhythm_queue_set_mode(ptr: *mut RhythmQueue, mode: i32) {
 
 /// Jump to a specific track by ID. Returns 0 on success, -1 if not found.
 #[no_mangle]
-pub extern "C" fn rhythm_queue_jump_to(ptr: *mut RhythmQueue, track_id: i64) -> i32 {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_queue_jump_to(ptr: *mut RhythmQueue, track_id: i64) -> i32 {
     if ptr.is_null() { return -1; }
     let q = unsafe { &(*ptr).0 };
     let mut guard = q.lock().unwrap();
@@ -683,7 +812,10 @@ pub extern "C" fn rhythm_queue_jump_to(ptr: *mut RhythmQueue, track_id: i64) -> 
 
 /// Replace the queue contents with a new track list.
 #[no_mangle]
-pub extern "C" fn rhythm_queue_replace(ptr: *mut RhythmQueue, tracks_json: *const c_char) {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_queue_replace(ptr: *mut RhythmQueue, tracks_json: *const c_char) {
     if ptr.is_null() { return; }
     let json = unsafe { c_str_to_str(tracks_json) };
     let tracks: Vec<TrackInfo> = match serde_json::from_str(json) {
@@ -697,7 +829,10 @@ pub extern "C" fn rhythm_queue_replace(ptr: *mut RhythmQueue, tracks_json: *cons
 
 /// Whether the queue has a next track. Returns 1 for true, 0 for false.
 #[no_mangle]
-pub extern "C" fn rhythm_queue_has_next(ptr: *mut RhythmQueue) -> i32 {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_queue_has_next(ptr: *mut RhythmQueue) -> i32 {
     if ptr.is_null() { return 0; }
     let q = unsafe { &(*ptr).0 };
     q.lock().unwrap().has_next() as i32
@@ -705,7 +840,10 @@ pub extern "C" fn rhythm_queue_has_next(ptr: *mut RhythmQueue) -> i32 {
 
 /// Whether the queue has a previous track.
 #[no_mangle]
-pub extern "C" fn rhythm_queue_has_previous(ptr: *mut RhythmQueue) -> i32 {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_queue_has_previous(ptr: *mut RhythmQueue) -> i32 {
     if ptr.is_null() { return 0; }
     let q = unsafe { &(*ptr).0 };
     q.lock().unwrap().has_previous() as i32
@@ -715,7 +853,10 @@ pub extern "C" fn rhythm_queue_has_previous(ptr: *mut RhythmQueue) -> i32 {
 
 /// Export tracks to an M3U8 file. Returns 0 on success.
 #[no_mangle]
-pub extern "C" fn rhythm_export_m3u8(
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_export_m3u8(
     path: *const c_char,
     tracks_json: *const c_char,
 ) -> i32 {
@@ -735,7 +876,10 @@ pub extern "C" fn rhythm_export_m3u8(
 
 /// Import an M3U8 file. Returns JSON array of entries.
 #[no_mangle]
-pub extern "C" fn rhythm_import_m3u8(path: *const c_char) -> *mut c_char {
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_import_m3u8(path: *const c_char) -> *mut c_char {
     let p = unsafe { c_str_to_str(path) };
     match playlist::import_m3u8(Path::new(p)) {
         Ok(entries) => str_to_c_string(&serde_json::to_string(&entries).unwrap_or_default()),

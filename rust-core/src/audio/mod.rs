@@ -25,6 +25,9 @@ use resampler::Resampler;
 /// (docs/testing/behavior/audio-engine.md, AE-04/AE-05/AE-28).
 pub type UrlResolver = Arc<dyn Fn(&str) -> ResolveResult<ResolvedUrl> + Send + Sync>;
 
+/// Cache-eviction seam for the #120 recovery (#143: factored type).
+type Evictor = Arc<dyn Fn(&str) + Send + Sync>;
+
 /// Decode seam: everything the playback loop needs from a decoder.
 ///
 /// `AudioDecoder` (symphonia) is the production implementation; tests inject
@@ -69,7 +72,7 @@ pub struct AudioEngine {
     /// would hand back the same dead link.
     fresh_resolver: Option<UrlResolver>,
     /// Cache eviction for the #120 recovery; wired only in production.
-    evictor: Option<Arc<dyn Fn(&str) + Send + Sync>>,
+    evictor: Option<Evictor>,
 }
 
 struct EngineInner {
@@ -83,6 +86,12 @@ struct EngineInner {
     /// Classification of the last playback failure, when it was an HTTP one
     /// (#120). Lets the UI say "the link expired" vs "the CDN rejected it".
     last_http_error: Option<HttpErrorKind>,
+}
+
+impl Default for AudioEngine {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AudioEngine {
@@ -271,10 +280,12 @@ impl AudioEngine {
                 pre_state,
                 open_decoder,
                 open_sink,
-                inner.clone(),
-                state_cb.clone(),
-                progress_cb,
-                generation,
+                PlaybackContext {
+                    inner: inner.clone(),
+                    state_cb: state_cb.clone(),
+                    progress_cb,
+                    generation,
+                },
                 my_gen,
             ) {
                 log::error!("Playback error: {e}");
@@ -315,10 +326,12 @@ impl AudioEngine {
             pre_state,
             open_decoder,
             open_sink,
-            self.inner.clone(),
-            self.state_callback.clone(),
-            self.progress_callback.clone(),
-            self.generation.clone(),
+            PlaybackContext {
+                inner: self.inner.clone(),
+                state_cb: self.state_callback.clone(),
+                progress_cb: self.progress_callback.clone(),
+                generation: self.generation.clone(),
+            },
             my_gen,
         )
     }
@@ -453,21 +466,29 @@ pub fn open_resolved_stream(
     Ok((decoder, Some(resolved.duration)))
 }
 
+/// Shared engine state handed to the playback driver threads (#143: factors
+/// the four `Arc`s so `drive_playback`/`run_playback_loop` stay under the
+/// clippy argument-count limit).
+struct PlaybackContext {
+    inner: Arc<Mutex<EngineInner>>,
+    state_cb: Arc<Mutex<Option<StateCallback>>>,
+    progress_cb: Arc<Mutex<Option<ProgressCallback>>>,
+    generation: Arc<AtomicU64>,
+}
+
 fn drive_playback<D, S>(
     source: String,
     pre_state: PlayerState,
     open_decoder: impl FnOnce() -> RhythmResult<(D, Option<f64>)>,
     open_sink: impl FnOnce(&D) -> RhythmResult<S>,
-    inner: Arc<Mutex<EngineInner>>,
-    state_cb: Arc<Mutex<Option<StateCallback>>>,
-    progress_cb: Arc<Mutex<Option<ProgressCallback>>>,
-    generation: Arc<AtomicU64>,
+    ctx: PlaybackContext,
     my_gen: u64,
 ) -> RhythmResult<()>
 where
     D: Decoder,
     S: Sink,
 {
+    let PlaybackContext { inner, state_cb, generation, .. } = &ctx;
     // Files record their source before the (fast) open, URLs only once the
     // stream actually opened — a failed resolve must not clobber the source
     // of the track that was playing.
@@ -476,7 +497,7 @@ where
     }
     // #134: a `stop()` / newer `play_*` racing in before this thread even
     // starts must not be overwritten by this stale thread's pre-open state.
-    set_state_if_current(&inner, &state_cb, &generation, my_gen, pre_state.clone());
+    set_state_if_current(inner, state_cb, generation, my_gen, pre_state.clone());
 
     let (mut decoder, fallback_duration) = open_decoder()?;
 
@@ -501,7 +522,7 @@ where
         if eng.state == pre_state {
             eng.state = PlayerState::Playing;
             drop(eng);
-            emit(&state_cb, PlayerState::Playing);
+            emit(state_cb, PlayerState::Playing);
         }
     }
 
@@ -513,7 +534,7 @@ where
     } else {
         fallback_duration.unwrap_or(0.0)
     };
-    set_duration(&inner, duration);
+    set_duration(inner, duration);
 
     let mut output = open_sink(&decoder)?;
     let out_rate = output.sample_rate();
@@ -521,16 +542,7 @@ where
     let mut resampler =
         Resampler::new(decoder.sample_rate(), decoder.channels(), out_rate, out_channels);
 
-    run_playback_loop(
-        &mut decoder,
-        &mut output,
-        &mut resampler,
-        inner,
-        state_cb,
-        progress_cb,
-        generation,
-        my_gen,
-    )
+    run_playback_loop(&mut decoder, &mut output, &mut resampler, ctx, my_gen)
 }
 
 /// Shared decode → resample → output loop. Applies pending seeks, pause, and
@@ -543,12 +555,10 @@ fn run_playback_loop<D: Decoder + ?Sized, S: Sink + ?Sized>(
     decoder: &mut D,
     output: &mut S,
     resampler: &mut Resampler,
-    inner: Arc<Mutex<EngineInner>>,
-    state_cb: Arc<Mutex<Option<StateCallback>>>,
-    progress_cb: Arc<Mutex<Option<ProgressCallback>>>,
-    generation: Arc<AtomicU64>,
+    ctx: PlaybackContext,
     my_gen: u64,
 ) -> RhythmResult<()> {
+    let PlaybackContext { inner, state_cb, progress_cb, generation } = ctx;
     let out_rate = output.sample_rate();
     let out_channels = output.channels();
 

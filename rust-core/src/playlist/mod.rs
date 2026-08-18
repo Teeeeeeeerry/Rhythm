@@ -8,6 +8,9 @@ use crate::{RhythmResult, TrackInfo};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 
+/// One imported M3U8 entry: (title, location, artist) (#143: factored type).
+pub type M3u8Entry = (String, Option<String>, Option<String>);
+
 /// Export tracks to an M3U8 playlist file.
 pub fn export_m3u8(path: &Path, tracks: &[TrackInfo]) -> RhythmResult<()> {
     let mut file = std::fs::File::create(path)?;
@@ -39,11 +42,11 @@ pub fn export_m3u8(path: &Path, tracks: &[TrackInfo]) -> RhythmResult<()> {
 /// Import an M3U8 playlist file.
 /// Returns a list of (title, file_path_or_url) pairs.
 /// Does NOT add tracks to the database — the caller should do that.
-pub fn import_m3u8(path: &Path) -> RhythmResult<Vec<(String, Option<String>, Option<String>)>> {
+pub fn import_m3u8(path: &Path) -> RhythmResult<Vec<M3u8Entry>> {
     let file = std::fs::File::open(path)?;
     let reader = BufReader::new(file);
 
-    let mut entries: Vec<(String, Option<String>, Option<String>)> = Vec::new();
+    let mut entries: Vec<M3u8Entry> = Vec::new();
     let mut current_title: Option<String> = None;
     let mut current_artist: Option<String> = None;
 

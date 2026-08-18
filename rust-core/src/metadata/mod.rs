@@ -194,8 +194,8 @@ fn extract_with_lofty(path: &Path) -> RhythmResult<RawMetadata> {
 
     let properties = tagged_file.properties();
     let duration = properties.duration().as_secs_f64();
-    let bitrate = properties.audio_bitrate().map(|b| b as u32);
-    let sample_rate = properties.sample_rate().map(|s| s as u32);
+    let bitrate = properties.audio_bitrate();
+    let sample_rate = properties.sample_rate();
     let channels = properties.channels().map(|c| c as u16);
 
     let tag = tagged_file.primary_tag();
@@ -267,7 +267,7 @@ fn extract_with_symphonia(path: &Path) -> RhythmResult<RawMetadata> {
         year: None,
         duration,
         format: Some(format!("{:?}", codec_params.codec).to_lowercase()),
-        bitrate: codec_params.bits_per_sample.map(|b| b as u32),
+        bitrate: codec_params.bits_per_sample,
         sample_rate: codec_params.sample_rate,
         channels: codec_params.channels.map(|c| c.count() as u16),
     })

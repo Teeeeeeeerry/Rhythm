@@ -1115,7 +1115,7 @@ fn extract_stream(
         // Prefer audio-only formats, then fall back to any.
         for fmt in formats {
             let is_audio = fmt["vcodec"].as_str() == Some("none")
-                || fmt["acodec"].as_str().map_or(false, |a| a != "none");
+                || fmt["acodec"].as_str().is_some_and(|a| a != "none");
             if is_audio {
                 if let Some(u) = fmt["url"].as_str() {
                     return Ok((u.to_string(), format_headers(fmt, &top_level)));

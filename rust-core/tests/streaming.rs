@@ -82,7 +82,7 @@ fn test_http_stream_seek_backwards_issues_range() {
     let mut stream = HttpStream::open(&server.url()).unwrap();
     // Read the first 2048 bytes.
     let mut buf = [0u8; 2048];
-    stream.read(&mut buf).unwrap();
+    stream.read_exact(&mut buf).unwrap();
     assert_eq!(buf[..4], 0u32.to_le_bytes());
 
     // Seek back to byte 1024 (= u32 index 256) and read from there. Reads may
@@ -164,8 +164,10 @@ fn test_http_stream_relative_seek_after_absolute_seek() {
     stream.wait_initial_buffered().unwrap();
 
     // Absolute seek, then a relative no-op before any read: the reported
-    // position must not drift.
+    // position must not drift. `Current(0)` is deliberately tested as the
+    // relative-seek no-op (#143, clippy::seek_from_current).
     stream.seek(SeekFrom::Start(2048)).unwrap();
+    #[allow(clippy::seek_from_current)]
     let here = stream.seek(SeekFrom::Current(0)).unwrap();
     assert_eq!(here, 2048, "relative seek resolved against a stale read_pos");
 

@@ -139,34 +139,32 @@ impl Decoder for FakeDecoder {
                 return Ok(None);
             }
         }
-        loop {
-            match self.steps.get(self.next) {
-                Some(Step::Packet { pcm, position }) => {
-                    self.next += 1;
-                    self.position = *position;
-                    return Ok(Some(pcm.clone()));
-                }
-                Some(Step::Fail(msg)) => {
-                    self.next += 1;
-                    return Err(RhythmError::Decode((*msg).to_string()));
-                }
-                Some(Step::End) => {
-                    self.next += 1;
-                    return Ok(None);
-                }
-                None => match &self.tail {
-                    Some((pcm, position)) => {
-                        if let Some(delay) = self.tail_delay {
-                            thread::sleep(delay);
-                        }
-                        if !self.seeked {
-                            self.position = *position;
-                        }
-                        return Ok(Some(pcm.clone()));
-                    }
-                    None => return Ok(None),
-                },
+        match self.steps.get(self.next) {
+            Some(Step::Packet { pcm, position }) => {
+                self.next += 1;
+                self.position = *position;
+                Ok(Some(pcm.clone()))
             }
+            Some(Step::Fail(msg)) => {
+                self.next += 1;
+                Err(RhythmError::Decode((*msg).to_string()))
+            }
+            Some(Step::End) => {
+                self.next += 1;
+                Ok(None)
+            }
+            None => match &self.tail {
+                Some((pcm, position)) => {
+                    if let Some(delay) = self.tail_delay {
+                        thread::sleep(delay);
+                    }
+                    if !self.seeked {
+                        self.position = *position;
+                    }
+                    Ok(Some(pcm.clone()))
+                }
+                None => Ok(None),
+            },
         }
     }
 
@@ -1473,7 +1471,7 @@ fn ae39_expired_link_retries_with_fresh_resolution() {
         resolve_calls2.fetch_add(1, Ordering::SeqCst);
         Ok(resolved.clone())
     }));
-    let rec = attach_recorders(&engine);
+    let _rec = attach_recorders(&engine);
 
     let sink = FakeSink::new(44100, 2, Arc::new(SinkProbe::default()));
     engine
@@ -1510,7 +1508,7 @@ fn ae40_non_http_failure_does_not_retry() {
         resolve_calls2.fetch_add(1, Ordering::SeqCst);
         Ok(resolved.clone())
     }));
-    let rec = attach_recorders(&engine);
+    let _rec = attach_recorders(&engine);
 
     let sink = FakeSink::new(44100, 2, Arc::new(SinkProbe::default()));
     engine

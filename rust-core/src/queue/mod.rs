@@ -87,7 +87,7 @@ impl PlayQueue {
 
     /// Move to the next track and return it.
     /// Returns `None` if the queue is exhausted (Sequential at end).
-    pub fn next(&mut self) -> Option<&TrackInfo> {
+    pub fn advance(&mut self) -> Option<&TrackInfo> {
         if self.tracks.is_empty() {
             return None;
         }
@@ -252,9 +252,9 @@ mod tests {
         q.set_mode(PlayMode::Sequential);
 
         assert_eq!(q.current().unwrap().title, "A");
-        assert_eq!(q.next().unwrap().title, "B");
-        assert_eq!(q.next().unwrap().title, "C");
-        assert!(q.next().is_none()); // exhausted
+        assert_eq!(q.advance().unwrap().title, "B");
+        assert_eq!(q.advance().unwrap().title, "C");
+        assert!(q.advance().is_none()); // exhausted
     }
 
     #[test]
@@ -264,8 +264,8 @@ mod tests {
         q.set_mode(PlayMode::ListLoop);
 
         assert_eq!(q.current().unwrap().title, "A");
-        assert_eq!(q.next().unwrap().title, "B");
-        assert_eq!(q.next().unwrap().title, "A"); // wraps
+        assert_eq!(q.advance().unwrap().title, "B");
+        assert_eq!(q.advance().unwrap().title, "A"); // wraps
     }
 
     #[test]
@@ -275,8 +275,8 @@ mod tests {
         q.set_mode(PlayMode::SingleLoop);
 
         assert_eq!(q.current().unwrap().title, "A");
-        assert_eq!(q.next().unwrap().title, "A"); // same
-        assert_eq!(q.next().unwrap().title, "A"); // still same
+        assert_eq!(q.advance().unwrap().title, "A"); // same
+        assert_eq!(q.advance().unwrap().title, "A"); // still same
     }
 
     #[test]
@@ -288,8 +288,8 @@ mod tests {
         ]);
         q.set_mode(PlayMode::Sequential);
 
-        q.next(); // B
-        q.next(); // C
+        q.advance(); // B
+        q.advance(); // C
         assert_eq!(q.previous().unwrap().title, "B");
         assert_eq!(q.previous().unwrap().title, "A");
     }
@@ -314,7 +314,7 @@ mod tests {
         let mut seen: Vec<i64> = Vec::new();
         for _ in 0..20 {
             seen.push(q.current().unwrap().id.unwrap());
-            q.next();
+            q.advance();
         }
         seen.sort();
         let expected: Vec<i64> = (1..=20).collect();
@@ -342,7 +342,7 @@ mod tests {
             dummy_track(2, "B"),
             dummy_track(3, "C"),
         ]);
-        q.next(); // B
+        q.advance(); // B
         assert_eq!(q.current().unwrap().title, "B");
 
         q.replace(vec![dummy_track(10, "X"), dummy_track(11, "Y")]);
@@ -371,7 +371,7 @@ mod tests {
         let mut q = PlayQueue::new(tracks.clone());
         q.set_mode(PlayMode::Sequential);
         assert!(q.has_next());
-        q.next();
+        q.advance();
         assert!(!q.has_next());
 
         // Non-sequential: always true while non-empty.
@@ -403,7 +403,7 @@ mod tests {
         let mut q = PlayQueue::new(tracks.clone());
         q.set_mode(PlayMode::Sequential);
         assert!(!q.has_previous());
-        q.next();
+        q.advance();
         assert!(q.has_previous());
 
         // Non-sequential: true while non-empty, even at the head.
@@ -419,7 +419,7 @@ mod tests {
     fn test_empty_queue() {
         let mut q = PlayQueue::new(vec![]);
         assert!(q.current().is_none());
-        assert!(q.next().is_none());
+        assert!(q.advance().is_none());
         assert!(q.previous().is_none());
         assert!(!q.has_next());
         assert!(!q.has_previous());
@@ -468,9 +468,9 @@ mod tests {
             dummy_track(3, "C"),
         ]);
         q.set_mode(PlayMode::Sequential);
-        q.next();
-        q.next();
-        assert!(q.next().is_none());
+        q.advance();
+        q.advance();
+        assert!(q.advance().is_none());
         assert_eq!(q.previous().unwrap().title, "C");
     }
 
@@ -486,7 +486,7 @@ mod tests {
             let mut seen: Vec<i64> = Vec::new();
             for _ in 0..20 {
                 seen.push(q.current().unwrap().id.unwrap());
-                q.next();
+                q.advance();
             }
             seen.sort();
             let expected: Vec<i64> = (1..=20).collect();
