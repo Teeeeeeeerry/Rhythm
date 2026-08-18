@@ -34,8 +34,25 @@ MainWindow::MainWindow() {
             appState_.Position = appState_.Player->Position();
             appState_.Duration = appState_.Player->Duration();
 
-            // Otherwise a failed stream just sits at 0:00 with no explanation.
-            if (appState_.Player->State() == 4) {
+            auto state = appState_.Player->State();
+            appState_.IsBuffering = state == 3;
+
+            // #137: a track that ended naturally must advance the queue, or
+            // stop claiming playback — mirror macOS updatePlaybackProgress.
+            if (state == 5) {
+                if (appState_.CanPlayNext()) {
+                    auto before = appState_.CurrentTrack->id;
+                    appState_.PlayNext();
+                    if (appState_.CurrentTrack->id == before) {
+                        // Next track is unplayable: stop claiming playback
+                        // instead of retrying every tick (#78 semantics).
+                        appState_.IsPlaying = false;
+                    }
+                } else {
+                    appState_.IsPlaying = false;
+                }
+            } else if (state == 4) {
+                // Otherwise a failed stream just sits at 0:00 with no explanation.
                 appState_.IsPlaying = false;
                 auto detail = appState_.Player->ErrorMessage();
                 appState_.UrlError = detail;

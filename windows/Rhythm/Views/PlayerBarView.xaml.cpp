@@ -76,13 +76,20 @@ void PlayerBarView::Update() {
         progressBar().Value(appState_->Position / appState_->Duration * 100.0);
     }
 
-    auto pos = appState_->Position;
-    auto dur = appState_->Duration;
-    auto pm = static_cast<int>(pos) / 60;
-    auto ps = static_cast<int>(pos) % 60;
-    auto dm = static_cast<int>(dur) / 60;
-    auto ds = static_cast<int>(dur) % 60;
-    timeText().Text(std::format(L"{}:{:02} / {}:{:02}", pm, ps, dm, ds));
+    // #137: resolving + connecting + prebuffering can take a while on a
+    // link; showing 0:00 / 0:00 for all of it reads as a dead player
+    // (mirrors macOS L10n.buffering).
+    if (appState_->IsBuffering) {
+        timeText().Text(L"缓冲中…");
+    } else {
+        auto pos = appState_->Position;
+        auto dur = appState_->Duration;
+        auto pm = static_cast<int>(pos) / 60;
+        auto ps = static_cast<int>(pos) % 60;
+        auto dm = static_cast<int>(dur) / 60;
+        auto ds = static_cast<int>(dur) % 60;
+        timeText().Text(std::format(L"{}:{:02} / {}:{:02}", pm, ps, dm, ds));
+    }
 
     volumeSlider().Value(appState_->Volume * 100.0);
 
