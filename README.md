@@ -15,7 +15,7 @@
 - 系统媒体键支持（播放/暂停/上一首/下一首）
 - 全局快捷键（Space 播放暂停、Cmd+左右箭头切歌）
 - 系统托盘模式（关闭窗口不退出）
-- 中英文界面（跟随系统语言、支持手动切换）
+- 中英文界面（macOS 跟随系统语言并可手动切换；Windows 跟随系统语言，注册表 `HKCU\Software\Rhythm\AppLanguage` 可手动覆盖）
 - 支持格式：MP3、AAC、FLAC、WAV、OGG、ALAC、APE、WMA、AIFF、WavPack、MP4/M4A
 
 ## 架构
@@ -24,7 +24,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-初步开发完成。当前版本 **v0.5.40 "Motif"**。
+初步开发完成。当前版本 **v0.5.63 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
 
 ### 实现状态
 
@@ -36,7 +36,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 | 播放队列（顺序/随机/单曲循环/列表循环） | 完成 | — |
 | 专辑封面自动提取 | 完成 | — |
 | 系统媒体键 + 托盘模式 | 完成 | — |
-| 中英文界面 | 完成 | — |
+| 中英文界面 | 完成（macOS 手动切换 + Windows 注册表覆盖） | [#141](https://github.com/Teeeeeeeerry/Rhythm/issues/141)、[#145](https://github.com/Teeeeeeeerry/Rhythm/issues/145) |
 | URL 流式播放（YouTube/Bilibili/直链） | 完成 | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
 | URL 输入 UI | 完成 | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
 | URL 解析错误上报 + yt-dlp 自动安装 | 完成 | [#21](https://github.com/Teeeeeeeerry/Rhythm/issues/21) |
