@@ -379,6 +379,38 @@ TEST_CASE("WA-14 ResolveAndPlay without dispatcher drops the result and resets")
     REQUIRE(state.Tracks.empty());
 }
 
+TEST_CASE("WA-24 ResolveAndPlay reloads from DB so list and queue stay in sync (#139)") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto wa = dir.path / L"wa";
+    fs::create_directories(wa);
+    auto a = writeWavAt(wa, L"a.wav", 3.0);
+    auto savedA = state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    state.RefreshLibrary();
+    state.PlayTrack(savedA);
+    REQUIRE_FALSE(state.CanPlayNext()); // single-track queue
+
+    auto controller = makeDispatcher();
+    REQUIRE(controller);
+    state.SetDispatcherQueue(controller.DispatcherQueue());
+
+    state.ResolveAndPlay(L"https://example.com/wa15-tone.mp3");
+    REQUIRE(waitFor([&] {
+        return state.CurrentTrack.has_value() &&
+               state.CurrentTrack->sourceUrl == L"https://example.com/wa15-tone.mp3";
+    }));
+
+    // List reloaded from the DB (not a manual front-insert): both tracks
+    // present, and the queue reaches the pre-existing one.
+    REQUIRE(state.Tracks.size() == 2);
+    REQUIRE(state.CanPlayNext());
+    state.PlayNext();
+    REQUIRE(state.CurrentTrack->id == savedA.id);
+    state.Player->Stop();
+    state.IsPlaying = false;
+}
+
 // ─── WA-16 打开失败 ─────────────────────────────────────────────────
 
 TEST_CASE("WA-16 Library open failure leaves methods as safe no-ops") {

@@ -185,7 +185,9 @@ void AppState::ResolveAndPlay(const std::wstring& url) {
             // Persist to database first — AddTrack returns the track
             // with its real database id (#39).
             auto saved = Library ? Library->AddTrack(outcome.track) : outcome.track;
-            Tracks.insert(Tracks.begin(), saved);
+            // #139: reload the list from DB instead of a manual front-insert
+            // so the list and play queue stay in sync (macOS #66/#69 parity).
+            RefreshLibrary();
             PlayTrack(saved);
         });
     }).detach();

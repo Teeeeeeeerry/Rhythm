@@ -23,7 +23,7 @@
 | WA-07 | `TogglePlayPause` 恢复 | 期望：`Player->Resume()` 续播（#82 已修复于 T7，红测解禁转绿；无音频设备时环境 SKIP） | 新测（待 Windows 验证） |
 | WA-08 | `TogglePlayPause` 空闲启动 | 无 CurrentTrack 且 Tracks 非空 → `PlayTrack(Tracks[0])` | 新测（待 Windows 验证） |
 | WA-09 | `SetVolume` | `Volume` 状态更新 + `Player->SetVolume(float)` | 新测（待 Windows 验证） |
-| WA-10 | `ResolveAndPlay` 成功 | trim 输入；`AddTrack` 持久化（#39）；saved 插入 Tracks 头部；`UrlError` 清空；`PlayTrack(saved)` | 新测（真 core 直链，无网络），已绿（待 Windows 验证） |
+| WA-10 | `ResolveAndPlay` 成功 | trim 输入；`AddTrack` 持久化（#39）；`RefreshLibrary()` 从 DB 重载（#139，替代手工头部插入）；`UrlError` 清空；`PlayTrack(saved)` | 新测（真 core 直链，无网络），已绿（待 Windows 验证） |
 | WA-11 | `ResolveAndPlay` 失败（#21） | `UrlError`=错误消息 + `OnUrlError(kind, message)` 回调触发 | 新测（invalid_url 真 core 失败），已绿（待 Windows 验证） |
 
 ## 边界情况（P1）
@@ -62,3 +62,4 @@
 | WA-21（T7 已实现，待 Windows 验证） | 播放模式循环 | `PlayMode` 四种模式 + `cyclePlayMode` 同步到队列 | 功能新增 |
 | WA-22（T7 已实现，待 Windows 验证） | 传输可用性 | `canPlayNext`/`canPlayPrevious` 等可用性属性（macOS #24/#25 对齐） | 功能新增 |
 | WA-23（T7 已实现，待 Windows 验证） | `ImportDirectory` 导入反馈 | 导入数量经状态/回调反馈到 UI（对齐 macOS alert） | 功能新增 |
+| WA-24（#139，待 Windows 验证） | `ResolveAndPlay` 后列表与队列同步 | 已有曲目时 URL 入库后 `RefreshLibrary()` 重载，队列可到达既有曲目（替代手工头部插入，对齐 macOS #66/#69） | 功能新增 |
