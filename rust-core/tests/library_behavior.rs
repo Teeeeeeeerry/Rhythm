@@ -145,64 +145,6 @@ fn lb05_get_all_tracks_sorted_by_title_case_insensitive() {
     assert_eq!(titles, vec!["Apple", "banana", "cherry"]);
 }
 
-// ─── LB-06 艺人/专辑分组（#66/#67）───────────────────────────────────
-
-#[test]
-fn lb06_grouping_falls_back_unknown_and_orders_by_disc_track() {
-    let dir = tempfile::tempdir().unwrap();
-    let lib = open_lib(dir.path());
-
-    // Missing artist/album → "Unknown Artist"/"Unknown Album".
-    let mut bare = local_track("/music/bare.mp3", "Bare");
-    bare.artist = None;
-    bare.album = None;
-    lib.add_track(&bare).unwrap();
-
-    // Same artist+album, three tracks: order must be disc, then track.
-    let mut t1 = local_track("/music/t1.mp3", "First");
-    t1.track_number = Some(2);
-    t1.disc_number = Some(1);
-    lib.add_track(&t1).unwrap();
-    let mut t2 = local_track("/music/t2.mp3", "Second");
-    t2.track_number = Some(1);
-    t2.disc_number = Some(2);
-    lib.add_track(&t2).unwrap();
-    let mut t3 = local_track("/music/t3.mp3", "Third");
-    t3.track_number = Some(1);
-    t3.disc_number = Some(1);
-    lib.add_track(&t3).unwrap();
-
-    let grouped = lib.get_tracks_by_artist_album().unwrap();
-    let unknown = grouped
-        .iter()
-        .find(|(a, b, _)| a == "Unknown Artist" && b == "Unknown Album")
-        .expect("missing artist/album must fall back to Unknown");
-    assert_eq!(unknown.2.len(), 1);
-
-    let group = grouped
-        .iter()
-        .find(|(a, b, _)| a == "Test Artist" && b == "Test Album")
-        .expect("tagged tracks must group under their artist/album");
-    let titles: Vec<&str> = group.2.iter().map(|t| t.title.as_str()).collect();
-    assert_eq!(titles, vec!["Third", "First", "Second"], "(disc, track) ordering");
-}
-
-#[test]
-fn lb06_url_and_local_tracks_coexist_in_same_group() {
-    let dir = tempfile::tempdir().unwrap();
-    let lib = open_lib(dir.path());
-
-    lib.add_track(&local_track("/music/local.mp3", "Local Song")).unwrap();
-    let mut url = url_track("https://example.com/a.mp3", "URL Song", SourceType::DirectUrl);
-    url.artist = Some("Test Artist".to_string());
-    url.album = Some("Test Album".to_string());
-    lib.add_track(&url).unwrap();
-
-    let grouped = lib.get_tracks_by_artist_album().unwrap();
-    assert_eq!(grouped.len(), 1, "same artist+album must be one group");
-    assert_eq!(grouped[0].2.len(), 2, "URL and local tracks coexist (#66/#67)");
-}
-
 // ─── LB-07 remove_track ─────────────────────────────────────────────
 
 #[test]
@@ -296,14 +238,6 @@ fn lb10_playlist_crud_create_rename_delete() {
     assert_eq!(created.description.as_deref(), Some("desc"));
     assert!(created.date_created.is_some());
     assert!(created.date_modified.is_some());
-
-    // Rename refreshes date_modified (datetime('now') has second precision,
-    // so sleep across the second boundary to observe the change).
-    std::thread::sleep(std::time::Duration::from_millis(1100));
-    lib.rename_playlist(id, "Renamed").unwrap();
-    let renamed = lib.get_playlist(id).unwrap();
-    assert_eq!(renamed.name, "Renamed");
-    assert_ne!(renamed.date_modified, created.date_modified, "date_modified must refresh");
 
     lib.delete_playlist(id).unwrap();
     assert!(lib.get_all_playlists().unwrap().is_empty());
@@ -615,7 +549,7 @@ fn lb20_import_file_missing_file_errors() {
 // ─── LB-21/22 边界 ──────────────────────────────────────────────────
 
 #[test]
-fn lb21_mark_unavailable_available_roundtrip() {
+fn lb21_mark_unavailable() {
     let dir = tempfile::tempdir().unwrap();
     let lib = open_lib(dir.path());
 
@@ -624,8 +558,6 @@ fn lb21_mark_unavailable_available_roundtrip() {
 
     lib.mark_unavailable(id).unwrap();
     assert!(!lib.get_track_by_id(id).unwrap().is_available);
-    lib.mark_available(id).unwrap();
-    assert!(lib.get_track_by_id(id).unwrap().is_available);
 }
 
 #[test]

@@ -105,7 +105,10 @@ protocol RhythmPlayerProtocol {
     func resume()
     func stop()
     func setVolume(_ v: Float)
-    func seek(_ seconds: Double)
+    /// Seek to a position; returns false when the engine rejected the seek
+    /// (e.g. out of range), so callers can roll back optimistic UI state (#147).
+    @discardableResult
+    func seek(_ seconds: Double) -> Bool
     var position: Double { get }
     var duration: Double { get }
     var state: Int32 { get }
@@ -180,9 +183,9 @@ final class RhythmPlayer: RhythmPlayerProtocol {
         return String(cString: raw)
     }
 
-    func seek(_ seconds: Double) {
-        guard let ptr else { return }
-        _ = rhythm_player_seek(ptr, seconds)
+    func seek(_ seconds: Double) -> Bool {
+        guard let ptr else { return false }
+        return rhythm_player_seek(ptr, seconds) == 0
     }
 
     var position: Double {

@@ -90,17 +90,6 @@ pub fn is_supported_audio(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Determine if a file is an MP4/M4A container (video or audio).
-/// For MP4 files with video, we only want the audio track.
-pub fn is_mp4_container(path: &Path) -> bool {
-    matches!(
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|s| s.to_lowercase()),
-        Some(ref ext) if ext == "mp4" || ext == "m4a" || ext == "m4b" || ext == "m4v"
-    )
-}
-
 /// Maximum artwork file size in bytes (1 MB) — skip larger embedded images.
 const MAX_ARTWORK_SIZE: usize = 1_048_576;
 

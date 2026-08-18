@@ -77,16 +77,6 @@ fn test_add_local_tracks_preserves_all_entries() {
     assert_eq!(all[0].title, "Song A");
     assert_eq!(all[1].title, "Song B");
     assert_eq!(all[2].title, "Song C");
-
-    let grouped = lib.get_tracks_by_artist_album().unwrap();
-    assert_eq!(grouped.len(), 3, "should have 3 artist-album groups");
-    assert_eq!(grouped[0].0, "Artist 1");
-    assert_eq!(grouped[0].2.len(), 1);
-    assert_eq!(grouped[0].2[0].title, "Song A");
-    assert_eq!(grouped[1].0, "Artist 2");
-    assert_eq!(grouped[1].2[0].title, "Song B");
-    assert_eq!(grouped[2].0, "Artist 3");
-    assert_eq!(grouped[2].2[0].title, "Song C");
 }
 
 #[test]
@@ -104,22 +94,6 @@ fn test_add_url_track_after_local_tracks_preserves_all() {
 
     let all = lib.get_all_tracks().unwrap();
     assert_eq!(all.len(), 3, "should have 3 tracks after URL import");
-
-    let grouped = lib.get_tracks_by_artist_album().unwrap();
-    // URL tracks have no album, so they default to "Unknown Album"
-    // Local tracks have their actual albums
-    assert_eq!(grouped.len(), 3, "should have 3 distinct artist groups");
-
-    // Verify each artist still has the correct track
-    for (artist, _album, tracks) in &grouped {
-        assert_eq!(tracks.len(), 1, "artist '{artist}' should have exactly 1 track");
-        match artist.as_str() {
-            "Artist A" => assert_eq!(tracks[0].title, "Local A"),
-            "Artist B" => assert_eq!(tracks[0].title, "Local B"),
-            "URL Artist X" => assert_eq!(tracks[0].title, "URL Song X"),
-            _ => panic!("unexpected artist: {artist}"),
-        }
-    }
 }
 
 #[test]
@@ -138,15 +112,6 @@ fn test_multiple_url_imports_preserve_all_artists() {
 
     let all = lib.get_all_tracks().unwrap();
     assert_eq!(all.len(), 4, "should have 4 tracks total");
-
-    let grouped = lib.get_tracks_by_artist_album().unwrap();
-    // 4 artists: 1 local + 3 URL
-    assert_eq!(grouped.len(), 4, "should have 4 artist groups, got {}", grouped.len());
-
-    // Each artist should have exactly one track
-    let mut titles: Vec<String> = grouped.iter().flat_map(|(_, _, tracks)| tracks.iter().map(|t| t.title.clone())).collect();
-    titles.sort();
-    assert_eq!(titles, vec!["Local Track", "URL Song 1", "URL Song 2", "URL Song 3"]);
 }
 
 #[test]
@@ -171,83 +136,3 @@ fn test_reimport_same_url_updates_in_place() {
     assert_eq!(all.len(), 1, "should still be exactly 1 track after re-import of same URL");
 }
 
-#[test]
-fn test_url_tracks_with_same_artist_grouped_together() {
-    let dir = tempfile::tempdir().unwrap();
-    let db_path = dir.path().join("test.db");
-    let lib = Library::open(&db_path).unwrap();
-
-    // Two URL tracks from the same artist
-    lib.add_track(&dummy_url_track(None, "Song Alpha", "Same Artist", "https://youtube.com/watch?v=aa")).unwrap();
-    lib.add_track(&dummy_url_track(None, "Song Beta", "Same Artist", "https://youtube.com/watch?v=bb")).unwrap();
-
-    let grouped = lib.get_tracks_by_artist_album().unwrap();
-    // Same artist, both URL tracks (no album → "Unknown Album")
-    assert_eq!(grouped.len(), 1, "same artist should be 1 group");
-    assert_eq!(grouped[0].0, "Same Artist");
-    assert_eq!(grouped[0].2.len(), 2, "should have 2 tracks in the group");
-}
-
-#[test]
-fn test_add_track_preserves_artist_album_integrity() {
-    // Comprehensive test that matches the bug report scenario:
-    // 1. Have local tracks from multiple artists/albums
-    // 2. Import URL tracks from multiple sources
-    // 3. Verify get_tracks_by_artist_album returns correct grouping
-    let dir = tempfile::tempdir().unwrap();
-    let db_path = dir.path().join("test.db");
-    let lib = Library::open(&db_path).unwrap();
-
-    // Pre-populate with local tracks — a realistic library
-    lib.add_track(&dummy_local_track(None, "Bohemian Rhapsody", "Queen", "A Night at the Opera", "/music/queen_bohemian.mp3")).unwrap();
-    lib.add_track(&dummy_local_track(None, "Love of My Life", "Queen", "A Night at the Opera", "/music/queen_love.mp3")).unwrap();
-    lib.add_track(&dummy_local_track(None, "Imagine", "John Lennon", "Imagine", "/music/lennon_imagine.mp3")).unwrap();
-    lib.add_track(&dummy_local_track(None, "Hotel California", "Eagles", "Hotel California", "/music/eagles_hotel.mp3")).unwrap();
-
-    // Now simulate playing/importing URL tracks
-    lib.add_track(&dummy_url_track(None, "Live Performance A", "Coldplay", "https://youtube.com/watch?v=cp001")).unwrap();
-    lib.add_track(&dummy_url_track(None, "Live Performance B", "Coldplay", "https://youtube.com/watch?v=cp002")).unwrap();
-    lib.add_track(&dummy_url_track(None, "Tutorial Video", "Random Creator", "https://bilibili.com/video/BV123")).unwrap();
-
-    let all = lib.get_all_tracks().unwrap();
-    assert_eq!(all.len(), 7, "should have 7 tracks total");
-
-    let grouped = lib.get_tracks_by_artist_album().unwrap();
-    // Expected groups:
-    // - Coldplay / Unknown Album (2 tracks)
-    // - Eagles / Hotel California (1 track)
-    // - John Lennon / Imagine (1 track)
-    // - Queen / A Night at the Opera (2 tracks)
-    // - Random Creator / Unknown Album (1 track)
-    assert_eq!(grouped.len(), 5, "should have 5 artist groups");
-
-    // Verify each group has the correct tracks
-    // Queen → 2 tracks
-    let queen_group = grouped.iter().find(|(a, _, _)| a == "Queen").unwrap();
-    assert_eq!(queen_group.2.len(), 2);
-    let queen_titles: Vec<&str> = queen_group.2.iter().map(|t| t.title.as_str()).collect();
-    assert!(queen_titles.contains(&"Bohemian Rhapsody"));
-    assert!(queen_titles.contains(&"Love of My Life"));
-
-    // Coldplay → 2 tracks
-    let cp_group = grouped.iter().find(|(a, _, _)| a == "Coldplay").unwrap();
-    assert_eq!(cp_group.2.len(), 2);
-    let cp_titles: Vec<&str> = cp_group.2.iter().map(|t| t.title.as_str()).collect();
-    assert!(cp_titles.contains(&"Live Performance A"));
-    assert!(cp_titles.contains(&"Live Performance B"));
-
-    // Eagles → 1 track
-    let eagles_group = grouped.iter().find(|(a, _, _)| a == "Eagles").unwrap();
-    assert_eq!(eagles_group.2.len(), 1);
-    assert_eq!(eagles_group.2[0].title, "Hotel California");
-
-    // John Lennon → 1 track
-    let lennon_group = grouped.iter().find(|(a, _, _)| a == "John Lennon").unwrap();
-    assert_eq!(lennon_group.2.len(), 1);
-    assert_eq!(lennon_group.2[0].title, "Imagine");
-
-    // Random Creator → 1 track
-    let rc_group = grouped.iter().find(|(a, _, _)| a == "Random Creator").unwrap();
-    assert_eq!(rc_group.2.len(), 1);
-    assert_eq!(rc_group.2[0].title, "Tutorial Video");
-}

@@ -15,7 +15,7 @@
 | MD-04 | lofty→symphonia 回退 | lofty 拿不到 title/duration 时 symphonia 兜底（duration 可提取） |
 | MD-05 | 文件不存在 | `FileNotFound` |
 | MD-06 | `is_supported_audio` | 大小写不敏感；`SUPPORTED_EXTENSIONS` 全接受；未知/无扩展 → false |
-| MD-07 | `is_mp4_container` | mp4/m4a/m4b/m4v → true；其余 → false |
+| ~~MD-07~~ | ~~`is_mp4_container`~~ | 已删除（#147）：无消费方，MP4 走通用 metadata 提取 |
 | MD-08 | `extract_artwork` 内嵌图 | 写入 cache_dir，文件名 = blake3(数据).扩展名；已存在不重写（幂等）；无图 → None |
 | MD-09 | `extract_artwork` 超大图 | >1MB → 跳过返回 None |
 | MD-10 | `extract_artwork` 类型判定 | jpeg/jpg → .jpg、png → .png、其他 → .jpg（#94 修复后全绿） |

@@ -273,6 +273,11 @@ _CPP_SOURCE_RET = re.compile(r'if \(sourceType == L"(\w+)"\) return L"#([0-9A-Fa
 _CPP_SOURCE_RGB = re.compile(
     r'if \(sourceType == L"(\w+)"\)\s*\{ r = (0x[0-9A-Fa-f]+); g = (0x[0-9A-Fa-f]+); b = (0x[0-9A-Fa-f]+); \}'
 )
+# #147 收敛后：单一表驱动映射 `{L"name", {dark RGB}, {light RGB}},`
+_CPP_SOURCE_TABLE = re.compile(
+    r'\{L"(\w+)",\s*\{0x([0-9A-Fa-f]{2}), 0x([0-9A-Fa-f]{2}), 0x([0-9A-Fa-f]{2})\},\s*'
+    r'\{0x([0-9A-Fa-f]{2}), 0x([0-9A-Fa-f]{2}), 0x([0-9A-Fa-f]{2})\}\}'
+)
 _CPP_SOURCE_ALPHA = re.compile(r"winrt::Windows::UI::Color\{(\d+),")
 _CPP_FALLBACK_GRAY = re.compile(r"return L\"Gray\";")
 
@@ -281,7 +286,8 @@ def parse_cpp_sources(path: Path) -> dict:
     """→ {"sources": {type: {"dark": Color, "light": Color|None}}, "alpha": int, "gray_fallback": bool}。
 
     F1（#121）修复后 light 变体来自 theme 感知签名的三元表达式；旧式单值
-    行仍可解析（light=None），供回归对照。
+    行仍可解析（light=None），供回归对照。#147 收敛后的表驱动形式
+    `{L"name", {dark}, {light}}` 同样可解析。
     """
     text = path.read_text(encoding="utf-8")
     sources: dict[str, dict] = {}
@@ -292,6 +298,10 @@ def parse_cpp_sources(path: Path) -> dict:
         }
     for m in _CPP_SOURCE_RET.finditer(text):
         sources.setdefault(m.group(1), {"dark": from_hex("#" + m.group(2)), "light": None})
+    for m in _CPP_SOURCE_TABLE.finditer(text):
+        dark = (int(m.group(2), 16), int(m.group(3), 16), int(m.group(4), 16), 255)
+        light = (int(m.group(5), 16), int(m.group(6), 16), int(m.group(7), 16), 255)
+        sources[m.group(1)] = {"dark": dark, "light": light}
     alpha = 255
     am = _CPP_SOURCE_ALPHA.search(text)
     if am:

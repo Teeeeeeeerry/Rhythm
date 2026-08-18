@@ -8,8 +8,7 @@ mod common;
 use lofty::picture::{MimeType, Picture, PictureType};
 use lofty::prelude::*;
 use rhythm_core::metadata::{
-    extract_artwork, extract_track_info, is_mp4_container, is_supported_audio, scan_directory,
-    SUPPORTED_EXTENSIONS,
+    extract_artwork, extract_track_info, is_supported_audio, scan_directory, SUPPORTED_EXTENSIONS,
 };
 use rhythm_core::{RhythmError, SourceType};
 use std::path::{Path, PathBuf};
@@ -139,18 +138,6 @@ fn md06_is_supported_audio_all_extensions_case_insensitive() {
 fn md17_uppercase_extension_recognized() {
     assert!(is_supported_audio(&PathBuf::from("song.MP3")));
     assert!(is_supported_audio(&PathBuf::from("song.WaV")));
-}
-
-// ─── MD-07 MP4 容器判定 ─────────────────────────────────────────────
-
-#[test]
-fn md07_is_mp4_container() {
-    for ext in ["mp4", "m4a", "m4b", "m4v", "M4A"] {
-        assert!(is_mp4_container(&PathBuf::from(format!("a.{ext}"))));
-    }
-    for ext in ["wav", "mp3", "flac", "ogg", ""] {
-        assert!(!is_mp4_container(&PathBuf::from(format!("a.{ext}"))));
-    }
 }
 
 // ─── MD-08/09/10 artwork ────────────────────────────────────────────

@@ -13,11 +13,11 @@
 | LB-03 | `add_track` 本地去重 | 同 `file_path` → 更新原行而非插入，返回原 id |
 | LB-04 | `add_track` URL 去重（#40/#57） | 同 `source_url`（非 local）→ 更新原行；DB 层部分唯一索引兜底（绕过应用层去重时插入被拒） |
 | LB-05 | `get_all_tracks` | 按 title 大小写不敏感排序 |
-| LB-06 | `get_tracks_by_artist_album`（#66/#67） | 分组正确（缺 artist/album 回退 "Unknown Artist"/"Unknown Album"）；组内按 disc_number、track_number 排序；URL 曲目与本地曲目同组共存 |
+| LB-06 | ~~`get_tracks_by_artist_album`（#66/#67）~~ | 已删除（#147）：无 FFI/UI 消费方，客户端各自分组，Rust 分组为重复逻辑 |
 | LB-07 | `remove_track` | 行删除；FTS 索引同步删除；`playlist_tracks` 级联清理；不存在的 id → `NotFound` 错误（#98） |
 | LB-08 | `record_play` | `last_played` 更新、`play_count` +1 |
 | LB-09 | `verify_local_files` | 磁盘不存在的 local 曲目标记 `is_available=0` 并返回其 id 列表；存在的保持不变 |
-| LB-10 | 播放列表 CRUD | create 返回 id；rename/delete 生效且 `date_modified` 刷新 |
+| LB-10 | 播放列表 CRUD | create 返回 id；delete 生效（rename 已删除 #147：无消费方） |
 | LB-11 | `add_to_playlist` | 追加到末尾 position；同曲重复添加被忽略（不产生重复行） |
 | LB-12 | `remove_from_playlist`/`reorder_playlist_track` | 删除/改序生效，`get_playlist` 按 position 返回（reorder 到已占用 position 时其余行移位、position 无重复 → #95） |
 | LB-13 | `get_all_playlists`/`get_playlist` | 元数据完整，tracks 按 position 排序 |
@@ -33,7 +33,7 @@
 | LB-18 | 曲目同时有 file_path 与 source_url | file_path 去重优先 |
 | LB-19 | `search` 空/纯空白查询 | 不 panic，返回结果可空（现状：FTS5 `MATCH ''` 语法错误 → 返回 `Err`，不崩溃；已锁定为现状行为） |
 | LB-20 | `import_file` 不存在的文件 | 报错（Unsupported 或 FileNotFound 之一），不 panic |
-| LB-21 | `mark_unavailable`/`mark_available` | 往返生效，`is_available` 正确落库 |
+| LB-21 | `mark_unavailable` | 置 `is_available=0` 落库（`mark_available` 已删除 #147：无消费方） |
 | LB-22 | `add_to_playlist` 引用不存在的 playlist/track | 外键约束报错（`foreign_keys=ON`），不静默 |
 | LB-23 | 同目录重复 `import_from_directory` | file_path 去重（第二次导入不产生重复行） |
 
@@ -48,8 +48,9 @@
 ## 与 library_integration.rs 的关系
 
 遗留套件 `rust-core/tests/library_integration.rs`（#66/#67 修复时引入）与本清单
-测试在 URL 去重、艺人/专辑分组上有重叠覆盖。遗留套件保持零改动；新增行为
-以本清单测试（`library_behavior.rs`）为准，未来可择机将遗留套件并入。
+测试在 URL 去重上有重叠覆盖。遗留套件保持零改动；艺人/专辑分组的 Rust 断言
+已随 #147 删除（分组为客户端职责）。新增行为以本清单测试
+（`library_behavior.rs`）为准，未来可择机将遗留套件并入。
 
 ## 红测登记
 

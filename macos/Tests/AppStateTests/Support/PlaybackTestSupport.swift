@@ -12,6 +12,8 @@ final class SpyPlayer: RhythmPlayerProtocol {
     private(set) var playFileCalls: [String] = []
     private(set) var playURLCalls: [String] = []
     private(set) var seekCalls: [Double] = []
+    /// When false, `seek` reports rejection (engine-side out-of-range seek).
+    var seekSucceeds = true
     private(set) var stopCount = 0
 
     var position: Double = 0
@@ -59,9 +61,10 @@ final class SpyPlayer: RhythmPlayerProtocol {
         calls.append("setVolume:\(v)")
     }
 
-    func seek(_ seconds: Double) {
+    func seek(_ seconds: Double) -> Bool {
         calls.append("seek:\(seconds)")
         seekCalls.append(seconds)
+        return seekSucceeds
     }
 }
 
