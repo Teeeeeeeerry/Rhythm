@@ -61,6 +61,7 @@ scripts/            build-macos.sh / build-rust-macos.sh / build-windows.*
 - **播放新曲目前必须 `player.stop()`**：旧播放线程不终止会抢占输出设备（#51）
 - **YouTube 403 ≠ 链接过期**：googlevideo URL 有效期 ~6h（`expire`-`mt`），播放 403 时先解码 `expire` 判断；未过期却 403 是网络侧拒绝（常见于 ISP 托管的 Google Global Cache 节点 `cache.google.com` 故障、或出口 IP 被 YouTube 拉黑），换网络/VPN 才是出路（见 docs/issues/2026-08-18-youtube-403-misreported-as-expired.md）。#120 已修复：core 用 `RhythmError::Http` 分类（expired/cdn_rejected/other），UI 按分类给文案——仅真过期才建议重贴
 - **解析缓存不淘汰失败条目**：`RESOLVED_CACHE`（1h TTL）命中即返回，播放 403 不会清条目——重贴同一链接在 TTL 内必然拿到同一个坏 CDN URL，用户建议"重新粘贴"结构性无效。#120 已修复：播放 403/过期时引擎淘汰条目并 `resolve_url_fresh` 绕过缓存重解析一次，仍败才报错
+- **Windows 来源徽标色双主题**：`Track::SourceColor(sourceType, isDarkTheme)` 对齐 macOS `Theme.swift` rhythmSource* 的 dark/light 双端值；未知来源回退 teal 文字色（dark `#ABC8D4` / light `#0D464D`），绝不返回系统 Gray（F4）。theme 由 `IsDarkTheme()` 解析——应用从不 pin `Application.RequestedTheme`，UI 跟随系统，故用 `UISettings` 前景色判断。Windows 侧校验：`python3 testing/l0/check-color-parity.py` + `testing/l1/windows`（#122 解除桩）。#121 已修复
 
 ## 文档地图
 

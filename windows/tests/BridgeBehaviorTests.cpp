@@ -41,18 +41,26 @@ TEST_CASE("WB-02 SourceTag maps every source type") {
     REQUIRE(t.SourceTag() == L"");
 }
 
-TEST_CASE("WB-03 SourceColor maps every source type") {
+TEST_CASE("WB-03 SourceColor maps every source type in both themes (#121)") {
     Track t;
     t.sourceType = L"local";
-    REQUIRE(t.SourceColor() == L"#8ABCD0");
+    REQUIRE(t.SourceColor(t.sourceType, true) == L"#8ABCD0");
+    REQUIRE(t.SourceColor(t.sourceType, false) == L"#3A7A8C");
     t.sourceType = L"youtube";
-    REQUIRE(t.SourceColor() == L"#D49573");
+    REQUIRE(t.SourceColor(t.sourceType, true) == L"#D49573");
+    REQUIRE(t.SourceColor(t.sourceType, false) == L"#8B4A28");
     t.sourceType = L"bilibili";
-    REQUIRE(t.SourceColor() == L"#C88DA8");
+    REQUIRE(t.SourceColor(t.sourceType, true) == L"#C88DA8");
+    REQUIRE(t.SourceColor(t.sourceType, false) == L"#8C4D68");
     t.sourceType = L"direct_url";
-    REQUIRE(t.SourceColor() == L"#8CB89A");
+    REQUIRE(t.SourceColor(t.sourceType, true) == L"#8CB89A");
+    REQUIRE(t.SourceColor(t.sourceType, false) == L"#4C785A");
+    // F4: unknown sources fall back to the teal text colour, never "Gray".
     t.sourceType = L"nope";
-    REQUIRE(t.SourceColor() == L"Gray");
+    REQUIRE(t.SourceColor(t.sourceType, true) == L"#ABC8D4");
+    REQUIRE(t.SourceColor(t.sourceType, false) == L"#0D464D");
+    REQUIRE(t.SourceColor(t.sourceType, true) != L"Gray");
+    REQUIRE(t.SourceColor(t.sourceType, false) != L"Gray");
 }
 
 // ─── WB-04 SourceBackgroundBrush（需要 apartment，main 已 init）───────

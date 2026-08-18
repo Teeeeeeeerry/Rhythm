@@ -85,7 +85,7 @@ palette.json 的 `usage` 段驱动，全矩阵（token × 背景 × 外观）自
 | 视图级单元（后续） | 选中态计算、SourceTagView sourceType 映射表 | 数据驱动 |
 
 Windows：`windows/tests/` 零依赖 assert 测试 exe（CMake `enable_testing()`），
-F1 修复后测 `SourceColor(source, theme)` 双端值 + alpha==38 + 未知类型回退。
+F1 已修复（#121）：`Track::SourceColor(sourceType, isDarkTheme)` 双端值 + alpha==38 + 未知类型回退由 `source_color_test.cpp`（#122 解除桩）覆盖。
 
 ### L2 快照与像素回归（必做，非可选）
 
