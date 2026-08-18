@@ -3,9 +3,6 @@ use rusqlite::{params, Connection};
 use std::path::Path;
 use std::sync::Mutex;
 
-mod search;
-// pub use search::*; // Reserved for future search enhancements
-
 /// One row of `get_all_playlists` (#143: factored type).
 type PlaylistRow = (i64, String, Option<String>, Option<String>, Option<String>);
 
@@ -280,40 +277,6 @@ impl Library {
         Ok(tracks?)
     }
 
-    /// Get tracks grouped by artist > album (for library browser view).
-    pub fn get_tracks_by_artist_album(&self) -> RhythmResult<Vec<(String, String, Vec<TrackInfo>)>> {
-        let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT id, file_path, source_type, source_url, title, artist, album,
-             album_artist, track_number, disc_number, genre, year, duration, format,
-             bitrate, sample_rate, channels, file_size, date_added, last_played,
-             play_count, artwork_path, is_available
-             FROM tracks
-             ORDER BY artist COLLATE NOCASE, album COLLATE NOCASE, disc_number, track_number",
-        )?;
-
-        let all_tracks: Vec<TrackInfo> = stmt
-            .query_map([], row_to_track)?
-            .collect::<Result<Vec<_>, _>>()?;
-
-        // Group by (artist, album)
-        let mut grouped: Vec<(String, String, Vec<TrackInfo>)> = Vec::new();
-        for track in all_tracks {
-            let artist = track.artist.clone().unwrap_or_else(|| "Unknown Artist".to_string());
-            let album = track.album.clone().unwrap_or_else(|| "Unknown Album".to_string());
-
-            if let Some(last) = grouped.last_mut() {
-                if last.0 == artist && last.1 == album {
-                    last.2.push(track);
-                    continue;
-                }
-            }
-            grouped.push((artist, album, vec![track]));
-        }
-
-        Ok(grouped)
-    }
-
     /// Delete a track from the library.
     ///
     /// Errors with [`RhythmError::NotFound`] when the id matches no row,
@@ -332,16 +295,6 @@ impl Library {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE tracks SET is_available = 0 WHERE id = ?1",
-            params![id],
-        )?;
-        Ok(())
-    }
-
-    /// Mark a track as available.
-    pub fn mark_available(&self, id: i64) -> RhythmResult<()> {
-        let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "UPDATE tracks SET is_available = 1 WHERE id = ?1",
             params![id],
         )?;
         Ok(())
@@ -399,16 +352,6 @@ impl Library {
         conn.execute(
             "DELETE FROM playlists WHERE id = ?1",
             params![playlist_id],
-        )?;
-        Ok(())
-    }
-
-    /// Rename a playlist.
-    pub fn rename_playlist(&self, playlist_id: i64, new_name: &str) -> RhythmResult<()> {
-        let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "UPDATE playlists SET name = ?1, date_modified = datetime('now') WHERE id = ?2",
-            params![new_name, playlist_id],
         )?;
         Ok(())
     }

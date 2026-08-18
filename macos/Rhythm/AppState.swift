@@ -561,9 +561,12 @@ final class AppState: ObservableObject {
     }
 
     /// Seek to a position in the current track (seconds).
+    /// Position updates only when the engine accepts the seek; a rejected
+    /// (e.g. out-of-range) seek keeps the previous position (#147).
     func seek(to seconds: Double) {
-        player.seek(seconds)
-        position = seconds
+        if player.seek(seconds) {
+            position = seconds
+        }
     }
 }
 

@@ -50,14 +50,39 @@ struct Track {
         return L10n::SourceTag(sourceType);
     }
 
+    /// Single source-type → colour mapping, shared by the badge foreground
+    /// and its capsule background (#147). Dark/light values mirror macOS
+    /// Theme.swift `rhythmSource*`; unknown sources return nullopt so
+    /// callers pick their own fallback.
+    struct SourceRGB {
+        uint8_t r, g, b;
+    };
+
+    static std::optional<SourceRGB> SourceColorRGB(std::wstring_view sourceType, bool isDarkTheme) {
+        struct Entry {
+            std::wstring_view name;
+            SourceRGB dark, light;
+        };
+        static constexpr Entry kTable[] = {
+            {L"local",      {0x8A, 0xBC, 0xD0}, {0x3A, 0x7A, 0x8C}},
+            {L"youtube",    {0xD4, 0x95, 0x73}, {0x8B, 0x4A, 0x28}},
+            {L"bilibili",   {0xC8, 0x8D, 0xA8}, {0x8C, 0x4D, 0x68}},
+            {L"direct_url", {0x8C, 0xB8, 0x9A}, {0x4C, 0x78, 0x5A}},
+        };
+        for (const auto& e : kTable) {
+            if (e.name == sourceType) {
+                return isDarkTheme ? e.dark : e.light;
+            }
+        }
+        return std::nullopt;
+    }
+
     /// Badge foreground colour for a source type, theme-aware (F1, #121).
-    /// Dark/light values mirror macOS Theme.swift `rhythmSource*`.
     /// Unknown sources fall back to the teal text colour — never system Gray (F4).
     std::wstring SourceColor(std::wstring_view sourceType, bool isDarkTheme) const {
-        if (sourceType == L"local")      return isDarkTheme ? L"#8ABCD0" : L"#3A7A8C";
-        if (sourceType == L"youtube")    return isDarkTheme ? L"#D49573" : L"#8B4A28";
-        if (sourceType == L"bilibili")   return isDarkTheme ? L"#C88DA8" : L"#8C4D68";
-        if (sourceType == L"direct_url") return isDarkTheme ? L"#8CB89A" : L"#4C785A";
+        if (auto rgb = SourceColorRGB(sourceType, isDarkTheme)) {
+            return std::format(L"#{:02X}{:02X}{:02X}", rgb->r, rgb->g, rgb->b);
+        }
         return isDarkTheme ? L"#ABC8D4" : L"#0D464D";  // teal textPrimary
     }
 
@@ -69,14 +94,10 @@ struct Track {
     /// Capsule badge background brush — foreground colour at 15 % opacity,
     /// matching the macOS `.background(color.opacity(0.15))` treatment.
     winrt::Microsoft::UI::Xaml::Media::SolidColorBrush SourceBackgroundBrush() const {
-        uint8_t r = 128, g = 128, b = 128;  // fallback: grey
-        if (sourceType == L"local")      { r = 0x8A; g = 0xBC; b = 0xD0; }
-        else if (sourceType == L"youtube")  { r = 0xD4; g = 0x95; b = 0x73; }
-        else if (sourceType == L"bilibili") { r = 0xC8; g = 0x8D; b = 0xA8; }
-        else if (sourceType == L"direct_url") { r = 0x8C; g = 0xB8; b = 0x9A; }
-
+        const SourceRGB fallback{0x80, 0x80, 0x80};  // unknown: grey
+        auto rgb = SourceColorRGB(sourceType, IsDarkTheme()).value_or(fallback);
         return winrt::Microsoft::UI::Xaml::Media::SolidColorBrush(
-            winrt::Windows::UI::Color{38, r, g, b});  // A=38 ≈ 15 %
+            winrt::Windows::UI::Color{38, rgb.r, rgb.g, rgb.b});  // A=38 ≈ 15 %
     }
 };
 

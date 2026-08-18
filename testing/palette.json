@@ -206,8 +206,8 @@
       "token": "rhythmSourceLocal",
       "appearance": "light",
       "background": "row",
-      "measured": 4.44,
-      "reason": "来源徽标前景：window 上 4.84:1 达标；row #F5F5F7 上 4.44:1 略低于 4.5（差 0.06）。徽标为小面积色标，暂登记；如需严格达标可调深 light 色值（#3A7A8C），待 P0 评审",
+      "measured": 4.84,
+      "reason": "来源徽标前景：window 与 row 上均实测 4.84:1，已达 AA 4.5 线（#147 核对更新，原登记 4.44 为漂移旧值）；保留登记留痕",
       "approved": true
     }
   ],

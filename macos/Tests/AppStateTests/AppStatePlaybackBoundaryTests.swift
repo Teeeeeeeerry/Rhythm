@@ -263,4 +263,15 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
         XCTAssertEqual(spy.seekCalls, [75])
         XCTAssertEqual(appState.position, 75, "no round trip to the core (#73)")
     }
+
+    /// #147: 引擎拒绝 seek（越界）时进度条不得停留在乐观值——回滚到旧位置。
+    func testSeek_RejectedSeek_RollsBackPosition() throws {
+        appState.position = 42
+        spy.seekSucceeds = false
+
+        appState.seek(to: 999)
+
+        XCTAssertEqual(spy.seekCalls, [999])
+        XCTAssertEqual(appState.position, 42, "rejected seek must keep the previous position")
+    }
 }

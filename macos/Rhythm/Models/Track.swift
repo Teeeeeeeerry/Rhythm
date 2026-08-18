@@ -34,26 +34,6 @@ struct Track: Identifiable, Codable, Equatable {
     var displayLabel: String {
         title
     }
-
-    var sourceTag: String {
-        switch sourceType {
-        case "local": L10n.tagLocal
-        case "youtube": L10n.tagYoutube
-        case "bilibili": L10n.tagBilibili
-        case "direct_url": L10n.tagLink
-        default: ""
-        }
-    }
-
-    var sourceColor: String {
-        switch sourceType {
-        case "local": "blue"
-        case "youtube": "red"
-        case "bilibili": "pink"
-        case "direct_url": "green"
-        default: "gray"
-        }
-    }
 }
 
 struct PlaylistInfo: Identifiable, Codable {
