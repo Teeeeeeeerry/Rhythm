@@ -1,11 +1,13 @@
 #include "pch.h"
 #include "TrayManager.h"
+#include "AppState.h"
 
 namespace winrt::Rhythm {
 
-void TrayManager::Create(Window const& window) {
+void TrayManager::Create(Window const& window, rhythm::AppState* appState) {
     if (created_) return;
 
+    appState_ = appState;
     auto hwnd = window.GetWindowHandle();
 
     nid_ = {};
@@ -56,7 +58,16 @@ LRESULT TrayManager::MessageHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 
     if (msg == WM_COMMAND) {
         switch (LOWORD(wParam)) {
-        case 1: break; // Play/Pause — handled by app
+        case 1: {
+            // #138: same entry as the player-bar button. Empty-library /
+            // no-current-track cases are no-ops inside TogglePlayPause
+            // (WA-08/WA-15), and CanTogglePlayback mirrors the macOS tray
+            // gate so a dead click never claims playback.
+            if (appState_ && appState_->CanTogglePlayback()) {
+                appState_->TogglePlayPause();
+            }
+            break;
+        }
         case 2:
             ShowWindow(hwnd, SW_RESTORE);
             SetForegroundWindow(hwnd);

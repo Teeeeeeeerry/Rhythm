@@ -21,7 +21,7 @@ MainWindow::MainWindow() {
     playerBar().BindState(&appState_);
 
     // Setup tray
-    TrayManager::Create(*this);
+    TrayManager::Create(*this, &appState_);
 
     // Default to library view
     LoadLibraryView();
