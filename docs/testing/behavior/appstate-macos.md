@@ -63,6 +63,7 @@
 |---|---|---|---|---|
 | AS-40 | 解析失败 kind→文案映射（#21） | 各 kind（yt_dlp_missing/timeout/network/unavailable/no_audio_stream/yt_dlp_outdated/internal/invalid_url）均产生非空 `urlError`，不崩溃 | stub resolver 逐个 kind 报错 | **顺延至 Wave 3**（#85 验收范围外；kind→文案纯函数随 `rhythmcore-swift.md` 一并测试） |
 | AS-41 | 播放失败信息可见 | Error 状态下 `urlError` 含 core 的错误详情 | SpyPlayer（预置 Error） | 已覆盖（AS-15 已断言含 core 详情，见主路径表；此处仅登记出处） |
+| AS-42 | 播放失败 HTTP 分类文案（#120） | `expired` → 保留"重新粘贴"建议；`cdn_rejected` → 换网络/稍后再试且**不再建议重贴**；其它 → 泛化"播放失败" | SpyPlayer（预置 errorKind + errorMessage） | 已覆盖（`testUpdatePlaybackProgress_Error_ExpiredKind_KeepsRepasteAdvice`、`testUpdatePlaybackProgress_Error_CdnRejectedKind_BlamesNetwork`） |
 
 ## 红测登记
 
@@ -70,6 +71,7 @@
 |---|---|---|---|
 | AS-28 | 缺 filePath/sourceUrl 仍置播放中（无声假播放） | [#78](https://github.com/Teeeeeeerry/Rhythm/issues/78) | 已修复（`testPlayTrack_MissingPath_DoesNotEnterPlaying` 解禁；`testPlayNext/PlayPrevious_SkipsUnplayableTrack`、`testPlayNext_AllUnplayable_GivesUpWithoutTouchingState`、`testAutoAdvance_AllUnplayable_StopsClaimingPlayback` 覆盖 skip-loop 与 auto-advance） |
 | AS-07 | 非 Paused 状态 resume 被无条件当成功 → UI 误入播放态（#111） | [#111](https://github.com/Teeeeeeerry/Rhythm/issues/111) | 已修复（`testTogglePlayPause_ResumeOnlyWhenPaused`；`testTogglePlayPause_PausesWhileBuffering` 锁定 Buffering 中仍派发 pause） |
+| AS-15 | 播放 403 误报"链接已过期"、建议重贴结构性无效（#120） | [#120](https://github.com/Teeeeeeerry/Rhythm/issues/120) | 已修复（`errorKind` 分类驱动文案：仅真过期才建议重贴；CDN 拒绝改建议换网络，见 AS-42） |
 
 ## 附注：RhythmCore 封装层
 

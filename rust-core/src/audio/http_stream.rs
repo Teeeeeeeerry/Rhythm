@@ -1,4 +1,4 @@
-use crate::{RhythmError, RhythmResult};
+use crate::{HttpError, RhythmError, RhythmResult};
 use std::collections::{BTreeMap, VecDeque};
 use std::io::{Read, Seek, SeekFrom};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -190,10 +190,11 @@ impl HttpStreamInner {
             .send()
             .map_err(|e| RhythmError::Network(format!("GET {} failed: {e}", self.url)))?;
         if !resp.status().is_success() {
-            return Err(RhythmError::Network(format!(
-                "GET {} failed: HTTP {}",
-                self.url,
-                resp.status()
+            // Structured failure: the UI must be able to tell "the link
+            // really expired" from "the CDN is refusing a valid URL" (#120).
+            return Err(RhythmError::Http(HttpError::from_status(
+                resp.status().as_u16(),
+                &self.url,
             )));
         }
 

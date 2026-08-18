@@ -116,6 +116,9 @@ public:
     int32_t State() const;
     /// Why playback failed, when State() is 4 (Error); empty otherwise.
     std::wstring ErrorMessage() const;
+    /// Classification of the last playback failure when it was HTTP:
+    /// "expired" | "cdn_rejected" | "other"; empty otherwise (#120).
+    std::wstring ErrorKind() const;
     double Position() const;
     double Duration() const;
 

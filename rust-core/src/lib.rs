@@ -31,6 +31,11 @@ pub enum RhythmError {
     #[error("Network error: {0}")]
     Network(String),
 
+    /// An HTTP request to a stream URL failed, with enough context to tell a
+    /// genuinely expired link from a CDN rejecting a still-valid one (#120).
+    #[error("Network error: {0}")]
+    Http(HttpError),
+
     #[error("URL resolution error: {0}")]
     Resolution(String),
 
@@ -48,6 +53,157 @@ pub enum RhythmError {
 }
 
 pub type RhythmResult<T> = Result<T, RhythmError>;
+
+/// Why an HTTP request to a stream URL failed, so the UI can stop blaming
+/// every failure on an "expired link" (#120).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HttpErrorKind {
+    /// The URL's `expire` timestamp has passed — the link really is stale.
+    Expired,
+    /// The URL is still valid (not past `expire`) but the server refused it,
+    /// e.g. HTTP 403 from a CDN. Typically the network side: an ISP-hosted
+    /// cache node or an exit IP YouTube has blocked. Re-pasting the link
+    /// cannot help.
+    CdnRejected,
+    /// Anything else: 5xx, DNS, TLS, malformed response…
+    Other,
+}
+
+/// A failed HTTP request to a stream URL, carrying the fields that decide
+/// whether the link was genuinely expired.
+#[derive(Debug, Clone)]
+pub struct HttpError {
+    /// HTTP status code, when the server answered.
+    pub status: Option<u16>,
+    /// The URL that failed.
+    pub url: String,
+    /// Human-readable detail (kept in the error message shown to the user).
+    pub message: String,
+    /// The URL's `expire` query parameter, when present (YouTube signed URLs).
+    pub expire: Option<i64>,
+    /// The URL's `mt` query parameter — when the URL was issued.
+    pub issued_at: Option<i64>,
+    /// The URL's `ip` query parameter — the client IP the URL was signed for.
+    pub ip: Option<String>,
+    pub kind: HttpErrorKind,
+}
+
+impl std::fmt::Display for HttpError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl HttpError {
+    /// Build from a non-2xx status, decoding `expire` / `mt` / `ip` out of the
+    /// URL's query string so the failure can be classified.
+    pub fn from_status(status: u16, url: &str) -> Self {
+        let (expire, issued_at, ip) = signed_url_params(url);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+
+        let kind = if expire.is_some_and(|e| now > e) {
+            HttpErrorKind::Expired
+        } else if status == 403 {
+            HttpErrorKind::CdnRejected
+        } else {
+            HttpErrorKind::Other
+        };
+
+        Self {
+            status: Some(status),
+            url: url.to_string(),
+            message: format!("GET {url} failed: HTTP {status}"),
+            expire,
+            issued_at,
+            ip,
+            kind,
+        }
+    }
+}
+
+/// Pull `expire`, `mt`, and `ip` out of a URL's query string.
+///
+/// YouTube's signed googlevideo URLs carry them: `expire` is the hard
+/// deadline, `mt` the issue time, `ip` the client IP the signature binds.
+fn signed_url_params(url: &str) -> (Option<i64>, Option<i64>, Option<String>) {
+    let query = match url::Url::parse(url) {
+        Ok(parsed) => parsed.query().unwrap_or("").to_string(),
+        Err(_) => return (None, None, None),
+    };
+    let mut expire = None;
+    let mut issued_at = None;
+    let mut ip = None;
+    for (k, v) in url::form_urlencoded::parse(query.as_bytes()) {
+        match k.as_ref() {
+            "expire" => expire = v.parse::<i64>().ok(),
+            "mt" => issued_at = v.parse::<i64>().ok(),
+            "ip" => ip = Some(v.into_owned()),
+            _ => {}
+        }
+    }
+    (expire, issued_at, ip)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SIGNED: &str = "https://rr2---sn-55goxu-hxas.googlevideo.com/videoplayback?mt=1787020361&expire=1787042504&ip=138.25.4.51&itag=140&c=ANDROID_VR";
+
+    #[test]
+    fn http_error_403_on_valid_url_is_cdn_rejected() {
+        // The #120 case: URL signed minutes ago, expire hours away, yet 403.
+        let error = HttpError::from_status(403, SIGNED);
+        assert_eq!(error.kind, HttpErrorKind::CdnRejected);
+        assert_eq!(error.expire, Some(1787042504));
+        assert_eq!(error.issued_at, Some(1787020361));
+        assert_eq!(error.ip.as_deref(), Some("138.25.4.51"));
+        assert_eq!(error.status, Some(403));
+        assert!(error.message.contains("HTTP 403"));
+    }
+
+    #[test]
+    fn http_error_403_on_expired_url_is_expired() {
+        // Same URL shape, but `expire` is long past: the link really is stale.
+        let url = "https://rr.example/videoplayback?expire=1&mt=0&ip=1.2.3.4";
+        let error = HttpError::from_status(403, url);
+        assert_eq!(error.kind, HttpErrorKind::Expired);
+    }
+
+    #[test]
+    fn http_error_5xx_without_expire_is_other() {
+        let error = HttpError::from_status(503, "https://cdn.example/audio.m4a");
+        assert_eq!(error.kind, HttpErrorKind::Other);
+        assert_eq!(error.expire, None);
+        assert_eq!(error.ip, None);
+    }
+
+    #[test]
+    fn http_error_403_without_expire_info_is_cdn_rejected() {
+        // No `expire` to prove staleness → treat a 403 as a CDN rejection.
+        let error = HttpError::from_status(403, "not a url");
+        assert_eq!(error.kind, HttpErrorKind::CdnRejected);
+        assert_eq!(error.status, Some(403));
+    }
+
+    #[test]
+    fn signed_url_params_extracts_expire_mt_ip() {
+        let (expire, issued_at, ip) = signed_url_params(SIGNED);
+        assert_eq!(expire, Some(1787042504));
+        assert_eq!(issued_at, Some(1787020361));
+        assert_eq!(ip.as_deref(), Some("138.25.4.51"));
+    }
+
+    #[test]
+    fn http_error_display_reads_like_the_old_network_error() {
+        let error = HttpError::from_status(403, SIGNED);
+        let text = error.to_string();
+        assert!(text.contains("failed: HTTP 403"), "{text}");
+    }
+}
 
 /// Track information used across all modules
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

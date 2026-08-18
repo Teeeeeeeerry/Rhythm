@@ -18,6 +18,7 @@ final class SpyPlayer: RhythmPlayerProtocol {
     var duration: Double = 0
     var state: Int32 = 0
     var errorMessage: String?
+    var errorKind: String?
 
     var hasAnyCall: Bool { !calls.isEmpty }
 

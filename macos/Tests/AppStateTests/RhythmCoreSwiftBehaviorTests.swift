@@ -167,6 +167,7 @@ final class RhythmCoreSwiftBehaviorTests: XCTestCase {
         XCTAssertEqual(player.position, 0)
         XCTAssertEqual(player.duration, 0)
         XCTAssertNil(player.errorMessage)
+        XCTAssertNil(player.errorKind, "no failure → no classification (#120)")
     }
 
     // MARK: - SW-10 RhythmQueue 空曲目列表

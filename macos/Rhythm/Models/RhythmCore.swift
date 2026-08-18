@@ -110,6 +110,9 @@ protocol RhythmPlayerProtocol {
     var duration: Double { get }
     var state: Int32 { get }
     var errorMessage: String? { get }
+    /// Classification of the last playback failure when it was HTTP:
+    /// "expired" | "cdn_rejected" | "other"; nil otherwise (#120).
+    var errorKind: String? { get }
 }
 
 final class RhythmPlayer: RhythmPlayerProtocol {
@@ -166,6 +169,13 @@ final class RhythmPlayer: RhythmPlayerProtocol {
     /// Why playback failed, when `state` is 4 (Error).
     var errorMessage: String? {
         guard let ptr, let raw = rhythm_player_error(ptr) else { return nil }
+        defer { rhythm_free_string(raw) }
+        return String(cString: raw)
+    }
+
+    /// Classification of the last playback failure when it was HTTP (#120).
+    var errorKind: String? {
+        guard let ptr, let raw = rhythm_player_error_kind(ptr) else { return nil }
         defer { rhythm_free_string(raw) }
         return String(cString: raw)
     }

@@ -209,6 +209,7 @@ TEST_CASE("WB-08 Player defaults are observable and safe") {
     REQUIRE(player.Position() == 0.0);
     REQUIRE(player.Duration() == 0.0);
     REQUIRE(player.ErrorMessage().empty());
+    REQUIRE(player.ErrorKind().empty()); // no failure → no classification (#120)
 
     player.Pause();   // must not crash on a stopped player
     player.Resume();

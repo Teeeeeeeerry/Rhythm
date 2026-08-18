@@ -650,6 +650,28 @@ pub fn classify_url(url: &str) -> ResolveResult<SourceType> {
 /// [`ResolveErrorKind`] so the UI can explain what went wrong, and are
 /// appended to the resolver log.
 pub fn resolve_url(url: &str) -> ResolveResult<ResolvedUrl> {
+    resolve_url_impl(url, true)
+}
+
+/// Resolve a URL bypassing the cache entirely.
+///
+/// Used after playback hit a CDN-rejected stream URL: the cached entry would
+/// hand back the same bad URL, so the retry must get a freshly signed one
+/// (#120). A successful fresh resolution still populates the cache.
+pub fn resolve_url_fresh(url: &str) -> ResolveResult<ResolvedUrl> {
+    resolve_url_impl(url, false)
+}
+
+/// Forget a cached resolution for `url`, if any.
+///
+/// Called when playback failed on the cached stream URL so the next resolve
+/// cannot serve the same dead link again (#120).
+pub fn evict_resolution(url: &str) {
+    let trimmed = url.trim();
+    RESOLVED_CACHE.lock().unwrap().remove(trimmed);
+}
+
+fn resolve_url_impl(url: &str, use_cache: bool) -> ResolveResult<ResolvedUrl> {
     let trimmed = url.trim();
 
     // Basic sanity check.
@@ -667,7 +689,7 @@ pub fn resolve_url(url: &str) -> ResolveResult<ResolvedUrl> {
     }
 
     // Check cache (return clone so we don't hold the lock across I/O).
-    {
+    if use_cache {
         let mut cache = RESOLVED_CACHE.lock().unwrap();
         prune_cache(&mut cache);
         if let Some(entry) = cache.get(trimmed) {
@@ -699,6 +721,50 @@ pub fn resolve_url(url: &str) -> ResolveResult<ResolvedUrl> {
     }
 
     Ok(resolved)
+}
+
+/// Record a playback-side HTTP failure (e.g. a CDN 403) in the resolver log,
+/// with the signed-URL fields that decide whether it was a genuine expiry.
+///
+/// Best-effort, like `log_failure`: logging problems never affect playback.
+pub fn log_playback_http(page_url: &str, error: &crate::HttpError) {
+    log::warn!(
+        "resolver: playback of {page_url} failed: HTTP {} ({:?})",
+        error.status.map(|s| s.to_string()).unwrap_or_else(|| "?".into()),
+        error.kind
+    );
+
+    let Some(path) = log_file_path() else {
+        return;
+    };
+    if let Some(parent) = path.parent() {
+        if std::fs::create_dir_all(parent).is_err() {
+            return;
+        }
+    }
+    if std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0) > LOG_MAX_BYTES {
+        let _ = std::fs::remove_file(&path);
+    }
+    let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    else {
+        return;
+    };
+
+    let entry = format!(
+        "[{}] playback http {:?} (status {})\n  page: {}\n  stream: {}\n  expire: {}\n  mt: {}\n  ip: {}\n",
+        format_utc(SystemTime::now()),
+        error.kind,
+        error.status.map(|s| s.to_string()).unwrap_or_else(|| "?".into()),
+        page_url,
+        error.url,
+        error.expire.map(|e| e.to_string()).unwrap_or_else(|| "none".into()),
+        error.issued_at.map(|e| e.to_string()).unwrap_or_else(|| "none".into()),
+        error.ip.clone().unwrap_or_else(|| "none".into()),
+    );
+    let _ = file.write_all(entry.as_bytes());
 }
 
 // ─── Direct URL resolution ──────────────────────────────────────────
@@ -1584,6 +1650,59 @@ mod tests {
         ))
         .unwrap();
         assert!(json.contains("\"kind\":\"yt_dlp_missing\""));
+    }
+
+    // ── Cache eviction / bypass (#120) ──────────────────────────
+
+    /// #120: evicting a poisoned (403'd) cache entry forces a real
+    /// re-resolution instead of serving the dead CDN URL again.
+    #[test]
+    fn test_evict_resolution_drops_poisoned_entry() {
+        RESOLVED_CACHE.lock().unwrap().clear();
+        let url = "https://example.com/song.mp3";
+
+        // Simulate a cached resolution whose stream URL turned out to be 403.
+        RESOLVED_CACHE.lock().unwrap().insert(
+            url.to_string(),
+            CachedEntry {
+                resolved: cache_entry_resolved("poisoned"),
+                cached_at: Instant::now(),
+            },
+        );
+        // Without eviction the cache serves the poisoned entry…
+        let hit = resolve_url(url).unwrap();
+        assert_eq!(hit.title, "poisoned");
+
+        // …evict, and the next resolve goes through the real pipeline.
+        evict_resolution(url);
+        assert!(!RESOLVED_CACHE.lock().unwrap().contains_key(url));
+        let fresh = resolve_url(url).unwrap();
+        assert_eq!(fresh.stream_url, url, "direct URL resolution re-ran");
+        RESOLVED_CACHE.lock().unwrap().clear();
+    }
+
+    /// #120: `resolve_url_fresh` bypasses the cache entirely (but still
+    /// repopulates it), so a rejected stream URL gets a freshly signed one.
+    #[test]
+    fn test_resolve_url_fresh_bypasses_cache() {
+        RESOLVED_CACHE.lock().unwrap().clear();
+        let url = "https://example.com/song.mp3";
+        RESOLVED_CACHE.lock().unwrap().insert(
+            url.to_string(),
+            CachedEntry {
+                resolved: cache_entry_resolved("poisoned"),
+                cached_at: Instant::now(),
+            },
+        );
+
+        let fresh = resolve_url_fresh(url).unwrap();
+        assert_eq!(fresh.stream_url, url, "cache bypassed");
+        // The fresh result replaces the poisoned entry.
+        {
+            let cached = RESOLVED_CACHE.lock().unwrap();
+            assert_eq!(cached.get(url).unwrap().resolved.stream_url, url);
+        }
+        RESOLVED_CACHE.lock().unwrap().clear();
     }
 
     // ── Cache pruning (RS-11 / RS-24) ───────────────────────────

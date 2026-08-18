@@ -80,6 +80,10 @@ char* rhythm_resolver_diagnostics(void);
 // null otherwise.
 char* rhythm_player_error(RhythmPlayer* player);
 
+// Classification of the last playback failure, when it was HTTP:
+// "expired" | "cdn_rejected" | "other"; null otherwise (#120).
+char* rhythm_player_error_kind(RhythmPlayer* player);
+
 // Progress of yt-dlp provisioning as JSON, e.g.
 // {"phase":"downloading","received":1048576,"total":41943040}
 // Phases: idle, checking, downloading, verifying, updating, ready, failed.

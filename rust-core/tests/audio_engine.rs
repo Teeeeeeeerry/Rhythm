@@ -14,7 +14,7 @@ use common::{make_wav_bytes, RangeServer};
 use rhythm_core::audio::decoder::AudioDecoder;
 use rhythm_core::audio::{open_resolved_stream, stream_hint, AudioEngine, Decoder, Sink};
 use rhythm_core::resolver::{ResolveErrorKind, ResolveFailure, ResolvedUrl};
-use rhythm_core::{PlayerState, RhythmError, RhythmResult, SourceType};
+use rhythm_core::{HttpError, HttpErrorKind, PlayerState, RhythmError, RhythmResult, SourceType};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -521,15 +521,19 @@ fn ae05b_play_url_falls_back_to_resolved_duration() {
     let resolved = stub_resolved("http://127.0.0.1:1/unused.m4s", 42.0);
     let engine = AudioEngine::new_with_resolver(Arc::new(move |_url| Ok(resolved.clone())));
     let rec = attach_recorders(&engine);
-    let fake = FakeDecoder::new(44100, 2, 0.0)
-        .packet(vec![0.1f32; 8], 0.1)
-        .end();
     let sink = FakeSink::new(44100, 2, Arc::new(SinkProbe::default()));
 
     engine
         .play_url_with(
             "https://example.com/watch?v=stub",
-            move |resolved| Ok((fake, Some(resolved.duration))),
+            // `open_decoder` is FnMut (#120 retry), so build the fake inside
+            // the closure instead of moving one in.
+            move |resolved| {
+                let fake = FakeDecoder::new(44100, 2, 0.0)
+                    .packet(vec![0.1f32; 8], 0.1)
+                    .end();
+                Ok((fake, Some(resolved.duration)))
+            },
             move |_| Ok(sink),
         )
         .unwrap();
@@ -873,7 +877,7 @@ fn ae15_failure_lands_error_state() {
         .play_file_with(
             "fake://failing".to_string(),
             || Ok((fake, None)),
-            move |_| Ok(sink),
+            move |_: &FakeDecoder| Ok(sink),
         )
         .unwrap();
 
@@ -1398,6 +1402,194 @@ fn ae31_pause_during_buffering_blocks_audio() {
         sink_probe.write_count.load(Ordering::SeqCst) > 0
     });
     engine.stop();
+}
+
+// ── AE-38…AE-41 (#120): HTTP 403 recovery ────────────────────────────
+
+/// #120: a CDN-rejected stream URL (403 on a still-valid link) triggers
+/// exactly one re-resolve + retry of the open; playback recovers.
+#[test]
+fn ae38_http_403_retries_with_fresh_resolution_once() {
+    let resolve_calls = Arc::new(AtomicUsize::new(0));
+    let resolve_calls2 = resolve_calls.clone();
+    let resolved = stub_resolved("http://127.0.0.1:1/unused.m4s", 0.0);
+    let engine = AudioEngine::new_with_resolver(Arc::new(move |_url| {
+        resolve_calls2.fetch_add(1, Ordering::SeqCst);
+        Ok(resolved.clone())
+    }));
+    let rec = attach_recorders(&engine);
+
+    let open_calls = Arc::new(AtomicUsize::new(0));
+    let open_calls2 = open_calls.clone();
+    let sink = FakeSink::new(44100, 2, Arc::new(SinkProbe::default()));
+
+    engine
+        .play_url_with(
+            "https://example.com/watch?v=stub",
+            move |_resolved| {
+                let n = open_calls2.fetch_add(1, Ordering::SeqCst);
+                if n == 0 {
+                    // First attempt: the CDN rejects a still-valid URL — the
+                    // exact #120 shape (expire far in the future, yet 403).
+                    Err(RhythmError::Http(HttpError::from_status(
+                        403,
+                        "https://rr1---sn-55goxu-hxas.googlevideo.com/videoplayback?expire=9999999999&mt=1&ip=1.2.3.4",
+                    )))
+                } else {
+                    Ok((FakeDecoder::new(44100, 2, 0.0).end(), None))
+                }
+            },
+            move |_| Ok(sink),
+        )
+        .unwrap();
+
+    wait_for_state_any(
+        &engine,
+        &rec,
+        &[PlayerState::Finished],
+        Duration::from_secs(5),
+    );
+    assert_eq!(
+        resolve_calls.load(Ordering::SeqCst),
+        2,
+        "exactly one re-resolve after the 403"
+    );
+    assert_eq!(open_calls.load(Ordering::SeqCst), 2, "open retried once");
+    assert_eq!(
+        engine.last_error_kind(),
+        None,
+        "recovered — no failure may be recorded"
+    );
+}
+
+/// #120: a genuinely expired link is re-resolved once too — the fresh
+/// resolution returns a new (valid) URL and playback proceeds.
+#[test]
+fn ae39_expired_link_retries_with_fresh_resolution() {
+    let resolve_calls = Arc::new(AtomicUsize::new(0));
+    let resolve_calls2 = resolve_calls.clone();
+    let resolved = stub_resolved("http://127.0.0.1:1/unused.m4s", 0.0);
+    let engine = AudioEngine::new_with_resolver(Arc::new(move |_url| {
+        resolve_calls2.fetch_add(1, Ordering::SeqCst);
+        Ok(resolved.clone())
+    }));
+    let rec = attach_recorders(&engine);
+
+    let sink = FakeSink::new(44100, 2, Arc::new(SinkProbe::default()));
+    engine
+        .play_url_with(
+            "https://example.com/watch?v=stub",
+            move |_resolved| {
+                // expire=1 is long past → Expired.
+                Err(RhythmError::Http(HttpError::from_status(
+                    403,
+                    "https://rr.example/videoplayback?expire=1&mt=0&ip=1.2.3.4",
+                )))
+            },
+            move |_: &FakeDecoder| Ok(sink),
+        )
+        .unwrap();
+
+    wait_for("Error state", Duration::from_secs(5), || {
+        matches!(engine.state(), PlayerState::Error(_))
+    });
+    // The retry re-resolved but the open failed again (this stub never
+    // succeeds) — the failure must surface with the Expired classification.
+    assert_eq!(resolve_calls.load(Ordering::SeqCst), 2);
+    assert_eq!(engine.last_error_kind(), Some(HttpErrorKind::Expired));
+}
+
+/// #120: non-HTTP failures do NOT re-resolve — the resolver runs exactly
+/// once, and the error surfaces unclassified.
+#[test]
+fn ae40_non_http_failure_does_not_retry() {
+    let resolve_calls = Arc::new(AtomicUsize::new(0));
+    let resolve_calls2 = resolve_calls.clone();
+    let resolved = stub_resolved("http://127.0.0.1:1/unused.m4s", 0.0);
+    let engine = AudioEngine::new_with_resolver(Arc::new(move |_url| {
+        resolve_calls2.fetch_add(1, Ordering::SeqCst);
+        Ok(resolved.clone())
+    }));
+    let rec = attach_recorders(&engine);
+
+    let sink = FakeSink::new(44100, 2, Arc::new(SinkProbe::default()));
+    engine
+        .play_url_with(
+            "https://example.com/watch?v=stub",
+            move |_resolved| Err(RhythmError::Network("connection refused".into())),
+            move |_: &FakeDecoder| Ok(sink),
+        )
+        .unwrap();
+
+    wait_for("Error state", Duration::from_secs(5), || {
+        matches!(engine.state(), PlayerState::Error(_))
+    });
+    assert_eq!(resolve_calls.load(Ordering::SeqCst), 1, "no re-resolve");
+    assert_eq!(engine.last_error_kind(), None, "not an HTTP failure");
+}
+
+/// #120: with the production recovery hooks wired, the evictor and the fresh
+/// resolver run — and the cached resolver is NOT consulted again.
+#[test]
+fn ae41_recovery_hooks_evict_and_resolve_fresh() {
+    let resolve_calls = Arc::new(AtomicUsize::new(0));
+    let resolve_calls2 = resolve_calls.clone();
+    let evict_calls = Arc::new(AtomicUsize::new(0));
+    let evict_calls2 = evict_calls.clone();
+    let fresh_calls = Arc::new(AtomicUsize::new(0));
+    let fresh_calls2 = fresh_calls.clone();
+
+    let resolved = stub_resolved("http://127.0.0.1:1/unused.m4s", 0.0);
+    let fresh_resolved = stub_resolved("http://127.0.0.1:1/fresh.m4s", 0.0);
+
+    let engine = AudioEngine::new_with_resolver(Arc::new(move |_url| {
+        resolve_calls2.fetch_add(1, Ordering::SeqCst);
+        Ok(resolved.clone())
+    }))
+    .with_recovery(
+        Arc::new(move |_url| {
+            fresh_calls2.fetch_add(1, Ordering::SeqCst);
+            Ok(fresh_resolved.clone())
+        }),
+        Arc::new(move |_url| {
+            evict_calls2.fetch_add(1, Ordering::SeqCst);
+        }),
+    );
+    let rec = attach_recorders(&engine);
+
+    let open_calls = Arc::new(AtomicUsize::new(0));
+    let open_calls2 = open_calls.clone();
+    let sink = FakeSink::new(44100, 2, Arc::new(SinkProbe::default()));
+    engine
+        .play_url_with(
+            "https://example.com/watch?v=stub",
+            move |_resolved| {
+                let n = open_calls2.fetch_add(1, Ordering::SeqCst);
+                if n == 0 {
+                    Err(RhythmError::Http(HttpError::from_status(
+                        403,
+                        "https://rr.example/videoplayback?expire=9999999999&mt=1&ip=1.2.3.4",
+                    )))
+                } else {
+                    // The fresh stream URL is the one that opens.
+                    assert_eq!(_resolved.stream_url, "http://127.0.0.1:1/fresh.m4s");
+                    Ok((FakeDecoder::new(44100, 2, 0.0).end(), None))
+                }
+            },
+            move |_| Ok(sink),
+        )
+        .unwrap();
+
+    wait_for_state_any(
+        &engine,
+        &rec,
+        &[PlayerState::Finished],
+        Duration::from_secs(5),
+    );
+    assert_eq!(resolve_calls.load(Ordering::SeqCst), 1, "cached resolver once");
+    assert_eq!(evict_calls.load(Ordering::SeqCst), 1, "cache entry evicted");
+    assert_eq!(fresh_calls.load(Ordering::SeqCst), 1, "fresh resolve once");
+    assert_eq!(open_calls.load(Ordering::SeqCst), 2);
 }
 
 
