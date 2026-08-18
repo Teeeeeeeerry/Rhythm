@@ -134,7 +134,6 @@ DEFAULT_WHITELIST: dict = {
         r"Transparent",
         r"Red|Orange|Yellow|Green|Blue|Purple|Pink",
         r"\{ThemeResource",         # 主题资源引用（品牌 token 或系统资源）
-        r"Gray",                    # F1/F4 修复前 SourceColor 回退（修复后移除）
     ],
 }
 

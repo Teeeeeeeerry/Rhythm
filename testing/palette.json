@@ -229,8 +229,7 @@
     "windows": [
       "Transparent",
       "Red|Orange|Yellow|Green|Blue|Purple|Pink",
-      "\\{ThemeResource",
-      "Gray"
+      "\\{ThemeResource"
     ]
   }
 }
