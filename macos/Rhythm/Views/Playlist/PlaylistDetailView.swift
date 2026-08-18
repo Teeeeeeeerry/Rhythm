@@ -114,14 +114,10 @@ struct PlaylistDetailView: View {
         guard let json = rhythm_import_m3u8(url.path) else { return }
         defer { rhythm_free_string(json) }
         let s = String(cString: json)
+        // #136: the core only parses the file — persist every entry here,
+        // otherwise the import is a silent no-op.
         if let entries: [[String?]] = decodeJSON(s) {
-            for entry in entries {
-                let title = entry.first.flatMap { $0 } ?? "Unknown"
-                _ = entry.count > 1 ? entry[1] : nil
-                _ = entry.count > 2 ? entry[2] : nil
-                print("Imported: \(title)")
-            }
-            appState.refreshLibrary()
+            appState.importM3U8Entries(entries)
         }
     }
 }

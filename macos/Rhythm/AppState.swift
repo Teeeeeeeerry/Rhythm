@@ -348,6 +348,67 @@ final class AppState: ObservableObject {
         showImportAlert = true
     }
 
+    /// Persist M3U8 entries decoded by `playlist::import_m3u8` — the core
+    /// only parses, the caller must add the tracks (#136). A location that
+    /// looks like an http(s) URL is stored as a direct_url; anything else is
+    /// a local file path. Returns the imported/failed counts.
+    @discardableResult
+    func importM3U8Entries(_ entries: [[String?]]) -> (imported: Int, failed: Int) {
+        var imported = 0
+        var failed = 0
+        for entry in entries {
+            let title = entry.first.flatMap { $0 } ?? "Unknown"
+            let artist = entry.count > 1 ? entry[1] : nil
+            guard let location = entry.count > 2 ? entry[2] : nil, !location.isEmpty else {
+                failed += 1
+                continue
+            }
+            let isURL = location.hasPrefix("http://") || location.hasPrefix("https://")
+            let track = Track(
+                id: -1,
+                filePath: isURL ? nil : location,
+                sourceType: isURL ? "direct_url" : "local",
+                sourceUrl: isURL ? location : nil,
+                title: title,
+                artist: artist,
+                album: nil,
+                albumArtist: nil,
+                trackNumber: nil,
+                discNumber: nil,
+                genre: nil,
+                year: nil,
+                duration: 0,
+                format: nil,
+                bitrate: nil,
+                sampleRate: nil,
+                channels: nil,
+                fileSize: nil,
+                dateAdded: nil,
+                lastPlayed: nil,
+                playCount: 0,
+                artworkPath: nil,
+                isAvailable: true
+            )
+            if library?.addTrack(track) != nil {
+                imported += 1
+            } else {
+                failed += 1
+            }
+        }
+        refreshLibrary()
+        if failed > 0 {
+            importAlertMessage = L10n.isChinese
+                ? "导入 \(imported) 首，失败 \(failed) 首"
+                : "Imported \(imported), failed \(failed)."
+        } else if imported > 0 {
+            importAlertMessage = L10n.importedTracks(imported)
+        }
+        if imported > 0 || failed > 0 {
+            showImportAlert = true
+        }
+        return (imported, failed)
+    }
+
     /// Play a resolved URL track: persist it to the library so it survives
     /// restarts, then refresh the in-memory list from DB and rebuild the queue
     /// so "next" continues from the full library (#39, #66).

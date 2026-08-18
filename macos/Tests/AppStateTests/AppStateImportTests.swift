@@ -86,4 +86,43 @@ final class AppStateImportTests: AppStatePlaybackTestCase {
         XCTAssertNil(appState.currentTrack,
             "resolveAndImport should not set a current track")
     }
+
+    // MARK: - Seam 4: importM3U8Entries (#136 regression)
+
+    /// M3U8 entries are persisted to the library, not discarded — local
+    /// paths become local tracks, http(s) locations become direct_url tracks.
+    func testImportM3U8Entries_PersistsTracksWithMappedSources() {
+        let entries: [[String?]] = [
+            ["Local Song", "Local Artist", "/music/local.mp3"],
+            ["Remote Song", nil, "https://example.com/remote.mp3"],
+        ]
+        let result = appState.importM3U8Entries(entries)
+
+        XCTAssertEqual(result.imported, 2)
+        XCTAssertEqual(result.failed, 0)
+        XCTAssertEqual(appState.tracks.count, 2, "entries must be written to the database")
+        let local = appState.tracks.first { $0.sourceType == "local" }
+        let remote = appState.tracks.first { $0.sourceType == "direct_url" }
+        XCTAssertEqual(local?.title, "Local Song")
+        XCTAssertEqual(local?.artist, "Local Artist")
+        XCTAssertEqual(local?.filePath, "/music/local.mp3")
+        XCTAssertEqual(remote?.title, "Remote Song")
+        XCTAssertEqual(remote?.sourceUrl, "https://example.com/remote.mp3")
+        XCTAssertNil(remote?.filePath)
+        XCTAssertTrue(appState.showImportAlert, "import should surface feedback")
+    }
+
+    /// Entries without a usable location are counted as failures and skipped.
+    func testImportM3U8Entries_CountsInvalidEntriesAsFailed() {
+        let entries: [[String?]] = [
+            ["Good", nil, "/music/good.mp3"],
+            ["No Location", nil, nil],
+            ["Empty Location", nil, ""],
+        ]
+        let result = appState.importM3U8Entries(entries)
+
+        XCTAssertEqual(result.imported, 1)
+        XCTAssertEqual(result.failed, 2)
+        XCTAssertEqual(appState.tracks.count, 1)
+    }
 }
