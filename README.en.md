@@ -15,7 +15,7 @@ A cross-platform music player — local music + online links, for both Windows a
 - System media key support (play / pause / previous / next)
 - Global keyboard shortcuts (Space to toggle playback, Cmd+arrows to skip)
 - System tray mode (closing the window does not quit the app)
-- Chinese / English interface (follows system language, with manual override)
+- Chinese / English interface (macOS follows system language with manual override; Windows follows system language, with manual override via registry `HKCU\Software\Rhythm\AppLanguage`)
 - Supported formats: MP3, AAC, FLAC, WAV, OGG, ALAC, APE, WMA, AIFF, WavPack, MP4/M4A
 
 ## Architecture
@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.40 "Motif"**.
+Initial development is complete. Current version: **v0.5.63 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
 
 ### Implementation Status
 
@@ -36,7 +36,7 @@ Initial development is complete. Current version: **v0.5.40 "Motif"**.
 | Play queue (sequential/shuffle/single-loop/list-loop) | Done | — |
 | Album cover extraction | Done | — |
 | System media keys + tray mode | Done | — |
-| Chinese/English localization | Done | — |
+| Chinese/English localization | Done (macOS manual override + Windows registry override) | [#141](https://github.com/Teeeeeeeerry/Rhythm/issues/141), [#145](https://github.com/Teeeeeeeerry/Rhythm/issues/145) |
 | URL streaming (YouTube/Bilibili/direct links) | Done | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
 | URL input UI | Done | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
 | Resolver error reporting + yt-dlp auto-install | Done | [#21](https://github.com/Teeeeeeeerry/Rhythm/issues/21) |
