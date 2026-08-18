@@ -1,7 +1,7 @@
 # Windows RhythmCore（Bridge 封装层）行为清单
 
 - 模块：`windows/Rhythm/Bridge/RhythmCore.h` + `.cpp`（FFI 包装类、Track 模型与纯函数、Resolver 静态封装、UTF-8/UTF-16 转换）
-- 历史回归：`#21`（解析失败原因）、`#39`（URL 持久化）、F1（来源徽标色双主题——`docs/testing/l1/windows/source_color_test.cpp` 为该修复的验收测试，当前测的是自声明桩而非真实代码）
+- 历史回归：`#21`（解析失败原因）、`#39`（URL 持久化）、F1（来源徽标色双主题——`docs/testing/l1/windows/source_color_test.cpp` 为该修复的验收测试，`#122` 已解除自声明桩、直测真实 `RhythmCore.h`）
 - 测试设施：Catch2 v3.5.4 header-only（`windows/tests/vendor/`）；测试 main 已 `init_apartment`（Brush 构造可用）；测试文件 `windows/tests/BridgeBehaviorTests.cpp`。
 
 ## 主路径（P0 — 合并门槛）
