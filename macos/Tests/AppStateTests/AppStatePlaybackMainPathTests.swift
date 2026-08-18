@@ -519,20 +519,15 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
     }
 
     func testImportURLs_NoSupportedFiles() throws {
-        // #109：importFile 对不支持格式返回 0（UnsupportedFormat），importURLs
-        // 既不计数导入也不计数失败，落"未找到支持的音频文件"分支——断言锁定
-        // 该现状（#135 全量回归时发现旧断言停留在 #109 之前的 -1 契约）。
+        // #109/#142：importFile 对不支持格式返回 0（UnsupportedFormat），importURLs
+        // 既不计数导入也不计数失败，落"未找到支持的音频文件"分支。中/英分支
+        // 各自固定 locale 确定性断言（旧写法依赖机器语言，单机只测到一个分支）。
         let txt = tempDir.appendingPathComponent("notes.txt")
         try! Data("not audio".utf8).write(to: txt)
 
-        appState.importURLs([txt])
-
-        XCTAssertTrue(waitUntil { appState.showImportAlert })
+        XCTAssertEqual(importURLsAlert(locale: "en", [txt]), "No supported audio files found.")
+        XCTAssertEqual(importURLsAlert(locale: "zh", [txt]), "未找到支持的音频文件")
         XCTAssertEqual(appState.tracks.count, 0)
-        let expected = L10n.isChinese
-            ? "未找到支持的音频文件"
-            : "No supported audio files found."
-        XCTAssertEqual(appState.importAlertMessage, expected)
     }
 
     func testImportURLs_DirectoryDispatchesToImportDirectory() throws {
@@ -558,19 +553,33 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
     }
 
     func testImportFile_UnsupportedFormat() throws {
-        // #109：rust-core 对不支持格式返回 0（UnsupportedFormat），命中
-        // "不支持的音频格式"分支——旧断言停留在 #109 之前的 -1 契约（#135
-        // 全量回归时发现并修正）。
+        // #109/#142：rust-core 对不支持格式返回 0（UnsupportedFormat），命中
+        // "不支持的音频格式"分支（==0 三态之一）。中/英分支各自固定 locale
+        // 确定性断言（旧写法依赖机器语言，单机只测到一个分支）。
         let txt = tempDir.appendingPathComponent("notes.txt")
         try! Data("not audio".utf8).write(to: txt)
 
-        appState.importFile(txt)
-
+        XCTAssertEqual(importFileAlert(locale: "en", txt), "Unsupported audio format.")
+        XCTAssertEqual(importFileAlert(locale: "zh", txt), "不支持的音频格式")
         XCTAssertEqual(appState.tracks.count, 0)
-        let expected = L10n.isChinese
-            ? "不支持的音频格式"
-            : "Unsupported audio format."
-        XCTAssertEqual(appState.importAlertMessage, expected)
+    }
+
+    // MARK: - #142 中/英分支确定性覆盖（固定 locale 后执行并取弹窗文案）
+
+    private func importFileAlert(locale: String, _ url: URL) -> String? {
+        UserDefaults.standard.set(locale, forKey: "AppLanguage")
+        defer { UserDefaults.standard.removeObject(forKey: "AppLanguage") }
+        appState.importFile(url)
+        return appState.importAlertMessage
+    }
+
+    private func importURLsAlert(locale: String, _ urls: [URL]) -> String? {
+        UserDefaults.standard.set(locale, forKey: "AppLanguage")
+        defer { UserDefaults.standard.removeObject(forKey: "AppLanguage") }
+        appState.showImportAlert = false // 上一轮弹窗仍为 true，直接 wait 会读到旧文案
+        appState.importURLs(urls)
+        guard waitUntil({ appState.showImportAlert }) else { return nil }
+        return appState.importAlertMessage
     }
 
     func testImportFile_Failure() throws {
