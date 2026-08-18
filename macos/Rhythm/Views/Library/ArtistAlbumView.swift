@@ -24,7 +24,7 @@ struct ArtistAlbumView: View {
     var body: some View {
         let sections = groupByArtistAlbum()
         if sections.isEmpty {
-            Text("无内容").foregroundStyle(.rhythmTextSecondary)
+            Text(L10n.libraryEmpty).foregroundStyle(.rhythmTextSecondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List {
@@ -167,10 +167,10 @@ struct SourceTagView: View {
 
     var label: String {
         switch sourceType {
-        case "local": "本地"
-        case "youtube": "YT"
-        case "bilibili": "B站"
-        case "direct_url": "链接"
+        case "local": L10n.tagLocal
+        case "youtube": L10n.tagYoutube
+        case "bilibili": L10n.tagBilibili
+        case "direct_url": L10n.tagLink
         default: ""
         }
     }

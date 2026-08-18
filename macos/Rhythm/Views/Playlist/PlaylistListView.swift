@@ -25,9 +25,7 @@ struct PlaylistListView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(pl.name)
                                     .font(.body)
-                                Text(L10n.isChinese
-                                     ? "\(pl.tracks.count) 首"
-                                     : "\(pl.tracks.count) tracks")
+                                Text(L10n.trackCount(pl.tracks.count))
                                     .font(.caption)
                                     .foregroundStyle(.rhythmTextSecondary)
                             }
@@ -35,7 +33,7 @@ struct PlaylistListView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { selectedPlaylist = pl }
                         .contextMenu {
-                            Button(L10n.isChinese ? "删除" : "Delete") {
+                            Button(L10n.deleteButton) {
                                 if let id = pl.id { appState.library?.deletePlaylist(id) }
                                 appState.refreshLibrary()
                             }
@@ -81,7 +79,7 @@ struct PlaylistListView: View {
             Image(systemName: "list.bullet")
                 .font(.system(size: 40))
                 .foregroundStyle(.rhythmTextSecondary)
-            Text(L10n.isChinese ? "暂无播放列表" : "No playlists yet")
+            Text(L10n.noPlaylists)
                 .font(.title3)
                 .foregroundStyle(.rhythmTextSecondary)
             Button(L10n.newPlaylist) { showNewPlaylist = true }

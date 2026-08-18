@@ -21,7 +21,7 @@ struct LibraryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("视图", selection: $viewMode) {
+            Picker(L10n.view, selection: $viewMode) {
                 ForEach(LibraryViewMode.allCases, id: \.self) { mode in
                     Text(mode.label).tag(mode)
                 }
@@ -53,9 +53,7 @@ struct LibraryView: View {
             Text(L10n.libraryEmpty)
                 .font(.title3)
                 .foregroundStyle(.rhythmTextSecondary)
-            Text(L10n.isChinese
-                 ? "点击工具栏 + 按钮导入音乐文件或文件夹"
-                 : "Click the + button in the toolbar to import music files or folders")
+            Text(L10n.importHint)
                 .font(.caption)
                 .foregroundStyle(.rhythmTextTertiary)
             if appState.isImporting {
@@ -77,7 +75,7 @@ struct LibraryView: View {
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = true
         panel.allowedContentTypes = [.audio]
-        panel.prompt = L10n.isChinese ? "导入" : "Import"
+        panel.prompt = L10n.importButton
         if panel.runModal() == .OK {
             appState.importURLs(panel.urls)
         }

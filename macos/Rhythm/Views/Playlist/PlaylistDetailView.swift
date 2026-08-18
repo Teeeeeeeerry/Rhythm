@@ -26,7 +26,7 @@ struct PlaylistDetailView: View {
                         TrackRowView(track: track)
                             .opacity(track.isAvailable ? 1 : 0.35)
                             .contextMenu {
-                                Button(L10n.isChinese ? "从列表移除" : "Remove from Playlist") {
+                                Button(L10n.removeFromPlaylist) {
                                     if let pid = playlist.id {
                                         appState.library?.removeFromPlaylist(playlistId: pid, trackId: track.id)
                                         appState.refreshLibrary()
@@ -47,8 +47,8 @@ struct PlaylistDetailView: View {
                 importM3U8(url)
             }
         }
-        .alert(L10n.isChinese ? "导出失败" : "Export Failed", isPresented: $showExportError) {
-            Button("OK", role: .cancel) { }
+        .alert(L10n.exportFailedTitle, isPresented: $showExportError) {
+            Button(L10n.ok, role: .cancel) { }
         } message: {
             Text(exportErrorMessage)
         }
@@ -58,7 +58,7 @@ struct PlaylistDetailView: View {
         HStack {
             Button(action: onBack) {
                 Image(systemName: "chevron.left")
-                Text(L10n.isChinese ? "返回" : "Back")
+                Text(L10n.back)
             }
             .buttonStyle(.plain)
             Spacer()
@@ -79,11 +79,9 @@ struct PlaylistDetailView: View {
             Image(systemName: "music.note")
                 .font(.system(size: 32))
                 .foregroundStyle(.rhythmTextSecondary)
-            Text(L10n.isChinese ? "列表为空" : "Playlist is empty")
+            Text(L10n.playlistEmpty)
                 .foregroundStyle(.rhythmTextSecondary)
-            Text(L10n.isChinese
-                 ? "从资料库右键添加歌曲"
-                 : "Right-click a track in Library to add it here")
+            Text(L10n.playlistEmptyHint)
                 .font(.caption)
                 .foregroundStyle(.rhythmTextTertiary)
         }
@@ -102,9 +100,7 @@ struct PlaylistDetailView: View {
             let json = encodeJSON(playlist.tracks)
             let result = rhythm_export_m3u8(url.path, json)
             if result != 0 {
-                exportErrorMessage = L10n.isChinese
-                    ? "导出失败（错误码: \(result)），请重试。"
-                    : "Export failed (code: \(result)). Please try again."
+                exportErrorMessage = L10n.exportFailed(Int(result))
                 showExportError = true
             }
         }

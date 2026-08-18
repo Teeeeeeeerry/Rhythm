@@ -93,14 +93,10 @@ final class AppState: ObservableObject {
             importAlertMessage = L10n.importedTracks(count)
             showImportAlert = true
         } else if count == 0 {
-            importAlertMessage = L10n.isChinese
-                ? "该目录中未找到支持的音频文件"
-                : "No supported audio files found in this directory."
+            importAlertMessage = L10n.importDirEmpty
             showImportAlert = true
         } else {
-            importAlertMessage = L10n.isChinese
-                ? "导入失败，请检查目录是否可访问"
-                : "Import failed. Please check that the directory is accessible."
+            importAlertMessage = L10n.importDirFailed
             showImportAlert = true
         }
     }
@@ -113,14 +109,10 @@ final class AppState: ObservableObject {
             importAlertMessage = L10n.importedTracks(result)
             showImportAlert = true
         } else if result == 0 {
-            importAlertMessage = L10n.isChinese
-                ? "不支持的音频格式"
-                : "Unsupported audio format."
+            importAlertMessage = L10n.importFileUnsupported
             showImportAlert = true
         } else {
-            importAlertMessage = L10n.isChinese
-                ? "导入失败，文件可能已损坏或无法读取"
-                : "Import failed. The file may be corrupted or unreadable."
+            importAlertMessage = L10n.importFileFailed
             showImportAlert = true
         }
     }
@@ -153,17 +145,11 @@ final class AppState: ObservableObject {
                 if imported > 0 && failed == 0 {
                     self.importAlertMessage = L10n.importedTracks(imported)
                 } else if imported > 0 {
-                    self.importAlertMessage = L10n.isChinese
-                        ? "已导入 \(imported) 首，\(failed) 个失败"
-                        : "Imported \(imported) tracks, \(failed) failed."
+                    self.importAlertMessage = L10n.importSomeFailed(imported, failed)
                 } else if failed > 0 {
-                    self.importAlertMessage = L10n.isChinese
-                        ? "全部导入失败，请检查文件是否支持"
-                        : "All imports failed. Check that the files are supported."
+                    self.importAlertMessage = L10n.importAllFailed
                 } else {
-                    self.importAlertMessage = L10n.isChinese
-                        ? "未找到支持的音频文件"
-                        : "No supported audio files found."
+                    self.importAlertMessage = L10n.importNoneFound
                 }
                 self.showImportAlert = true
             }
@@ -341,7 +327,7 @@ final class AppState: ObservableObject {
     /// playback — same behaviour as local file import (#71).
     func importResolved(_ track: Track) {
         // Persist to database first — the returned track has the real id.
-        let saved = library?.addTrack(track) ?? track
+        _ = library?.addTrack(track)
         refreshLibrary() // #66: reload from DB instead of manual insert for data consistency
         urlInput = ""
         importAlertMessage = L10n.importedTracks(1)
@@ -397,9 +383,7 @@ final class AppState: ObservableObject {
         }
         refreshLibrary()
         if failed > 0 {
-            importAlertMessage = L10n.isChinese
-                ? "导入 \(imported) 首，失败 \(failed) 首"
-                : "Imported \(imported), failed \(failed)."
+            importAlertMessage = L10n.importSomeFailed(imported, failed)
         } else if imported > 0 {
             importAlertMessage = L10n.importedTracks(imported)
         }
