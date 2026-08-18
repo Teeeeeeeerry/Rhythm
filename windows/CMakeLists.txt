@@ -16,6 +16,7 @@ set(SOURCES
     Rhythm/pch.cpp
     Rhythm/App.xaml.cpp
     Rhythm/App.xaml.h
+    Rhythm/L10n.h
     Rhythm/MainWindow.xaml.cpp
     Rhythm/MainWindow.xaml.h
     Rhythm/AppState.h
@@ -51,7 +52,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Rhythm
 )
 
-# The sources contain Chinese literals (import feedback, status texts);
+# The L10n layer holds the remaining Chinese literals (localized fallback);
 # force UTF-8 so MSVC reads them regardless of the system code page.
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /utf-8)
@@ -88,6 +89,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 set(TEST_SOURCES
     Rhythm/pch.h
     Rhythm/pch.cpp
+    Rhythm/L10n.h
     Rhythm/AppState.h
     Rhythm/AppState.cpp
     Rhythm/Bridge/RhythmCore.h
@@ -99,6 +101,7 @@ set(TEST_SOURCES
     tests/vendor/catch_amalgamated.cpp
     tests/AppStateBehaviorTests.cpp
     tests/BridgeBehaviorTests.cpp
+    tests/L10nTests.cpp
 )
 
 add_executable(RhythmTests ${TEST_SOURCES})
@@ -107,8 +110,8 @@ add_executable(RhythmTests ${TEST_SOURCES})
 # (with init_apartment), so tell Catch2 to stand down.
 target_compile_definitions(RhythmTests PRIVATE CATCH_AMALGAMATED_CUSTOM_MAIN)
 
-# The test sources contain Chinese literals; force UTF-8 so MSVC reads them
-# regardless of the system code page (the main target sets the same flag).
+# The L10n layer holds the remaining Chinese literals; force UTF-8 so MSVC
+# reads them regardless of the system code page (main target: same flag).
 if(MSVC)
     target_compile_options(RhythmTests PRIVATE /utf-8)
 endif()

@@ -16,9 +16,9 @@
             </Button>
             <TextBlock x:Name="playlistTitle" FontSize="16" FontWeight="SemiBold"
                        VerticalAlignment="Center" />
-            <Button x:Name="btnImport" Click="OnImportClick" Content="导入 m3u8"
+            <Button x:Name="btnImport" Click="OnImportClick"
                     Margin="16,0,0,0" />
-            <Button x:Name="btnExport" Click="OnExportClick" Content="导出 m3u8" />
+            <Button x:Name="btnExport" Click="OnExportClick" />
         </StackPanel>
 
         <ListView x:Name="trackList" Grid.Row="1"

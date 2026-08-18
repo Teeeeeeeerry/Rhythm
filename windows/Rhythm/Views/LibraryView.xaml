@@ -11,8 +11,8 @@
 
         <Pivot x:Name="viewPivot" Grid.Row="0" SelectionChanged="OnPivotChanged"
                Margin="12,4">
-            <PivotItem Header="按艺人/专辑" />
-            <PivotItem Header="按首字母" />
+            <PivotItem x:Name="pivotArtistAlbum" />
+            <PivotItem x:Name="pivotByLetter" />
         </Pivot>
 
         <ListView x:Name="trackList" Grid.Row="1"
@@ -44,7 +44,6 @@
         </ListView>
 
         <TextBlock x:Name="emptyMessage" Grid.Row="1"
-                   Text="资料库为空 — 点击 + 导入音乐文件夹"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    Foreground="{ThemeResource RhythmTextSecondaryBrush}"
                    Visibility="Collapsed" />

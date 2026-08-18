@@ -29,7 +29,7 @@
                     <SymbolIcon Symbol="MusicInfo" />
                 </Border>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock x:Name="trackTitle" Text="未在播放"
+                    <TextBlock x:Name="trackTitle"
                                FontSize="12" FontWeight="SemiBold"
                                TextTrimming="CharacterEllipsis"
                                MaxWidth="120" />
@@ -75,14 +75,13 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBox x:Name="urlBox"
-                     PlaceholderText="粘贴 YouTube / Bilibili 链接播放"
                      KeyDown="OnUrlKeyDown" />
             <!-- First run downloads yt-dlp; show progress so it doesn't
                  look like the app has hung. -->
             <TextBlock x:Name="urlStatus" Grid.Column="1" Text=""
                        Margin="8,0,0,0" FontSize="11" Opacity="0.7"
                        VerticalAlignment="Center" />
-            <Button Grid.Column="2" Content="播放" Margin="8,0,0,0"
+            <Button x:Name="btnUrlPlay" Grid.Column="2" Margin="8,0,0,0"
                     Click="OnUrlPlayClick" />
         </Grid>
     </Grid>

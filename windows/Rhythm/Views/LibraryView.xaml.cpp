@@ -1,10 +1,15 @@
 #include "pch.h"
 #include "LibraryView.xaml.h"
+#include "L10n.h"
 
 namespace winrt::Rhythm::Views::implementation {
 
 LibraryView::LibraryView() {
     InitializeComponent();
+    // #141: copy from the language layer.
+    pivotArtistAlbum().Header(winrt::box_value(winrt::hstring{ rhythm::L10n::ByArtistAlbum() }));
+    pivotByLetter().Header(winrt::box_value(winrt::hstring{ rhythm::L10n::ByLetter() }));
+    emptyMessage().Text(rhythm::L10n::LibraryEmpty());
 }
 
 void LibraryView::OnNavigatedTo(Navigation::NavigationEventArgs const& args) {

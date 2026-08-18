@@ -13,7 +13,7 @@
                 Margin="12,8" HorizontalAlignment="Left">
             <StackPanel Orientation="Horizontal" Spacing="4">
                 <SymbolIcon Symbol="Add" />
-                <TextBlock Text="新建播放列表" />
+                <TextBlock x:Name="newPlaylistText" />
             </StackPanel>
         </Button>
 
@@ -34,7 +34,6 @@
         </ListView>
 
         <TextBlock x:Name="emptyMessage" Grid.Row="1"
-                   Text="暂无播放列表"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    Foreground="{ThemeResource RhythmTextSecondaryBrush}"
                    Visibility="Collapsed" />

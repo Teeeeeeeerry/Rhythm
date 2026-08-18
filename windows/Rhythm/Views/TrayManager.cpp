@@ -38,10 +38,11 @@ LRESULT TrayManager::MessageHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             GetCursorPos(&pt);
 
             HMENU menu = CreatePopupMenu();
-            AppendMenuW(menu, MF_STRING, 1, L"播放 / 暂停");
-            AppendMenuW(menu, MF_STRING, 2, L"显示主窗口");
+            // #141: tray copy follows the language layer like everything else.
+            AppendMenuW(menu, MF_STRING, 1, rhythm::L10n::TrayPlayPause().c_str());
+            AppendMenuW(menu, MF_STRING, 2, rhythm::L10n::TrayShowWindow().c_str());
             AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-            AppendMenuW(menu, MF_STRING, 3, L"退出 Rhythm");
+            AppendMenuW(menu, MF_STRING, 3, rhythm::L10n::TrayQuit().c_str());
 
             SetForegroundWindow(hwnd);
             TrackPopupMenu(menu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, nullptr);

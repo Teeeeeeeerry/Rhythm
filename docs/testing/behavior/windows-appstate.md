@@ -64,3 +64,4 @@
 | WA-23（T7 已实现，待 Windows 验证） | `ImportDirectory` 导入反馈 | 导入数量经状态/回调反馈到 UI（对齐 macOS alert） | 功能新增 |
 | WA-24（#139，待 Windows 验证） | `ResolveAndPlay` 后列表与队列同步 | 已有曲目时 URL 入库后 `RefreshLibrary()` 重载，队列可到达既有曲目（替代手工头部插入，对齐 macOS #66/#69） | 功能新增 |
 | WA-25（#137，待 Windows 验证） | 自然播完自动切歌/停止 | 定时器识别 `State()==5`（Finished）：队列有下一首 → `PlayNext`（下一首不可播则 `IsPlaying=false`，防每 tick 重试）；无 → `IsPlaying=false`；另补 `IsBuffering`（state 3）状态及"缓冲中…"时间显示（对齐 macOS `updatePlaybackProgress`/`L10n.buffering`） | 功能新增（macOS 对齐） |
+| WA-26（#141，待 Windows 验证） | Windows 文案层 L10n | 全部用户可见文案经 `L10n`（对齐 macOS `L10n` 枚举）：手动覆盖（注册表 `AppLanguage`）优先、否则跟随系统 UI 语言；#120 expired/cdn_rejected 分类含英文分支；导入反馈、解析状态、来源徽标、托盘菜单同层 | 功能新增（macOS 对齐） |

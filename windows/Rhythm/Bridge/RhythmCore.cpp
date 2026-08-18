@@ -421,19 +421,8 @@ ResolverStatus Resolver::Status() {
 }
 
 std::wstring Resolver::StatusText(const ResolverStatus& status) {
-    if (status.phase == L"checking") return L"正在准备解析组件…";
-    if (status.phase == L"verifying") return L"正在校验解析组件…";
-    if (status.phase == L"updating") return L"正在更新解析组件…";
-    if (status.phase == L"failed") return L"解析组件安装失败";
-    if (status.phase == L"downloading") {
-        auto mb = [](int64_t bytes) { return static_cast<double>(bytes) / 1048576.0; };
-        if (status.total > 0) {
-            return std::format(L"正在下载解析组件 {:.1f} / {:.1f} MB",
-                               mb(status.received), mb(status.total));
-        }
-        return std::format(L"正在下载解析组件 {:.1f} MB", mb(status.received));
-    }
-    return L"";
+    // #141: all copy lives in L10n (system language, manual override).
+    return L10n::ResolverStatusText(status.phase, status.received, status.total);
 }
 
 std::wstring Resolver::ClassifyURL(const std::wstring& url) {
