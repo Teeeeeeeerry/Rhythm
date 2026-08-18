@@ -1,8 +1,8 @@
 # Playlist（M3U8）行为清单
 
 - 模块：`rust-core/src/playlist/mod.rs`（M3U8 导入/导出）
-- 历史回归：`#34`（M3U8 导出静默失败，修复后无回归测试）
-- 测试途径：`cargo test` 单元测试 + tempfile；纯文件 IO，无需接缝。
+- 历史回归：`#34`（M3U8 导出静默失败，修复后无回归测试）、`#136`（macOS 导入后解析结果被丢弃，从未入库）
+- 测试途径：`cargo test` 单元测试 + tempfile；纯文件 IO，无需接缝。`#136` 的入库断言走 macOS `AppStateImportTests.importM3U8Entries`。
 
 ## 主路径（P0 — 合并门槛）
 
@@ -32,6 +32,13 @@
 | 编号 | 行为 | 断言 |
 |---|---|---|
 | PL-14 | 非法 UTF-8 的 M3U8 文件 | 返回 Err，不 panic |
+
+## 视图层（macOS）
+
+| 编号 | 行为 | 断言 |
+|---|---|---|
+| PL-15 | `importM3U8Entries` 入库（#136） | local 路径 → `sourceType=local` + `filePath`；http(s) → `direct_url` + `sourceUrl`；全部写入数据库 |
+| PL-16 | `importM3U8Entries` 无效条目 | 缺失/空 location → 计入 failed，不写库，弹窗汇总 imported/failed |
 
 ## 红测登记
 
