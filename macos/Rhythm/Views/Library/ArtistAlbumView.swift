@@ -161,7 +161,7 @@ struct SourceTagView: View {
         case "youtube": .rhythmSourceYoutube
         case "bilibili": .rhythmSourceBilibili
         case "direct_url": .rhythmSourceUrl
-        default: .gray
+        default: .rhythmTextTertiary
         }
     }
 
