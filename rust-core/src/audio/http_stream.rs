@@ -311,7 +311,7 @@ impl Read for HttpStream {
         }
 
         if let Some(err) = buffer.error.clone() {
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
+            return Err(std::io::Error::other(err));
         }
         if buffer.data.is_empty() {
             return Ok(0); // EOF
@@ -389,9 +389,9 @@ impl HttpStream {
         }
         drop(buffer);
 
-        self.inner.request_range(target).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
-        })?;
+        self.inner
+            .request_range(target)
+            .map_err(std::io::Error::other)?;
         Ok(())
     }
 }

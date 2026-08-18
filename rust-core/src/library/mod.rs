@@ -6,6 +6,9 @@ use std::sync::Mutex;
 mod search;
 // pub use search::*; // Reserved for future search enhancements
 
+/// One row of `get_all_playlists` (#143: factored type).
+type PlaylistRow = (i64, String, Option<String>, Option<String>, Option<String>);
+
 /// Library database backed by SQLite.
 /// Manages the track catalog, playlists, and search index.
 pub struct Library {
@@ -250,7 +253,7 @@ impl Library {
              FROM tracks WHERE id = ?1",
         )?;
 
-        stmt.query_row(params![id], |row| row_to_track(row)).map_err(|e| e.into())
+        stmt.query_row(params![id], row_to_track).map_err(|e| e.into())
     }
 
     /// Get a track by its database ID.
@@ -271,7 +274,7 @@ impl Library {
         )?;
 
         let tracks: Result<Vec<_>, _> = stmt
-            .query_map([], |row| row_to_track(row))?
+            .query_map([], row_to_track)?
             .collect();
 
         Ok(tracks?)
@@ -290,7 +293,7 @@ impl Library {
         )?;
 
         let all_tracks: Vec<TrackInfo> = stmt
-            .query_map([], |row| row_to_track(row))?
+            .query_map([], row_to_track)?
             .collect::<Result<Vec<_>, _>>()?;
 
         // Group by (artist, album)
@@ -512,7 +515,7 @@ impl Library {
             "SELECT id, name, description, date_created, date_modified FROM playlists ORDER BY name COLLATE NOCASE",
         )?;
 
-        let playlists: Vec<(i64, String, Option<String>, Option<String>, Option<String>)> = stmt
+        let playlists: Vec<PlaylistRow> = stmt
             .query_map([], |row| {
                 Ok((
                     row.get(0)?,
@@ -580,7 +583,7 @@ impl Library {
         )?;
 
         let tracks: Result<Vec<_>, _> = stmt
-            .query_map(params![playlist_id], |row| row_to_track(row))?
+            .query_map(params![playlist_id], row_to_track)?
             .collect();
 
         Ok(tracks?)
@@ -608,7 +611,7 @@ impl Library {
         )?;
 
         let tracks: Result<Vec<_>, _> = stmt
-            .query_map(params![safe_query], |row| row_to_track(row))?
+            .query_map(params![safe_query], row_to_track)?
             .collect();
 
         Ok(tracks?)

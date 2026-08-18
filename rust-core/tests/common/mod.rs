@@ -3,6 +3,10 @@
 //! `streaming.rs` (decoder / HttpStream behavior) and `audio_engine.rs`
 //! (AudioEngine state machine behavior); the WAV/tag fixtures by
 //! `library_behavior.rs` and `metadata_behavior.rs`.
+//!
+//! Each test binary compiles this module separately and uses only a subset
+//! of the fixtures, so dead-code warnings are expected (#143).
+#![allow(dead_code)]
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
