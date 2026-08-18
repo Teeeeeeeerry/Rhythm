@@ -37,19 +37,26 @@ enum L10n {
     /// a CDN refusing a still-valid URL ("cdn_rejected") gets the truthful
     /// "your network is being rejected" copy — re-pasting cannot help there.
     static func playbackFailed(kind: String?, detail: String) -> String {
-        guard isChinese else {
-            return detail.isEmpty ? "Playback failed." : "Playback failed.\n\n\(detail)"
-        }
+        // #135: the classification switch must not be inside the Chinese
+        // branch — English users need the same expired / cdn_rejected advice.
         let headline: String
         switch kind {
         case "expired":
-            headline = "播放失败。链接可能已过期，重新粘贴一次试试。"
+            headline = isChinese
+                ? "播放失败。链接可能已过期，重新粘贴一次试试。"
+                : "Playback failed. The link may have expired — try pasting it again."
         case "cdn_rejected":
-            headline = "播放失败。YouTube 拒绝了当前网络的请求（可能与 ISP 或 VPN 有关），换网络或稍后再试。"
+            headline = isChinese
+                ? "播放失败。YouTube 拒绝了当前网络的请求（可能与 ISP 或 VPN 有关），换网络或稍后再试。"
+                : "Playback failed. YouTube rejected this network's request (possibly your ISP or VPN) — switch networks or try again later."
         default:
-            headline = "播放失败。"
+            headline = isChinese ? "播放失败。" : "Playback failed."
         }
-        return detail.isEmpty ? headline : "\(headline)\n\n详细信息：\n\(detail)"
+        return detail.isEmpty
+            ? headline
+            : isChinese
+                ? "\(headline)\n\n详细信息：\n\(detail)"
+                : "\(headline)\n\n\(detail)"
     }
 
     /// Describe what the resolver is doing while the user waits.

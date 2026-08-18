@@ -286,7 +286,12 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
 
     // #120: an HTTP failure classified "expired" keeps the old "re-paste the
     // link" advice — that is the one case where re-pasting can help.
+    // #135: locale must be pinned — the assertions below are Chinese, and on
+    // an English machine the un-pinned test used to pass for the wrong reason
+    // (the early English return ignored `kind` entirely).
     func testUpdatePlaybackProgress_Error_ExpiredKind_KeepsRepasteAdvice() throws {
+        UserDefaults.standard.set("zh", forKey: "AppLanguage")
+        defer { UserDefaults.standard.removeObject(forKey: "AppLanguage") }
         appState.tracks = [makeLocalTrack(path: "/tmp/p.mp3")]
         appState.playTrack(appState.tracks[0])
         spy.state = 4 // Error
@@ -302,6 +307,8 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
     // #120: a CDN rejecting a still-valid URL must NOT advise re-pasting —
     // the retry already re-resolved, and the network side is the problem.
     func testUpdatePlaybackProgress_Error_CdnRejectedKind_BlamesNetwork() throws {
+        UserDefaults.standard.set("zh", forKey: "AppLanguage")
+        defer { UserDefaults.standard.removeObject(forKey: "AppLanguage") }
         appState.tracks = [makeLocalTrack(path: "/tmp/p.mp3")]
         appState.playTrack(appState.tracks[0])
         spy.state = 4 // Error
@@ -314,6 +321,19 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
                       "cdn rejection is a network-side problem: \(appState.urlError!)")
         XCTAssertFalse(appState.urlError!.contains("重新粘贴"),
                        "re-pasting cannot fix a CDN rejection: \(appState.urlError!)")
+    }
+
+    // #135: the English branch must carry the same classification — this
+    // failed before the fix (early return dropped `kind`).
+    func testPlaybackFailed_English_ClassifiesKind() {
+        UserDefaults.standard.set("en", forKey: "AppLanguage")
+        defer { UserDefaults.standard.removeObject(forKey: "AppLanguage") }
+        XCTAssertTrue(L10n.playbackFailed(kind: "expired", detail: "d").contains("past"),
+                      "English expired copy must advise re-pasting")
+        XCTAssertTrue(L10n.playbackFailed(kind: "cdn_rejected", detail: "d").contains("network"),
+                      "English cdn_rejected copy must blame the network")
+        XCTAssertFalse(L10n.playbackFailed(kind: "cdn_rejected", detail: "d").contains("past"),
+                       "English cdn_rejected copy must not advise re-pasting")
     }
 
     // MARK: - AS-16 seek
@@ -499,8 +519,9 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
     }
 
     func testImportURLs_NoSupportedFiles() throws {
-        // #79：importFile 对不支持格式走 Err（返回 -1），故此处落"全部导入失败"
-        // 而非"未找到支持的音频文件"——锁定现状，返回值契约修复后本用例改断言。
+        // #109：importFile 对不支持格式返回 0（UnsupportedFormat），importURLs
+        // 既不计数导入也不计数失败，落"未找到支持的音频文件"分支——断言锁定
+        // 该现状（#135 全量回归时发现旧断言停留在 #109 之前的 -1 契约）。
         let txt = tempDir.appendingPathComponent("notes.txt")
         try! Data("not audio".utf8).write(to: txt)
 
@@ -509,8 +530,8 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         XCTAssertTrue(waitUntil { appState.showImportAlert })
         XCTAssertEqual(appState.tracks.count, 0)
         let expected = L10n.isChinese
-            ? "全部导入失败，请检查文件是否支持"
-            : "All imports failed. Check that the files are supported."
+            ? "未找到支持的音频文件"
+            : "No supported audio files found."
         XCTAssertEqual(appState.importAlertMessage, expected)
     }
 
@@ -537,8 +558,9 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
     }
 
     func testImportFile_UnsupportedFormat() throws {
-        // #79：rust-core 对不支持格式走 Err 路径（ffi 返回 -1），"不支持的音频
-        // 格式"（==0 分支）当前为不可达死代码——此处锁定现状：坏文件落失败文案。
+        // #109：rust-core 对不支持格式返回 0（UnsupportedFormat），命中
+        // "不支持的音频格式"分支——旧断言停留在 #109 之前的 -1 契约（#135
+        // 全量回归时发现并修正）。
         let txt = tempDir.appendingPathComponent("notes.txt")
         try! Data("not audio".utf8).write(to: txt)
 
@@ -546,8 +568,8 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
 
         XCTAssertEqual(appState.tracks.count, 0)
         let expected = L10n.isChinese
-            ? "导入失败，文件可能已损坏或无法读取"
-            : "Import failed. The file may be corrupted or unreadable."
+            ? "不支持的音频格式"
+            : "Unsupported audio format."
         XCTAssertEqual(appState.importAlertMessage, expected)
     }
 
