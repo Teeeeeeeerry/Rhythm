@@ -1,7 +1,7 @@
 # Windows RhythmCore（Bridge 封装层）行为清单
 
 - 模块：`windows/Rhythm/Bridge/RhythmCore.h` + `.cpp`（FFI 包装类、Track 模型与纯函数、Resolver 静态封装、UTF-8/UTF-16 转换）
-- 历史回归：`#21`（解析失败原因）、`#39`（URL 持久化）、F1（来源徽标色双主题——`docs/testing/l1/windows/source_color_test.cpp` 为该修复的验收测试，`#122` 已解除自声明桩、直测真实 `RhythmCore.h`）
+- 历史回归：`#21`（解析失败原因）、`#39`（URL 持久化）、F1（来源徽标色双主题——`testing/l1/windows/source_color_test.cpp` 为该修复的验收测试，`#122` 已解除自声明桩、直测真实 `RhythmCore.h`）
 - 测试设施：Catch2 v3.5.4 header-only（`windows/tests/vendor/`）；测试 main 已 `init_apartment`（Brush 构造可用）；测试文件 `windows/tests/BridgeBehaviorTests.cpp`。
 
 ## 主路径（P0 — 合并门槛）
@@ -10,7 +10,7 @@
 |---|---|---|---|
 | WB-01 | `Track::DurationFormatted` | 秒 → `m:ss` 格式（秒位零填充） | 新测 |
 | WB-02 | `Track::SourceTag` | local→本地、youtube→YT、bilibili→B站、direct_url→链接、未知→空串 | 新测 |
-| WB-03 | `Track::SourceColor(sourceType, isDarkTheme)` | 四种来源 dark/light 双端色值（与 macOS Theme.swift 一致，#121）；未知来源回退 teal 文字色（dark `#ABC8D4` / light `#0D464D`），非系统 Gray（F4） | 新测 |
+| WB-03 | `Track::SourceColor(sourceType, isDarkTheme)` | 四种来源 dark/light 双端色值（与 macOS Theme.swift 一致，#121）；未知来源回退 teal 文字色（dark `#ABC8D4` / light `#0D464D`），非系统 Gray（F4）；#147 起前景与胶囊底共用 `SourceColorRGB` 单一表映射 | 新测 |
 | WB-04 | `Track::SourceBackgroundBrush` | A=38 的 SolidColorBrush、RGB 与 SourceColor 一致、未知回退灰 | 新测（apartment） |
 | WB-05 | `JsonToTrack`/`TrackToJson` 往返 | 各字段保真；null 可选字段 → `nullopt`；缺省字段取默认（#101 已修复：album_artist/genre/file_size/date_added/last_played 全部解析；date_added 由 DB 插入时盖章、last_played 新插入为 NULL） | 新测（待 Windows 验证） |
 | WB-06 | `Utf8ToWide`/`WideToUtf8` 往返 | 中文/emoji 标题转换无损坏；空串安全 | 新测 |
