@@ -11,7 +11,7 @@
 | 数据源 | `sync-palette.py` | 源码 ↔ palette.json 同步；`--check` CI 校验；`--emit-swift-seed` 生成 L1 种子 | 改色后 |
 | L0 静态 | `l0/` | 5 个零依赖 Python 脚本（parity/contrast/forbidden/coverage/doc-drift） | 每次 push/PR |
 | L1 单元 | `l1/macos/` | PaletteSeed + 五组 Swift 测试（isDark/RGB/对比度/语义/互异） | `swift test` |
-| L1 单元 | `l1/windows/` | 来源徽标色 assert 测试 exe（F1 修复后签名） | ctest |
+| L1 单元 | `l1/windows/` | 来源徽标色 assert 测试 exe（直测 `RhythmCore.h`，#121/#122） | ctest |
 | L2 快照 | `l2/macos/` | swift-snapshot-testing 模板（8 视图 × 状态 × 外观 × 语言） | visual CI |
 | L2 快照 | `l2/windows/` | WinUI 3 离屏截屏（capture_views.cpp）+ 零依赖像素 diff | visual CI |
 | L3 UI | `l3/macos/` | XcodeGen project.yml + 4 组 XCUITest（外观切换/键盘/a11y/新建弹窗） | visual CI |
@@ -28,7 +28,7 @@ cd /Users/home-folder/GitHub/Rhythm
 python3 testing/sync-palette.py --check        # palette.json 与源码一致？
 python3 testing/sync-palette.py --emit-swift-seed  # 刷新 L1 测试种子
 
-# 2. L0 静态分析（预期现状：F1/F2/F4 三项红 —— 正是 P0 修复验收信号）
+# 2. L0 静态分析（现状五项全绿；F1/F2/F4 已分别由 #121/#124/#125 修复）
 #    每个脚本结束自动把完整输出写入 testing/logs/<脚本名>.log（--log 可覆盖）
 python3 testing/l0/check-color-parity.py
 python3 testing/l0/check-contrast.py
@@ -53,17 +53,19 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（fix/43-macos-brand-colors 分支）
+## 当前状态（main，v0.5.64）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
-| `check-color-parity.py` | FAIL | **F1**：C++ source 色缺 light 变体（P0 修复项） |
-| `check-contrast.py` | PASS | 36 组合全达标或已登记例外（F8 两项 + border 装饰线已登记） |
-| `check-forbidden-colors.py` | FAIL | **F4**：SourceTagView 回退 `.gray`（P0 修复项） |
-| `check-token-coverage.py` | FAIL | **F2**：Windows SidebarView 零品牌化（P0 修复项） |
+| `sync-palette.py --check` | PASS | palette.json 与源码一致（tokens/sources/usage 全覆盖） |
+| `check-color-parity.py` | PASS | 7 个双端 token + 4 个 source 色一致（F1 已修复：#121/#123） |
+| `check-contrast.py` | PASS | 36 组合全达标或已登记例外（F8 两项 + border 装饰线 + source 徽标 4.84 已登记） |
+| `check-forbidden-colors.py` | PASS | 9 个 Swift 视图 + 5 个 XAML 视图无裸色（F4 已修复：#125/#128） |
+| `check-token-coverage.py` | PASS | 7 个 macOS 视图 + 5 个 Windows 视图全部引用 token（F2 已修复：#124/#133） |
 | `check-doc-drift.py` | PASS | 文档色值全部收录于 palette.json |
 
-L0 全绿 = P0（F1–F5）完成。合并门槛见 deep-testing-plan.md §7。
+L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门槛见 deep-testing-plan.md §7；
+状态表随每次改色/改视图核对，方式是重跑 `bash testing/run-all.sh`（严格模式，任一红即非零退出，#144）。
 
 ## 关键约定
 

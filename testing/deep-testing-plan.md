@@ -1,7 +1,11 @@
 # Rhythm 品牌配色体系 — 深度测试方案 v2（全面自动化）
 
-> 针对 `fix/43-macos-brand-colors` 分支（macOS Theme.swift 11 token + Windows Colors.xaml 补充）。
-> 现状：全仓库仅 1 个测试文件（`rust-core/tests/streaming.rs`），UI 端零测试、零 CI。
+> 起草时针对 `fix/43-macos-brand-colors` 分支（macOS Theme.swift 11 token + Windows Colors.xaml 补充）；
+> 已合入 main，本文按 v0.5.64 现状维护（落地进度见 §6 状态列与 §7）。
+> 起草时现状：全仓库仅 1 个测试文件（`rust-core/tests/streaming.rs`），UI 端零测试、零 CI。
+> 当前现状：L0 五脚本 + L1 双端单测已落地并全绿（`bash testing/run-all.sh`）；
+> 行为清单制的功能测试另见 `docs/adr/0001-行为清单制测试教义.md` 与 `docs/testing/behavior/`——
+> 本文只管"颜色对不对"。
 > v2 目标：**一切可机检的皆自动化，手工只留主观审美判断**；
 > 覆盖矩阵按 token × 使用点 × 状态 × 外观 × 平台 × 版本 × 语言全展开。
 
@@ -11,7 +15,7 @@
 
 | 原则 | 内容 | 消除的风险 |
 |---|---|---|
-| **单一事实来源** | 新建 `design/palette.json`（全部 token 的语义名、dark/light/高对比色值、alpha、适用背景、对比度阈值、例外说明）→ 构建期**代码生成** Swift 扩展 / XAML 资源 / C++ 头 / 文档 / 测试种子 | 双端 21 处 hex 手工同步漂移（构造上不可能不一致） |
+| **单一事实来源** | 新建 `testing/palette.json`（全部 token 的语义名、dark/light/高对比色值、alpha、适用背景、对比度阈值、例外说明）→ 构建期**代码生成** Swift 扩展 / XAML 资源 / C++ 头 / 文档 / 测试种子 | 双端 21 处 hex 手工同步漂移（构造上不可能不一致） |
 | **数据驱动测试** | 单测/静态检查全部由 palette.json 生成——新增 token **自动获得** parity、contrast、RGB 全套测试 | 测试随 token 体系同步过期 |
 | **禁止裸色** | L0 静态扫描全仓源码：任何视图代码中非 token 的 `Color.*`/hex/`NSColor`/Brush 引用即 CI 失败（白名单含合法系统组件） | 回归到硬编码系统色 |
 | **手工最小化** | L3 UI 自动化接管外观切换/键盘/可访问性/像素比对，L4 手工烟测只保留 8 项主观项 | "看起来对了"= 单人肉眼，不可复现 |
@@ -23,7 +27,7 @@
 | 维度 | 取值 | 说明 |
 |---|---|---|
 | Token | 11 个（accent / surface / elevated / textPrimary / textSecondary / textTertiary / border / source×4） | 每个 token 的 dark + light 变体（high-contrast 沿用同值，待 F7 决策） |
-| 使用点 | macOS **38 处**（8 视图）/ Windows **15 处**（4 XAML）+ 1 处待品牌化 | 清单见 2.2，由 L0 扫描器从源码生成，不手维护 |
+| 使用点 | macOS **7 视图** / Windows **5 XAML**（全部已品牌化） | 清单见 2.2，由 L0 扫描器从源码生成，不手维护 |
 | 交互状态 | 未选中 / 选中 / 悬停 / 按下 / 聚焦（键盘）/ 播放中 | 每状态的颜色断言 + 快照 |
 | 外观 | dark / light / 高对比 dark / 高对比 light（macOS）+ dark/light/HC（Windows） | 运行时切换用例见 L3 |
 | 平台×版本 | macOS 13/14/15 × arm64+x86_64；Windows 10/11 | CI 矩阵见 §6 |
@@ -32,21 +36,27 @@
 
 ### 2.2 使用点清单（L0 扫描器输出，当前快照）
 
-**macOS（38 处）**：
-- `SidebarView.swift`：accent@15% 选中底、accent 选中字、textPrimary 未选字、surface 底
-- `ArtistAlbumView.swift`：textPrimary 标题、textSecondary 艺术家/时长、accent@12% 选中底、elevated 占位底、source×4 徽标（前景+15% 底）
-- `LibraryView.swift`：textSecondary×2、textTertiary
-- `AlphabeticalView.swift`：textSecondary
-- `PlayerBarView.swift`：border、textSecondary×6、accent（tint+播放模式）、surface、elevated
-- `PlaylistListView.swift`：textSecondary×3、surface（新建弹窗）
-- `PlaylistDetailView.swift`：textSecondary×2、textTertiary
+下列计数为 `check-token-coverage.py` 的当前输出：每个视图引用的**不同** token 数
+（非使用点次数，重跑脚本即可刷新）。
 
-**Windows（15 处）**：
-- `LibraryView.xaml`：textPrimary、textSecondary×2
-- `PlaylistDetailView.xaml`：textPrimary、textSecondary×2
-- `PlaylistListView.xaml`：textSecondary×2
-- `PlayerBarView.xaml`：surface、border、accent（ProgressBar）、elevated、textSecondary×2
-- `SidebarView.xaml`：**0 处** → F2 未品牌化，L0 扫描器按"覆盖率缺口"报警
+**macOS（7 视图）**：
+- `SidebarView.swift`：3 → accent（15% 选中底 + 选中字）、textPrimary 未选字、surface 底
+- `ArtistAlbumView.swift`：9 → textPrimary 标题、textSecondary 艺术家/时长、textTertiary、accent@12% 选中底、elevated 占位底、source×4 徽标（前景+15% 底）
+- `LibraryView.swift`：2 → textSecondary、textTertiary
+- `AlphabeticalView.swift`：1 → textSecondary
+- `PlayerBarView.swift`：5 → border、textSecondary、accent（tint+播放模式）、surface、elevated
+- `PlaylistListView.swift`：2 → surface（新建弹窗）、textSecondary
+- `PlaylistDetailView.swift`：2 → textSecondary、textTertiary
+
+`ContentView.swift` 与 `Tray/TrayManager.swift` 参与裸色扫描（共 9 个 Swift 视图）但自身不着色，
+不计入覆盖率。
+
+**Windows（5 XAML）**：
+- `LibraryView.xaml`：2 → textPrimary、textSecondary
+- `PlaylistDetailView.xaml`：2 → textPrimary、textSecondary
+- `PlaylistListView.xaml`：1 → textSecondary
+- `PlayerBarView.xaml`：5 → surface、border、accent（ProgressBar）、elevated、textSecondary
+- `SidebarView.xaml`：4 → accent、elevated、surface、textPrimary（#124 补齐，F2 覆盖率缺口清零）
 
 ### 2.3 对比度背景映射（L0 脚本内置，按实际渲染背景）
 
@@ -84,8 +94,12 @@ palette.json 的 `usage` 段驱动，全矩阵（token × 背景 × 外观）自
 | `sourceDistinct` | 4 source 色互异且 ≠ accent | token 组合 |
 | 视图级单元（后续） | 选中态计算、SourceTagView sourceType 映射表 | 数据驱动 |
 
-Windows：`windows/tests/` 零依赖 assert 测试 exe（CMake `enable_testing()`），
-F1 已修复（#121）：`Track::SourceColor(sourceType, isDarkTheme)` 双端值 + alpha==38 + 未知类型回退由 `source_color_test.cpp`（#122 解除桩）覆盖。
+Windows：`testing/l1/windows/`（`source_color_test.cpp` + CMakeLists）零依赖 assert 测试 exe
+（CMake `enable_testing()`），另有 `windows/tests/` 的 Catch2 行为测试。
+F1 已修复（#121）：`Track::SourceColor(sourceType, isDarkTheme)` 双端值 + alpha==38 + 未知类型回退，
+由 `source_color_test.cpp` 直测真实 `RhythmCore.h`（#122 解除自声明桩）。
+#147 起徽标前景与胶囊底共用单一表映射 `Track::SourceColorRGB(sourceType, isDarkTheme)`，
+`SourceColor()`/`SourceBackgroundBrush()` 均由它派生。
 
 ### L2 快照与像素回归（必做，非可选）
 
@@ -121,17 +135,23 @@ UI 自动化断言颜色：macOS 用 `XCUIElement` 的 `value` + 窗口截图像
 实测对比度数值叠加显示 + 与 palette.json 期望值自动比对（绿/红标注）。
 价值：开发者/测试者 30 秒目检全部 22 组配色；UI 测试可驱动该页做全量截图（替代逐视图截屏）。
 
+> 现状（v0.5.64）：**未实现**，产品代码中无 `#if DEBUG` 自检入口。属 P5 未完成项。
+
 ---
 
-## 5. CI 矩阵设计（新增 `.github/workflows/ci.yml` + `visual.yml`）
+## 5. CI 矩阵设计（模板在 `testing/ci/`，尚未部署到 `.github/workflows/`）
+
+> 现状：仓库无 `.github/` 目录，`ci.yml` / `visual.yml` 以模板形式存放于 `testing/ci/`，
+> 需要时拷贝部署；本机全量入口是 `bash testing/run-all.sh`。
 
 ```yaml
 # ci.yml — 每次 push/PR（macOS runner）
-#   python3 scripts/check-color-parity.py
-#   python3 scripts/check-contrast.py
-#   python3 scripts/check-forbidden-colors.py
-#   python3 scripts/check-token-coverage.py
-#   python3 scripts/check-doc-drift.py
+#   python3 testing/sync-palette.py --check
+#   python3 testing/l0/check-color-parity.py
+#   python3 testing/l0/check-contrast.py
+#   python3 testing/l0/check-forbidden-colors.py
+#   python3 testing/l0/check-token-coverage.py
+#   python3 testing/l0/check-doc-drift.py
 #   cargo test -p rhythm-core
 #   swift test                    # RhythmThemeTests（L1）
 #   swift test --sanitize=address # 测试自身无内存问题
@@ -149,18 +169,19 @@ UI 自动化断言颜色：macOS 用 `XCUIElement` 的 `value` + 窗口截图像
 
 ## 6. 先行修复项（升级为必须，按依赖序）
 
-| # | 问题 | 位置 | 阻断谁 | 处置 |
-|---|---|---|---|---|
-| **F1** | Windows Source 色仅 dark 变体，Light 徽标对比度 ~3:1 | `RhythmCore.h:47-66` | parity/contrast/L1/L3 全链 | 补 light 变体 + theme 感知签名 |
-| **F2** | Windows Sidebar 零品牌化（覆盖率为 0） | `SidebarView.xaml` | token-coverage | 品牌化 + 键盘/Tab 语义 |
-| **F3** | macOS Sidebar 移除 `List(selection:)` 失键盘导航/VoiceOver | `SidebarView.swift:6-30` | L3 a11y 用例 | 恢复语义（`.accessibilityAddTraits(.isSelected)` 或回归 selection 绑定+自定义 tint） |
-| **F4** | `SourceTagView` 未知类型回退 `.gray` | `ArtistAlbumView.swift:140` | forbidden-color 扫描 | 回退改 `.rhythmTextTertiary` |
-| **F5** | `Track.swift:48` 遗留 `sourceColor` 死代码 | `Track.swift` | 文档漂移 | 删除 |
-| **F6** | `isDark()` 未知 appearance 静默落 light | `Theme.swift:7-13` | L1 isDark 矩阵 | 决策 fallback + 测试钉住 |
-| **F7** | 高对比度模式沿用普通色值 | 全 token | contrast 矩阵新增 HC 列 | 决策：登记例外 or 提供 HC 变体 |
-| **F8** | **已发现缺陷**：Light textSecondary 合成后 ~3.4:1、textTertiary ~2.1:1（低于 AA） | 全仓使用点 | contrast 脚本必报 | 决策：调 alpha / 改色值 / 登记例外，三选一并记录在 palette.json |
+| # | 问题 | 位置 | 阻断谁 | 处置 | 状态（v0.5.64） |
+|---|---|---|---|---|---|
+| **F1** | Windows Source 色仅 dark 变体，Light 徽标对比度 ~3:1 | `RhythmCore.h` | parity/contrast/L1/L3 全链 | 补 light 变体 + theme 感知签名 | 已修复 #121（#122 解除测试桩、#123 palette sources light 实值、#147 收敛为单一表映射） |
+| **F2** | Windows Sidebar 零品牌化（覆盖率为 0） | `SidebarView.xaml` | token-coverage | 品牌化 + 键盘/Tab 语义 | 已修复 #124（合入 #133）：4 个 token 接入；键盘/Tab 语义仍随 L3 跟进 |
+| **F3** | macOS Sidebar 移除 `List(selection:)` 失键盘导航/VoiceOver | `SidebarView.swift` | L3 a11y 用例 | 恢复语义（`.accessibilityAddTraits(.isSelected)` 或回归 selection 绑定+自定义 tint） | **未处置**：现状仍为 `ForEach` + `onTapGesture` 手动选中态，无选中语义 |
+| **F4** | `SourceTagView` 未知类型回退 `.gray` | `ArtistAlbumView.swift` | forbidden-color 扫描 | 回退改 `.rhythmTextTertiary` | 已修复 #125（合入 #128）；Windows 侧回退 teal 文字色，非系统 Gray |
+| **F5** | `Track.swift` 遗留 `sourceColor` 死代码 | `Track.swift` | 文档漂移 | 删除 | 已修复 #147：`sourceColor`/`sourceTag` 一并删除 |
+| **F6** | `isDark()` 未知 appearance 静默落 light | `RhythmTheme/Theme.swift` | L1 isDark 矩阵 | 决策 fallback + 测试钉住 | 已落地：`bestMatch` 归一四种 appearance，`ThemeIsDarkMatrixTests.testUnknownAppearanceFallsBackToFirstMatch` 钉住 |
+| **F7** | 高对比度模式沿用普通色值 | 全 token | contrast 矩阵新增 HC 列 | 决策：登记例外 or 提供 HC 变体 | **未决**：palette.json 无 HC 列，HC 仍沿用普通色值 |
+| **F8** | **已发现缺陷**：Light textSecondary 合成后 ~3.4:1、textTertiary ~2.1:1（低于 AA） | 全仓使用点 | contrast 脚本必报 | 决策：调 alpha / 改色值 / 登记例外，三选一并记录在 palette.json | 已按"登记例外"处置：`palette.json.exceptions` 记 textSecondary 3.45 / textTertiary 2.15 与 2.12；色值本身仍待决 |
 
-> F1–F5 阻断 L0 全绿，**本分支合并前必须完成**；F6–F8 需设计决策（登记例外即可先绿）。
+> F1–F5 阻断 L0 全绿，除 F3（不阻断 L0，改由 L3 a11y 用例覆盖）外均已完成；
+> F7 仍待设计决策，F8 已登记例外先绿。
 
 ---
 
@@ -177,6 +198,17 @@ UI 自动化断言颜色：macOS 用 `XCUIElement` 的 `value` + 窗口截图像
 
 **本分支合并门槛**：P0 完成 + P1 `ci.yml` 在本次 12 个改动文件上全绿 + L4 八项勾选；
 P2–P5 作为紧接的自动化基建 PR 跟进（若分支已合入，F 项必须挂 issue 编号跟踪，不得静默消失）。
+
+### 落地进度（v0.5.64）
+
+| 阶段 | 现状 | 依据 |
+|---|---|---|
+| **P0** | 完成 | F1/F2/F4/F5 已修复（见 §6 状态列）；F3 转由 L3 跟进 |
+| **P1** | 完成（CI 未部署） | `testing/palette.json` + `sync-palette.py` + L0 五脚本全绿；`ci.yml` 仍是 `testing/ci/` 下模板 |
+| **P2** | 完成 | `RhythmTheme` target 已拆出，`macos/Tests/RhythmThemeTests` 五组数据驱动测试；F6 决策已落地、F8 登记例外 |
+| **P3** | 未完成 | `testing/l2/macos/ViewSnapshotTests.swift` 与 `testing/l2/windows/capture_views.cpp` 为模板，golden 未入库 |
+| **P4** | 未完成 | `testing/l3/macos` XcodeGen + 四组 XCUITest、`testing/l3/windows` 主题切换脚本已备，未接入 CI |
+| **P5** | 部分 | L4 八项清单已文档化（`testing/l4/manual-smoke-checklist.md`）；DEBUG 自检页与 Nightly 未实现 |
 
 ## 8. 风险与成本标注
 
