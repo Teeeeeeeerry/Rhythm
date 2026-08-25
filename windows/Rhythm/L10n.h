@@ -106,6 +106,7 @@ inline const wchar_t* Key(const char* key) {
         L10N_ENTRY(import_m3u8)
         L10N_ENTRY(import_none_found)
         L10N_ENTRY(import_result_title)
+        L10N_ENTRY(import_tooltip)
         L10N_ENTRY(import_some_failed)
         L10N_ENTRY(imported_tracks)
         L10N_ENTRY(importing)
