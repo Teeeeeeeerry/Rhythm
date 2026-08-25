@@ -36,54 +36,10 @@ MainWindow::MainWindow() {
     // Default to library view
     LoadLibraryView();
 
-    // Progress update timer
-    auto timer = winrt::Microsoft::UI::Xaml::DispatcherTimer();
-    timer.Interval(std::chrono::milliseconds(500));
-    timer.Tick([this](auto const&, auto const&) {
-        if (appState_.IsPlaying) {
-            appState_.Position = appState_.Player->Position();
-            appState_.Duration = appState_.Player->Duration();
-
-            auto state = appState_.Player->State();
-            appState_.IsBuffering = state == 3;
-
-            // #137: a track that ended naturally must advance the queue, or
-            // stop claiming playback — mirror macOS updatePlaybackProgress.
-            if (state == 5) {
-                if (appState_.CanPlayNext()) {
-                    auto before = appState_.CurrentTrack->id;
-                    appState_.PlayNext();
-                    if (appState_.CurrentTrack->id == before) {
-                        // Next track is unplayable: stop claiming playback
-                        // instead of retrying every tick (#78 semantics).
-                        appState_.IsPlaying = false;
-                    }
-                } else {
-                    appState_.IsPlaying = false;
-                }
-            } else if (state == 4) {
-                // Otherwise a failed stream just sits at 0:00 with no explanation.
-                appState_.IsPlaying = false;
-                auto detail = appState_.Player->ErrorMessage();
-                appState_.UrlError = detail;
-                OutputDebugStringW((L"Playback failed: " + detail + L"\n").c_str());
-                if (appState_.OnUrlError) {
-                    // #120: classify HTTP failures so the dialog can tell a
-                    // genuinely expired link from a CDN rejection.
-                    auto kind = appState_.Player->ErrorKind();
-                    std::wstring kindCode = L"playback_failed";
-                    if (kind == L"expired") {
-                        kindCode = L"playback_expired";
-                    } else if (kind == L"cdn_rejected") {
-                        kindCode = L"playback_cdn_rejected";
-                    }
-                    appState_.OnUrlError(kindCode, detail);
-                }
-            }
-        }
-        playerBar().Update();
-    });
-    timer.Start();
+    // #172/#173: playback state, progress, auto-advance, and failure
+    // reporting arrive as coordinator events — the old 500 ms polling timer
+    // is gone. The player bar re-renders after every applied event.
+    appState_.OnStateChanged = [this] { playerBar().Update(); };
 }
 
 void MainWindow::OnNavSelectionChanged(

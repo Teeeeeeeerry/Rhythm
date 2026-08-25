@@ -8,7 +8,7 @@ namespace rhythm {
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-static std::wstring Utf8ToWide(const std::string& s) {
+std::wstring Utf8ToWide(const std::string& s) {
     if (s.empty()) return {};
     int len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), nullptr, 0);
     std::wstring result(len, L'\0');
@@ -67,6 +67,14 @@ static Track JsonToTrack(const json& j) {
     if (j.contains("artwork_path") && !j["artwork_path"].is_null())
         t.artworkPath = Utf8ToWide(j["artwork_path"].get<std::string>());
     return t;
+}
+
+Track ParseTrackJson(const std::string& json) {
+    try {
+        return JsonToTrack(json::parse(json));
+    } catch (const json::exception&) {
+        return Track{};
+    }
 }
 
 static std::vector<Track> ParseTrackList(const char* json) {
@@ -214,6 +222,40 @@ bool Library::RemoveTrack(int64_t id) {
     return rhythm_library_remove_track(ptr_, id) == 0;
 }
 
+/// Decode the core's positional M3U8 entries ([title, artist, location]).
+static std::vector<M3u8Entry> ParseM3u8Entries(const char* json) {
+    std::vector<M3u8Entry> entries;
+    if (!json) return entries;
+    try {
+        auto j = json::parse(json);
+        for (const auto& item : j) {
+            M3u8Entry entry;
+            if (item.size() > 0 && !item[0].is_null()) {
+                entry.title = Utf8ToWide(item[0].get<std::string>());
+            }
+            if (item.size() > 1 && !item[1].is_null()) {
+                entry.artist = Utf8ToWide(item[1].get<std::string>());
+            }
+            if (item.size() > 2 && !item[2].is_null()) {
+                entry.location = Utf8ToWide(item[2].get<std::string>());
+            }
+            entries.push_back(std::move(entry));
+        }
+    } catch (const json::exception&) {
+        // Malformed payload: nothing to import.
+    }
+    return entries;
+}
+
+std::vector<M3u8Entry> Library::ImportM3U8(const std::wstring& path) {
+    if (!ptr_) return {};
+    auto p = WideToUtf8(path);
+    char* raw = rhythm_import_m3u8(p.c_str());
+    auto entries = ParseM3u8Entries(raw);
+    if (raw) rhythm_free_string(raw);
+    return entries;
+}
+
 // ─── Player ─────────────────────────────────────────────────────────
 
 Player::Player() {
@@ -331,6 +373,180 @@ bool PlayQueue::HasNext() const {
 
 bool PlayQueue::HasPrevious() const {
     return ptr_ ? rhythm_queue_has_previous(ptr_) != 0 : false;
+}
+
+// ─── Coordinator ────────────────────────────────────────────────────
+
+/// Parse the core's structured result JSON into a CoordinatorResult.
+static CoordinatorResult ParseCoordinatorResult(const char* json) {
+    CoordinatorResult result;
+    if (!json) return result;
+    try {
+        auto j = json::parse(json);
+        result.ok = j.value("ok", false);
+        if (j.contains("error_kind") && !j["error_kind"].is_null()) {
+            result.errorKind = Utf8ToWide(j["error_kind"].get<std::string>());
+        }
+        if (j.contains("error_message") && !j["error_message"].is_null()) {
+            result.errorMessage = Utf8ToWide(j["error_message"].get<std::string>());
+        }
+        if (j.contains("current_track") && !j["current_track"].is_null()) {
+            result.currentTrack = JsonToTrack(j["current_track"]);
+        }
+        result.playbackActive = j.value("playback_active", false);
+    } catch (const json::exception&) {
+        result.ok = false;
+        result.errorKind = L"internal";
+        result.errorMessage = L"Malformed coordinator response";
+    }
+    return result;
+}
+
+/// C trampoline: the core fires events on the playback thread; we hand the
+/// JSON string to the wrapper (the caller marshals).
+extern "C" void CoordinatorEventBridge(void* userdata, char* event_json) {
+    auto* coordinator = static_cast<Coordinator*>(userdata);
+    if (!coordinator || !event_json) return;
+    std::string payload(event_json);
+    rhythm_free_string(event_json);
+    coordinator->DispatchEvent(payload);
+}
+
+void Coordinator::DispatchEvent(const std::string& utf8) {
+    if (handler_) {
+        handler_(Utf8ToWide(utf8));
+    }
+}
+
+Coordinator::Coordinator() {
+    ptr_ = rhythm_coordinator_create();
+    if (ptr_) {
+        rhythm_coordinator_set_event_callback(ptr_, CoordinatorEventBridge, this);
+    }
+}
+
+Coordinator::~Coordinator() {
+    if (ptr_) rhythm_coordinator_destroy(ptr_);
+}
+
+void Coordinator::SetLibrary(Library* library) {
+    library_ = library;
+    if (ptr_) rhythm_coordinator_set_library(ptr_, library ? library->Handle() : nullptr);
+}
+
+void Coordinator::SetEventHandler(std::function<void(const std::wstring&)> handler) {
+    handler_ = std::move(handler);
+}
+
+CoordinatorResult Coordinator::Start(const Track& track,
+                                     const std::vector<Track>& queueTracks,
+                                     int32_t mode) {
+    if (!ptr_) return {};
+    auto trackJson = TrackToJson(track);
+    auto queueJson = TracksToJson(queueTracks);
+    char* raw = rhythm_coordinator_start(
+        ptr_, library_ ? library_->Handle() : nullptr,
+        trackJson.c_str(), queueJson.c_str(), mode);
+    auto result = ParseCoordinatorResult(raw);
+    if (raw) rhythm_free_string(raw);
+    return result;
+}
+
+CoordinatorResult Coordinator::Next() {
+    if (!ptr_) return {};
+    char* raw = rhythm_coordinator_next(ptr_, library_ ? library_->Handle() : nullptr);
+    auto result = ParseCoordinatorResult(raw);
+    if (raw) rhythm_free_string(raw);
+    return result;
+}
+
+CoordinatorResult Coordinator::Previous() {
+    if (!ptr_) return {};
+    char* raw = rhythm_coordinator_previous(ptr_, library_ ? library_->Handle() : nullptr);
+    auto result = ParseCoordinatorResult(raw);
+    if (raw) rhythm_free_string(raw);
+    return result;
+}
+
+CoordinatorResult Coordinator::TogglePlayPause() {
+    if (!ptr_) return {};
+    char* raw = rhythm_coordinator_toggle_play_pause(ptr_, library_ ? library_->Handle() : nullptr);
+    auto result = ParseCoordinatorResult(raw);
+    if (raw) rhythm_free_string(raw);
+    return result;
+}
+
+void Coordinator::SyncQueue(const std::vector<Track>& tracks) {
+    if (!ptr_) return;
+    auto queueJson = TracksToJson(tracks);
+    rhythm_coordinator_sync_queue(ptr_, queueJson.c_str());
+}
+
+void Coordinator::Stop() {
+    if (ptr_) rhythm_coordinator_stop(ptr_);
+}
+
+void Coordinator::SetVolume(float volume) {
+    if (ptr_) rhythm_coordinator_set_volume(ptr_, volume);
+}
+
+void Coordinator::SetPlayMode(int32_t mode) {
+    if (ptr_) rhythm_coordinator_set_play_mode(ptr_, mode);
+}
+
+bool Coordinator::HasNext() const {
+    return ptr_ ? rhythm_coordinator_has_next(ptr_) != 0 : false;
+}
+
+bool Coordinator::HasPrevious() const {
+    return ptr_ ? rhythm_coordinator_has_previous(ptr_) != 0 : false;
+}
+
+bool Coordinator::CanTogglePlayback() const {
+    return ptr_ ? rhythm_coordinator_can_toggle_playback(ptr_) != 0 : false;
+}
+
+bool Coordinator::CanStop() const {
+    return ptr_ ? rhythm_coordinator_can_stop(ptr_) != 0 : false;
+}
+
+double Coordinator::Position() const {
+    return ptr_ ? rhythm_coordinator_get_position(ptr_) : 0.0;
+}
+
+double Coordinator::Duration() const {
+    return ptr_ ? rhythm_coordinator_get_duration(ptr_) : 0.0;
+}
+
+int32_t Coordinator::State() const {
+    return ptr_ ? rhythm_coordinator_get_state(ptr_) : -1;
+}
+
+std::wstring Coordinator::ErrorMessage() const {
+    if (!ptr_) return {};
+    char* raw = rhythm_coordinator_error(ptr_);
+    if (!raw) return {};
+    auto message = Utf8ToWide(raw);
+    rhythm_free_string(raw);
+    return message;
+}
+
+std::wstring Coordinator::ErrorKind() const {
+    if (!ptr_) return {};
+    char* raw = rhythm_coordinator_error_kind(ptr_);
+    if (!raw) return {};
+    auto kind = Utf8ToWide(raw);
+    rhythm_free_string(raw);
+    return kind;
+}
+
+std::optional<Track> Coordinator::CurrentTrack() const {
+    if (!ptr_) return std::nullopt;
+    char* raw = rhythm_coordinator_current_track(ptr_);
+    if (!raw) return std::nullopt;
+    auto track = JsonToTrack(json::parse(raw));
+    rhythm_free_string(raw);
+    return track;
 }
 
 // ─── Resolver ───────────────────────────────────────────────────────

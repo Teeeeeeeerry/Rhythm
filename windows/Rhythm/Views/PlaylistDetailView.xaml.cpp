@@ -93,9 +93,10 @@ void PlaylistDetailView::OnImportClick(IInspectable const&, RoutedEventArgs cons
 
     picker.PickSingleFileAsync().Completed([this](auto const& op, auto) {
         if (auto file = op.GetResults()) {
-            char* raw = rhythm_import_m3u8(winrt::to_string(file.Path()).c_str());
-            if (raw) rhythm_free_string(raw);
-            if (appState_) appState_->RefreshLibrary();
+            // #173: the old import parsed the file and threw the result
+            // away (no-op). Entries are now persisted and counted, with the
+            // same import alert as macOS.
+            if (appState_) appState_->ImportM3U8(file.Path().c_str());
         }
     });
 }

@@ -15,15 +15,18 @@ public:
     AppState();
 
     std::unique_ptr<Library> Library;
-    std::unique_ptr<Player> Player;
+    /// Playback orchestration seam (ticket #173): owns the engine, queue,
+    /// current track, and play mode in the core. Tests inject a spy so
+    /// playback paths run with no audio device.
+    std::unique_ptr<ICoordinator> Coordinator;
     SidebarItem SelectedView = SidebarItem::Library;
     std::wstring SearchQuery;
     std::vector<Track> Tracks;
     std::vector<Playlist> Playlists;
     std::optional<Track> CurrentTrack;
     bool IsPlaying = false;
-    /// True while the engine is buffering (state 3); polled by the progress
-    /// timer and shown in the player bar (mirrors macOS `isBuffering`).
+    /// True while the engine is buffering; driven by state events (ticket
+    /// #172/#173) and shown in the player bar (mirrors macOS `isBuffering`).
     bool IsBuffering = false;
     double Volume = 1.0;
     double Position = 0.0;
@@ -40,10 +43,11 @@ public:
     std::wstring ImportAlertMessage;
     bool ShowImportAlert = false;
 
-    /// The play queue, rebuilt by `PlayTrack` and kept in sync by
-    /// `RefreshLibrary` (WA-19/WA-20).
-    std::unique_ptr<PlayQueue> Queue;
     PlayMode CurrentMode = PlayMode::Sequential;
+
+    /// Raised after every applied coordinator event, so the UI can re-render
+    /// without polling (ticket #172/#173). Set by the main window.
+    std::function<void()> OnStateChanged;
 
     void OpenDatabase(const std::wstring& path);
     void RefreshLibrary();
@@ -53,6 +57,9 @@ public:
     void TogglePlayPause();
     void SetVolume(double v);
     void ResolveAndPlay(const std::wstring& url);
+    /// Import an M3U8 file: parse entries, persist each one, count failures,
+    /// refresh, and surface the import alert (ticket #173 — the old no-op).
+    void ImportM3U8(const std::wstring& path);
 
     /// Transport availability (WA-22, mirrors the macOS tray-menu gates).
     bool CanTogglePlayback() const;
@@ -68,15 +75,21 @@ public:
     /// Cycle to the next play mode (WA-21).
     void CyclePlayMode();
 
-    /// UI-thread dispatcher for marshalling async resolver results.
+    /// UI-thread dispatcher for marshalling async resolver results and
+    /// coordinator events.
     void SetDispatcherQueue(winrt::Microsoft::UI::Dispatching::DispatcherQueue dq) {
         dispatcher_ = dq;
     }
 
+    /// Apply a coordinator event JSON to the state (the seam the tests
+    /// drive; events arrive via the coordinator's C callback and are
+    /// marshalled to the UI thread when a dispatcher is set).
+    void ApplyCoordinatorEvent(const std::wstring& json);
+
 private:
-    /// Stop → playFile/playURL → IsPlaying → RecordPlay, shared by
-    /// PlayTrack/PlayNext/PlayPrevious (#51 ordering).
-    void StartTrack(const Track& track);
+    /// Coordinator event entry point: marshal to the UI thread when a
+    /// dispatcher is available, otherwise apply directly (tests).
+    void OnCoordinatorEvent(const std::wstring& json);
 
     winrt::Microsoft::UI::Dispatching::DispatcherQueue dispatcher_{ nullptr };
 };
