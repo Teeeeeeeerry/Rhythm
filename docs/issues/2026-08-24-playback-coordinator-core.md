@@ -1,8 +1,12 @@
 # Issue: 播放编排下沉到 Rust 核心——双端 AppState 状态机收敛为一个深模块
 
+> 已合入（#170~#175 六个 ticket 全部落地）：协调器 `rust-core/src/coordinator/mod.rs`
+> + FFI `rhythm_coordinator_*`；双端起播/传输/自动切歌/队列同步/可用性全部经协调器；
+> 行为清单合并为 `docs/testing/behavior/coordinator.md`（CO-01~28）；事件替代双端轮询。
+
 - **日期**: 2026-08-24
 - **来源**: 架构审查（architecture-review-20260825-094221.html 候选 1）
-- **状态**: 已立项（GitHub issue #165）
+- **状态**: 已合入（GitHub issue #165）
 - **涉及平台**: 双端（macOS + Windows）+ Rust 核心
 
 ---
