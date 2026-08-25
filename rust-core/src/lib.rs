@@ -57,7 +57,8 @@ pub type RhythmResult<T> = Result<T, RhythmError>;
 
 /// Why an HTTP request to a stream URL failed, so the UI can stop blaming
 /// every failure on an "expired link" (#120).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum HttpErrorKind {
     /// The URL's `expire` timestamp has passed — the link really is stale.
     Expired,
@@ -295,7 +296,8 @@ pub struct Playlist {
 }
 
 /// Player state for FFI callbacks
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PlayerState {
     Stopped,
     Playing,

@@ -203,6 +203,69 @@ final class RhythmPlayer: RhythmPlayerProtocol {
     }
 }
 
+// MARK: - Coordinator Events
+
+/// Events pushed by the coordinator (ticket #172): the UI subscribes instead
+/// of polling the engine. Mirror of the core's `CoordinatorEvent` JSON.
+enum CoordinatorEvent {
+    /// The current track ended naturally. The coordinator auto-advances when
+    /// the queue has a next track (a `trackChanged` event follows); when the
+    /// queue is exhausted playback just ends.
+    case finished
+    /// Playback failed; `kind` is the #120 classification ("expired" /
+    /// "cdn_rejected" / "other") when the failure was HTTP.
+    case error(kind: String?, message: String)
+    /// Playback progress (seconds).
+    case progress(position: Double, duration: Double)
+    /// Engine state transition (named: stopped/playing/paused/buffering/finished).
+    case state(state: String)
+    /// The current track changed (start / transport move / auto-advance).
+    case trackChanged(track: Track)
+
+    init?(json: String) {
+        guard let payload: CoordinatorEventPayload = decodeJSON(json) else { return nil }
+        switch payload.type {
+        case "finished":
+            self = .finished
+        case "error":
+            self = .error(kind: payload.kind, message: payload.message ?? "")
+        case "progress":
+            self = .progress(position: payload.position ?? 0, duration: payload.duration ?? 0)
+        case "state":
+            self = .state(state: payload.state ?? "")
+        case "track_changed":
+            guard let track = payload.track else { return nil }
+            self = .trackChanged(track: track)
+        default:
+            return nil
+        }
+    }
+}
+
+/// Decoding shape of the core's event JSON (snake_case keys via decodeJSON).
+private struct CoordinatorEventPayload: Codable {
+    let type: String
+    let kind: String?
+    let message: String?
+    let position: Double?
+    let duration: Double?
+    let state: String?
+    let track: Track?
+}
+
+/// C trampoline: the core calls this on the playback thread; we hop to the
+/// main queue and deliver to the coordinator's `onEvent` handler.
+private let coordinatorEventCallback: @convention(c) (UnsafeMutableRawPointer?, UnsafeMutablePointer<CChar>?) -> Void = { context, json in
+    guard let context, let json else { return }
+    defer { rhythm_free_string(json) }
+    let coordinator = Unmanaged<RhythmCoordinator>.fromOpaque(context).takeUnretainedValue()
+    let text = String(cString: json)
+    guard let event = CoordinatorEvent(json: text) else { return }
+    DispatchQueue.main.async {
+        coordinator.onEvent?(event)
+    }
+}
+
 // MARK: - Coordinator Wrapper
 
 /// Structured result of a coordinator call (mirror of the core's
@@ -229,6 +292,11 @@ struct CoordinatorStartResult: Codable {
 /// Test seam: tests inject a spy implementation to assert the exact calls
 /// without touching the audio engine.
 protocol CoordinatorProtocol {
+    /// Event subscription (ticket #172): invoked on the main queue.
+    var onEvent: ((CoordinatorEvent) -> Void)? { get set }
+    /// Register the library handle for play recording (auto-advance).
+    func setLibrary(_ library: RhythmLibrary?)
+
     /// Start playback of `track` with `queueTracks` as the queue. The
     /// no-playable-location guard (#78) lives in the core: a track without a
     /// location returns a classified failure and nothing changes.
@@ -275,13 +343,29 @@ protocol CoordinatorProtocol {
 
 final class RhythmCoordinator: CoordinatorProtocol {
     private var ptr: OpaquePointer?
+    /// Event subscription (ticket #172); invoked on the main queue.
+    var onEvent: ((CoordinatorEvent) -> Void)?
 
     init() {
         ptr = rhythm_coordinator_create()
+        installEventHandler()
     }
 
     deinit {
         if let ptr { rhythm_coordinator_destroy(ptr) }
+    }
+
+    /// Register the library handle for play recording (auto-advance).
+    func setLibrary(_ library: RhythmLibrary?) {
+        guard let ptr else { return }
+        rhythm_coordinator_set_library(ptr, library?.handle)
+    }
+
+    /// Wire the C event callback to `onEvent`.
+    private func installEventHandler() {
+        guard let ptr else { return }
+        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
+        rhythm_coordinator_set_event_callback(ptr, coordinatorEventCallback, selfPtr)
     }
 
     @discardableResult

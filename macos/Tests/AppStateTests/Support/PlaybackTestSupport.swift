@@ -14,6 +14,10 @@ import XCTest
 /// rust-core (`coordinator_behavior.rs`); this model exists so the AppState
 /// tests stay behavioral instead of hand-wiring every answer.
 final class SpyCoordinator: CoordinatorProtocol {
+    /// Event subscription (ticket #172); tests fire events directly.
+    var onEvent: ((CoordinatorEvent) -> Void)?
+    func setLibrary(_ library: RhythmLibrary?) {}
+
     /// Human-readable call log, mirroring the old SpyPlayer format so tests
     /// read the same way ("stop", "pause", "resume", "seek:30", …).
     private(set) var calls: [String] = []
@@ -367,6 +371,11 @@ class AppStatePlaybackTestCase: XCTestCase {
         appState = AppState()
         spy = SpyCoordinator()
         appState.coordinator = spy
+        // Wire the event handler the way AppState.init does for the real
+        // coordinator, so tests can fire events into the state machine.
+        spy.onEvent = { [weak appState] event in
+            appState?.handleCoordinatorEvent(event)
+        }
         tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("RhythmTests-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(

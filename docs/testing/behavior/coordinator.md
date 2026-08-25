@@ -31,6 +31,7 @@
 | CO-19 | `toggle_play_pause` 仅 Paused 恢复 | 引擎 Paused → `resume()`、`playback_active=true`；Error/Finished → no-op（不调 resume/pause，`playback_active=false`） | FakePlayer |
 | CO-20 | `toggle_play_pause` 空闲启动 | 无 current + 库镜像（sync_queue 供给）非空 → 启动第一个可播曲目（#78 候选选择在协调器）；空库 → no-op | FakePlayer |
 | CO-21 | 传输可用性导出 | `can_toggle_playback`（有 current 或库非空）、`can_stop`（引擎 Playing/Buffering/Paused）矩阵；FFI `rhythm_coordinator_can_*` 往返 | FakePlayer + FFI 直调 |
+| CO-27 | 事件订阅 FFI | `rhythm_coordinator_set_event_callback`/`set_library` 注册与空指针安全；Finished 事件触发 handle_finished（auto-advance） | FFI 直调 |
 
 ## 边界情况（P1）
 
@@ -39,6 +40,8 @@
 | CO-22 | 单曲循环模式 next | SingleLoop 下 `next` 返回当前曲目（重放） | FakePlayer |
 | CO-23 | sync_queue 坏 JSON（FFI） | 安全 no-op，句柄仍可用 | FFI 直调 |
 | CO-24 | 传输可用性导出 | `can_play_next`/`can_play_previous` 与队列游标一致（含模式矩阵） | 真队列 |
+| CO-25 | Finished 自动切歌（#172） | 引擎 Finished 事件 → 协调器自动 advance（stop 先于分派、recordPlay）；队列耗尽 → 无引擎调用、无 TrackChanged | 事件总线 fire_state |
+| CO-26 | 事件通道形状 | 状态/进度/错误（消息+kind）/TrackChanged 事件 JSON 形状正确；Error kind 由 FFI 层从引擎分类补全 | 事件总线 + 结构断言 |
 
 ## 错误路径（P2）
 

@@ -222,64 +222,55 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         XCTAssertEqual(appState.duration, 0)
     }
 
-    // MARK: - AS-12 进度同步
+    // MARK: - AS-12/13/14/15 事件驱动（ticket #172，替代轮询）
 
-    func testUpdatePlaybackProgress_SyncsFromPlayer() throws {
-        appState.tracks = [makeLocalTrack(path: "/tmp/p.mp3")]
-        appState.playTrack(appState.tracks[0])
-        spy.position = 42.5
-        spy.duration = 100
-        spy.state = 3 // Buffering
-
-        appState.updatePlaybackProgress()
+    func testProgressEvent_UpdatesPositionAndDuration() {
+        spy.onEvent?(.progress(position: 42.5, duration: 100))
 
         XCTAssertEqual(appState.position, 42.5)
         XCTAssertEqual(appState.duration, 100)
-        XCTAssertTrue(appState.isBuffering)
-
-        spy.state = 2 // Playing
-        appState.updatePlaybackProgress()
-        XCTAssertFalse(appState.isBuffering)
     }
 
-    // MARK: - AS-13 播完连播
+    func testStateEvent_UpdatesBufferingAndPlaying() {
+        spy.onEvent?(.state(state: "buffering"))
+        XCTAssertTrue(appState.isBuffering)
+        XCTAssertTrue(appState.isPlaying, "buffering still counts as playing")
 
-    func testUpdatePlaybackProgress_Finished_AdvancesToNext() throws {
+        spy.onEvent?(.state(state: "playing"))
+        XCTAssertFalse(appState.isBuffering)
+
+        spy.onEvent?(.state(state: "paused"))
+        XCTAssertFalse(appState.isPlaying, "paused stops claiming playback")
+    }
+
+    func testFinishedEvent_AutoAdvanceFollowedByTrackChanged() throws {
         let t1 = addTrackToLibrary(makeLocalTrack(title: "One", path: "/tmp/one.mp3"))
         let t2 = addTrackToLibrary(makeLocalTrack(title: "Two", path: "/tmp/two.mp3"))
         appState.playTrack(t1)
-        spy.reset()
-        spy.state = 5 // Finished
 
-        appState.updatePlaybackProgress()
+        // The core auto-advances on Finished (CO-26); the UI renders the
+        // Finished event, then the TrackChanged event that follows.
+        spy.onEvent?(.finished)
+        XCTAssertFalse(appState.isPlaying, "finished stops claiming playback")
+        XCTAssertEqual(appState.currentTrack, t1)
 
-        XCTAssertEqual(appState.currentTrack, t2, "finished track must auto-advance")
+        spy.onEvent?(.trackChanged(track: t2))
+        XCTAssertEqual(appState.currentTrack, t2)
         XCTAssertTrue(appState.isPlaying)
-        XCTAssertEqual(spy.calls, ["next"])
     }
 
-    // MARK: - AS-14 播完终止
-
-    func testUpdatePlaybackProgress_Finished_NoNext_Stops() throws {
+    func testFinishedEvent_NoNext_Stops() throws {
         let t1 = addTrackToLibrary(makeLocalTrack(title: "One", path: "/tmp/one.mp3"))
         appState.playTrack(t1)
-        spy.state = 5 // Finished
 
-        appState.updatePlaybackProgress()
+        spy.onEvent?(.finished)
 
         XCTAssertFalse(appState.isPlaying, "no next track — playback ends")
         XCTAssertEqual(appState.currentTrack, t1)
     }
 
-    // MARK: - AS-15 播放失败
-
-    func testUpdatePlaybackProgress_Error_SurfacesMessage() throws {
-        appState.tracks = [makeLocalTrack(path: "/tmp/p.mp3")]
-        appState.playTrack(appState.tracks[0])
-        spy.state = 4 // Error
-        spy.errorMessage = "core says boom"
-
-        appState.updatePlaybackProgress()
+    func testErrorEvent_SurfacesMessage() throws {
+        spy.onEvent?(.error(kind: nil, message: "core says boom"))
 
         XCTAssertFalse(appState.isPlaying)
         XCTAssertNotNil(appState.urlError)
@@ -294,13 +285,8 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
     // (the early English return ignored `kind` entirely).
     func testUpdatePlaybackProgress_Error_ExpiredKind_KeepsRepasteAdvice() throws {        UserDefaults.standard.set("zh", forKey: "AppLanguage")
         defer { UserDefaults.standard.removeObject(forKey: "AppLanguage") }
-        appState.tracks = [makeLocalTrack(path: "/tmp/p.mp3")]
-        appState.playTrack(appState.tracks[0])
-        spy.state = 4 // Error
-        spy.errorKind = "expired"
-        spy.errorMessage = "GET …/videoplayback failed: HTTP 403"
 
-        appState.updatePlaybackProgress()
+        spy.onEvent?(.error(kind: "expired", message: "GET …/videoplayback failed: HTTP 403"))
 
         XCTAssertTrue(appState.urlError!.contains("重新粘贴"),
                       "expired links may still be re-pasted: \(appState.urlError!)")
@@ -311,13 +297,8 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
     func testUpdatePlaybackProgress_Error_CdnRejectedKind_BlamesNetwork() throws {
         UserDefaults.standard.set("zh", forKey: "AppLanguage")
         defer { UserDefaults.standard.removeObject(forKey: "AppLanguage") }
-        appState.tracks = [makeLocalTrack(path: "/tmp/p.mp3")]
-        appState.playTrack(appState.tracks[0])
-        spy.state = 4 // Error
-        spy.errorKind = "cdn_rejected"
-        spy.errorMessage = "GET …/videoplayback failed: HTTP 403"
 
-        appState.updatePlaybackProgress()
+        spy.onEvent?(.error(kind: "cdn_rejected", message: "GET …/videoplayback failed: HTTP 403"))
 
         XCTAssertTrue(appState.urlError!.contains("网络"),
                       "cdn rejection is a network-side problem: \(appState.urlError!)")

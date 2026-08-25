@@ -95,15 +95,12 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
         let c = makeTrack(sourceType: "local", filePath: nil, sourceUrl: nil)
         appState.tracks = [a, b, c]
         appState.playTrack(a)
-        spy.state = 5 // Finished
-        spy.reset()
 
-        appState.updatePlaybackProgress()
+        // The core auto-advance gives up on an all-dead queue (CO-11): only
+        // the Finished event arrives, so the UI stops claiming playback.
+        spy.onEvent?(.finished)
 
-        XCTAssertFalse(
-            appState.isPlaying,
-            "an all-dead queue must not retry every tick with isPlaying stuck"
-        )
+        XCTAssertFalse(appState.isPlaying, "an all-dead queue must not keep isPlaying stuck")
     }
 
     // MARK: - AS-29 resolveAndImport 并发防重入
@@ -172,18 +169,6 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
         XCTAssertTrue(waitUntil { appState.showImportAlert })
         XCTAssertEqual(appState.tracks.count, 1, "only the first batch is imported")
         XCTAssertFalse(appState.isImporting)
-    }
-
-    // MARK: - AS-33 updatePlaybackProgress 非播放状态
-
-    func testUpdatePlaybackProgress_NotPlaying_NoOp() throws {
-        spy.position = 99
-        spy.duration = 200
-
-        appState.updatePlaybackProgress()
-
-        XCTAssertEqual(appState.position, 0, "player state must not be read while paused")
-        XCTAssertEqual(appState.duration, 0)
     }
 
     // MARK: - AS-34 playNext/playPrevious 无队列

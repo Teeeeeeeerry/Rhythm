@@ -102,6 +102,22 @@ void rhythm_coordinator_destroy(RhythmCoordinator* coordinator);
 char* rhythm_coordinator_start(RhythmCoordinator* coordinator, RhythmLibrary* library,
                                const char* track_json, const char* queue_tracks_json,
                                int32_t mode);
+// Register the library handle the coordinator uses for play recording
+// (transport moves and auto-advance).
+void rhythm_coordinator_set_library(RhythmCoordinator* coordinator, RhythmLibrary* library);
+
+// Event callback type: receives a JSON string
+//   {"type":"finished"} |
+//   {"type":"error","kind":"expired"|"cdn_rejected"|"other"|null,"message":"..."} |
+//   {"type":"progress","position":12.3,"duration":180.0} |
+//   {"type":"state","state":"stopped"|"playing"|"paused"|"buffering"|"finished"} |
+//   {"type":"track_changed","track":{...}}
+// Free the string with rhythm_free_string. Invoked from the playback thread.
+typedef void (*RhythmEventCallback)(void* userdata, char* event_json);
+// Subscribe to coordinator events. On "finished" the coordinator
+// auto-advances to the next playable track (core-driven auto-advance).
+void rhythm_coordinator_set_event_callback(RhythmCoordinator* coordinator,
+                                           RhythmEventCallback callback, void* userdata);
 char* rhythm_coordinator_next(RhythmCoordinator* coordinator, RhythmLibrary* library);
 char* rhythm_coordinator_previous(RhythmCoordinator* coordinator, RhythmLibrary* library);
 char* rhythm_coordinator_toggle_play_pause(RhythmCoordinator* coordinator, RhythmLibrary* library);
