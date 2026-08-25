@@ -2,13 +2,15 @@
 """同步 palette.json（单一事实来源）与双端源码，并生成 L1 测试种子。
 
 用法（仓库根执行）：
-    python3 testing/sync-palette.py                 # 从源码刷新 tokens/sources 段
-    python3 testing/sync-palette.py --check         # CI 模式：源码与 palette.json 漂移即失败
+    python3 testing/sync-palette.py                 # 刷新 tokens + 把 sources 写回双端生成物
+    python3 testing/sync-palette.py --check         # CI 模式：双端生成物与 palette.json 漂移即失败
     python3 testing/sync-palette.py --emit-swift-seed   # 生成 l1/macos/PaletteSeed.swift
     python3 testing/sync-palette.py --log PATH          # 覆盖日志路径（默认 logs/sync-palette.log）
 
-palette.json 的 usage / backgrounds / exceptions / whitelist 段为手写决策段，
-sync 只刷新 tokens 与 sources（由源码解析所得，构造上不可能与源码不一致）。
+palette.json 的 usage / backgrounds / exceptions / whitelist 段为手写决策段。
+tokens 由源码解析刷新；sources（来源徽标色，#184）以 palette.json 为单一事实来源，
+sync 时写回 macOS Theme.swift 的 rhythmSource* 与 Windows RhythmCore.h 的 kTable
+（标记区间内生成，改色只改 palette.json）。
 """
 
 from __future__ import annotations
@@ -157,15 +159,28 @@ def extract_from_source(root: Path) -> dict:
 
 
 def merge_palette(source: dict, existing: dict | None) -> dict:
-    """源码值覆盖 tokens/sources；手写决策段保留（缺失时补默认值）。"""
+    """tokens 由源码提取覆盖；sources（#184）以 palette.json 为单一事实来源，
+    保留既有值（sync 时写回双端生成物）；手写决策段保留（缺失时补默认值）。"""
     base: dict = {
         "version": 1,
-        "note": "Rhythm 品牌配色单一事实来源。tokens/sources 由 sync-palette.py "
-                "从源码自动提取（勿手改）；usage/backgrounds/exceptions/whitelist "
-                "为设计决策段（人工维护）。",
+        "note": "Rhythm 品牌配色单一事实来源。tokens 由 sync-palette.py 从源码提取；"
+                "sources（来源徽标色，#184）以本文件为准，sync 时写回双端生成物；"
+                "usage/backgrounds/exceptions/whitelist 为设计决策段（人工维护）。",
         "alphaTolerance": 2,  # alpha 通道比对容差 ±2/255（浮点舍入）
         **source,
     }
+    if existing and existing.get("sources"):
+        base["sources"] = existing["sources"]
+    # rhythmSource* token 与 sources 段保持同值（种子/对比测试仍在 tokens 中引用）
+    source_token_map = {
+        "rhythmSourceLocal": "local",
+        "rhythmSourceYoutube": "youtube",
+        "rhythmSourceBilibili": "bilibili",
+        "rhythmSourceUrl": "direct_url",
+    }
+    for token, source_key in source_token_map.items():
+        if source_key in base["sources"]:
+            base["tokens"][token] = base["sources"][source_key]
     for key, default in (
         ("usage", DEFAULT_USAGE),
         ("backgrounds", DEFAULT_BACKGROUNDS),
@@ -186,7 +201,15 @@ def diff_fields(name: str, new, old) -> list[str]:
 
 def check_parity(existing: dict, source: dict) -> list[str]:
     problems = []
-    problems += diff_fields("tokens", source["tokens"], existing.get("tokens", {}))
+    source_tokens = {
+        k: v for k, v in source["tokens"].items()
+        if not k.startswith("rhythmSource")
+    }
+    existing_tokens = {
+        k: v for k, v in existing.get("tokens", {}).items()
+        if not k.startswith("rhythmSource")
+    }
+    problems += diff_fields("tokens", source_tokens, existing_tokens)
     problems += diff_fields("sources", source["sources"], existing.get("sources", {}))
     # 新增 token 未进 usage 段 → 需要人工决策
     for t in source["tokens"]:
@@ -243,6 +266,92 @@ def emit_swift_seed(root: Path, palette: dict) -> None:
           f"{len(palette['sources'])} source）")
 
 
+
+
+# ─── 来源徽标色写回双端生成物（#184）────────────────────────────────
+
+SWIFT_SOURCE_MARK_BEGIN = "    // BEGIN GENERATED SOURCE COLORS (#184)"
+SWIFT_SOURCE_MARK_END = "    // END GENERATED SOURCE COLORS (#184)"
+CPP_SOURCE_MARK_BEGIN = "        // BEGIN GENERATED SOURCE TABLE (#184)"
+CPP_SOURCE_MARK_END = "        // END GENERATED SOURCE TABLE (#184)"
+
+SOURCE_SWIFT_NAMES = {
+    "local": "rhythmSourceLocal",
+    "youtube": "rhythmSourceYoutube",
+    "bilibili": "rhythmSourceBilibili",
+    "direct_url": "rhythmSourceUrl",
+}
+
+def emit_source_colors(root: Path, palette: dict) -> None:
+    """把 palette.json 的 sources 写回双端生成物（改色只改 palette.json）。
+
+    - macos/RhythmTheme/Theme.swift：rhythmSource* 属性（标记区间）
+    - windows/Rhythm/Bridge/RhythmCore.h：SourceColorRGB kTable（标记区间）
+    """
+    sources = palette.get("sources", {})
+    if not sources:
+        return
+
+    swift_path = root / SWIFT_THEME
+    swift = swift_path.read_text(encoding="utf-8")
+    swift_lines = [
+        "    // BEGIN GENERATED SOURCE COLORS (#184) — 由 testing/sync-palette.py 生成，勿手改",
+    ]
+    for name in sources:
+        v = sources[name]
+        prop = SOURCE_SWIFT_NAMES[name]
+        dark = pl.from_hex(v["dark"])
+        light = pl.from_hex(v["light"])
+        swift_lines += [
+            f"    /// 来源徽标色（生成自 testing/palette.json，#184）。",
+            f"    /// Dark: {v['dark'].upper()}   Light: {v['light'].upper()}",
+            f"    public static var {prop}: Color {{",
+            "        Color(nsColor: NSColor(name: nil) { appearance in",
+            "            isDark(appearance)",
+            f"                ? NSColor(red: 0x{dark[0]:02X} / 255.0, green: 0x{dark[1]:02X} / 255.0, blue: 0x{dark[2]:02X} / 255.0, alpha: 1.0)",
+            f"                : NSColor(red: 0x{light[0]:02X} / 255.0, green: 0x{light[1]:02X} / 255.0, blue: 0x{light[2]:02X} / 255.0, alpha: 1.0)",
+            "        })",
+            "    }",
+        ]
+    swift_lines.append("    // END GENERATED SOURCE COLORS (#184)")
+    swift = replace_region(swift, SWIFT_SOURCE_MARK_BEGIN, SWIFT_SOURCE_MARK_END, swift_lines)
+    swift_path.write_text(swift, encoding="utf-8")
+
+    cpp_path = root / CPP_CORE
+    cpp = cpp_path.read_text(encoding="utf-8")
+    cpp_lines = [
+        "        // BEGIN GENERATED SOURCE TABLE (#184) — 由 testing/sync-palette.py 生成，勿手改",
+        "        static constexpr Entry kTable[] = {",
+    ]
+    for name in sources:
+        v = sources[name]
+        dark = pl.from_hex(v["dark"])
+        light = pl.from_hex(v["light"])
+        dark_hex = f"0x{dark[0]:02X}, 0x{dark[1]:02X}, 0x{dark[2]:02X}"
+        light_hex = f"0x{light[0]:02X}, 0x{light[1]:02X}, 0x{light[2]:02X}"
+        cpp_lines.append(f'            {{L"{name}", {{{dark_hex}}}, {{{light_hex}}}}},')
+    cpp_lines += [
+        "        };",
+        "        // END GENERATED SOURCE TABLE (#184)",
+    ]
+    cpp = replace_region(cpp, CPP_SOURCE_MARK_BEGIN, CPP_SOURCE_MARK_END, cpp_lines)
+    cpp_path.write_text(cpp, encoding="utf-8")
+
+    print(f"已写回来源徽标色：{swift_path.relative_to(root)} + {cpp_path.relative_to(root)}"
+          f"（{len(sources)} 个来源）")
+
+
+def replace_region(text: str, begin_mark: str, end_mark: str, new_lines: list[str]) -> str:
+    """替换 begin_mark..end_mark 之间的内容（含标记行本身）。"""
+    lines = text.splitlines(keepends=True)
+    begin = next((i for i, l in enumerate(lines) if begin_mark in l), None)
+    end = next((i for i, l in enumerate(lines) if end_mark in l), None)
+    if begin is None or end is None or end <= begin:
+        raise SystemExit(f"生成标记缺失：{begin_mark} .. {end_mark}")
+    body = "\n".join(new_lines) + "\n"
+    return "".join(lines[:begin]) + body + "".join(lines[end + 1:])
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="同步 palette.json 与双端源码")
     ap.add_argument("--root", type=Path, default=None, help="仓库根（默认自动探测）")
@@ -274,6 +383,9 @@ def main() -> int:
 
     pl.save_palette(merged, ppath)
     print(f"已同步 {ppath.relative_to(root)}")
+
+    # #184: sources 以 palette.json 为单一事实来源，写回双端生成物。
+    emit_source_colors(root, merged)
 
     if args.emit_swift_seed:
         emit_swift_seed(root, merged)

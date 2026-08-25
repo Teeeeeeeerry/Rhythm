@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Rhythm 品牌配色单一事实来源。tokens/sources 由 sync-palette.py 从源码自动提取（勿手改）；usage/backgrounds/exceptions/whitelist 为设计决策段（人工维护）。",
+  "note": "Rhythm 品牌配色单一事实来源。tokens 由 sync-palette.py 从源码提取；sources（来源徽标色，#184）以本文件为准，sync 时写回双端生成物；usage/backgrounds/exceptions/whitelist 为设计决策段（人工维护）。",
   "alphaTolerance": 2,
   "tokens": {
     "rhythmAccent": {
