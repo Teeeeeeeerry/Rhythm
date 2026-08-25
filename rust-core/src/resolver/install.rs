@@ -233,7 +233,7 @@ fn download_and_verify(target: &Path) -> ResolveResult<PathBuf> {
     //    This also warms the PyInstaller unpack cache, which costs several
     //    seconds exactly once — better to pay it here, inside a step the UI
     //    already labels as "verifying", than on the user's first link.
-    let version = super::ytdlp_version_within(target, super::YTDLP_FIRST_RUN_TIMEOUT)
+    let version = ytdlp_version_within(target, super::YTDLP_FIRST_RUN_TIMEOUT)
         .ok_or_else(|| ResolveFailure {
             kind: ResolveErrorKind::Internal,
             message: format!(
@@ -415,6 +415,263 @@ pub fn update_now() -> ResolveResult<PathBuf> {
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────
+
+// ─── yt-dlp discovery (ticket #187 split: moved from resolver/mod.rs) ──
+// ─── yt-dlp discovery ───────────────────────────────────────────────
+
+/// Cached location of the yt-dlp binary.
+///
+/// Only successful lookups are cached, so installing yt-dlp while Rhythm is
+/// running takes effect without a restart.
+static YTDLP_PATH: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
+
+/// Name to hand to the OS PATH lookup.
+const YTDLP_BIN: &str = "yt-dlp";
+
+pub fn env_dir(var: &str) -> Option<PathBuf> {
+    std::env::var_os(var).map(PathBuf::from).filter(|p| p.is_dir())
+}
+
+/// Expand `parent/<each subdirectory>/tail...` into existing file paths.
+///
+/// Used for versioned Python install prefixes (`~/Library/Python/3.12/bin`,
+/// `%APPDATA%\Python\Python312\Scripts`) that can't be hardcoded.
+pub fn scan_versioned_dirs(parent: &Path, tail: &[&str]) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(parent) else {
+        return Vec::new();
+    };
+    let mut found = Vec::new();
+    for entry in entries.flatten() {
+        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        let mut candidate = entry.path();
+        for part in tail {
+            candidate.push(part);
+        }
+        if candidate.is_file() {
+            found.push(candidate);
+        }
+    }
+    found
+}
+
+/// Absolute locations to probe before falling back to a PATH lookup.
+///
+/// A GUI app launched from Finder/Dock inherits launchd's minimal PATH
+/// (`/usr/bin:/bin:/usr/sbin:/sbin`), which excludes Homebrew, MacPorts, and
+/// pip prefixes — so `Command::new("yt-dlp")` fails even when the very same
+/// binary resolves fine in a terminal. (#21)
+#[cfg(not(windows))]
+pub fn candidate_ytdlp_paths() -> Vec<PathBuf> {
+    let mut candidates = env_override_path().into_iter().collect::<Vec<_>>();
+
+    // Rhythm's own copy, provisioned on first use.
+    candidates.extend(managed_ytdlp_path());
+
+    candidates.extend(
+        [
+            "/opt/homebrew/bin/yt-dlp", // Homebrew on Apple Silicon
+            "/usr/local/bin/yt-dlp",    // Homebrew on Intel, manual installs
+            "/opt/local/bin/yt-dlp",    // MacPorts
+            "/usr/bin/yt-dlp",          // distro packages
+            "/snap/bin/yt-dlp",
+        ]
+        .iter()
+        .map(PathBuf::from),
+    );
+
+    if let Some(home) = env_dir("HOME") {
+        candidates.push(home.join(".local/bin/yt-dlp"));
+        candidates.push(home.join("bin/yt-dlp"));
+        // pip --user on macOS: ~/Library/Python/<version>/bin/yt-dlp
+        candidates.extend(scan_versioned_dirs(
+            &home.join("Library/Python"),
+            &["bin", "yt-dlp"],
+        ));
+    }
+
+    candidates
+}
+
+#[cfg(windows)]
+pub fn candidate_ytdlp_paths() -> Vec<PathBuf> {
+    let mut candidates = env_override_path().into_iter().collect::<Vec<_>>();
+
+    // Rhythm's own copy, provisioned on first use.
+    candidates.extend(managed_ytdlp_path());
+
+    if let Some(local) = env_dir("LOCALAPPDATA") {
+        // winget / Microsoft Store shim
+        candidates.push(local.join(r"Microsoft\WindowsApps\yt-dlp.exe"));
+        candidates.push(local.join(r"yt-dlp\yt-dlp.exe"));
+        // pip on a per-user Python: %LOCALAPPDATA%\Programs\Python\Python3xx\Scripts
+        candidates.extend(scan_versioned_dirs(
+            &local.join(r"Programs\Python"),
+            &["Scripts", "yt-dlp.exe"],
+        ));
+    }
+
+    if let Some(roaming) = env_dir("APPDATA") {
+        // pip --user: %APPDATA%\Python\Python3xx\Scripts
+        candidates.extend(scan_versioned_dirs(
+            &roaming.join("Python"),
+            &["Scripts", "yt-dlp.exe"],
+        ));
+    }
+
+    if let Some(profile) = env_dir("USERPROFILE") {
+        candidates.push(profile.join(r"scoop\shims\yt-dlp.exe"));
+    }
+
+    candidates.push(PathBuf::from(r"C:\ProgramData\chocolatey\bin\yt-dlp.exe"));
+
+    if let Some(program_files) = env_dir("ProgramFiles") {
+        candidates.push(program_files.join(r"yt-dlp\yt-dlp.exe"));
+    }
+
+    candidates
+}
+
+/// Honour `RHYTHM_YTDLP_PATH` when it points at something.
+pub fn env_override_path() -> Option<PathBuf> {
+    let raw = std::env::var(super::YTDLP_ENV_OVERRIDE).ok()?;
+    let trimmed = raw.trim();
+    (!trimmed.is_empty()).then(|| PathBuf::from(trimmed))
+}
+
+/// Does this path run and answer `--version`?
+pub fn probe_ytdlp(path: &Path) -> bool {
+    ytdlp_version_at(path).is_some()
+}
+
+/// Ask a yt-dlp binary for its version string.
+pub fn ytdlp_version_at(path: &Path) -> Option<String> {
+    ytdlp_version_within(path, super::YTDLP_PROBE_TIMEOUT)
+}
+
+/// Ask a yt-dlp binary for its version, allowing a caller-chosen budget.
+pub(crate) fn ytdlp_version_within(path: &Path, timeout: Duration) -> Option<String> {
+    let mut command = std::process::Command::new(path);
+    command.arg("--version");
+    let output = super::run_with_timeout(command, timeout).ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let version = output.stdout.trim().to_string();
+    (!version.is_empty()).then_some(version)
+}
+
+/// Last resort: ask the user's login shell, which knows about pyenv, asdf,
+/// conda, and other prefixes we can't enumerate.
+#[cfg(not(windows))]
+pub fn ytdlp_from_login_shell() -> Option<PathBuf> {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    let mut command = std::process::Command::new(&shell);
+    command.args(["-lc", "command -v yt-dlp"]);
+
+    let output = super::run_with_timeout(command, super::LOGIN_SHELL_TIMEOUT).ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let path = PathBuf::from(output.stdout.trim());
+    (path.is_file() && probe_ytdlp(&path)).then_some(path)
+}
+
+#[cfg(windows)]
+pub fn ytdlp_from_login_shell() -> Option<PathBuf> {
+    None
+}
+
+/// Locate the yt-dlp binary, caching the result for subsequent resolutions.
+pub fn ytdlp_path() -> Option<PathBuf> {
+    if let Some(cached) = YTDLP_PATH.lock().unwrap().clone() {
+        return Some(cached);
+    }
+
+    let found = discover_ytdlp()?;
+    log::info!("resolver: using yt-dlp at {}", found.display());
+    *YTDLP_PATH.lock().unwrap() = Some(found.clone());
+    Some(found)
+}
+
+pub fn discover_ytdlp() -> Option<PathBuf> {
+    for candidate in candidate_ytdlp_paths() {
+        if candidate.is_file() && probe_ytdlp(&candidate) {
+            return Some(candidate);
+        }
+    }
+
+    // PATH lookup — succeeds when Rhythm was started from a shell.
+    if probe_ytdlp(Path::new(YTDLP_BIN)) {
+        return Some(PathBuf::from(YTDLP_BIN));
+    }
+
+    ytdlp_from_login_shell()
+}
+
+/// Forget the cached yt-dlp location so the next call re-discovers it.
+pub fn forget_ytdlp_path() {
+    *YTDLP_PATH.lock().unwrap() = None;
+}
+
+/// Locate yt-dlp, provisioning Rhythm's own copy when the system has none.
+///
+/// A first-time user should be able to paste a link and have it play, so a
+/// missing yt-dlp is something to fix rather than report — unless the user
+/// opted out with `RHYTHM_NO_AUTO_INSTALL`.
+pub fn ensure_ytdlp() -> ResolveResult<PathBuf> {
+    if let Some(path) = ytdlp_path() {
+        maybe_update_in_background(&path);
+        return Ok(path);
+    }
+
+    if auto_install_disabled() {
+        return Err(ytdlp_missing_error());
+    }
+
+    let installed = install(false)?;
+    *YTDLP_PATH.lock().unwrap() = Some(installed.clone());
+    Ok(installed)
+}
+
+/// Is this the copy Rhythm installed itself?
+pub fn is_managed(binary: &Path) -> bool {
+    managed_ytdlp_path()
+        .map(|managed| managed == binary)
+        .unwrap_or(false)
+}
+
+/// Return a user-friendly error when yt-dlp cannot be found.
+pub fn ytdlp_missing_error() -> ResolveFailure {
+    ResolveFailure::new(
+        ResolveErrorKind::YtDlpMissing,
+        format!(
+            "yt-dlp was not found on this system.\n\n\
+             Install it to play YouTube / Bilibili links:\n  \
+             macOS:   brew install yt-dlp\n  \
+             Windows: winget install yt-dlp   or   pip install yt-dlp\n\n\
+             Already installed? A GUI app does not inherit your shell's PATH, \
+             so point Rhythm at the binary directly by setting {YTDLP_ENV_OVERRIDE} \
+             to its full path (find it with: which yt-dlp).",
+            YTDLP_ENV_OVERRIDE = super::YTDLP_ENV_OVERRIDE,
+        ),
+    )
+}
+
+/// Machine-readable snapshot of the resolver environment, for bug reports.
+pub fn diagnostics() -> serde_json::Value {
+    let path = ytdlp_path();
+    serde_json::json!({
+        "ytdlp_path": path.as_ref().map(|p| p.display().to_string()),
+        "ytdlp_version": path.as_deref().and_then(ytdlp_version_at),
+        "ytdlp_env_override": std::env::var(super::YTDLP_ENV_OVERRIDE).ok(),
+        "path_env": std::env::var("PATH").ok(),
+        "log_file": super::log_file_path().map(|p| p.display().to_string()),
+    })
+}
+
 
 #[cfg(test)]
 mod tests {

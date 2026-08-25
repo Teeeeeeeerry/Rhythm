@@ -1,24 +1,19 @@
 pub mod install;
+mod cache;
+mod classify;
+mod stderr;
+
+pub use classify::*;
+pub use install::*;
+pub use stderr::*;
 
 use crate::{RhythmError, SourceType, TrackInfo};
-use regex::Regex;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{LazyLock, Mutex};
+
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-
-/// Cached URL resolutions to avoid repeated yt-dlp calls.
-/// Each entry stores the resolved info and the instant it was cached.
-static RESOLVED_CACHE: LazyLock<Mutex<HashMap<String, CachedEntry>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
-
-/// Maximum number of entries in the resolution cache.
-const CACHE_MAX_CAPACITY: usize = 256;
-
-/// Time-to-live for a cached resolution result.
-const CACHE_TTL: Duration = Duration::from_secs(3600); // 1 hour
 
 /// Timeout for the yt-dlp subprocess.
 ///
@@ -71,12 +66,6 @@ pub struct ResolvedUrl {
     pub http_headers: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone)]
-struct CachedEntry {
-    resolved: ResolvedUrl,
-    cached_at: Instant,
-}
-
 // ─── Failure reporting ──────────────────────────────────────────────
 
 /// Why a URL failed to resolve.
@@ -113,7 +102,7 @@ pub struct ResolveFailure {
 }
 
 impl ResolveFailure {
-    fn new(kind: ResolveErrorKind, message: impl Into<String>) -> Self {
+    pub(crate) fn new(kind: ResolveErrorKind, message: impl Into<String>) -> Self {
         Self {
             kind,
             message: message.into(),
@@ -143,53 +132,6 @@ impl From<ResolveFailure> for RhythmError {
 
 /// Result alias for resolver operations.
 pub type ResolveResult<T> = Result<T, ResolveFailure>;
-
-/// Pattern matchers for known platforms.
-///
-/// YouTube: handles standard watch, short links (youtu.be), Shorts, Music, and
-/// embed URLs with optional playlist / timestamp / other query params.
-static YOUTUBE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"(?i)^(https?://)?(www\.|music\.|m\.)?(youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/|youtube\.com/embed/)[\w\-]{6,}"
-    )
-    .unwrap()
-});
-
-/// Bilibili: full video pages (including mobile subdomain) and b23.tv short links.
-static BILIBILI_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)^(https?://)?(www\.|m\.)?bilibili\.com/video/BV[\w]+|b23\.tv/[\w]+").unwrap()
-});
-
-/// Direct audio URL: common container extensions, optionally followed by query params.
-static DIRECT_AUDIO_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    // `m4s` covers DASH segments: those are what Bilibili's CDN serves, and
-    // handing one back to yt-dlp only earns a 403 from its generic extractor.
-    Regex::new(r"(?i)\.(mp3|flac|aac|ogg|opus|m4a|m4s|mp4|wav|wma|aiff|webm|weba)(\?.*)?$")
-        .unwrap()
-});
-
-// ─── Cache helpers ──────────────────────────────────────────────────
-
-/// Evict the oldest entry if the cache is over capacity, then remove any
-/// entries whose TTL has expired.
-fn prune_cache(cache: &mut HashMap<String, CachedEntry>) {
-    // Capacity pruning: remove the oldest entry while over the limit.
-    while cache.len() > CACHE_MAX_CAPACITY {
-        if let Some(oldest_key) = cache
-            .iter()
-            .min_by_key(|(_, e)| e.cached_at)
-            .map(|(k, _)| k.clone())
-        {
-            cache.remove(&oldest_key);
-        } else {
-            break;
-        }
-    }
-
-    // TTL pruning.
-    let now = Instant::now();
-    cache.retain(|_, entry| now.duration_since(entry.cached_at) < CACHE_TTL);
-}
 
 // ─── Subprocess helper ──────────────────────────────────────────────
 
@@ -260,260 +202,6 @@ fn run_with_timeout(mut command: Command, timeout: Duration) -> Result<CommandOu
         status,
         stdout: String::from_utf8_lossy(&stdout).into_owned(),
         stderr: String::from_utf8_lossy(&stderr).into_owned(),
-    })
-}
-
-// ─── yt-dlp discovery ───────────────────────────────────────────────
-
-/// Cached location of the yt-dlp binary.
-///
-/// Only successful lookups are cached, so installing yt-dlp while Rhythm is
-/// running takes effect without a restart.
-static YTDLP_PATH: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
-
-/// Name to hand to the OS PATH lookup.
-const YTDLP_BIN: &str = "yt-dlp";
-
-fn env_dir(var: &str) -> Option<PathBuf> {
-    std::env::var_os(var).map(PathBuf::from).filter(|p| p.is_dir())
-}
-
-/// Expand `parent/<each subdirectory>/tail...` into existing file paths.
-///
-/// Used for versioned Python install prefixes (`~/Library/Python/3.12/bin`,
-/// `%APPDATA%\Python\Python312\Scripts`) that can't be hardcoded.
-fn scan_versioned_dirs(parent: &Path, tail: &[&str]) -> Vec<PathBuf> {
-    let Ok(entries) = std::fs::read_dir(parent) else {
-        return Vec::new();
-    };
-    let mut found = Vec::new();
-    for entry in entries.flatten() {
-        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-            continue;
-        }
-        let mut candidate = entry.path();
-        for part in tail {
-            candidate.push(part);
-        }
-        if candidate.is_file() {
-            found.push(candidate);
-        }
-    }
-    found
-}
-
-/// Absolute locations to probe before falling back to a PATH lookup.
-///
-/// A GUI app launched from Finder/Dock inherits launchd's minimal PATH
-/// (`/usr/bin:/bin:/usr/sbin:/sbin`), which excludes Homebrew, MacPorts, and
-/// pip prefixes — so `Command::new("yt-dlp")` fails even when the very same
-/// binary resolves fine in a terminal. (#21)
-#[cfg(not(windows))]
-fn candidate_ytdlp_paths() -> Vec<PathBuf> {
-    let mut candidates = env_override_path().into_iter().collect::<Vec<_>>();
-
-    // Rhythm's own copy, provisioned on first use.
-    candidates.extend(install::managed_ytdlp_path());
-
-    candidates.extend(
-        [
-            "/opt/homebrew/bin/yt-dlp", // Homebrew on Apple Silicon
-            "/usr/local/bin/yt-dlp",    // Homebrew on Intel, manual installs
-            "/opt/local/bin/yt-dlp",    // MacPorts
-            "/usr/bin/yt-dlp",          // distro packages
-            "/snap/bin/yt-dlp",
-        ]
-        .iter()
-        .map(PathBuf::from),
-    );
-
-    if let Some(home) = env_dir("HOME") {
-        candidates.push(home.join(".local/bin/yt-dlp"));
-        candidates.push(home.join("bin/yt-dlp"));
-        // pip --user on macOS: ~/Library/Python/<version>/bin/yt-dlp
-        candidates.extend(scan_versioned_dirs(
-            &home.join("Library/Python"),
-            &["bin", "yt-dlp"],
-        ));
-    }
-
-    candidates
-}
-
-#[cfg(windows)]
-fn candidate_ytdlp_paths() -> Vec<PathBuf> {
-    let mut candidates = env_override_path().into_iter().collect::<Vec<_>>();
-
-    // Rhythm's own copy, provisioned on first use.
-    candidates.extend(install::managed_ytdlp_path());
-
-    if let Some(local) = env_dir("LOCALAPPDATA") {
-        // winget / Microsoft Store shim
-        candidates.push(local.join(r"Microsoft\WindowsApps\yt-dlp.exe"));
-        candidates.push(local.join(r"yt-dlp\yt-dlp.exe"));
-        // pip on a per-user Python: %LOCALAPPDATA%\Programs\Python\Python3xx\Scripts
-        candidates.extend(scan_versioned_dirs(
-            &local.join(r"Programs\Python"),
-            &["Scripts", "yt-dlp.exe"],
-        ));
-    }
-
-    if let Some(roaming) = env_dir("APPDATA") {
-        // pip --user: %APPDATA%\Python\Python3xx\Scripts
-        candidates.extend(scan_versioned_dirs(
-            &roaming.join("Python"),
-            &["Scripts", "yt-dlp.exe"],
-        ));
-    }
-
-    if let Some(profile) = env_dir("USERPROFILE") {
-        candidates.push(profile.join(r"scoop\shims\yt-dlp.exe"));
-    }
-
-    candidates.push(PathBuf::from(r"C:\ProgramData\chocolatey\bin\yt-dlp.exe"));
-
-    if let Some(program_files) = env_dir("ProgramFiles") {
-        candidates.push(program_files.join(r"yt-dlp\yt-dlp.exe"));
-    }
-
-    candidates
-}
-
-/// Honour `RHYTHM_YTDLP_PATH` when it points at something.
-fn env_override_path() -> Option<PathBuf> {
-    let raw = std::env::var(YTDLP_ENV_OVERRIDE).ok()?;
-    let trimmed = raw.trim();
-    (!trimmed.is_empty()).then(|| PathBuf::from(trimmed))
-}
-
-/// Does this path run and answer `--version`?
-fn probe_ytdlp(path: &Path) -> bool {
-    ytdlp_version_at(path).is_some()
-}
-
-/// Ask a yt-dlp binary for its version string.
-fn ytdlp_version_at(path: &Path) -> Option<String> {
-    ytdlp_version_within(path, YTDLP_PROBE_TIMEOUT)
-}
-
-/// Ask a yt-dlp binary for its version, allowing a caller-chosen budget.
-pub(crate) fn ytdlp_version_within(path: &Path, timeout: Duration) -> Option<String> {
-    let mut command = Command::new(path);
-    command.arg("--version");
-    let output = run_with_timeout(command, timeout).ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let version = output.stdout.trim().to_string();
-    (!version.is_empty()).then_some(version)
-}
-
-/// Last resort: ask the user's login shell, which knows about pyenv, asdf,
-/// conda, and other prefixes we can't enumerate.
-#[cfg(not(windows))]
-fn ytdlp_from_login_shell() -> Option<PathBuf> {
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-    let mut command = Command::new(&shell);
-    command.args(["-lc", "command -v yt-dlp"]);
-
-    let output = run_with_timeout(command, LOGIN_SHELL_TIMEOUT).ok()?;
-    if !output.status.success() {
-        return None;
-    }
-
-    let path = PathBuf::from(output.stdout.trim());
-    (path.is_file() && probe_ytdlp(&path)).then_some(path)
-}
-
-#[cfg(windows)]
-fn ytdlp_from_login_shell() -> Option<PathBuf> {
-    None
-}
-
-/// Locate the yt-dlp binary, caching the result for subsequent resolutions.
-pub fn ytdlp_path() -> Option<PathBuf> {
-    if let Some(cached) = YTDLP_PATH.lock().unwrap().clone() {
-        return Some(cached);
-    }
-
-    let found = discover_ytdlp()?;
-    log::info!("resolver: using yt-dlp at {}", found.display());
-    *YTDLP_PATH.lock().unwrap() = Some(found.clone());
-    Some(found)
-}
-
-fn discover_ytdlp() -> Option<PathBuf> {
-    for candidate in candidate_ytdlp_paths() {
-        if candidate.is_file() && probe_ytdlp(&candidate) {
-            return Some(candidate);
-        }
-    }
-
-    // PATH lookup — succeeds when Rhythm was started from a shell.
-    if probe_ytdlp(Path::new(YTDLP_BIN)) {
-        return Some(PathBuf::from(YTDLP_BIN));
-    }
-
-    ytdlp_from_login_shell()
-}
-
-/// Forget the cached yt-dlp location so the next call re-discovers it.
-fn forget_ytdlp_path() {
-    *YTDLP_PATH.lock().unwrap() = None;
-}
-
-/// Locate yt-dlp, provisioning Rhythm's own copy when the system has none.
-///
-/// A first-time user should be able to paste a link and have it play, so a
-/// missing yt-dlp is something to fix rather than report — unless the user
-/// opted out with `RHYTHM_NO_AUTO_INSTALL`.
-fn ensure_ytdlp() -> ResolveResult<PathBuf> {
-    if let Some(path) = ytdlp_path() {
-        install::maybe_update_in_background(&path);
-        return Ok(path);
-    }
-
-    if install::auto_install_disabled() {
-        return Err(ytdlp_missing_error());
-    }
-
-    let installed = install::install(false)?;
-    *YTDLP_PATH.lock().unwrap() = Some(installed.clone());
-    Ok(installed)
-}
-
-/// Is this the copy Rhythm installed itself?
-fn is_managed(binary: &Path) -> bool {
-    install::managed_ytdlp_path()
-        .map(|managed| managed == binary)
-        .unwrap_or(false)
-}
-
-/// Return a user-friendly error when yt-dlp cannot be found.
-fn ytdlp_missing_error() -> ResolveFailure {
-    ResolveFailure::new(
-        ResolveErrorKind::YtDlpMissing,
-        format!(
-            "yt-dlp was not found on this system.\n\n\
-             Install it to play YouTube / Bilibili links:\n  \
-             macOS:   brew install yt-dlp\n  \
-             Windows: winget install yt-dlp   or   pip install yt-dlp\n\n\
-             Already installed? A GUI app does not inherit your shell's PATH, \
-             so point Rhythm at the binary directly by setting {YTDLP_ENV_OVERRIDE} \
-             to its full path (find it with: which yt-dlp)."
-        ),
-    )
-}
-
-/// Machine-readable snapshot of the resolver environment, for bug reports.
-pub fn diagnostics() -> serde_json::Value {
-    let path = ytdlp_path();
-    serde_json::json!({
-        "ytdlp_path": path.as_ref().map(|p| p.display().to_string()),
-        "ytdlp_version": path.as_deref().and_then(ytdlp_version_at),
-        "ytdlp_env_override": std::env::var(YTDLP_ENV_OVERRIDE).ok(),
-        "path_env": std::env::var("PATH").ok(),
-        "log_file": log_file_path().map(|p| p.display().to_string()),
     })
 }
 
@@ -616,33 +304,6 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
     (if month <= 2 { year + 1 } else { year }, month, day)
 }
 
-// ─── Public API ─────────────────────────────────────────────────────
-
-/// Detect the type of URL and its source platform.
-pub fn classify_url(url: &str) -> ResolveResult<SourceType> {
-    // Basic sanity check: must look like an HTTP(S) URL.
-    let trimmed = url.trim();
-    if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
-        return Err(ResolveFailure::new(
-            ResolveErrorKind::InvalidUrl,
-            "Please enter a valid URL starting with http:// or https://",
-        ));
-    }
-
-    if YOUTUBE_PATTERN.is_match(trimmed) {
-        Ok(SourceType::YouTube)
-    } else if BILIBILI_PATTERN.is_match(trimmed) {
-        Ok(SourceType::Bilibili)
-    } else if DIRECT_AUDIO_PATTERN.is_match(trimmed) {
-        Ok(SourceType::DirectUrl)
-    } else {
-        // Could still be a direct URL without a recognised audio extension.
-        // Default to treating it as a yt-dlp target in case it's an
-        // unsupported video site that yt-dlp still understands.
-        Ok(SourceType::YouTube)
-    }
-}
-
 /// Resolve a URL to a playable audio stream.
 ///
 /// Uses yt-dlp for YouTube / Bilibili, direct fetch for audio URLs.
@@ -668,7 +329,7 @@ pub fn resolve_url_fresh(url: &str) -> ResolveResult<ResolvedUrl> {
 /// cannot serve the same dead link again (#120).
 pub fn evict_resolution(url: &str) {
     let trimmed = url.trim();
-    RESOLVED_CACHE.lock().unwrap().remove(trimmed);
+    cache::evict(trimmed);
 }
 
 fn resolve_url_impl(url: &str, use_cache: bool) -> ResolveResult<ResolvedUrl> {
@@ -690,12 +351,8 @@ fn resolve_url_impl(url: &str, use_cache: bool) -> ResolveResult<ResolvedUrl> {
 
     // Check cache (return clone so we don't hold the lock across I/O).
     if use_cache {
-        let mut cache = RESOLVED_CACHE.lock().unwrap();
-        prune_cache(&mut cache);
-        if let Some(entry) = cache.get(trimmed) {
-            if entry.cached_at.elapsed() < CACHE_TTL {
-                return Ok(entry.resolved.clone());
-            }
+        if let Some(resolved) = cache::get(trimmed) {
+            return Ok(resolved);
         }
     }
 
@@ -706,19 +363,8 @@ fn resolve_url_impl(url: &str, use_cache: bool) -> ResolveResult<ResolvedUrl> {
         _ => resolve_with_ytdlp(trimmed, &source_type)?,
     };
 
-    // Insert into cache.
-    {
-        let mut cache = RESOLVED_CACHE.lock().unwrap();
-        cache.insert(
-            trimmed.to_string(),
-            CachedEntry {
-                resolved: resolved.clone(),
-                cached_at: Instant::now(),
-            },
-        );
-        // Prune after insert in case we just went over capacity.
-        prune_cache(&mut cache);
-    }
+    // Insert into cache (pruning happens inside).
+    cache::put(trimmed, &resolved);
 
     Ok(resolved)
 }
@@ -962,128 +608,6 @@ fn run_ytdlp(
     })
 }
 
-/// Turn yt-dlp's stderr into an actionable failure.
-fn ytdlp_failure_from_stderr(stderr: &str, status: std::process::ExitStatus) -> ResolveFailure {
-    let detail = summarize_stderr(stderr);
-    let kind = classify_ytdlp_stderr(stderr);
-
-    let advice = match kind {
-        ResolveErrorKind::YtDlpOutdated => {
-            "\n\nyt-dlp looks out of date for this site. Update it:\n  \
-             brew upgrade yt-dlp   (macOS)\n  \
-             pip install -U yt-dlp (pip installs)\n  \
-             yt-dlp -U             (standalone builds)"
-        }
-        ResolveErrorKind::Unavailable => {
-            "\n\nThe video may be private, deleted, age-restricted, \
-             members-only, or blocked in your region."
-        }
-        ResolveErrorKind::Network => {
-            "\n\nCheck your network connection, proxy, or VPN and try again."
-        }
-        _ => "",
-    };
-
-    let message = if detail.is_empty() {
-        format!(
-            "yt-dlp exited with status {status} and no error output.{advice}"
-        )
-    } else {
-        format!("yt-dlp failed: {detail}{advice}")
-    };
-
-    ResolveFailure::new(kind, message)
-}
-
-/// Map yt-dlp's stderr onto a failure kind.
-fn classify_ytdlp_stderr(stderr: &str) -> ResolveErrorKind {
-    let text = stderr.to_lowercase();
-
-    let matches = |needles: &[&str]| needles.iter().any(|n| text.contains(n));
-
-    // Check "update yt-dlp" style breakage before the generic buckets: those
-    // messages often also mention "unable to download".
-    if matches(&[
-        "nsig extraction failed",
-        "signature extraction failed",
-        "please report this issue",
-        "update to the latest version",
-        "yt-dlp is out of date",
-        "unable to extract player",
-        "unsupported url",
-    ]) {
-        return ResolveErrorKind::YtDlpOutdated;
-    }
-
-    if matches(&[
-        "confirm you're not a bot",
-        "confirm you are not a bot",
-        "private video",
-        "video unavailable",
-        "this video is unavailable",
-        "removed by the uploader",
-        "account associated with this video has been terminated",
-        "members-only",
-        "age-restricted",
-        "sign in to view",
-        // Covers both "not available in your country" and yt-dlp's
-        // "The uploader has not made this video available in your country".
-        "available in your country",
-        "geo restricted",
-        "geo-restricted",
-        "blocked it in your country",
-        "requires a subscription",
-        "login required",
-        "cookies",
-    ]) {
-        return ResolveErrorKind::Unavailable;
-    }
-
-    if matches(&[
-        "unable to download webpage",
-        "urlopen error",
-        "temporary failure in name resolution",
-        "name or service not known",
-        "connection refused",
-        "connection reset",
-        "connection timed out",
-        "network is unreachable",
-        "read timed out",
-        "ssl",
-        "certificate verify failed",
-        "proxy",
-    ]) {
-        return ResolveErrorKind::Network;
-    }
-
-    ResolveErrorKind::Internal
-}
-
-/// Keep the tail of yt-dlp's stderr — the last lines carry the actual error,
-/// and the full text goes to the log file anyway.
-fn summarize_stderr(stderr: &str) -> String {
-    const MAX_LINES: usize = 4;
-    const MAX_CHARS: usize = 600;
-
-    let lines: Vec<&str> = stderr
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .collect();
-
-    let tail = if lines.len() > MAX_LINES {
-        &lines[lines.len() - MAX_LINES..]
-    } else {
-        &lines[..]
-    };
-
-    let mut summary = tail.join("\n");
-    if summary.chars().count() > MAX_CHARS {
-        summary = summary.chars().take(MAX_CHARS).collect::<String>() + "…";
-    }
-    summary
-}
-
 /// Try every known field where yt-dlp may place the audio stream URL, along
 /// with the headers that stream needs.
 ///
@@ -1266,6 +790,9 @@ fn urlencoding_if_needed(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::cache::{prune_cache, CachedEntry, RESOLVED_CACHE};
+    use std::collections::HashMap;
+    use std::sync::{LazyLock, Mutex};
 
     // ── classify_url ─────────────────────────────────────────────
 
