@@ -72,21 +72,6 @@ char* rhythm_player_error(RhythmPlayer* player);
 // "expired" | "cdn_rejected" | "other"; null otherwise (#120).
 char* rhythm_player_error_kind(RhythmPlayer* player);
 
-// ─── Play Queue API ────────────────────────────────────────────────
-
-RhythmQueue* rhythm_queue_create(const char* tracks_json);
-void rhythm_queue_destroy(RhythmQueue* queue);
-
-char* rhythm_queue_current(RhythmQueue* queue);
-char* rhythm_queue_next(RhythmQueue* queue);
-char* rhythm_queue_previous(RhythmQueue* queue);
-void rhythm_queue_set_mode(RhythmQueue* queue, int32_t mode);
-int32_t rhythm_queue_jump_to(RhythmQueue* queue, int64_t track_id);
-void rhythm_queue_replace(RhythmQueue* queue, const char* tracks_json);
-int32_t rhythm_queue_has_next(RhythmQueue* queue);
-int32_t rhythm_queue_has_previous(RhythmQueue* queue);
-// Play modes: 0=Sequential, 1=Shuffle, 2=SingleLoop, 3=ListLoop
-
 // ─── Playback Coordinator API ─────────────────────────────────────
 //
 // The coordinator owns the orchestration rules (stop old playback, dispatch

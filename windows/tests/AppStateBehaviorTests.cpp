@@ -434,43 +434,6 @@ TEST_CASE("WA-18 PlayTrack switches to the new track through the coordinator") {
 
 // ─── WA-19 播放队列（真 FFI 队列包装往返）───────────────────────────
 
-TEST_CASE("WA-19 PlayQueue wrapper roundtrips through FFI") {
-    auto t1 = makeLocalTrack(L"C:\\a\\one.mp3", L"One");
-    t1.id = 1;
-    auto t2 = makeLocalTrack(L"C:\\a\\two.mp3", L"Two");
-    t2.id = 2;
-
-    PlayQueue q({t1, t2});
-    REQUIRE(q.Current().has_value());
-    REQUIRE(q.Current()->title == L"One");
-    REQUIRE(q.HasNext());
-    REQUIRE_FALSE(q.HasPrevious());
-
-    REQUIRE(q.Next()->title == L"Two");
-    REQUIRE_FALSE(q.HasNext());
-    REQUIRE_FALSE(q.Next().has_value()); // exhausted → nullopt
-    // Exhaustion parks the cursor past the end; previous() steps back onto
-    // the last track (queue semantics locked in the rust-core suites).
-    REQUIRE(q.Previous()->title == L"Two");
-
-    // SingleLoop: next() stays at the current track.
-    q.SetMode(2);
-    REQUIRE(q.Next()->title == L"Two");
-
-    REQUIRE(q.JumpTo(1));
-    REQUIRE_FALSE(q.JumpTo(999));
-    REQUIRE(q.Current()->title == L"One");
-
-    auto t3 = makeLocalTrack(L"C:\\a\\three.mp3", L"Three");
-    t3.id = 3;
-    q.Replace({t3});
-    REQUIRE(q.Current()->title == L"Three");
-
-    PlayQueue empty({});
-    REQUIRE_FALSE(empty.Current().has_value());
-    REQUIRE_FALSE(empty.HasNext());
-    REQUIRE_FALSE(empty.HasPrevious());
-}
 
 TEST_CASE("WA-19 playNext/playPrevious walk the queue, exhausted is a no-op") {
     SpyApp app;

@@ -194,40 +194,6 @@ private:
     RhythmPlayer* ptr_ = nullptr;
 };
 
-/// Wrapper around the Rust play queue (next/previous/mode/jump), mirroring
-/// the macOS `RhythmQueue` wrapper.
-class PlayQueue {
-public:
-    /// Build a queue from the given track list. Empty lists are valid —
-    /// the queue exists with no current track.
-    explicit PlayQueue(const std::vector<Track>& tracks);
-    ~PlayQueue();
-    // Owns an FFI handle — copies would double-free.
-    PlayQueue(const PlayQueue&) = delete;
-    PlayQueue& operator=(const PlayQueue&) = delete;
-
-    std::optional<Track> Current();
-    std::optional<Track> Next();
-    std::optional<Track> Previous();
-    void SetMode(int32_t mode); // 0=Sequential 1=Shuffle 2=SingleLoop 3=ListLoop
-    bool JumpTo(int64_t trackId);
-    void Replace(const std::vector<Track>& tracks);
-    bool HasNext() const;
-    bool HasPrevious() const;
-
-private:
-    RhythmQueue* ptr_ = nullptr;
-};
-
-/// One imported M3U8 entry (title, artist, location), decoded from the
-/// core's positional entry arrays (ticket #173; the named-struct contract
-/// follows in #177).
-struct M3u8Entry {
-    std::wstring title;
-    std::optional<std::wstring> artist;
-    std::wstring location;
-};
-
 /// Structured result of a coordinator call (mirror of the core's
 /// `CoordinatorResult` JSON): success payload + classified error in one
 /// return. `errorKind` is one of: no_playable_location, playback_failed,

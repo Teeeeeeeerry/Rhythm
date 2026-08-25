@@ -170,15 +170,6 @@ final class RhythmCoreSwiftBehaviorTests: XCTestCase {
         XCTAssertNil(player.errorKind, "no failure → no classification (#120)")
     }
 
-    // MARK: - SW-10 RhythmQueue 空曲目列表
-
-    func testSW10_QueueEmptyTracksIsValid() {
-        let queue = RhythmQueue(tracks: [])
-        XCTAssertNotNil(queue, "queue_create(\"[]\") must yield a handle")
-        XCTAssertNil(queue?.current(), "empty queue has no current track")
-        XCTAssertFalse(queue?.hasNext ?? true)
-        XCTAssertFalse(queue?.hasPrevious ?? true)
-    }
 
     // MARK: - SW-11 RhythmLibrary.addTrack
 
