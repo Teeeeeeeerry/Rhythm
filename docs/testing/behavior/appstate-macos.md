@@ -24,10 +24,10 @@
 | AS-09 | `playNext` | `coordinator.playNext(library)` 被调；结果带新 current → `currentTrack`/`isPlaying` 更新；无 next：current 不变（跳过/耗尽语义由 CO-09/CO-10/CO-11 覆盖） | SpyCoordinator |
 | AS-10 | `playPrevious` | 对称于 AS-09（`coordinator.playPrevious`） | SpyCoordinator |
 | AS-11 | `stop()` | `coordinator.stop()`（引擎停 + 队列清空）、`isPlaying=false`、`isBuffering=false`、`currentTrack=nil`、`position=0`、`duration=0` | SpyCoordinator |
-| AS-12 | `updatePlaybackProgress` 正常播放 | `position`/`duration` 从 coordinator 同步；`isBuffering=(state==3)` | SpyCoordinator（预置状态） |
-| AS-13 | `updatePlaybackProgress` 播完连播 | `state==5`（Finished）且有 next → 自动 `playNext`（经协调器） | SpyCoordinator |
-| AS-14 | `updatePlaybackProgress` 播完终止 | Finished 且无 next → `isPlaying=false` | 同上 |
-| AS-15 | `updatePlaybackProgress` 播放失败（#23 类） | `state==4`（Error）→ `isPlaying=false`、`urlError=L10n.playbackFailed(detail)` 非空 | SpyCoordinator（预置 Error+消息） |
+| AS-12 | 事件：进度 | `progress` 事件 → `position`/`duration` 更新；`state` 事件 → `isBuffering`/`isPlaying` 渲染（#172，轮询已删除） | SpyCoordinator 事件注入 |
+| AS-13 | 事件：播完连播 | `finished` 事件 → 停止渲染播放态；随后 `trackChanged` 事件 → `currentTrack` 更新、`isPlaying=true`（自动切歌在协调器内，CO-25） | SpyCoordinator 事件注入 |
+| AS-14 | 事件：播完终止 | `finished` 且无下一首 → `isPlaying=false`（currentTrack 不变） | 同上 |
+| AS-15 | 事件：播放失败（#23 类） | `error` 事件 → `isPlaying=false`、`urlError=L10n.playbackFailed(kind, message)` 非空（含 #120 分类文案，AS-42） | SpyCoordinator 事件注入 |
 | AS-16 | `seek(to:)`（#73） | `coordinator.seek(seconds)` 被调；`position` 乐观更新为秒数 | SpyCoordinator |
 | AS-17 | `cyclePlayMode` | `playMode` 循环至下一模式；`coordinator.setPlayMode` 同步 | SpyCoordinator |
 | AS-18 | 传输可用性（#24/#25） | `canTogglePlayback`/`canStop` 来自协调器导出（CO-21），`canPlayNext/Previous=coordinator.hasNext/hasPrevious`——UI 只渲染不计算 | SpyCoordinator |
@@ -49,7 +49,7 @@
 | AS-30 | resolver 状态轮询生命周期 | resolve 开始启动轮询、结束停止；`isQuiet` 时 `urlStatus=""` | stub resolver + `isPollingResolverStatus` 断言 |
 | AS-31 | `deleteSelectedTrack` 无匹配 | `selectedTrackID` 无对应 track → no-op | 真库 |
 | AS-32 | `importURLs` 期间再次调用 | `isImporting=true` 时忽略 | 真库 |
-| AS-33 | `updatePlaybackProgress` 非播放状态 | `isPlaying=false` 时 no-op（不读 coordinator） | SpyCoordinator |
+
 | AS-34 | `playNext`/`playPrevious` 无队列 | 协调器无队列/无 current → 结果 current 为空 → no-op | SpyCoordinator |
 | AS-35 | `refreshLibrary` 无当前曲目 | 队列同步由协调器按自己的 current 执行；观测面上队列状态不被破坏 | 真库 + SpyCoordinator |
 | AS-36 | `confirmDeleteTrack` 删除非当前曲目 | 协调器不动（无 stop），仅 `removeTrack`+`refreshLibrary` | SpyCoordinator + 真库 |

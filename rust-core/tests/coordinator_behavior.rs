@@ -7,12 +7,17 @@
 //! (parent issue #165). Tests drive the coordinator interface with a
 //! call-recording fake player surface — no audio device required.
 
-use rhythm_core::coordinator::{CoordinatorErrorKind, PlaybackCoordinator, PlayerSurface};
+use rhythm_core::coordinator::{
+    CoordinatorErrorKind, CoordinatorEvent, PlaybackCoordinator, PlayerSurface,
+};
 use rhythm_core::library::Library;
 use rhythm_core::queue::PlayMode;
-use rhythm_core::{HttpErrorKind, PlayerState, RhythmResult, SourceType, TrackInfo};
-use std::path::Path;
+use rhythm_core::{
+    HttpErrorKind, PlayerState, ProgressCallback, RhythmResult, SourceType, StateCallback, TrackInfo,
+};
 use std::ffi::CString;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 // ─── Fake player surface ──────────────────────────────────────────
@@ -20,27 +25,42 @@ use std::sync::{Arc, Mutex};
 /// Call-recording fake: records every engine call so tests can assert the
 /// exact orchestration sequence (e.g. `stop` before `play_file` — #51).
 struct FakePlayer {
-    calls: Arc<Mutex<Vec<String>>>,
-    state: Arc<Mutex<PlayerState>>,
-    fail_play_file: bool,
-    fail_play_url: bool,
+    calls: CallLog,
+    state: EngineState,
+    fail_play_file: AtomicBool,
+    fail_play_url: AtomicBool,
     error_kind: Mutex<Option<HttpErrorKind>>,
+    /// Shared event bus: the coordinator registers its engine callbacks
+    /// here, and tests fire engine transitions through it.
+    bus: Arc<FakeEventBus>,
+}
+
+/// The engine's event side, shared with the test: `fire_state` /
+/// `fire_progress` simulate what the real engine's callbacks deliver.
+struct FakeEventBus {
+    state_cb: Mutex<Option<StateCallback>>,
+    progress_cb: Mutex<Option<ProgressCallback>>,
 }
 
 impl FakePlayer {
-    /// Returns the player plus shared handles for the call log and the
-    /// engine-mirror state (tests force states like Paused/Buffering).
-    fn new() -> (FakePlayer, CallLog, EngineState) {
+    /// Returns the player plus shared handles for the call log, the
+    /// engine-mirror state, and the event bus.
+    fn new() -> (FakePlayer, CallLog, EngineState, Arc<FakeEventBus>) {
         let calls = Arc::new(Mutex::new(Vec::new()));
         let state = Arc::new(Mutex::new(PlayerState::Stopped));
+        let bus = Arc::new(FakeEventBus {
+            state_cb: Mutex::new(None),
+            progress_cb: Mutex::new(None),
+        });
         let player = FakePlayer {
             calls: calls.clone(),
             state: state.clone(),
-            fail_play_file: false,
-            fail_play_url: false,
+            fail_play_file: AtomicBool::new(false),
+            fail_play_url: AtomicBool::new(false),
             error_kind: Mutex::new(None),
+            bus: bus.clone(),
         };
-        (player, calls, state)
+        (player, calls, state, bus)
     }
 
     fn record(&self, call: &str) {
@@ -48,10 +68,27 @@ impl FakePlayer {
     }
 }
 
+impl FakeEventBus {
+    /// Test helper: fire an engine state transition through the registered
+    /// callback (the coordinator forwards it as an event).
+    fn fire_state(&self, state: PlayerState) {
+        if let Some(cb) = self.state_cb.lock().unwrap().as_ref() {
+            cb(state);
+        }
+    }
+
+    /// Test helper: fire a progress update through the registered callback.
+    fn fire_progress(&self, position: f64, duration: f64) {
+        if let Some(cb) = self.progress_cb.lock().unwrap().as_ref() {
+            cb(position, duration);
+        }
+    }
+}
+
 impl PlayerSurface for FakePlayer {
     fn play_file(&self, path: &Path) -> RhythmResult<()> {
         self.record(&format!("play_file:{}", path.display()));
-        if self.fail_play_file {
+        if self.fail_play_file.load(Ordering::SeqCst) {
             return Err(rhythm_core::RhythmError::FileNotFound(path.display().to_string()));
         }
         *self.state.lock().unwrap() = PlayerState::Playing;
@@ -60,7 +97,7 @@ impl PlayerSurface for FakePlayer {
 
     fn play_url(&self, url: &str) -> RhythmResult<()> {
         self.record(&format!("play_url:{url}"));
-        if self.fail_play_url {
+        if self.fail_play_url.load(Ordering::SeqCst) {
             return Err(rhythm_core::RhythmError::Network(url.to_string()));
         }
         *self.state.lock().unwrap() = PlayerState::Playing;
@@ -117,9 +154,20 @@ impl PlayerSurface for FakePlayer {
     fn error_kind(&self) -> Option<HttpErrorKind> {
         *self.error_kind.lock().unwrap()
     }
+
+    fn on_state_change(&self, callback: StateCallback) {
+        *self.bus.state_cb.lock().unwrap() = Some(callback);
+    }
+
+    fn on_progress(&self, callback: ProgressCallback) {
+        *self.bus.progress_cb.lock().unwrap() = Some(callback);
+    }
 }
 
-// ─── Track fixtures ───────────────────────────────────────────────
+/// Shared call log handle.
+type CallLog = Arc<Mutex<Vec<String>>>;
+/// Shared engine-mirror state handle (tests force states like Paused).
+type EngineState = Arc<Mutex<PlayerState>>;
 
 fn dummy_track(id: i64, title: &str) -> TrackInfo {
     TrackInfo {
@@ -149,11 +197,6 @@ fn dummy_track(id: i64, title: &str) -> TrackInfo {
     }
 }
 
-/// Shared call log handle.
-type CallLog = Arc<Mutex<Vec<String>>>;
-/// Shared engine-mirror state handle (tests force states like Paused).
-type EngineState = Arc<Mutex<PlayerState>>;
-
 /// A track with no playable location (no path, no URL).
 fn unplayable_track(id: i64, title: &str) -> TrackInfo {
     let mut t = dummy_track(id, title);
@@ -178,7 +221,7 @@ fn make_coordinator(player: FakePlayer) -> PlaybackCoordinator {
 
 #[test]
 fn co01_start_local_stops_then_plays_and_positions_queue() {
-    let (player, calls, _state) = FakePlayer::new();
+    let (player, calls, _state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let track = dummy_track(1, "A");
@@ -200,7 +243,7 @@ fn co01_start_local_stops_then_plays_and_positions_queue() {
 
 #[test]
 fn co02_start_url_dispatches_play_url() {
-    let (player, calls, _state) = FakePlayer::new();
+    let (player, calls, _state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let track = url_track(1, "Stream", "https://cdn.example.com/x.mp3");
@@ -217,7 +260,7 @@ fn co02_start_url_dispatches_play_url() {
 
 #[test]
 fn co03_start_without_playable_location_is_classified_error() {
-    let (player, calls, _state) = FakePlayer::new();
+    let (player, calls, _state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let track = unplayable_track(1, "Dead");
@@ -237,7 +280,7 @@ fn co03_start_without_playable_location_is_classified_error() {
 
 #[test]
 fn co04_empty_path_or_url_counts_as_missing() {
-    let (player, calls, _state) = FakePlayer::new();
+    let (player, calls, _state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let mut local = dummy_track(1, "A");
@@ -256,7 +299,7 @@ fn co04_empty_path_or_url_counts_as_missing() {
 
 #[test]
 fn co05_start_records_play_in_library() {
-    let (player, _, _) = FakePlayer::new();
+    let (player, _, _, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let dir = tempfile::tempdir().unwrap();
@@ -276,7 +319,7 @@ fn co05_start_records_play_in_library() {
 
 #[test]
 fn co06_start_positions_queue_at_track_and_obeys_mode() {
-    let (player, _, _) = FakePlayer::new();
+    let (player, _, _, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     // Positioned at the last track, Sequential has no next.
@@ -299,8 +342,8 @@ fn co06_start_positions_queue_at_track_and_obeys_mode() {
 
 #[test]
 fn co08_start_reports_immediate_engine_failure() {
-    let (mut player, calls, _state) = FakePlayer::new();
-    player.fail_play_file = true;
+    let (player, calls, _state, _bus) = FakePlayer::new();
+    player.fail_play_file.store(true, Ordering::SeqCst);
     let mut coord = make_coordinator(player);
 
     let track = dummy_track(1, "Missing");
@@ -315,7 +358,7 @@ fn co08_start_reports_immediate_engine_failure() {
 
 #[test]
 fn co09_next_advances_and_stops_before_play() {
-    let (player, calls, _state) = FakePlayer::new();
+    let (player, calls, _state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -337,7 +380,7 @@ fn co09_next_advances_and_stops_before_play() {
 
 #[test]
 fn co10_next_skips_unplayable_tracks() {
-    let (player, calls, _state) = FakePlayer::new();
+    let (player, calls, _state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -361,7 +404,7 @@ fn co10_next_skips_unplayable_tracks() {
 
 #[test]
 fn co11_next_all_unplayable_gives_up_without_touching_state() {
-    let (player, calls, _state) = FakePlayer::new();
+    let (player, calls, _state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -385,7 +428,7 @@ fn co11_next_all_unplayable_gives_up_without_touching_state() {
 
 #[test]
 fn co12_next_exhausted_queue_is_no_op() {
-    let (player, calls, _state) = FakePlayer::new();
+    let (player, calls, _state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -403,7 +446,7 @@ fn co12_next_exhausted_queue_is_no_op() {
 
 #[test]
 fn co13_previous_walks_backwards_and_stops_at_head() {
-    let (player, calls, _state) = FakePlayer::new();
+    let (player, calls, _state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -436,7 +479,7 @@ fn co13_previous_walks_backwards_and_stops_at_head() {
 
 #[test]
 fn co14_next_without_queue_is_no_op() {
-    let (player, calls, _state) = FakePlayer::new();
+    let (player, calls, _state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let result = coord.next(None);
@@ -449,7 +492,7 @@ fn co14_next_without_queue_is_no_op() {
 
 #[test]
 fn co15_sync_queue_replaces_and_jumps_back_to_current() {
-    let (player, _, _) = FakePlayer::new();
+    let (player, _, _, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -476,7 +519,7 @@ fn co15_sync_queue_replaces_and_jumps_back_to_current() {
 
 #[test]
 fn co16_stop_clears_current_and_queue() {
-    let (player, calls, _state) = FakePlayer::new();
+    let (player, calls, _state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -496,7 +539,7 @@ fn co16_stop_clears_current_and_queue() {
 
 #[test]
 fn co17_set_play_mode_follows_into_queue() {
-    let (player, _, _) = FakePlayer::new();
+    let (player, _, _, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -596,7 +639,7 @@ fn ffi_coordinator_sync_queue_and_mode_roundtrip() {
 
 #[test]
 fn co21_toggle_pauses_while_playing_or_buffering() {
-    let (player, calls, state) = FakePlayer::new();
+    let (player, calls, state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -619,7 +662,7 @@ fn co21_toggle_pauses_while_playing_or_buffering() {
 
 #[test]
 fn co22_toggle_resumes_only_when_paused() {
-    let (player, calls, state) = FakePlayer::new();
+    let (player, calls, state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -654,7 +697,7 @@ fn co22_toggle_resumes_only_when_paused() {
 
 #[test]
 fn co23_toggle_idle_starts_first_playable_library_track() {
-    let (player, calls, _state) = FakePlayer::new();
+    let (player, calls, _state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let playable = dummy_track(1, "A");
@@ -677,7 +720,7 @@ fn co23_toggle_idle_starts_first_playable_library_track() {
 
 #[test]
 fn co24_toggle_empty_library_is_no_op() {
-    let (player, calls, _state) = FakePlayer::new();
+    let (player, calls, _state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let result = coord.toggle_play_pause(None);
@@ -691,7 +734,7 @@ fn co24_toggle_empty_library_is_no_op() {
 
 #[test]
 fn co25_availability_matrix() {
-    let (player, _, state) = FakePlayer::new();
+    let (player, _, state, _bus) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     // Fresh: nothing to toggle, nothing to stop.
@@ -722,4 +765,153 @@ fn co25_availability_matrix() {
     let mut empty = coord;
     empty.sync_queue(vec![]);
     assert!(!empty.can_toggle_playback());
+}
+
+// ─── CO-26..31: event channel (ticket #172) ───────────────────────
+
+/// Subscribes a recording event sink to the coordinator.
+fn subscribe(coord: &PlaybackCoordinator) -> Arc<Mutex<Vec<CoordinatorEvent>>> {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let sink = events.clone();
+    coord.set_event_callback(Arc::new(move |event| sink.lock().unwrap().push(event)));
+    events
+}
+
+#[test]
+fn co26_finished_auto_advances_and_emits_track_changed() {
+    let (player, calls, _, bus) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+    let events = subscribe(&coord);
+
+    let a = dummy_track(1, "A");
+    let b = dummy_track(2, "B");
+    assert!(coord.start(None, a.clone(), vec![a.clone(), b.clone()], PlayMode::Sequential).ok);
+    calls.lock().unwrap().clear();
+
+    // Engine reports the track ended naturally (the event goes through the
+    // engine state callback), then the dispatcher calls handle_finished.
+    bus.fire_state(PlayerState::Finished);
+    coord.handle_finished(None);
+
+    assert_eq!(
+        coord.current_track().map(|t| t.id),
+        Some(Some(2)),
+        "core-driven auto-advance (#165 decision)"
+    );
+    let calls = calls.lock().unwrap();
+    assert_eq!(calls[calls.len() - 1], "play_file:/music/B.mp3");
+
+    let events = events.lock().unwrap();
+    assert!(
+        events.iter().any(|e| matches!(e, CoordinatorEvent::Finished)),
+        "Finished event must be published"
+    );
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, CoordinatorEvent::TrackChanged { track } if track.id == Some(2))),
+        "TrackChanged must follow the auto-advance"
+    );
+}
+
+#[test]
+fn co27_finished_without_next_leaves_playback_ended() {
+    let (player, calls, _, bus) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+    let events = subscribe(&coord);
+
+    let a = dummy_track(1, "A");
+    assert!(coord.start(None, a.clone(), vec![a], PlayMode::Sequential).ok);
+    calls.lock().unwrap().clear();
+
+    let before = events.lock().unwrap().len();
+    bus.fire_state(PlayerState::Finished);
+    coord.handle_finished(None);
+
+    assert_eq!(coord.current_track().map(|t| t.id), Some(Some(1)));
+    assert!(calls.lock().unwrap().is_empty(), "no engine calls at queue end");
+    let events = events.lock().unwrap();
+    assert!(events.iter().any(|e| matches!(e, CoordinatorEvent::Finished)));
+    assert!(
+        !events[before..]
+            .iter()
+            .any(|e| matches!(e, CoordinatorEvent::TrackChanged { .. })),
+        "no track change when the queue is exhausted"
+    );
+}
+
+#[test]
+fn co28_error_state_publishes_error_event() {
+    let (player, _, _, bus) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+    let events = subscribe(&coord);
+
+    let a = dummy_track(1, "A");
+    assert!(coord.start(None, a.clone(), vec![a], PlayMode::Sequential).ok);
+
+    // The engine's state callback delivers the failure.
+    bus.fire_state(PlayerState::Error("GET x failed: HTTP 403".into()));
+
+    let events = events.lock().unwrap();
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, CoordinatorEvent::Error { message, .. } if message == "GET x failed: HTTP 403")),
+        "the failure message must be published as an Error event"
+    );
+}
+
+#[test]
+fn co29_progress_events_are_forwarded() {
+    let (player, _, _, bus) = FakePlayer::new();
+    let coord = make_coordinator(player);
+    let events = subscribe(&coord);
+
+    bus.fire_progress(12.5, 180.0);
+
+    let events = events.lock().unwrap();
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            CoordinatorEvent::Progress { position, duration } if *position == 12.5 && *duration == 180.0
+        )),
+        "progress must be forwarded as an event"
+    );
+}
+
+#[test]
+fn co30_state_events_are_forwarded() {
+    let (player, _, _, bus) = FakePlayer::new();
+    let coord = make_coordinator(player);
+    let events = subscribe(&coord);
+
+    bus.fire_state(PlayerState::Playing);
+    bus.fire_state(PlayerState::Paused);
+
+    let events = events.lock().unwrap();
+    assert!(events.iter().any(|e| matches!(e, CoordinatorEvent::State { state: PlayerState::Playing })));
+    assert!(events.iter().any(|e| matches!(e, CoordinatorEvent::State { state: PlayerState::Paused })));
+}
+
+#[test]
+fn co31_start_and_transport_emit_track_changed() {
+    let (player, _, _, _bus) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+    let events = subscribe(&coord);
+
+    let a = dummy_track(1, "A");
+    let b = dummy_track(2, "B");
+    let c = dummy_track(3, "C");
+    assert!(coord.start(None, a.clone(), vec![a, b.clone(), c], PlayMode::Sequential).ok);
+    assert!(coord.next(None).ok);
+
+    let events = events.lock().unwrap();
+    let changed: Vec<i64> = events
+        .iter()
+        .filter_map(|e| match e {
+            CoordinatorEvent::TrackChanged { track } => track.id,
+            _ => None,
+        })
+        .collect();
+    assert_eq!(changed, vec![1, 2], "start and next each publish a track change");
 }

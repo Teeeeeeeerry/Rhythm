@@ -17,8 +17,11 @@
 use crate::audio::AudioEngine;
 use crate::library::Library;
 use crate::queue::{PlayMode, PlayQueue};
-use crate::{HttpErrorKind, PlayerState, RhythmResult, SourceType, TrackInfo};
+use crate::{
+    HttpErrorKind, PlayerState, ProgressCallback, RhythmResult, SourceType, StateCallback, TrackInfo,
+};
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 /// The playback surface the coordinator orchestrates.
 ///
@@ -42,6 +45,11 @@ pub trait PlayerSurface {
     fn error_message(&self) -> Option<String>;
     /// Classification of the last playback failure when it was HTTP (#120).
     fn error_kind(&self) -> Option<HttpErrorKind>;
+    /// Register a callback for engine state transitions (the coordinator
+    /// forwards these as events — ticket #172).
+    fn on_state_change(&self, callback: StateCallback);
+    /// Register a callback for playback progress (forwarded as events).
+    fn on_progress(&self, callback: ProgressCallback);
 }
 
 impl PlayerSurface for AudioEngine {
@@ -86,6 +94,12 @@ impl PlayerSurface for AudioEngine {
     }
     fn error_kind(&self) -> Option<HttpErrorKind> {
         AudioEngine::last_error_kind(self)
+    }
+    fn on_state_change(&self, callback: StateCallback) {
+        AudioEngine::on_state_change(self, callback);
+    }
+    fn on_progress(&self, callback: ProgressCallback) {
+        AudioEngine::on_progress(self, callback);
     }
 }
 
@@ -177,6 +191,49 @@ impl CoordinatorResult {
     }
 }
 
+/// Events the coordinator publishes to the UI (ticket #172): the UI
+/// subscribes instead of polling the engine. Serialized as
+/// `{"type":"...", ...}` (snake_case keys and values).
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum CoordinatorEvent {
+    /// The current track ended naturally. The coordinator auto-advances when
+    /// the queue has a next track (a `TrackChanged` event follows); when the
+    /// queue is exhausted playback just ends.
+    Finished,
+    /// Playback failed. `kind` is the #120 classification ("expired" /
+    /// "cdn_rejected" / "other") when the failure was HTTP; the FFI layer
+    /// fills it from the engine's last failure classification.
+    Error {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        kind: Option<HttpErrorKind>,
+        message: String,
+    },
+    /// Playback progress (position / duration in seconds).
+    Progress { position: f64, duration: f64 },
+    /// Engine state transition (named, not numeric).
+    State { state: PlayerState },
+    /// The current track changed (start / transport move / auto-advance).
+    /// Boxed so the enum stays small (the track is the largest payload).
+    TrackChanged { track: Box<TrackInfo> },
+}
+
+/// The UI's event subscription. `Arc` so wiring closures can clone it out of
+/// the holder before invoking (the engine callback can re-enter while the
+/// coordinator mutates — e.g. auto-advance).
+pub type CoordinatorEventCallback = Arc<dyn Fn(CoordinatorEvent) + Send + Sync>;
+
+fn event_from_player_state(state: &PlayerState) -> CoordinatorEvent {
+    match state {
+        PlayerState::Finished => CoordinatorEvent::Finished,
+        PlayerState::Error(message) => CoordinatorEvent::Error {
+            kind: None,
+            message: message.clone(),
+        },
+        other => CoordinatorEvent::State { state: other.clone() },
+    }
+}
+
 /// The player-reachable location of a track: local tracks need a file path,
 /// streamed tracks a URL. Empty strings count as missing — they pass a
 /// nil-only check and reach the player as a doomed play call (#78).
@@ -218,6 +275,9 @@ pub struct PlaybackCoordinator {
     /// rule picks the first playable track from here when nothing is
     /// playing (#78 candidate selection lives in the coordinator).
     library_tracks: Vec<TrackInfo>,
+    /// The UI's event subscription (ticket #172). `Arc` so the engine
+    /// wiring closures can hold a clone without a self-reference cycle.
+    event_callback: Arc<Mutex<Option<CoordinatorEventCallback>>>,
 }
 
 impl PlaybackCoordinator {
@@ -229,13 +289,57 @@ impl PlaybackCoordinator {
     /// Test seam: construct a coordinator over an injected player surface
     /// (e.g. a call-recording fake) instead of the real audio engine.
     pub fn with_player(player: Box<dyn PlayerSurface>) -> Self {
-        PlaybackCoordinator {
+        let coordinator = PlaybackCoordinator {
             player,
             queue: None,
             current_track: None,
             play_mode: PlayMode::Sequential,
             library_tracks: Vec::new(),
+            event_callback: Arc::new(Mutex::new(None)),
+        };
+        coordinator.wire_engine_events();
+        coordinator
+    }
+
+    /// Subscribe to coordinator events (ticket #172).
+    pub fn set_event_callback(&self, callback: CoordinatorEventCallback) {
+        *self.event_callback.lock().unwrap() = Some(callback);
+    }
+
+    /// Wire the engine's state/progress callbacks to the coordinator's event
+    /// channel. Called once at construction.
+    fn wire_engine_events(&self) {
+        let holder = self.event_callback.clone();
+        self.player.on_state_change(Box::new(move |state| {
+            let event = event_from_player_state(&state);
+            emit_event(&holder, event);
+        }));
+        let holder = self.event_callback.clone();
+        self.player.on_progress(Box::new(move |position, duration| {
+            emit_event(
+                &holder,
+                CoordinatorEvent::Progress {
+                    position,
+                    duration,
+                },
+            );
+        }));
+    }
+
+    /// Handle a natural track end: auto-advance to the next playable track
+    /// when the queue has one (core-driven — parent issue #165 decision),
+    /// otherwise leave playback ended. Invoked by the FFI event dispatcher
+    /// when a `Finished` event fires.
+    pub fn handle_finished(&mut self, library: Option<&Library>) -> CoordinatorResult {
+        if self.queue.as_ref().is_some_and(|q| q.has_next()) {
+            self.play_adjacent(library, Direction::Next)
+        } else {
+            self.result_for_current()
         }
+    }
+
+    fn emit(&self, event: CoordinatorEvent) {
+        emit_event(&self.event_callback, event);
     }
 
     /// The underlying player surface (volume/seek/state pass-throughs).
@@ -295,6 +399,7 @@ impl PlaybackCoordinator {
         self.queue = Some(queue);
         self.play_mode = mode;
         self.current_track = Some(track.clone());
+        self.emit(CoordinatorEvent::TrackChanged { track: Box::new(track.clone()) });
         CoordinatorResult::ok_with_track(track)
     }
 
@@ -426,21 +531,26 @@ impl PlaybackCoordinator {
     /// first playable candidate is dispatched (stop old first — #51), the
     /// play recorded, and the coordinator's current track updated.
     fn play_adjacent(&mut self, library: Option<&Library>, direction: Direction) -> CoordinatorResult {
-        let Some(queue) = self.queue.as_mut() else {
-            return self.result_for_current();
-        };
         // Bound the skip loop: in loop modes `advance()` never returns None,
         // so without a bound an all-dead queue would spin forever (#78).
-        let bound = queue.tracks.len();
+        let bound = match &self.queue {
+            Some(q) => q.tracks.len(),
+            None => return self.result_for_current(),
+        };
         for _ in 0..bound {
-            let candidate = match direction {
-                Direction::Next => queue.advance(),
-                Direction::Previous => queue.previous(),
+            // Take the queue borrow only for the cursor move, releasing it
+            // before the engine dispatch / event emission below.
+            let candidate = {
+                let queue = self.queue.as_mut().expect("queue exists");
+                match direction {
+                    Direction::Next => queue.advance().cloned(),
+                    Direction::Previous => queue.previous().cloned(),
+                }
             };
             let Some(candidate) = candidate else {
                 return self.result_for_current();
             };
-            let Some(location) = playable_location(candidate) else { continue };
+            let Some(location) = playable_location(&candidate) else { continue };
 
             self.player.stop();
             let dispatch = match &location {
@@ -461,6 +571,7 @@ impl PlaybackCoordinator {
                 }
             }
             self.current_track = Some(candidate.clone());
+            self.emit(CoordinatorEvent::TrackChanged { track: Box::new(candidate.clone()) });
             return CoordinatorResult::ok_with_track(candidate.clone());
         }
         // Every remaining track is unplayable — give up; the current track
@@ -486,5 +597,15 @@ impl PlaybackCoordinator {
 impl Default for PlaybackCoordinator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn emit_event(holder: &Arc<Mutex<Option<CoordinatorEventCallback>>>, event: CoordinatorEvent) {
+    if let Some(callback) = holder.lock().unwrap().as_ref() {
+        // Clone the Arc and drop the lock before invoking: the callback can
+        // re-enter the coordinator (auto-advance emits further events), and
+        // std Mutex is not reentrant.
+        let callback = callback.clone();
+        callback(event);
     }
 }

@@ -7,6 +7,15 @@ final class AppState: ObservableObject {
     /// #165).
     var coordinator: CoordinatorProtocol = RhythmCoordinator()
     @Published var selectedView: SidebarItem = .library
+
+    /// Subscribe to coordinator events (ticket #172): progress, state,
+    /// finished, and playback-failure events replace the progress polling.
+    /// Events arrive on the main queue.
+    init() {
+        coordinator.onEvent = { [weak self] event in
+            self?.handleCoordinatorEvent(event)
+        }
+    }
     @Published var searchQuery = ""
     @Published var tracks: [Track] = []
     @Published var playlists: [Playlist] = []
@@ -68,6 +77,7 @@ final class AppState: ObservableObject {
     /// instead of touching the real application-support library).
     func openDatabase(at url: URL) {
         library = RhythmLibrary(path: url.path)
+        coordinator.setLibrary(library)
         refreshLibrary()
     }
 
@@ -471,34 +481,36 @@ final class AppState: ObservableObject {
         coordinator.setPlayMode(playMode)
     }
 
-    /// Called by the progress timer to check for track-end auto-advance.
-    func updatePlaybackProgress() {
-        guard isPlaying else { return }
-        position = coordinator.position
-        duration = coordinator.duration
-
-        let state = coordinator.state
-        isBuffering = state == 3
-        if state == 5 { // Finished
-            if coordinator.hasNext {
-                let before = currentTrack?.id
-                playNext()
-                if currentTrack?.id == before {
-                    // The next track was unplayable (or the queue is all
-                    // dead): stop claiming playback instead of retrying
-                    // every tick (#78).
-                    isPlaying = false
-                }
-            } else {
-                isPlaying = false
-            }
-        } else if state == 4 { // Error
-            // Otherwise a failed stream just sits at 0:00 with no explanation.
+    /// Handle a coordinator event (ticket #172). Replaces the old progress
+    /// polling: position/duration/state come from events, auto-advance is
+    /// core-driven (a `trackChanged` follows `finished` when the queue has a
+    /// next track), and playback failures surface with their #120
+    /// classification.
+    /// Internal for tests: the event handler is the seam the
+    /// AppState tests drive.
+    func handleCoordinatorEvent(_ event: CoordinatorEvent) {
+        switch event {
+        case .progress(let position, let duration):
+            self.position = position
+            self.duration = duration
+        case .state(let state):
+            isBuffering = state == "buffering"
+            isPlaying = state == "playing" || state == "buffering"
+        case .finished:
+            // The coordinator already auto-advanced if possible (a
+            // trackChanged event follows); when the queue is exhausted,
+            // stop claiming playback.
             isPlaying = false
-            let detail = coordinator.errorMessage ?? ""
-            let kind = coordinator.errorKind
-            NSLog("Playback failed: %@", detail)
-            urlError = L10n.playbackFailed(kind: kind, detail: detail)
+            isBuffering = false
+        case .error(let kind, let message):
+            isPlaying = false
+            isBuffering = false
+            NSLog("Playback failed: %@", message)
+            urlError = L10n.playbackFailed(kind: kind, detail: message)
+        case .trackChanged(let track):
+            currentTrack = track
+            isPlaying = true
+            isBuffering = false
         }
     }
 

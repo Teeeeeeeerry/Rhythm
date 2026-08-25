@@ -43,11 +43,6 @@ struct ContentView: View {
                     }
             }
         }
-        .onReceive(
-            Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
-        ) { _ in
-            appState.updatePlaybackProgress()
-        }
         .alert(L10n.importResultTitle, isPresented: $appState.showImportAlert) {
             Button(L10n.ok, role: .cancel) {}
         } message: {
