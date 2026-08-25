@@ -332,6 +332,26 @@ pub fn evict_resolution(url: &str) {
     cache::evict(trimmed);
 }
 
+/// 播放期解析入口（#168 组，ticket #188）：缓存命中、失效淘汰、新鲜重试
+/// 与错误分类一次完成——播放路径（含 #120 恢复）只调用本入口，不再自行
+/// 组合原子操作。
+///
+/// - `retry=false`（正常播放）：TTL 内缓存命中直接返回；未命中新鲜解析
+///   并写入缓存（TTL 1 小时，容量 256）。
+/// - `retry=true`（#120 恢复）：先淘汰旧条目（坏 CDN 链接），绕过缓存
+///   新鲜解析一次（freshly signed URL），成功后写缓存；仍败返回分类错误。
+pub fn resolve_for_playback(url: &str, retry: bool) -> ResolveResult<ResolvedUrl> {
+    let trimmed = url.trim();
+    if retry {
+        cache::evict(trimmed);
+        return resolve_url_impl(trimmed, false);
+    }
+    if let Some(hit) = cache::get(trimmed) {
+        return Ok(hit);
+    }
+    resolve_url_impl(trimmed, true)
+}
+
 fn resolve_url_impl(url: &str, use_cache: bool) -> ResolveResult<ResolvedUrl> {
     let trimmed = url.trim();
 
@@ -1308,3 +1328,45 @@ mod tests {
         assert_eq!(format_utc(leap), "2024-02-29 00:00:00 UTC");
     }
 }
+
+    // ── resolve_for_playback 策略（ticket #188）──────────────────
+
+    #[test]
+    fn test_resolve_for_playback_cache_hit_returns_cached() {
+        let url = "https://example.com/rfp-hit.mp3";
+        // First resolution populates the cache (direct URLs resolve locally).
+        let first = resolve_for_playback(url, false).unwrap();
+        assert!(cache::get(url).is_some(), "resolution must populate the cache");
+
+        // A second call hits the cache and returns the same payload.
+        let second = resolve_for_playback(url, false).unwrap();
+        assert_eq!(first.stream_url, second.stream_url);
+    }
+
+    #[test]
+    fn test_resolve_for_playback_retry_evicts_then_resolves_fresh() {
+        let url = "https://example.com/rfp-retry.mp3";
+        let first = resolve_for_playback(url, false).unwrap();
+        assert!(cache::get(url).is_some());
+
+        // retry=true: the stale entry is evicted, then a fresh resolution
+        // runs and repopulates the cache (#120 recovery shape).
+        let retried = resolve_for_playback(url, true).unwrap();
+        assert!(cache::get(url).is_some(), "fresh resolution repopulates the cache");
+        assert_eq!(retried.stream_url, first.stream_url);
+    }
+
+    #[test]
+    fn test_resolve_for_playback_retry_still_fails_classified() {
+        // A persistently failing URL: retry runs exactly once and returns the
+        // classified error (no loop).
+        let url = "not a url";
+        let err = resolve_for_playback(url, true).unwrap_err();
+        assert_eq!(err.kind, ResolveErrorKind::InvalidUrl);
+    }
+
+    #[test]
+    fn test_resolve_for_playback_error_is_classified() {
+        let err = resolve_for_playback("not a url", false).unwrap_err();
+        assert_eq!(err.kind, ResolveErrorKind::InvalidUrl);
+    }
