@@ -915,3 +915,30 @@ fn co31_start_and_transport_emit_track_changed() {
         .collect();
     assert_eq!(changed, vec![1, 2], "start and next each publish a track change");
 }
+
+// ─── CO-28: 删除曲目后的队列同步（ticket #174）─────────────────────
+
+#[test]
+fn co28_sync_queue_after_deleting_current_track() {
+    let (player, _calls, _state, _bus) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+
+    let a = dummy_track(1, "A");
+    let b = dummy_track(2, "B");
+    assert!(coord.start(None, a.clone(), vec![a.clone(), b.clone()], PlayMode::Sequential).ok);
+
+    // The user deletes the playing track A: the UI stops the coordinator
+    // first (clearing current + queue), then refreshes.
+    coord.stop();
+    assert!(coord.current_track().is_none());
+    coord.sync_queue(vec![b.clone()]);
+    assert!(!coord.can_play_next(), "single remaining track has no next");
+    assert!(!coord.can_play_previous());
+
+    // Deleting a non-current track keeps the position (#69).
+    let c = dummy_track(3, "C");
+    assert!(coord.start(None, b.clone(), vec![b.clone(), c.clone()], PlayMode::Sequential).ok);
+    coord.sync_queue(vec![c.clone()]); // B deleted, C remains
+    assert_eq!(coord.current_track().map(|t| t.id), Some(Some(2)), "UI-facing current unchanged");
+    assert!(!coord.can_play_next(), "queue head is the only remaining track");
+}
