@@ -1532,8 +1532,6 @@ fn ae40_non_http_failure_does_not_retry() {
 fn ae41_recovery_hooks_evict_and_resolve_fresh() {
     let resolve_calls = Arc::new(AtomicUsize::new(0));
     let resolve_calls2 = resolve_calls.clone();
-    let evict_calls = Arc::new(AtomicUsize::new(0));
-    let evict_calls2 = evict_calls.clone();
     let fresh_calls = Arc::new(AtomicUsize::new(0));
     let fresh_calls2 = fresh_calls.clone();
 
@@ -1544,15 +1542,10 @@ fn ae41_recovery_hooks_evict_and_resolve_fresh() {
         resolve_calls2.fetch_add(1, Ordering::SeqCst);
         Ok(resolved.clone())
     }))
-    .with_recovery(
-        Arc::new(move |_url| {
-            fresh_calls2.fetch_add(1, Ordering::SeqCst);
-            Ok(fresh_resolved.clone())
-        }),
-        Arc::new(move |_url| {
-            evict_calls2.fetch_add(1, Ordering::SeqCst);
-        }),
-    );
+    .with_recovery(Arc::new(move |_url| {
+        fresh_calls2.fetch_add(1, Ordering::SeqCst);
+        Ok(fresh_resolved.clone())
+    }));
     let rec = attach_recorders(&engine);
 
     let open_calls = Arc::new(AtomicUsize::new(0));
@@ -1585,7 +1578,7 @@ fn ae41_recovery_hooks_evict_and_resolve_fresh() {
         Duration::from_secs(5),
     );
     assert_eq!(resolve_calls.load(Ordering::SeqCst), 1, "cached resolver once");
-    assert_eq!(evict_calls.load(Ordering::SeqCst), 1, "cache entry evicted");
+    // 淘汰在策略入口内部（#188/#189），由 resolver 策略测试锁定。
     assert_eq!(fresh_calls.load(Ordering::SeqCst), 1, "fresh resolve once");
     assert_eq!(open_calls.load(Ordering::SeqCst), 2);
 }
