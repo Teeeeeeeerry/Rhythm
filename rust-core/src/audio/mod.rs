@@ -1,4 +1,4 @@
-use crate::resolver::{evict_resolution, resolve_url, resolve_url_fresh, ResolveResult, ResolvedUrl};
+use crate::resolver::{resolve_for_playback, ResolveResult, ResolvedUrl};
 use crate::{HttpErrorKind, PlayerState, ProgressCallback, RhythmError, RhythmResult, StateCallback};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -24,9 +24,6 @@ use resampler::Resampler;
 /// Introduced as part of the Wave 1 minimum seam
 /// (docs/testing/behavior/audio-engine.md, AE-04/AE-05/AE-28).
 pub type UrlResolver = Arc<dyn Fn(&str) -> ResolveResult<ResolvedUrl> + Send + Sync>;
-
-/// Cache-eviction seam for the #120 recovery (#143: factored type).
-type Evictor = Arc<dyn Fn(&str) + Send + Sync>;
 
 /// Decode seam: everything the playback loop needs from a decoder.
 ///
@@ -70,9 +67,9 @@ pub struct AudioEngine {
     /// stream URL is rejected, the engine evicts the cached resolution and
     /// re-resolves with this (freshly signed URL) instead of the cache that
     /// would hand back the same dead link.
+    /// #120 recovery resolver: bypasses the cache (the strategy entry evicts
+    /// internally — ticket #189); wired only in production.
     fresh_resolver: Option<UrlResolver>,
-    /// Cache eviction for the #120 recovery; wired only in production.
-    evictor: Option<Evictor>,
 }
 
 struct EngineInner {
@@ -97,9 +94,11 @@ impl Default for AudioEngine {
 impl AudioEngine {
     pub fn new() -> Self {
         // #120 recovery: a rejected stream URL (403 on a still-valid URL, or
-        // a genuinely expired one) is retried once with a fresh resolution.
-        AudioEngine::new_with_resolver(Arc::new(resolve_url))
-            .with_recovery(Arc::new(resolve_url_fresh), Arc::new(evict_resolution))
+        // a genuinely expired one) is retried once through the playback
+        // resolution entry, which evicts the dead cache entry and resolves
+        // freshly in one call (#188/#189).
+        AudioEngine::new_with_resolver(Arc::new(|url| resolve_for_playback(url, false)))
+            .with_recovery(Arc::new(|url| resolve_for_playback(url, true)))
     }
 
     /// Test seam: construct an engine whose URL resolution goes through
@@ -121,20 +120,15 @@ impl AudioEngine {
             generation: Arc::new(AtomicU64::new(0)),
             resolver,
             fresh_resolver: None,
-            evictor: None,
         }
     }
 
-    /// Test seam: wire the #120 cache-bypass recovery (fresh re-resolution +
-    /// eviction) onto an engine built with a stub resolver.
+    /// Test seam: wire the #120 cache-bypass recovery resolver (the strategy
+    /// entry evicts internally — ticket #189) onto an engine built with a
+    /// stub resolver.
     #[doc(hidden)]
-    pub fn with_recovery(
-        mut self,
-        fresh_resolver: UrlResolver,
-        evictor: Arc<dyn Fn(&str) + Send + Sync>,
-    ) -> Self {
+    pub fn with_recovery(mut self, fresh_resolver: UrlResolver) -> Self {
         self.fresh_resolver = Some(fresh_resolver);
-        self.evictor = Some(evictor);
         self
     }
 
@@ -213,7 +207,6 @@ impl AudioEngine {
         let url = url.to_string();
         let resolver = self.resolver.clone();
         let fresh_resolver = self.fresh_resolver.clone();
-        let evictor = self.evictor.clone();
         self.spawn_playback(
             url.clone(),
             PlayerState::Buffering,
@@ -225,17 +218,15 @@ impl AudioEngine {
                     Err(e) if is_retryable_http(&e) => {
                         // #120: the stream URL was rejected — either the link
                         // genuinely expired or the CDN refused a valid one.
-                        // Either way the cached resolution is useless: evict
-                        // it, re-resolve bypassing the cache (freshly signed
-                        // URL), and retry the open once. Stub resolvers don't
-                        // cache, so an unwired engine just resolves again.
+                        // The playback resolution entry evicts the dead cache
+                        // entry and re-resolves bypassing the cache (freshly
+                        // signed URL) in one call (#188/#189); the open is
+                        // retried once. Stub resolvers don't cache, so an
+                        // unwired engine just resolves again.
                         if let RhythmError::Http(http) = &e {
                             crate::resolver::log_playback_http(&url, http);
                         }
                         log::warn!("audio: stream URL rejected ({e}); re-resolving {url}");
-                        if let Some(evict) = &evictor {
-                            evict(&url);
-                        }
                         let fresh = match &fresh_resolver {
                             Some(fresh) => fresh(&url)?,
                             None => resolver(&url)?,
