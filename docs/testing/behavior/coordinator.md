@@ -32,6 +32,7 @@
 | CO-20 | `toggle_play_pause` 空闲启动 | 无 current + 库镜像（sync_queue 供给）非空 → 启动第一个可播曲目（#78 候选选择在协调器）；空库 → no-op | FakePlayer |
 | CO-21 | 传输可用性导出 | `can_toggle_playback`（有 current 或库非空）、`can_stop`（引擎 Playing/Buffering/Paused）矩阵；FFI `rhythm_coordinator_can_*` 往返 | FakePlayer + FFI 直调 |
 | CO-27 | 事件订阅 FFI | `rhythm_coordinator_set_event_callback`/`set_library` 注册与空指针安全；Finished 事件触发 handle_finished（auto-advance） | FFI 直调 |
+| CO-28 | 删除曲目后的队列同步（#174） | 删除当前播放曲目（先 stop 再刷新）→ 队列为空/单曲无 next；删除非当前曲目 → replace 后按当前曲 id 跳回（#69） | FakePlayer + 真队列 |
 
 ## 边界情况（P1）
 
