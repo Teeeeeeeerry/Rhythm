@@ -98,6 +98,15 @@ final class RhythmCoreSwiftBehaviorTests: XCTestCase {
         XCTAssertEqual(PlayMode.listLoop.next(), .sequential)
     }
 
+    /// SW-03b (#179): the FFI contract values (0-3) are locked — the core's
+    /// `queue::PlayMode` is the canonical declaration.
+    func testSW03b_PlayModeContractValues() {
+        XCTAssertEqual(PlayMode.sequential.rawValue, 0)
+        XCTAssertEqual(PlayMode.shuffle.rawValue, 1)
+        XCTAssertEqual(PlayMode.singleLoop.rawValue, 2)
+        XCTAssertEqual(PlayMode.listLoop.rawValue, 3)
+    }
+
     // MARK: - SW-04 ResolverStatus.isQuiet
 
     func testSW04_ResolverStatusIsQuiet() {

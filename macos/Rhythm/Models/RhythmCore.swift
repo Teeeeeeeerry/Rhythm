@@ -524,7 +524,10 @@ struct Playlist: Identifiable, Codable {
 
 // MARK: - Play Queue Wrapper
 
-enum PlayMode: Int32 {
+/// Playback mode — the FFI contract values (0-3) are locked by
+/// SW-03b/CO tests; the canonical declaration lives in rust-core
+/// `queue::PlayMode` (#179).
+enum PlayMode: Int32, CaseIterable {
     case sequential = 0
     case shuffle = 1
     case singleLoop = 2
@@ -549,7 +552,7 @@ enum PlayMode: Int32 {
     }
 
     func next() -> PlayMode {
-        PlayMode(rawValue: (self.rawValue + 1) % 4) ?? .sequential
+        PlayMode(rawValue: (self.rawValue + 1) % Int32(Self.allCases.count)) ?? .sequential
     }
 }
 

@@ -3,6 +3,7 @@
 - 模块：`rust-core/src/ffi/mod.rs`（C ABI 导出：opaque 句柄 + JSON 交换 + 空指针防御 + 错误码契约）
 - #175 起：队列直通导出（`rhythm_queue_*`）已删除——队列状态由协调器持有（见 `coordinator.md`）；`ffi_behavior.rs` 相应测试移除，FF-11/FF-18/FF-19/FF-21 归档
 - #176 起：`rhythm_resolve_url` 返回结构化结果（成功载荷 + 分类错误一次返回），不再用全局错误槽
+- #179 起：状态与模式以具名枚举跨 seam（事件 state 字符串、PlayMode 契约值 0-3 双端锁定）；UI 层无状态/模式魔法整数
 - 历史回归：`#21`（解析失败只有 null、无原因）
 - 测试途径：`cargo test` 集成测试（现有 `player_ffi.rs` 模式扩展）；library/queue/resolver 部分链接真实现 + 临时库；无需接缝。
 
