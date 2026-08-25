@@ -118,28 +118,8 @@ extension ShapeStyle where Self == Color {
     /// Dark mode  — foreground ~L* 75 (matches `#ABC8D4`)
     /// Light mode — foreground ~L* 16-20 (matches `#0D464D`, ≥4.5:1 on white)
 
-    /// 本地 — blue-slate, stays closest to the brand teal family.
-    /// Dark: #8ABCD0   Light: #3A7A8C
-    public static var rhythmSourceLocal: Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            isDark(appearance)
-                ? NSColor(red: 0x8A / 255.0, green: 0xBC / 255.0, blue: 0xD0 / 255.0, alpha: 1.0)
-                : NSColor(red: 0x3A / 255.0, green: 0x7A / 255.0, blue: 0x8C / 255.0, alpha: 1.0)
-        })
-    }
-
-    /// YouTube — muted terracotta (warm, complementary to teal).
-    /// Dark: #D49573   Light: #8B4A28
-    public static var rhythmSourceYoutube: Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            isDark(appearance)
-                ? NSColor(red: 0xD4 / 255.0, green: 0x95 / 255.0, blue: 0x73 / 255.0, alpha: 1.0)
-                : NSColor(red: 0x8B / 255.0, green: 0x4A / 255.0, blue: 0x28 / 255.0, alpha: 1.0)
-        })
-    }
-
-    /// Bilibili — dusty rose (restrained pink, nod to B站 brand without the
-    /// saturation clash).
+    // BEGIN GENERATED SOURCE COLORS (#184) — 由 testing/sync-palette.py 生成，勿手改
+    /// 来源徽标色（生成自 testing/palette.json，#184）。
     /// Dark: #C88DA8   Light: #8C4D68
     public static var rhythmSourceBilibili: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
@@ -148,8 +128,7 @@ extension ShapeStyle where Self == Color {
                 : NSColor(red: 0x8C / 255.0, green: 0x4D / 255.0, blue: 0x68 / 255.0, alpha: 1.0)
         })
     }
-
-    /// 链接 — sage green (teal-adjacent, natural extension of the palette).
+    /// 来源徽标色（生成自 testing/palette.json，#184）。
     /// Dark: #8CB89A   Light: #4C785A
     public static var rhythmSourceUrl: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
@@ -158,4 +137,24 @@ extension ShapeStyle where Self == Color {
                 : NSColor(red: 0x4C / 255.0, green: 0x78 / 255.0, blue: 0x5A / 255.0, alpha: 1.0)
         })
     }
+    /// 来源徽标色（生成自 testing/palette.json，#184）。
+    /// Dark: #8ABCD0   Light: #3A7A8C
+    public static var rhythmSourceLocal: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            isDark(appearance)
+                ? NSColor(red: 0x8A / 255.0, green: 0xBC / 255.0, blue: 0xD0 / 255.0, alpha: 1.0)
+                : NSColor(red: 0x3A / 255.0, green: 0x7A / 255.0, blue: 0x8C / 255.0, alpha: 1.0)
+        })
+    }
+    /// 来源徽标色（生成自 testing/palette.json，#184）。
+    /// Dark: #D49573   Light: #8B4A28
+    public static var rhythmSourceYoutube: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            isDark(appearance)
+                ? NSColor(red: 0xD4 / 255.0, green: 0x95 / 255.0, blue: 0x73 / 255.0, alpha: 1.0)
+                : NSColor(red: 0x8B / 255.0, green: 0x4A / 255.0, blue: 0x28 / 255.0, alpha: 1.0)
+        })
+    }
+    // END GENERATED SOURCE COLORS (#184)
+
 }
