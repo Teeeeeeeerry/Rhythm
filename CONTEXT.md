@@ -23,18 +23,19 @@
 ### 三层结构
 
 ```
-rust-core/          Rust 共享核心（audio 引擎、library、queue、playlist、resolver、metadata）
+rust-core/          Rust 共享核心（audio 引擎、library、queue、playlist、resolver、metadata、coordinator）
+  src/coordinator/  播放协调器（#165 组）：起播/传输/自动切歌/队列同步/可用性的唯一出处，双端 UI 只是薄 adapter
   src/ffi/mod.rs    C-ABI 导出层：JSON 字符串进出，snake_case 键；导出一律 unsafe extern "C"（#143）
-  tests/            行为测试（audio_engine / library / metadata / ffi / playlist_m3u8 / resolver…）
+  tests/            行为测试（audio_engine / coordinator / library / metadata / ffi / playlist_m3u8 / resolver…）
 macos/              SwiftUI (AppKit) 客户端，SPM 可执行目标
-  Rhythm/Models/RhythmCore.swift   FFI 封装：RhythmLibrary / RhythmPlayer / RhythmQueue + JSON 编解码
+  Rhythm/Models/RhythmCore.swift   FFI 封装：RhythmLibrary / RhythmCoordinator（+ 事件订阅）/ resolver + JSON 编解码
   Rhythm/Models/L10n.swift          全部用户可见文案（中英）
-  Rhythm/AppState.swift             全局状态中枢：所有业务逻辑在这一个类里
+  Rhythm/AppState.swift             全局状态中枢：渲染协调器状态 + UI 流程（导入/搜索/删除确认/URL 解析导入）
   Rhythm/Views/                     按区域分目录：Library / PlayerBar / Playlist / Sidebar / Tray
   RhythmTheme/Theme.swift           品牌色 token 独立 library target（测试可 import，见 Package.swift）
   Tests/                            AppStateTests + RhythmThemeTests 两个 testTarget
 windows/            WinUI 3 C++ 客户端，镜像 macos 的 AppState（AppState.cpp）
-  Rhythm/Bridge/RhythmCore.h        C++ 侧 FFI 封装 + Track/Playlist 模型（含来源徽标色表映射）
+  Rhythm/Bridge/RhythmCore.h        C++ 侧 FFI 封装 + IPlayer/ICoordinator 接缝 + Track/Playlist 模型（含来源徽标色表映射）
   Rhythm/L10n.h                     Windows 文案层（跟随系统语言 + 注册表覆盖，#141）
   tests/                            Catch2 行为测试（AppState / Bridge / L10n）
 testing/            主题色彩测试基础设施：palette.json 单一事实来源 + L0-L4 + run-all.sh
@@ -45,10 +46,10 @@ scripts/            build-macos.sh / build-rust-macos.sh / build-windows.* / che
 ### 关键路径
 
 - **URL 导入**：`PlayerBarView` 输入 → `AppState.resolveAndImport` → `resolveURL`（FFI）→ `importResolved`（仅入库，不打断播放）
-- **播放**：双击曲目 → `playTrack` → `player.playFile/playURL` → `recordPlay`
+- **播放**：双击曲目 → `playTrack` → 协调器 `start`（先停后播 → 按来源分派 → recordPlay → 队列定位）→ 引擎播放；进度/状态/播完/失败经协调器事件回流（#172）
 - **进度/音量**：`PlayerBarView` 的 Slider → `player.seek/setVolume`（FFI 直通）
-- **测试**：`macos/Tests/`（AppStateTests + RhythmThemeTests）。AppState 测试用真实临时数据库，不用 mock；
-  Rust 侧 `cargo test -p rhythm-core`，Windows 侧 `windows/tests/`（Catch2），主题色彩链路 `bash testing/run-all.sh`
+- **测试**：`macos/Tests/`（AppStateTests + RhythmThemeTests）。AppState 测试用真实临时数据库 + SpyCoordinator（编排规则在 rust-core `coordinator_behavior.rs`，无音频设备依赖）；
+  Rust 侧 `cargo test -p rhythm-core`，Windows 侧 `windows/tests/`（Catch2，SpyCoordinator 同 macOS），主题色彩链路 `bash testing/run-all.sh`
 
 ### 新增引擎能力的三层套路（#70 的教训）
 
