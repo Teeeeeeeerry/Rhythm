@@ -3,6 +3,8 @@ import Foundation
 @testable import Rhythm
 
 /// AS-27–39：AppState 播放编排边界情况（manifest: docs/testing/behavior/appstate-macos.md）。
+/// 守卫与跳过规则本身在 rust-core 的 coordinator_behavior.rs（CO-03/CO-04/CO-10/CO-11）；
+/// 此处断言 AppState 不渲染假播放状态。
 final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
 
     // MARK: - AS-27 togglePlayPause 无曲目可播
@@ -10,14 +12,15 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
     func testTogglePlayPause_EmptyLibrary_NoOp() throws {
         appState.togglePlayPause()
 
-        XCTAssertFalse(spy.hasAnyCall, "nothing to play — the player must not be touched")
+        XCTAssertTrue(spy.startCalls.isEmpty, "nothing to play — the coordinator must not be asked to start")
         XCTAssertFalse(appState.isPlaying)
     }
 
     // MARK: - AS-28 playTrack 缺路径
 
-    /// 缺 filePath/sourceUrl 时不进入播放状态：不置 currentTrack/isPlaying，
-    /// 也不碰 player（无 stop 调用）——否则出现无声假播放（#78）。
+    /// 缺 filePath/sourceUrl 时不进入播放状态：不置 currentTrack/isPlaying。
+    /// 判定本身在协调器（no_playable_location 分类错误），AppState 只负责
+    /// 收到失败结果后不渲染播放态——否则出现无声假播放（#78）。
     func testPlayTrack_MissingPath_DoesNotEnterPlaying() {
         let track = makeTrack(sourceType: "local", filePath: nil, sourceUrl: nil)
         appState.tracks = [track]
@@ -26,7 +29,7 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
 
         XCTAssertFalse(appState.isPlaying, "no playable path — must not claim to be playing")
         XCTAssertNil(appState.currentTrack)
-        XCTAssertFalse(spy.hasAnyCall)
+        XCTAssertEqual(spy.startCalls.count, 1, "the guard rejection goes through the coordinator")
 
         // The streamed branch of the same guard.
         let urlTrack = makeTrack(sourceType: "url", filePath: nil, sourceUrl: nil)
@@ -35,7 +38,7 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
 
         XCTAssertFalse(appState.isPlaying)
         XCTAssertNil(appState.currentTrack)
-        XCTAssertFalse(spy.hasAnyCall)
+        XCTAssertEqual(spy.startCalls.count, 2)
     }
 
     // MARK: - AS-28b playNext/playPrevious 跳过无路径曲目
@@ -52,7 +55,7 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
 
         XCTAssertEqual(appState.currentTrack, c, "must skip the unplayable B and land on C")
         XCTAssertTrue(appState.isPlaying)
-        XCTAssertEqual(spy.calls, ["stop", "playFile:/tmp/c.mp3"])
+        XCTAssertEqual(spy.calls, ["next"])
     }
 
     func testPlayPrevious_SkipsUnplayableTrack() {
@@ -67,7 +70,7 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
 
         XCTAssertEqual(appState.currentTrack, a, "must skip the unplayable B and land on A")
         XCTAssertTrue(appState.isPlaying)
-        XCTAssertEqual(spy.calls, ["stop", "playFile:/tmp/a.mp3"])
+        XCTAssertEqual(spy.calls, ["previous"])
     }
 
     func testPlayNext_AllUnplayable_GivesUpWithoutTouchingState() {
@@ -82,7 +85,7 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
 
         XCTAssertEqual(appState.currentTrack, a, "current keeps playing when the rest is dead")
         XCTAssertTrue(appState.isPlaying)
-        XCTAssertFalse(spy.hasAnyCall)
+        XCTAssertEqual(spy.calls, ["next"], "next 派发但协调器报告 current 不变")
     }
 
     func testAutoAdvance_AllUnplayable_StopsClaimingPlayback() {
@@ -188,7 +191,7 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
         appState.playNext()
         appState.playPrevious()
 
-        XCTAssertFalse(spy.hasAnyCall)
+        XCTAssertEqual(spy.calls, ["next", "previous"], "dispatch happens, nothing moves")
         XCTAssertNil(appState.currentTrack)
     }
 
@@ -205,9 +208,9 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
         appState.refreshLibrary()
 
         XCTAssertEqual(appState.tracks.count, 2)
-        // A replace would reset the cursor to the start and re-enable next;
-        // untouched, the queue stays exhausted.
-        XCTAssertFalse(appState.canPlayNext, "queue must not be touched without a current track")
+        // 队列同步由协调器执行：replace 后按协调器自己的 current 跳回，观测面
+        // 上队列仍停在末位（若 replace 把游标重置回起点，canPlayNext 会复活）。
+        XCTAssertFalse(appState.canPlayNext, "queue must stay exhausted after the sync")
     }
 
     // MARK: - AS-36 confirmDeleteTrack 删除非当前曲目
@@ -221,7 +224,7 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
         appState.requestDeleteTrack(t2)
         appState.confirmDeleteTrack()
 
-        XCTAssertFalse(spy.hasAnyCall, "deleting another track must not stop playback")
+        XCTAssertEqual(spy.stopCount, 0, "deleting another track must not stop playback")
         XCTAssertTrue(appState.isPlaying)
         XCTAssertEqual(appState.currentTrack, t1)
         XCTAssertEqual(appState.tracks.map(\.id), [t1.id])
@@ -236,7 +239,8 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
 
         appState.playResolved(track)
 
-        XCTAssertEqual(spy.calls, ["stop", "playURL:https://example.com/x.mp3"])
+        XCTAssertEqual(spy.startCalls.count, 1, "start goes through the coordinator")
+        XCTAssertEqual(spy.startCalls[0].track.id, -1, "saved = track fallback (id -1)")
         XCTAssertTrue(appState.isPlaying)
         XCTAssertEqual(appState.currentTrack?.id, -1, "saved = track fallback (id -1)")
         XCTAssertEqual(appState.tracks.count, 0)
@@ -252,7 +256,7 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
         XCTAssertTrue(appState.showImportAlert)
         XCTAssertEqual(appState.tracks.count, 0, "refresh is a no-op without a library")
         XCTAssertFalse(appState.isPlaying)
-        XCTAssertFalse(spy.hasAnyCall)
+        XCTAssertTrue(spy.startCalls.isEmpty)
     }
 
     // MARK: - AS-39 seek 乐观更新

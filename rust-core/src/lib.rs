@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod coordinator;
 pub mod ffi;
 pub mod library;
 pub mod metadata;

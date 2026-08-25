@@ -23,7 +23,7 @@ struct PlayerBarView: View {
                         .font(.caption)
                         .foregroundStyle(.rhythmTextSecondary)
                     Slider(value: $appState.volume, in: 0...1) { _ in
-                        appState.player.setVolume(Float(appState.volume))
+                        appState.coordinator.setVolume(Float(appState.volume))
                     }
                     .frame(width: 80)
                 }

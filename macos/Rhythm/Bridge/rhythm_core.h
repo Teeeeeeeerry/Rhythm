@@ -12,6 +12,7 @@ extern "C" {
 typedef struct RhythmLibrary RhythmLibrary;
 typedef struct RhythmPlayer RhythmPlayer;
 typedef struct RhythmQueue RhythmQueue;
+typedef struct RhythmCoordinator RhythmCoordinator;
 
 // ─── Library API ───────────────────────────────────────────────────
 
@@ -63,6 +64,14 @@ int32_t rhythm_player_get_state(RhythmPlayer* player);
 //   4 = Error
 //   5 = Finished (track ended naturally)
 
+// Why playback failed, when rhythm_player_get_state() is 4 (Error);
+// null otherwise.
+char* rhythm_player_error(RhythmPlayer* player);
+
+// Classification of the last playback failure, when it was HTTP:
+// "expired" | "cdn_rejected" | "other"; null otherwise (#120).
+char* rhythm_player_error_kind(RhythmPlayer* player);
+
 // ─── Play Queue API ────────────────────────────────────────────────
 
 RhythmQueue* rhythm_queue_create(const char* tracks_json);
@@ -77,6 +86,43 @@ void rhythm_queue_replace(RhythmQueue* queue, const char* tracks_json);
 int32_t rhythm_queue_has_next(RhythmQueue* queue);
 int32_t rhythm_queue_has_previous(RhythmQueue* queue);
 // Play modes: 0=Sequential, 1=Shuffle, 2=SingleLoop, 3=ListLoop
+
+// ─── Playback Coordinator API ─────────────────────────────────────
+//
+// The coordinator owns the orchestration rules (stop old playback, dispatch
+// by source type, record plays, queue build + positioning, bounded skip of
+// unplayable tracks). Every call returns a structured result JSON:
+// {"ok":true,"current_track":{...}} or
+// {"ok":false,"error_kind":"...","error_message":"..."}.
+// Error kinds: no_playable_location, playback_failed, invalid_input.
+
+RhythmCoordinator* rhythm_coordinator_create(void);
+void rhythm_coordinator_destroy(RhythmCoordinator* coordinator);
+
+char* rhythm_coordinator_start(RhythmCoordinator* coordinator, RhythmLibrary* library,
+                               const char* track_json, const char* queue_tracks_json,
+                               int32_t mode);
+char* rhythm_coordinator_next(RhythmCoordinator* coordinator, RhythmLibrary* library);
+char* rhythm_coordinator_previous(RhythmCoordinator* coordinator, RhythmLibrary* library);
+void rhythm_coordinator_sync_queue(RhythmCoordinator* coordinator, const char* tracks_json);
+void rhythm_coordinator_stop(RhythmCoordinator* coordinator);
+void rhythm_coordinator_pause(RhythmCoordinator* coordinator);
+void rhythm_coordinator_resume(RhythmCoordinator* coordinator);
+int32_t rhythm_coordinator_seek(RhythmCoordinator* coordinator, double seconds);
+void rhythm_coordinator_set_volume(RhythmCoordinator* coordinator, float volume);
+float rhythm_coordinator_get_volume(RhythmCoordinator* coordinator);
+double rhythm_coordinator_get_position(RhythmCoordinator* coordinator);
+double rhythm_coordinator_get_duration(RhythmCoordinator* coordinator);
+int32_t rhythm_coordinator_get_state(RhythmCoordinator* coordinator);
+// State values: 0=Stopped, 1=Playing, 2=Paused, 3=Buffering, 4=Error,
+// 5=Finished (track ended naturally).
+char* rhythm_coordinator_error(RhythmCoordinator* coordinator);
+char* rhythm_coordinator_error_kind(RhythmCoordinator* coordinator);
+int32_t rhythm_coordinator_has_next(RhythmCoordinator* coordinator);
+int32_t rhythm_coordinator_has_previous(RhythmCoordinator* coordinator);
+char* rhythm_coordinator_current_track(RhythmCoordinator* coordinator);
+void rhythm_coordinator_set_play_mode(RhythmCoordinator* coordinator, int32_t mode);
+int32_t rhythm_coordinator_get_play_mode(RhythmCoordinator* coordinator);
 
 // ─── URL Resolver API ──────────────────────────────────────────────
 
@@ -93,14 +139,6 @@ char* rhythm_last_error(void);
 // Resolver environment as JSON (yt-dlp path/version, PATH, log file), for
 // bug reports.
 char* rhythm_resolver_diagnostics(void);
-
-// Why playback failed, when rhythm_player_get_state() is 4 (Error);
-// null otherwise.
-char* rhythm_player_error(RhythmPlayer* player);
-
-// Classification of the last playback failure, when it was HTTP:
-// "expired" | "cdn_rejected" | "other"; null otherwise (#120).
-char* rhythm_player_error_kind(RhythmPlayer* player);
 
 // Progress of yt-dlp provisioning as JSON, e.g.
 // {"phase":"downloading","received":1048576,"total":41943040}

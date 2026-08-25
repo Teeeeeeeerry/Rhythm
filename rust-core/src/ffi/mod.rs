@@ -14,6 +14,7 @@
 //! honestly.
 
 use crate::audio::AudioEngine;
+use crate::coordinator::{CoordinatorErrorKind, CoordinatorResult, PlaybackCoordinator};
 use crate::library::Library;
 use crate::metadata;
 use crate::playlist;
@@ -35,6 +36,10 @@ pub struct RhythmPlayer(AudioEngine);
 
 /// Opaque handle to a PlayQueue instance.
 pub struct RhythmQueue(Mutex<PlayQueue>);
+
+/// Opaque handle to a playback coordinator (owns the engine, queue, current
+/// track, and play mode — parent issue #165, ticket #170).
+pub struct RhythmCoordinator(Mutex<PlaybackCoordinator>);
 
 // ─── String/FFI Helpers ────────────────────────────────────────────
 
@@ -847,6 +852,343 @@ pub unsafe extern "C" fn rhythm_queue_has_previous(ptr: *mut RhythmQueue) -> i32
     if ptr.is_null() { return 0; }
     let q = unsafe { &(*ptr).0 };
     q.lock().unwrap().has_previous() as i32
+}
+
+// ─── Playback Coordinator FFI ─────────────────────────────────────
+//
+// The coordinator owns the orchestration rules (stop old playback, dispatch
+// by source type, record plays, queue build + positioning, bounded skip of
+// unplayable tracks) that used to live twice in the UI layers (parent issue
+// #165). Every call returns a structured result JSON — success payload +
+// classified error in a single return (#170).
+
+fn coordinator_result_to_c_string(result: &CoordinatorResult) -> *mut c_char {
+    str_to_c_string(&serde_json::to_string(result).unwrap_or_default())
+}
+
+/// Create a new playback coordinator. Returns opaque handle.
+#[no_mangle]
+pub extern "C" fn rhythm_coordinator_create() -> *mut RhythmCoordinator {
+    Box::into_raw(Box::new(RhythmCoordinator(Mutex::new(PlaybackCoordinator::new()))))
+}
+
+/// Destroy a coordinator handle.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_destroy(ptr: *mut RhythmCoordinator) {
+    if !ptr.is_null() {
+        unsafe { let _ = Box::from_raw(ptr); }
+    }
+}
+
+/// Start playback of a track with a queue. Returns structured result JSON:
+/// `{"ok":true,"current_track":{...}}` or
+/// `{"ok":false,"error_kind":"...","error_message":"..."}`. Free with
+/// `rhythm_free_string`.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_start(
+    ptr: *mut RhythmCoordinator,
+    library: *mut RhythmLibrary,
+    track_json: *const c_char,
+    queue_tracks_json: *const c_char,
+    mode: i32,
+) -> *mut c_char {
+    if ptr.is_null() {
+        return coordinator_result_to_c_string(&CoordinatorResult::error(
+            CoordinatorErrorKind::InvalidInput,
+            "null coordinator handle".to_string(),
+        ));
+    }
+    let track: TrackInfo = match serde_json::from_str(unsafe { c_str_to_str(track_json) }) {
+        Ok(t) => t,
+        Err(_) => {
+            return coordinator_result_to_c_string(&CoordinatorResult::error(
+                CoordinatorErrorKind::InvalidInput,
+                "malformed track JSON".to_string(),
+            ));
+        }
+    };
+    let queue_tracks: Vec<TrackInfo> = match serde_json::from_str(unsafe { c_str_to_str(queue_tracks_json) })
+    {
+        Ok(t) => t,
+        Err(_) => {
+            return coordinator_result_to_c_string(&CoordinatorResult::error(
+                CoordinatorErrorKind::InvalidInput,
+                "malformed queue tracks JSON".to_string(),
+            ));
+        }
+    };
+    let lib = if library.is_null() { None } else { Some(unsafe { &(*library).0 }) };
+    let mut coord = unsafe { &(*ptr).0 }.lock().unwrap();
+    let result = coord.start(lib, track, queue_tracks, PlayMode::from_i32(mode));
+    coordinator_result_to_c_string(&result)
+}
+
+/// Advance to the next playable track (bounded skip of unplayable ones).
+/// Returns structured result JSON like `rhythm_coordinator_start`.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_next(
+    ptr: *mut RhythmCoordinator,
+    library: *mut RhythmLibrary,
+) -> *mut c_char {
+    if ptr.is_null() {
+        return coordinator_result_to_c_string(&CoordinatorResult::error(
+            CoordinatorErrorKind::InvalidInput,
+            "null coordinator handle".to_string(),
+        ));
+    }
+    let lib = if library.is_null() { None } else { Some(unsafe { &(*library).0 }) };
+    let mut coord = unsafe { &(*ptr).0 }.lock().unwrap();
+    let result = coord.next(lib);
+    coordinator_result_to_c_string(&result)
+}
+
+/// Move to the previous playable track (bounded skip of unplayable ones).
+/// Returns structured result JSON like `rhythm_coordinator_start`.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_previous(
+    ptr: *mut RhythmCoordinator,
+    library: *mut RhythmLibrary,
+) -> *mut c_char {
+    if ptr.is_null() {
+        return coordinator_result_to_c_string(&CoordinatorResult::error(
+            CoordinatorErrorKind::InvalidInput,
+            "null coordinator handle".to_string(),
+        ));
+    }
+    let lib = if library.is_null() { None } else { Some(unsafe { &(*library).0 }) };
+    let mut coord = unsafe { &(*ptr).0 }.lock().unwrap();
+    let result = coord.previous(lib);
+    coordinator_result_to_c_string(&result)
+}
+
+/// Sync the queue after a library refresh (#69): replace contents and jump
+/// back to the current track by its database id.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_sync_queue(
+    ptr: *mut RhythmCoordinator,
+    tracks_json: *const c_char,
+) {
+    if ptr.is_null() { return; }
+    let tracks: Vec<TrackInfo> = match serde_json::from_str(unsafe { c_str_to_str(tracks_json) }) {
+        Ok(t) => t,
+        Err(_) => return,
+    };
+    let mut coord = unsafe { &(*ptr).0 }.lock().unwrap();
+    coord.sync_queue(tracks);
+}
+
+/// Stop playback and clear the transport state (current track + queue).
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_stop(ptr: *mut RhythmCoordinator) {
+    if let Some(coord) = unsafe { ptr.as_ref() } {
+        coord.0.lock().unwrap().stop();
+    }
+}
+
+/// Pause playback.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_pause(ptr: *mut RhythmCoordinator) {
+    if let Some(coord) = unsafe { ptr.as_ref() } {
+        coord.0.lock().unwrap().player().pause();
+    }
+}
+
+/// Resume playback (only when the engine is actually Paused).
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_resume(ptr: *mut RhythmCoordinator) {
+    if let Some(coord) = unsafe { ptr.as_ref() } {
+        coord.0.lock().unwrap().player().resume();
+    }
+}
+
+/// Seek to a position in seconds. Returns 0 on success, -1 on error.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_seek(ptr: *mut RhythmCoordinator, seconds: f64) -> i32 {
+    if ptr.is_null() { return -1; }
+    let coord = unsafe { &(*ptr).0 }.lock().unwrap();
+    match coord.player().seek(seconds) {
+        Ok(_) => 0,
+        Err(_) => -1,
+    }
+}
+
+/// Set volume (0.0 - 1.0).
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_set_volume(ptr: *mut RhythmCoordinator, volume: f32) {
+    if let Some(coord) = unsafe { ptr.as_ref() } {
+        coord.0.lock().unwrap().player().set_volume(volume);
+    }
+}
+
+/// Get current volume.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_get_volume(ptr: *mut RhythmCoordinator) -> f32 {
+    unsafe { ptr.as_ref().map(|c| c.0.lock().unwrap().player().volume()).unwrap_or(0.0) }
+}
+
+/// Get current playback position in seconds.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_get_position(ptr: *mut RhythmCoordinator) -> f64 {
+    unsafe { ptr.as_ref().map(|c| c.0.lock().unwrap().player().position()).unwrap_or(0.0) }
+}
+
+/// Get media duration in seconds.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_get_duration(ptr: *mut RhythmCoordinator) -> f64 {
+    unsafe { ptr.as_ref().map(|c| c.0.lock().unwrap().player().duration()).unwrap_or(0.0) }
+}
+
+/// Get player state: 0=Stopped, 1=Playing, 2=Paused, 3=Buffering, 4=Error, 5=Finished
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_get_state(ptr: *mut RhythmCoordinator) -> i32 {
+    unsafe {
+        ptr.as_ref()
+            .map(|c| {
+                let state = c.0.lock().unwrap().player().state();
+                match state {
+                    PlayerState::Stopped => 0,
+                    PlayerState::Playing => 1,
+                    PlayerState::Paused => 2,
+                    PlayerState::Buffering => 3,
+                    PlayerState::Error(_) => 4,
+                    PlayerState::Finished => 5,
+                }
+            })
+            .unwrap_or(-1)
+    }
+}
+
+/// Why playback failed, when the state is Error (4); null otherwise.
+/// Free with `rhythm_free_string`.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_error(ptr: *mut RhythmCoordinator) -> *mut c_char {
+    unsafe {
+        match ptr.as_ref().and_then(|c| c.0.lock().unwrap().player().error_message()) {
+            Some(message) => str_to_c_string(&message),
+            None => std::ptr::null_mut(),
+        }
+    }
+}
+
+/// Classification of the last playback failure, when it was HTTP:
+/// "expired" | "cdn_rejected" | "other"; null otherwise (#120).
+/// Free with `rhythm_free_string`.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_error_kind(ptr: *mut RhythmCoordinator) -> *mut c_char {
+    use crate::HttpErrorKind;
+    unsafe {
+        match ptr.as_ref().and_then(|c| c.0.lock().unwrap().player().error_kind()) {
+            Some(HttpErrorKind::Expired) => str_to_c_string("expired"),
+            Some(HttpErrorKind::CdnRejected) => str_to_c_string("cdn_rejected"),
+            Some(HttpErrorKind::Other) => str_to_c_string("other"),
+            None => std::ptr::null_mut(),
+        }
+    }
+}
+
+/// Whether the queue has a next track. Returns 1 for true, 0 for false.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_has_next(ptr: *mut RhythmCoordinator) -> i32 {
+    unsafe { ptr.as_ref().map(|c| c.0.lock().unwrap().can_play_next() as i32).unwrap_or(0) }
+}
+
+/// Whether the queue has a previous track.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_has_previous(ptr: *mut RhythmCoordinator) -> i32 {
+    unsafe { ptr.as_ref().map(|c| c.0.lock().unwrap().can_play_previous() as i32).unwrap_or(0) }
+}
+
+/// Get the current track as JSON, or null when nothing is playing.
+/// Free with `rhythm_free_string`.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_current_track(ptr: *mut RhythmCoordinator) -> *mut c_char {
+    unsafe {
+        match ptr.as_ref().and_then(|c| c.0.lock().unwrap().current_track().cloned()) {
+            Some(track) => str_to_c_string(&track_to_json(&track)),
+            None => std::ptr::null_mut(),
+        }
+    }
+}
+
+/// Set the play mode: 0=Sequential, 1=Shuffle, 2=SingleLoop, 3=ListLoop.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_set_play_mode(ptr: *mut RhythmCoordinator, mode: i32) {
+    if let Some(coord) = unsafe { ptr.as_ref() } {
+        coord.0.lock().unwrap().set_play_mode(PlayMode::from_i32(mode));
+    }
+}
+
+/// Get the play mode: 0=Sequential, 1=Shuffle, 2=SingleLoop, 3=ListLoop.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_get_play_mode(ptr: *mut RhythmCoordinator) -> i32 {
+    unsafe {
+        ptr.as_ref()
+            .map(|c| c.0.lock().unwrap().play_mode().to_i32())
+            .unwrap_or(0)
+    }
 }
 
 // ─── M3U8 Import/Export FFI ───────────────────────────────────────
