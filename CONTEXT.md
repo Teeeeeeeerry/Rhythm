@@ -62,8 +62,9 @@ scripts/            build-macos.sh / build-rust-macos.sh / build-windows.* / che
 
 - **Issue 引用**：修复的根因注释里写 `#NN`（如 `// #51: stop old playback`）。新修复沿用此习惯
 - **TDD seams**：测试写在公开行为层（AppState 的方法），不测私有实现；每个 seam 一组测试
-- **L10n**：全部文案走 `L10n` 枚举（macOS `Models/L10n.swift` 的 `isChinese` 三元、Windows `L10n.h`），
-  视图里既不写死字符串也不就地写 inline 三元——#145 曾一次性收敛 20+ 处违规
+- **L10n**：全部文案走 `L10n`（macOS `Models/L10n.swift` + `L10nKeys`、Windows `L10n.h` + `L10nKeys.h`，
+  均由 `contracts/l10n-keys.json` 键表生成，#167 组）；视图里既不写死字符串也不就地写 inline 三元。
+  新增文案只改键表再跑 `scripts/gen-l10n.py`；键表漂移由 L0 校验拦截（#185）
 - **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `scripts/check-no-emoji.sh` 校验；发现即修，不得绕过
 - **品牌色**：只用 `RhythmTheme` 模块的 token（如 `.rhythmAccent`），不硬编码色值
 - **构建产物**：放 `build/` 目录（scripts/build-macos.sh 生成 Rhythm.app）
