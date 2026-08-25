@@ -222,7 +222,8 @@ bool Library::RemoveTrack(int64_t id) {
     return rhythm_library_remove_track(ptr_, id) == 0;
 }
 
-/// Decode the core's positional M3U8 entries ([title, artist, location]).
+/// Decode the core's M3U8 entries — named fields (title/artist/location),
+/// no positional indexing (#177).
 static std::vector<M3u8Entry> ParseM3u8Entries(const char* json) {
     std::vector<M3u8Entry> entries;
     if (!json) return entries;
@@ -230,14 +231,14 @@ static std::vector<M3u8Entry> ParseM3u8Entries(const char* json) {
         auto j = json::parse(json);
         for (const auto& item : j) {
             M3u8Entry entry;
-            if (item.size() > 0 && !item[0].is_null()) {
-                entry.title = Utf8ToWide(item[0].get<std::string>());
+            if (item.contains("title") && !item["title"].is_null()) {
+                entry.title = Utf8ToWide(item["title"].get<std::string>());
             }
-            if (item.size() > 1 && !item[1].is_null()) {
-                entry.artist = Utf8ToWide(item[1].get<std::string>());
+            if (item.contains("artist") && !item["artist"].is_null()) {
+                entry.artist = Utf8ToWide(item["artist"].get<std::string>());
             }
-            if (item.size() > 2 && !item[2].is_null()) {
-                entry.location = Utf8ToWide(item[2].get<std::string>());
+            if (item.contains("location") && !item["location"].is_null()) {
+                entry.location = Utf8ToWide(item["location"].get<std::string>());
             }
             entries.push_back(std::move(entry));
         }

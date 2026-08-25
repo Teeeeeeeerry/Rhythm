@@ -92,9 +92,9 @@ final class AppStateImportTests: AppStatePlaybackTestCase {
     /// M3U8 entries are persisted to the library, not discarded — local
     /// paths become local tracks, http(s) locations become direct_url tracks.
     func testImportM3U8Entries_PersistsTracksWithMappedSources() {
-        let entries: [[String?]] = [
-            ["Local Song", "Local Artist", "/music/local.mp3"],
-            ["Remote Song", nil, "https://example.com/remote.mp3"],
+        let entries: [M3u8Entry] = [
+            M3u8Entry(title: "Local Song", artist: "Local Artist", location: "/music/local.mp3"),
+            M3u8Entry(title: "Remote Song", artist: nil, location: "https://example.com/remote.mp3"),
         ]
         let result = appState.importM3U8Entries(entries)
 
@@ -114,10 +114,10 @@ final class AppStateImportTests: AppStatePlaybackTestCase {
 
     /// Entries without a usable location are counted as failures and skipped.
     func testImportM3U8Entries_CountsInvalidEntriesAsFailed() {
-        let entries: [[String?]] = [
-            ["Good", nil, "/music/good.mp3"],
-            ["No Location", nil, nil],
-            ["Empty Location", nil, ""],
+        let entries: [M3u8Entry] = [
+            M3u8Entry(title: "Good", artist: nil, location: "/music/good.mp3"),
+            M3u8Entry(title: "No Location", artist: nil, location: ""),
+            M3u8Entry(title: "Empty Location", artist: nil, location: ""),
         ]
         let result = appState.importM3U8Entries(entries)
 

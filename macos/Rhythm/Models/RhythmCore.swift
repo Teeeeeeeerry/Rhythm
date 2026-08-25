@@ -553,6 +553,16 @@ enum PlayMode: Int32 {
     }
 }
 
+// MARK: - M3U8 Entry
+
+/// One imported M3U8 entry — named fields across the seam (title, artist,
+/// location), so callers never index by position (#177).
+struct M3u8Entry: Codable {
+    let title: String
+    let artist: String?
+    let location: String
+}
+
 // MARK: - Resolver Types
 
 struct ResolvedInfo: Codable {

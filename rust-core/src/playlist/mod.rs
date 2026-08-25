@@ -8,8 +8,14 @@ use crate::{RhythmResult, TrackInfo};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 
-/// One imported M3U8 entry: (title, location, artist) (#143: factored type).
-pub type M3u8Entry = (String, Option<String>, Option<String>);
+/// One imported M3U8 entry — named fields across the seam (title, artist,
+/// location), so callers never index by position (#177).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct M3u8Entry {
+    pub title: String,
+    pub artist: Option<String>,
+    pub location: String,
+}
 
 /// Export tracks to an M3U8 playlist file.
 pub fn export_m3u8(path: &Path, tracks: &[TrackInfo]) -> RhythmResult<()> {
@@ -75,7 +81,7 @@ pub fn import_m3u8(path: &Path) -> RhythmResult<Vec<M3u8Entry>> {
             }
         } else if !trimmed.starts_with('#') {
             // This is the file path / URL line
-            let location = Some(trimmed.to_string());
+            let location = trimmed.to_string();
             let title = current_title.take().unwrap_or_else(|| {
                 Path::new(trimmed)
                     .file_stem()
@@ -84,7 +90,11 @@ pub fn import_m3u8(path: &Path) -> RhythmResult<Vec<M3u8Entry>> {
                     .to_string()
             });
             let artist = current_artist.take();
-            entries.push((title, artist, location));
+            entries.push(M3u8Entry {
+                title,
+                artist,
+                location,
+            });
         }
     }
 
