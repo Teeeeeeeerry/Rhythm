@@ -1,5 +1,6 @@
-// WA-26：Windows 文案层（#141）。零接缝：直接测 L10n 字符串，用
-// SetOverrideLanguage 固定中/英分支，不依赖系统语言；结束恢复原值。
+// LK-01~06：Windows 文案层（manifest: docs/testing/behavior/l10n-keys.md）。
+// 零接缝：直接测 L10n 字符串，用 SetOverrideLanguage 固定中/英分支，
+// 不依赖系统语言；结束恢复原值。
 //
 // 这些测试在本机（macOS）不可运行——提交后在 Windows 上 `ctest` 验证。
 
@@ -29,7 +30,7 @@ struct LanguageScope {
 
 // ─── WA-26 基础文案中/英分支 ────────────────────────────────────────
 
-TEST_CASE("WA-26 L10n static strings differ per language") {
+TEST_CASE("LK-01 L10n static strings differ per language") {
     {
         LanguageScope zh(L"zh-CN");
         REQUIRE(L10n::LibraryTab() == L"资料库");
@@ -64,7 +65,7 @@ TEST_CASE("WA-26 L10n static strings differ per language") {
 
 // ─── WA-26 导入反馈 ─────────────────────────────────────────────────
 
-TEST_CASE("WA-26 L10n imported-tracks count copy") {
+TEST_CASE("LK-02 L10n imported-tracks count copy") {
     {
         LanguageScope zh(L"zh");
         REQUIRE(L10n::ImportedTracks(2) == L"已导入 2 首歌曲");
@@ -79,7 +80,7 @@ TEST_CASE("WA-26 L10n imported-tracks count copy") {
 
 // ─── WA-26 解析/播放失败分类（#120 英文分支）────────────────────────
 
-TEST_CASE("WA-26 L10n playback failure classification has English branches") {
+TEST_CASE("LK-03 L10n playback failure classification has English branches") {
     {
         LanguageScope en(L"en");
         auto expired = L10n::PlaybackFailed(L"expired", L"detail");
@@ -107,7 +108,7 @@ TEST_CASE("WA-26 L10n playback failure classification has English branches") {
     }
 }
 
-TEST_CASE("WA-26 L10n resolve errors: Chinese headline, English raw detail") {
+TEST_CASE("LK-04 L10n resolve errors: Chinese headline, English raw detail") {
     {
         LanguageScope zh(L"zh");
         auto msg = L10n::UrlResolveError(L"timeout", L"engine detail");
@@ -121,7 +122,7 @@ TEST_CASE("WA-26 L10n resolve errors: Chinese headline, English raw detail") {
     }
 }
 
-TEST_CASE("WA-26 L10n resolver provisioning status") {
+TEST_CASE("LK-05 L10n resolver provisioning status") {
     {
         LanguageScope en(L"en");
         REQUIRE(L10n::ResolverStatusText(L"checking", 0, 0) == L"Preparing resolver…");
@@ -142,7 +143,7 @@ TEST_CASE("WA-26 L10n resolver provisioning status") {
 
 // ─── WA-26 来源徽标与托盘 ───────────────────────────────────────────
 
-TEST_CASE("WA-26 L10n source tags and tray copy") {
+TEST_CASE("LK-06 L10n source tags and tray copy") {
     {
         LanguageScope zh(L"zh");
         REQUIRE(L10n::SourceTag(L"local") == L"本地");
