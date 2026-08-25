@@ -1,6 +1,6 @@
 # Resolver 行为清单
 
-- 模块：`rust-core/src/resolver/mod.rs`（URL 分类与解析、yt-dlp 子进程、缓存、失败分类、日志）+ `resolver/install.rs`（yt-dlp 自动安装）
+- 模块：`rust-core/src/resolver/`（#187 起按职责拆分子模块：`mod.rs` 编排、`install.rs` yt-dlp 发现与安装、`classify.rs` URL 分类、`stderr.rs` stderr 分类、`cache.rs` 解析缓存；对外 interface 不变）（URL 分类与解析、yt-dlp 子进程、缓存、失败分类、日志）+ `resolver/install.rs`（yt-dlp 自动安装）
 - 历史回归：`#19`、`#22`（自动安装）、`#26`（解析成功却播不出）、`#23`（m4s 误交 yt-dlp）
 - 测试途径（R3-Q2=A 已定）：
   1. 纯函数直测（已有 28 单测的扩展）：`classify_url`、`parse_hh_mm_ss`、`extract_stream`、`classify_ytdlp_stderr`、`summarize_stderr`、`prune_cache`、`format_utc` 等。
