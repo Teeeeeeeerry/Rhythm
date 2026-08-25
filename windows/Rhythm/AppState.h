@@ -7,8 +7,16 @@ namespace rhythm {
 
 enum class SidebarItem { Library, Playlists };
 
-/// Playback mode for the queue (mirrors the macOS `PlayMode`).
+/// Playback mode — the FFI contract values (0-3) are locked below at compile
+/// time; the canonical declaration lives in rust-core `queue::PlayMode`
+/// (#179).
 enum class PlayMode { Sequential = 0, Shuffle = 1, SingleLoop = 2, ListLoop = 3 };
+
+// Contract lock (#179): the seam values must never drift from the core.
+static_assert(static_cast<int32_t>(PlayMode::Sequential) == 0);
+static_assert(static_cast<int32_t>(PlayMode::Shuffle) == 1);
+static_assert(static_cast<int32_t>(PlayMode::SingleLoop) == 2);
+static_assert(static_cast<int32_t>(PlayMode::ListLoop) == 3);
 
 class AppState : public winrt::implements<AppState, winrt::Windows::Foundation::IInspectable> {
 public:

@@ -506,6 +506,16 @@ mod tests {
         assert_eq!(PlayMode::from_i32(-1), PlayMode::Sequential);
     }
 
+    /// Q-16 (#179): the contract values are locked both directions — the
+    /// UI layers rely on these numbers across the seam.
+    #[test]
+    fn test_play_mode_contract_values() {
+        assert_eq!(PlayMode::Sequential.to_i32(), 0);
+        assert_eq!(PlayMode::Shuffle.to_i32(), 1);
+        assert_eq!(PlayMode::SingleLoop.to_i32(), 2);
+        assert_eq!(PlayMode::ListLoop.to_i32(), 3);
+    }
+
     /// Q-15: `jump_to` in Shuffle mode positions the cursor via the shuffle
     /// order.
     #[test]

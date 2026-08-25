@@ -13,6 +13,7 @@
 | SW-01 | `encodeJSON`/`decodeJSON` snake_case 往返 | `Track`/`Playlist` 各字段经 Rust core 往返保真（`source_type` 等转换正确） |
 | SW-02 | `decodeJSON` 非法输入 | 返回 nil，不崩溃 |
 | SW-03 | `PlayMode.next()` | 0→1→2→3→0 循环 |
+| SW-03b | `PlayMode` 契约值（#179） | rawValue 锁定 0-3（与核心 `queue::PlayMode` 一致，双端 static_assert/测试同锁） |
 | SW-04 | `ResolverStatus.isQuiet` | idle/ready → true；其余 phase → false |
 | SW-05 | `resolveURL` 成功分派 | 结构化结果 `ok:true` → `.success(ResolvedInfo)`（snake_case 解码，#176） |
 | SW-06 | `resolveURL` 失败 | 结构化结果 `ok:false` → `.failure(ResolveError(kind, message))`（#176，不再查全局错误槽） |
