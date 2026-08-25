@@ -598,27 +598,37 @@ func encodeJSON<T: Encodable>(_ value: T) -> String {
 
 // MARK: - URL Resolver
 
-/// Resolve a URL to a playable stream.
-///
-/// On failure the core records why (yt-dlp missing, timeout, private video…),
-/// which is far more useful to show than a generic "resolution failed" (#21).
-func resolveURL(_ url: String) -> Result<ResolvedInfo, ResolveError> {
-    guard let json = rhythm_resolve_url(url) else {
-        return .failure(lastResolveError() ?? .unknown)
-    }
-    defer { rhythm_free_string(json) }
-
-    guard let resolved: ResolvedInfo = decodeJSON(String(cString: json)) else {
-        return .failure(ResolveError(kind: "internal", message: "Malformed resolver response"))
-    }
-    return .success(resolved)
+/// Decoding shape of the core's structured resolve result (#176): success
+/// payload + classified error in a single return — the old
+/// "null, then query the global error slot" two-step protocol is gone.
+private struct ResolveResultPayload: Codable {
+    let ok: Bool
+    let resolved: ResolvedInfo?
+    let errorKind: String?
+    let errorMessage: String?
 }
 
-/// The core's most recent resolution failure, if any.
-func lastResolveError() -> ResolveError? {
-    guard let json = rhythm_last_error() else { return nil }
+/// Resolve a URL to a playable stream.
+///
+/// The core returns one structured result: on failure it carries why
+/// (yt-dlp missing, timeout, private video…), which is far more useful to
+/// show than a generic "resolution failed" (#21, #176).
+func resolveURL(_ url: String) -> Result<ResolvedInfo, ResolveError> {
+    guard let json = rhythm_resolve_url(url) else {
+        return .failure(.unknown)
+    }
     defer { rhythm_free_string(json) }
-    return decodeJSON(String(cString: json))
+
+    guard let payload: ResolveResultPayload = decodeJSON(String(cString: json)) else {
+        return .failure(ResolveError(kind: "internal", message: "Malformed resolver response"))
+    }
+    if payload.ok, let resolved = payload.resolved {
+        return .success(resolved)
+    }
+    return .failure(ResolveError(
+        kind: payload.errorKind ?? "internal",
+        message: payload.errorMessage ?? "Failed to resolve the URL."
+    ))
 }
 
 /// Resolver environment (yt-dlp path/version, PATH, log file) as raw JSON.

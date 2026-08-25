@@ -239,28 +239,30 @@ fn ff10_seek_validation() {
 // ─── FF-12/13 resolve 与 last_error（#21）───────────────────────────
 
 #[test]
-fn ff12_resolve_and_last_error() {
+fn ff12_resolve_returns_structured_result() {
     let _guard = RESOLVER_LOCK.lock().unwrap();
 
-    // Failure → null + last_error carries kind/message (#21).
+    // Failure → one structured result carries kind + message (#176); the
+    // global error slot is not used by this call any more.
     let failed = unsafe { rhythm_resolve_url(c("not a url").as_ptr()) };
-    assert!(failed.is_null());
+    assert!(!failed.is_null(), "resolve must never return null now");
     unsafe {
-        let err = take(rhythm_last_error());
-        let v: serde_json::Value = serde_json::from_str(&err).unwrap();
-        assert_eq!(v["kind"], "invalid_url");
-        assert!(!v["message"].as_str().unwrap().is_empty());
+        let json = take(failed);
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(v["ok"], false);
+        assert_eq!(v["error_kind"], "invalid_url");
+        assert!(!v["error_message"].as_str().unwrap().is_empty());
     }
 
-    // Success → JSON, last_error cleared.
+    // Success → structured payload.
     let resolved = unsafe { rhythm_resolve_url(c("https://example.com/ffi-tone.mp3").as_ptr()) };
     unsafe {
         let json = take(resolved);
         let v: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert_eq!(v["stream_url"], "https://example.com/ffi-tone.mp3");
-        assert_eq!(v["source_type"], "direct_url");
+        assert_eq!(v["ok"], true);
+        assert_eq!(v["resolved"]["stream_url"], "https://example.com/ffi-tone.mp3");
+        assert_eq!(v["resolved"]["source_type"], "direct_url");
     }
-    assert!(rhythm_last_error().is_null(), "success must clear last_error");
 }
 
 #[test]
@@ -410,7 +412,13 @@ fn ff20_null_pointer_safe_defaults() {
     assert!(unsafe { rhythm_metadata_extract(std::ptr::null_mut()) }.is_null());
     assert!(unsafe { rhythm_metadata_scan(std::ptr::null_mut()) }.is_null());
     assert!(unsafe { rhythm_metadata_extract_artwork(std::ptr::null_mut(), std::ptr::null_mut()) }.is_null());
-    assert!(unsafe { rhythm_resolve_url(std::ptr::null_mut()) }.is_null());
+    // #176: resolve never returns null — a null input is a classified error
+    // in the structured result.
+    unsafe {
+        let json = take(rhythm_resolve_url(std::ptr::null_mut()));
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(v["ok"], false);
+    }
     assert!(unsafe { rhythm_classify_url(std::ptr::null_mut()) }.is_null());
 }
 
