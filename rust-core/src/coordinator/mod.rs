@@ -1,0 +1,393 @@
+//! Playback coordinator — the single orchestration layer above the audio
+//! engine and the play queue (parent issue #165, ticket #170).
+//!
+//! Before this module, the start/transport orchestration (stop old playback,
+//! dispatch by source type, record plays, build and position the queue,
+//! bounded skip of unplayable tracks) lived twice: once in the macOS
+//! `AppState`, once in the Windows `AppState` — two near-line-for-line
+//! mirrors that had already drifted apart (#78 vs #81, #137, #136). The
+//! coordinator owns the rules once; both UI layers become thin adapters that
+//! render the coordinator's state.
+//!
+//! The coordinator owns the audio engine (`PlayerSurface`), the play queue,
+//! the current track, and the play mode. Tests inject a fake player surface
+//! (docs/testing/behavior/coordinator.md) so orchestration can be exercised
+//! without an audio device.
+
+use crate::audio::AudioEngine;
+use crate::library::Library;
+use crate::queue::{PlayMode, PlayQueue};
+use crate::{HttpErrorKind, PlayerState, RhythmResult, SourceType, TrackInfo};
+use std::path::Path;
+
+/// The playback surface the coordinator orchestrates.
+///
+/// Production wiring uses `AudioEngine`; tests inject a fake that records the
+/// exact call sequence (e.g. `stop` before `play_file` — #51) without
+/// touching the audio engine. This is the Rust-side counterpart of the macOS
+/// `RhythmPlayerProtocol` seam.
+pub trait PlayerSurface {
+    fn play_file(&self, path: &Path) -> RhythmResult<()>;
+    fn play_url(&self, url: &str) -> RhythmResult<()>;
+    fn pause(&self);
+    fn resume(&self);
+    fn stop(&self);
+    fn seek(&self, seconds: f64) -> RhythmResult<()>;
+    fn set_volume(&self, volume: f32);
+    fn volume(&self) -> f32;
+    fn state(&self) -> PlayerState;
+    fn position(&self) -> f64;
+    fn duration(&self) -> f64;
+    /// The last playback failure message, when the state is `Error`.
+    fn error_message(&self) -> Option<String>;
+    /// Classification of the last playback failure when it was HTTP (#120).
+    fn error_kind(&self) -> Option<HttpErrorKind>;
+}
+
+impl PlayerSurface for AudioEngine {
+    fn play_file(&self, path: &Path) -> RhythmResult<()> {
+        AudioEngine::play_file(self, path)
+    }
+    fn play_url(&self, url: &str) -> RhythmResult<()> {
+        AudioEngine::play_url(self, url)
+    }
+    fn pause(&self) {
+        AudioEngine::pause(self);
+    }
+    fn resume(&self) {
+        AudioEngine::resume(self);
+    }
+    fn stop(&self) {
+        AudioEngine::stop(self);
+    }
+    fn seek(&self, seconds: f64) -> RhythmResult<()> {
+        AudioEngine::seek(self, seconds)
+    }
+    fn set_volume(&self, volume: f32) {
+        AudioEngine::set_volume(self, volume);
+    }
+    fn volume(&self) -> f32 {
+        AudioEngine::volume(self)
+    }
+    fn state(&self) -> PlayerState {
+        AudioEngine::state(self)
+    }
+    fn position(&self) -> f64 {
+        AudioEngine::position(self)
+    }
+    fn duration(&self) -> f64 {
+        AudioEngine::duration(self)
+    }
+    fn error_message(&self) -> Option<String> {
+        match AudioEngine::state(self) {
+            PlayerState::Error(message) => Some(message),
+            _ => None,
+        }
+    }
+    fn error_kind(&self) -> Option<HttpErrorKind> {
+        AudioEngine::last_error_kind(self)
+    }
+}
+
+/// Why a coordinator operation failed, classified — the structured-result
+/// contract shape shared with the FFI deepening group (#166 group, #176).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CoordinatorErrorKind {
+    /// The track has no playable location (no file path / no source URL, or
+    /// empty strings). The #78/#81 guard: nothing can be handed to the
+    /// player, so the playing state must not be entered.
+    NoPlayableLocation,
+    /// The engine rejected the play request immediately (e.g. file not found).
+    PlaybackFailed,
+    /// The request was malformed (bad JSON) or the handle was null.
+    InvalidInput,
+}
+
+/// Structured result of a coordinator call: success payload + classified
+/// error in a single return (no global error slot).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CoordinatorResult {
+    pub ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_kind: Option<CoordinatorErrorKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    /// The current track after the operation (when one is set). Lets the UI
+    /// follow transport moves without a second query.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_track: Option<TrackInfo>,
+}
+
+impl CoordinatorResult {
+    pub fn ok() -> Self {
+        Self {
+            ok: true,
+            error_kind: None,
+            error_message: None,
+            current_track: None,
+        }
+    }
+
+    pub fn ok_with_track(track: TrackInfo) -> Self {
+        Self {
+            ok: true,
+            error_kind: None,
+            error_message: None,
+            current_track: Some(track),
+        }
+    }
+
+    pub fn error(kind: CoordinatorErrorKind, message: String) -> Self {
+        Self {
+            ok: false,
+            error_kind: Some(kind),
+            error_message: Some(message),
+            current_track: None,
+        }
+    }
+}
+
+/// The player-reachable location of a track: local tracks need a file path,
+/// streamed tracks a URL. Empty strings count as missing — they pass a
+/// nil-only check and reach the player as a doomed play call (#78).
+enum PlayableLocation {
+    File(String),
+    Url(String),
+}
+
+fn playable_location(track: &TrackInfo) -> Option<PlayableLocation> {
+    match track.source_type {
+        SourceType::Local => {
+            let path = track.file_path.as_deref().unwrap_or("");
+            if path.is_empty() {
+                None
+            } else {
+                Some(PlayableLocation::File(path.to_string()))
+            }
+        }
+        _ => {
+            let url = track.source_url.as_deref().unwrap_or("");
+            if url.is_empty() {
+                None
+            } else {
+                Some(PlayableLocation::Url(url.to_string()))
+            }
+        }
+    }
+}
+
+/// Owns the playback state machine: the engine, the queue, the current
+/// track, and the play mode.
+pub struct PlaybackCoordinator {
+    player: Box<dyn PlayerSurface>,
+    queue: Option<PlayQueue>,
+    current_track: Option<TrackInfo>,
+    play_mode: PlayMode,
+}
+
+impl PlaybackCoordinator {
+    /// Production constructor: real audio engine.
+    pub fn new() -> Self {
+        Self::with_player(Box::new(AudioEngine::new()))
+    }
+
+    /// Test seam: construct a coordinator over an injected player surface
+    /// (e.g. a call-recording fake) instead of the real audio engine.
+    pub fn with_player(player: Box<dyn PlayerSurface>) -> Self {
+        PlaybackCoordinator {
+            player,
+            queue: None,
+            current_track: None,
+            play_mode: PlayMode::Sequential,
+        }
+    }
+
+    /// The underlying player surface (volume/seek/state pass-throughs).
+    pub fn player(&self) -> &dyn PlayerSurface {
+        self.player.as_ref()
+    }
+
+    /// Start playback of `track` with `queue_tracks` as the queue: stop old
+    /// playback (#51), dispatch by source type, record the play, establish
+    /// the queue and position it at the current track.
+    ///
+    /// The #78/#81 guard lives here: a track without a playable location
+    /// returns a classified failure and nothing changes.
+    pub fn start(
+        &mut self,
+        library: Option<&Library>,
+        track: TrackInfo,
+        queue_tracks: Vec<TrackInfo>,
+        mode: PlayMode,
+    ) -> CoordinatorResult {
+        let Some(location) = playable_location(&track) else {
+            return CoordinatorResult::error(
+                CoordinatorErrorKind::NoPlayableLocation,
+                "track has no playable location".to_string(),
+            );
+        };
+
+        // #51: stop old playback before starting the new one.
+        self.player.stop();
+        let dispatch = match &location {
+            PlayableLocation::File(path) => self.player.play_file(Path::new(path)),
+            PlayableLocation::Url(url) => self.player.play_url(url),
+        };
+        if let Err(e) = dispatch {
+            return CoordinatorResult::error(
+                CoordinatorErrorKind::PlaybackFailed,
+                e.to_string(),
+            );
+        }
+
+        if let Some(lib) = library {
+            if let Some(id) = track.id {
+                if id >= 0 {
+                    let _ = lib.record_play(id);
+                }
+            }
+        }
+
+        // Establish the queue and position it at the current track.
+        let mut queue = PlayQueue::new(queue_tracks);
+        queue.set_mode(mode);
+        if let Some(id) = track.id {
+            if id >= 0 {
+                queue.jump_to(id);
+            }
+        }
+        self.queue = Some(queue);
+        self.play_mode = mode;
+        self.current_track = Some(track.clone());
+        CoordinatorResult::ok_with_track(track)
+    }
+
+    /// Play the next playable track, skipping unplayable ones. The skip is
+    /// bounded by the queue length so an all-dead queue cannot loop forever
+    /// (#78). No-op (current track unchanged) when there is no queue, no
+    /// next track, or every remaining track is unplayable.
+    pub fn next(&mut self, library: Option<&Library>) -> CoordinatorResult {
+        self.play_adjacent(library, Direction::Next)
+    }
+
+    /// Play the previous playable track, skipping unplayable ones (bounded,
+    /// walking backwards — #78).
+    pub fn previous(&mut self, library: Option<&Library>) -> CoordinatorResult {
+        self.play_adjacent(library, Direction::Previous)
+    }
+
+    /// Sync the queue after a library refresh (#69): replace the contents
+    /// and jump back to the current track by its database id.
+    pub fn sync_queue(&mut self, tracks: Vec<TrackInfo>) {
+        let Some(queue) = self.queue.as_mut() else { return };
+        queue.replace(tracks);
+        if let Some(track) = &self.current_track {
+            if let Some(id) = track.id {
+                if id >= 0 {
+                    queue.jump_to(id);
+                }
+            }
+        }
+    }
+
+    /// Stop playback and clear the transport state (current track + queue).
+    pub fn stop(&mut self) {
+        self.player.stop();
+        self.current_track = None;
+        self.queue = None;
+    }
+
+    pub fn play_mode(&self) -> PlayMode {
+        self.play_mode
+    }
+
+    /// Switch the play mode; the queue (when present) follows.
+    pub fn set_play_mode(&mut self, mode: PlayMode) {
+        self.play_mode = mode;
+        if let Some(queue) = self.queue.as_mut() {
+            queue.set_mode(mode);
+        }
+    }
+
+    pub fn current_track(&self) -> Option<&TrackInfo> {
+        self.current_track.as_ref()
+    }
+
+    /// Whether the queue has a next track (transport availability).
+    pub fn can_play_next(&self) -> bool {
+        self.queue.as_ref().is_some_and(|q| q.has_next())
+    }
+
+    /// Whether the queue has a previous track (transport availability).
+    pub fn can_play_previous(&self) -> bool {
+        self.queue.as_ref().is_some_and(|q| q.has_previous())
+    }
+}
+
+enum Direction {
+    Next,
+    Previous,
+}
+
+impl PlaybackCoordinator {
+    /// Shared next/previous walk: advance/retreat through the queue up to the
+    /// queue length, skipping tracks with no playable location (#78). The
+    /// first playable candidate is dispatched (stop old first — #51), the
+    /// play recorded, and the coordinator's current track updated.
+    fn play_adjacent(&mut self, library: Option<&Library>, direction: Direction) -> CoordinatorResult {
+        let Some(queue) = self.queue.as_mut() else {
+            return self.result_for_current();
+        };
+        // Bound the skip loop: in loop modes `advance()` never returns None,
+        // so without a bound an all-dead queue would spin forever (#78).
+        let bound = queue.tracks.len();
+        for _ in 0..bound {
+            let candidate = match direction {
+                Direction::Next => queue.advance(),
+                Direction::Previous => queue.previous(),
+            };
+            let Some(candidate) = candidate else {
+                return self.result_for_current();
+            };
+            let Some(location) = playable_location(candidate) else { continue };
+
+            self.player.stop();
+            let dispatch = match &location {
+                PlayableLocation::File(path) => self.player.play_file(Path::new(path)),
+                PlayableLocation::Url(url) => self.player.play_url(url),
+            };
+            if let Err(e) = dispatch {
+                return CoordinatorResult::error(
+                    CoordinatorErrorKind::PlaybackFailed,
+                    e.to_string(),
+                );
+            }
+            if let Some(lib) = library {
+                if let Some(id) = candidate.id {
+                    if id >= 0 {
+                        let _ = lib.record_play(id);
+                    }
+                }
+            }
+            self.current_track = Some(candidate.clone());
+            return CoordinatorResult::ok_with_track(candidate.clone());
+        }
+        // Every remaining track is unplayable — give up; the current track
+        // keeps playing.
+        self.result_for_current()
+    }
+
+    fn result_for_current(&self) -> CoordinatorResult {
+        match &self.current_track {
+            Some(track) => CoordinatorResult::ok_with_track(track.clone()),
+            None => CoordinatorResult::ok(),
+        }
+    }
+}
+
+impl Default for PlaybackCoordinator {
+    fn default() -> Self {
+        Self::new()
+    }
+}

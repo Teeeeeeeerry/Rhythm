@@ -6,6 +6,10 @@ import RhythmCore
 final class RhythmLibrary {
     private var ptr: OpaquePointer?
 
+    /// The FFI handle, for calls that take a library parameter (e.g. the
+    /// coordinator's `start`, which records plays in the database).
+    var handle: OpaquePointer? { ptr }
+
     init?(path: String) {
         guard let ptr = rhythm_library_open(path) else { return nil }
         self.ptr = ptr
@@ -196,6 +200,199 @@ final class RhythmPlayer: RhythmPlayerProtocol {
     var duration: Double {
         guard let ptr else { return 0 }
         return rhythm_player_get_duration(ptr)
+    }
+}
+
+// MARK: - Coordinator Wrapper
+
+/// Structured result of a coordinator call (mirror of the core's
+/// `CoordinatorResult` JSON): success payload + classified error in one
+/// return. `errorKind` is one of: no_playable_location, playback_failed,
+/// invalid_input.
+struct CoordinatorStartResult: Codable {
+    let ok: Bool
+    let errorKind: String?
+    let errorMessage: String?
+    let currentTrack: Track?
+}
+
+/// The playback surface `AppState` orchestrates against (parent issue #165).
+///
+/// The coordinator owns the orchestration rules — stop old playback (#51),
+/// dispatch by source type, record plays, queue build + positioning, bounded
+/// skip of unplayable tracks (#78) — so the UI layer is a thin adapter that
+/// renders the coordinator's state.
+///
+/// Test seam: tests inject a spy implementation to assert the exact calls
+/// without touching the audio engine.
+protocol CoordinatorProtocol {
+    /// Start playback of `track` with `queueTracks` as the queue. The
+    /// no-playable-location guard (#78) lives in the core: a track without a
+    /// location returns a classified failure and nothing changes.
+    @discardableResult
+    func start(track: Track, queueTracks: [Track], mode: PlayMode, library: RhythmLibrary?) -> CoordinatorStartResult
+    /// Advance to the next playable track (bounded skip of unplayable ones).
+    @discardableResult
+    func playNext(library: RhythmLibrary?) -> CoordinatorStartResult
+    /// Move to the previous playable track (bounded skip of unplayable ones).
+    @discardableResult
+    func playPrevious(library: RhythmLibrary?) -> CoordinatorStartResult
+    /// Sync the queue after a library refresh (#69): replace + jump to the
+    /// current track.
+    func syncQueue(tracks: [Track])
+    func pause()
+    func resume()
+    func stop()
+    func setVolume(_ v: Float)
+    func setPlayMode(_ mode: PlayMode)
+    var volume: Float { get }
+    var hasNext: Bool { get }
+    var hasPrevious: Bool { get }
+    var currentTrack: Track? { get }
+    var position: Double { get }
+    var duration: Double { get }
+    var state: Int32 { get }
+    var errorMessage: String? { get }
+    /// Classification of the last playback failure when it was HTTP:
+    /// "expired" | "cdn_rejected" | "other"; nil otherwise (#120).
+    var errorKind: String? { get }
+    /// Seek to a position; returns false when the engine rejected the seek
+    /// (e.g. out of range), so callers can roll back optimistic UI state (#147).
+    @discardableResult
+    func seek(_ seconds: Double) -> Bool
+}
+
+final class RhythmCoordinator: CoordinatorProtocol {
+    private var ptr: OpaquePointer?
+
+    init() {
+        ptr = rhythm_coordinator_create()
+    }
+
+    deinit {
+        if let ptr { rhythm_coordinator_destroy(ptr) }
+    }
+
+    @discardableResult
+    func start(track: Track, queueTracks: [Track], mode: PlayMode, library: RhythmLibrary?) -> CoordinatorStartResult {
+        guard let ptr else {
+            return CoordinatorStartResult(ok: false, errorKind: "invalid_input", errorMessage: "null coordinator handle", currentTrack: nil)
+        }
+        guard let json = rhythm_coordinator_start(
+            ptr,
+            library?.handle,
+            encodeJSON(track),
+            encodeJSON(queueTracks),
+            mode.rawValue
+        ) else {
+            return CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil)
+        }
+        defer { rhythm_free_string(json) }
+        return decodeJSON(String(cString: json))
+            ?? CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil)
+    }
+
+    @discardableResult
+    func playNext(library: RhythmLibrary?) -> CoordinatorStartResult {
+        guard let ptr, let json = rhythm_coordinator_next(ptr, library?.handle) else {
+            return CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil)
+        }
+        defer { rhythm_free_string(json) }
+        return decodeJSON(String(cString: json))
+            ?? CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil)
+    }
+
+    @discardableResult
+    func playPrevious(library: RhythmLibrary?) -> CoordinatorStartResult {
+        guard let ptr, let json = rhythm_coordinator_previous(ptr, library?.handle) else {
+            return CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil)
+        }
+        defer { rhythm_free_string(json) }
+        return decodeJSON(String(cString: json))
+            ?? CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil)
+    }
+
+    func syncQueue(tracks: [Track]) {
+        guard let ptr else { return }
+        rhythm_coordinator_sync_queue(ptr, encodeJSON(tracks))
+    }
+
+    func pause() {
+        guard let ptr else { return }
+        rhythm_coordinator_pause(ptr)
+    }
+
+    func resume() {
+        guard let ptr else { return }
+        rhythm_coordinator_resume(ptr)
+    }
+
+    func stop() {
+        guard let ptr else { return }
+        rhythm_coordinator_stop(ptr)
+    }
+
+    func setVolume(_ v: Float) {
+        guard let ptr else { return }
+        rhythm_coordinator_set_volume(ptr, v)
+    }
+
+    func setPlayMode(_ mode: PlayMode) {
+        guard let ptr else { return }
+        rhythm_coordinator_set_play_mode(ptr, mode.rawValue)
+    }
+
+    var volume: Float {
+        guard let ptr else { return 0 }
+        return rhythm_coordinator_get_volume(ptr)
+    }
+
+    var hasNext: Bool {
+        guard let ptr else { return false }
+        return rhythm_coordinator_has_next(ptr) != 0
+    }
+
+    var hasPrevious: Bool {
+        guard let ptr else { return false }
+        return rhythm_coordinator_has_previous(ptr) != 0
+    }
+
+    var currentTrack: Track? {
+        guard let ptr, let json = rhythm_coordinator_current_track(ptr) else { return nil }
+        defer { rhythm_free_string(json) }
+        return decodeJSON(String(cString: json))
+    }
+
+    var position: Double {
+        guard let ptr else { return 0 }
+        return rhythm_coordinator_get_position(ptr)
+    }
+
+    var duration: Double {
+        guard let ptr else { return 0 }
+        return rhythm_coordinator_get_duration(ptr)
+    }
+
+    var state: Int32 {
+        guard let ptr else { return -1 }
+        return rhythm_coordinator_get_state(ptr)
+    }
+
+    var errorMessage: String? {
+        guard let ptr, let raw = rhythm_coordinator_error(ptr) else { return nil }
+        defer { rhythm_free_string(raw) }
+        return String(cString: raw)
+    }
+
+    var errorKind: String? {
+        guard let ptr, let raw = rhythm_coordinator_error_kind(ptr) else { return nil }
+        defer { rhythm_free_string(raw) }
+        return String(cString: raw)
+    }
+
+    func seek(_ seconds: Double) -> Bool {
+        guard let ptr else { return false }
+        return rhythm_coordinator_seek(ptr, seconds) == 0
     }
 }
 

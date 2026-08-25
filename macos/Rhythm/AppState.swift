@@ -2,7 +2,10 @@ import SwiftUI
 
 final class AppState: ObservableObject {
     @Published var library: RhythmLibrary?
-    @Published var player: RhythmPlayerProtocol = RhythmPlayer()
+    /// Test seam: injectable coordinator. Defaults to the real FFI-backed one
+    /// (owns the engine, queue, current track, and play mode — parent issue
+    /// #165).
+    var coordinator: CoordinatorProtocol = RhythmCoordinator()
     @Published var selectedView: SidebarItem = .library
     @Published var searchQuery = ""
     @Published var tracks: [Track] = []
@@ -33,10 +36,6 @@ final class AppState: ObservableObject {
     @Published var showDeleteConfirmation = false
     @Published var selectedTrackID: Int64?
 
-    private var queue: RhythmQueue?
-    /// Length of the queue backing `queue` — the skip loop in
-    /// playNext/playPrevious is bounded by this (#78).
-    private var queueTrackCount = 0
     private var resolverStatusTimer: Timer?
 
     /// Test seam: injectable resolver. Defaults to the global function that
@@ -78,11 +77,9 @@ final class AppState: ObservableObject {
         playlists = lib.allPlaylists()
 
         // #69: keep the play queue in sync so newly imported tracks are
-        // reachable via "next" and deleted tracks are removed.
-        if let q = queue, let current = currentTrack {
-            q.replace(tracks: tracks)
-            if current.id >= 0 { _ = q.jumpTo(current.id) }
-        }
+        // reachable via "next" and deleted tracks are removed. The sync now
+        // happens inside the coordinator (#170).
+        coordinator.syncQueue(tracks: tracks)
     }
 
     func importDirectory(_ url: URL) {
@@ -179,10 +176,9 @@ final class AppState: ObservableObject {
         // If the deleted track is currently playing, stop playback and
         // clear the queue so "next" doesn't try to play a dead track.
         if currentTrack?.id == track.id {
-            player.stop()
+            coordinator.stop()
             isPlaying = false
             currentTrack = nil
-            queue = nil
         }
 
         _ = library?.removeTrack(track.id)
@@ -200,33 +196,15 @@ final class AppState: ObservableObject {
     }
 
     /// Play a track with a specific queue (e.g., from a playlist).
+    ///
+    /// The #78 guard now lives in the coordinator: a track with no playable
+    /// location comes back as a classified failure and nothing changes —
+    /// the UI never claims playback with nothing audible.
     func playTrack(_ track: Track, queueTracks: [Track]) {
-        // #78: a track with no playable location must not enter the playing
-        // state — the old code set currentTrack/isPlaying first and silently
-        // skipped the player, so the UI claimed playback with nothing audible.
-        guard let location = playableLocation(track) else { return }
-        startPlayback(track, location)
-
-        // Set up play queue
-        if let q = RhythmQueue(tracks: queueTracks) {
-            q.setMode(playMode)
-            _ = q.jumpTo(track.id)
-            queue = q
-            queueTrackCount = queueTracks.count
-        }
-    }
-
-    /// Stop the old engine, hand the location to the player, and flip the
-    /// transport state — the one place the three play paths converge.
-    private func startPlayback(_ track: Track, _ location: PlayableLocation) {
+        let outcome = coordinator.start(track: track, queueTracks: queueTracks, mode: playMode, library: library)
+        guard outcome.ok else { return }
         currentTrack = track
-        player.stop() // #51: stop old playback before starting new
-        switch location {
-        case .file(let path): player.playFile(path)
-        case .url(let url): player.playURL(url)
-        }
         isPlaying = true
-        library?.recordPlay(track.id)
     }
 
     /// Watch the core's provisioning status while a resolution runs. The
@@ -400,25 +378,21 @@ final class AppState: ObservableObject {
         // Persist to database first — the returned track has the real id.
         let saved = library?.addTrack(track) ?? track
         refreshLibrary() // #66: reload from DB instead of manual insert for data consistency
-        // #78: the same no-playable-location guard as playTrack — a resolved
-        // track without a URL must not fake-play.
-        guard let location = playableLocation(saved) else { return }
-        startPlayback(saved, location)
+        // #78: the no-playable-location guard applies here too — the
+        // coordinator rejects a resolved track without a URL.
+        let outcome = coordinator.start(track: saved, queueTracks: tracks, mode: playMode, library: library)
+        guard outcome.ok else { return }
+        currentTrack = saved
+        isPlaying = true
         urlInput = ""
-        if let q = RhythmQueue(tracks: tracks) {
-            q.setMode(playMode)
-            // Position the queue at the newly saved track by its real DB id.
-            if saved.id >= 0 { _ = q.jumpTo(saved.id) }
-            queue = q
-            queueTrackCount = tracks.count
-        }
     }
 
     // MARK: - Transport Availability
     //
     // The tray menu validates against these (#24). They mirror exactly what
     // the transport methods below will actually do, so a menu item is never
-    // enabled for an action that would silently no-op.
+    // enabled for an action that would silently no-op. The queue-side checks
+    // come from the coordinator (#170).
 
     /// `togglePlayPause` needs either something playing or something to start.
     var canTogglePlayback: Bool {
@@ -426,11 +400,11 @@ final class AppState: ObservableObject {
     }
 
     var canPlayNext: Bool {
-        queue?.hasNext ?? false
+        coordinator.hasNext
     }
 
     var canPlayPrevious: Bool {
-        queue?.hasPrevious ?? false
+        coordinator.hasPrevious
     }
 
     var canStop: Bool { isPlaying }
@@ -438,7 +412,7 @@ final class AppState: ObservableObject {
     /// Toggle between play and pause.
     func togglePlayPause() {
         if isPlaying {
-            player.pause()
+            coordinator.pause()
             isPlaying = false
             // Nothing polls while paused, so this would otherwise stay stuck on
             // whatever it was when the user hit pause.
@@ -449,8 +423,8 @@ final class AppState: ObservableObject {
                 // any other state (Error / Stopped / Buffering) resume is a
                 // no-op, so claiming playback would desync the UI from the
                 // engine.
-                if player.state == 2 {
-                    player.resume()
+                if coordinator.state == 2 {
+                    coordinator.resume()
                     isPlaying = true
                 }
             } else if let first = tracks.first(where: { playableLocation($0) != nil }) {
@@ -461,31 +435,26 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Play the next track in the queue.
+    /// Play the next track in the queue. The bounded skip of unplayable
+    /// tracks happens inside the coordinator (#78, #170).
     func playNext() {
-        guard let q = queue else { return }
-        // #78: skip past tracks with no playable location instead of
-        // fake-playing them. Bounded by the queue length so an all-dead
-        // queue cannot loop forever.
-        for _ in 0..<queueTrackCount {
-            guard let nextTrack = q.next() else { return }
-            guard let location = playableLocation(nextTrack) else { continue }
-            startPlayback(nextTrack, location)
-            return
-        }
-        // Every remaining track is unplayable — give up without touching
-        // state; the current track keeps playing.
+        applyTransportOutcome(coordinator.playNext(library: library))
     }
 
-    /// Play the previous track in the queue.
+    /// Play the previous track in the queue (bounded skip — #78).
     func playPrevious() {
-        guard let q = queue else { return }
-        // #78: same skip semantics as playNext, walking backwards.
-        for _ in 0..<queueTrackCount {
-            guard let prevTrack = q.previous() else { return }
-            guard let location = playableLocation(prevTrack) else { continue }
-            startPlayback(prevTrack, location)
-            return
+        applyTransportOutcome(coordinator.playPrevious(library: library))
+    }
+
+    /// Apply a transport result: on success the coordinator reports the new
+    /// current track; when nothing moved (no queue / exhausted / all
+    /// unplayable) the current track keeps playing untouched.
+    private func applyTransportOutcome(_ outcome: CoordinatorStartResult) {
+        guard outcome.ok else { return }
+        if let track = outcome.currentTrack {
+            currentTrack = track
+            isPlaying = true
+            isBuffering = false
         }
     }
 
@@ -513,12 +482,10 @@ final class AppState: ObservableObject {
     /// the current track and queue.  The player bar reverts to its idle state
     /// and the tray / app menu can gate on `canStop`.
     func stop() {
-        player.stop()
+        coordinator.stop()
         isPlaying = false
         isBuffering = false
         currentTrack = nil
-        queue = nil
-        queueTrackCount = 0
         position = 0
         duration = 0
     }
@@ -526,19 +493,19 @@ final class AppState: ObservableObject {
     /// Cycle to the next play mode.
     func cyclePlayMode() {
         playMode = playMode.next()
-        queue?.setMode(playMode)
+        coordinator.setPlayMode(playMode)
     }
 
     /// Called by the progress timer to check for track-end auto-advance.
     func updatePlaybackProgress() {
         guard isPlaying else { return }
-        position = player.position
-        duration = player.duration
+        position = coordinator.position
+        duration = coordinator.duration
 
-        let state = player.state
+        let state = coordinator.state
         isBuffering = state == 3
         if state == 5 { // Finished
-            if queue?.hasNext == true {
+            if coordinator.hasNext {
                 let before = currentTrack?.id
                 playNext()
                 if currentTrack?.id == before {
@@ -553,8 +520,8 @@ final class AppState: ObservableObject {
         } else if state == 4 { // Error
             // Otherwise a failed stream just sits at 0:00 with no explanation.
             isPlaying = false
-            let detail = player.errorMessage ?? ""
-            let kind = player.errorKind
+            let detail = coordinator.errorMessage ?? ""
+            let kind = coordinator.errorKind
             NSLog("Playback failed: %@", detail)
             urlError = L10n.playbackFailed(kind: kind, detail: detail)
         }
@@ -564,7 +531,7 @@ final class AppState: ObservableObject {
     /// Position updates only when the engine accepts the seek; a rejected
     /// (e.g. out-of-range) seek keeps the previous position (#147).
     func seek(to seconds: Double) {
-        if player.seek(seconds) {
+        if coordinator.seek(seconds) {
             position = seconds
         }
     }

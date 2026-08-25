@@ -3,7 +3,9 @@ import Foundation
 @testable import Rhythm
 
 /// AS-01–26：AppState 播放编排主路径（manifest: docs/testing/behavior/appstate-macos.md）。
-/// 接缝：SpyPlayer（断言调用顺序）+ 可注入 resolver + 真 SQLite 库 / 真 RhythmQueue。
+/// 接缝：SpyCoordinator（断言 UI → 协调器的调用）+ 可注入 resolver + 真 SQLite 库。
+/// 编排规则本身（stop 先于 play、有界跳过、recordPlay 落库）在 rust-core 的
+/// coordinator_behavior.rs 测试（CO-xx）；此处只断言 AppState 把状态渲染对。
 final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
 
     // MARK: - AS-01 打开数据库
@@ -46,14 +48,14 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         appState.playTrack(track)
 
         XCTAssertEqual(appState.currentTrack, track)
-        // #51: stop must come strictly before the new play call.
-        XCTAssertEqual(spy.calls, ["stop", "playFile:/tmp/local.mp3"])
-        XCTAssertTrue(spy.playURLCalls.isEmpty)
+        // The start path went through the coordinator with the right payload.
+        XCTAssertEqual(spy.startCalls.count, 1)
+        XCTAssertEqual(spy.startCalls[0].track.id, track.id)
+        XCTAssertEqual(spy.startCalls[0].queueTracks.map(\.id), [track.id])
+        XCTAssertEqual(spy.startCalls[0].mode, .sequential)
+        // #51 stop-before-play and recordPlay 落库由 rust-core CO-01/CO-05 覆盖。
         XCTAssertTrue(appState.isPlaying)
         XCTAssertFalse(appState.canPlayNext, "single-track queue has no next")
-        // recordPlay persists: the library row's play counter advances.
-        appState.refreshLibrary()
-        XCTAssertEqual(appState.tracks.first?.playCount, 1, "recordPlay(id) must reach the DB")
     }
 
     // MARK: - AS-04 playTrack URL 曲目
@@ -64,8 +66,9 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
 
         appState.playTrack(track)
 
-        XCTAssertEqual(spy.calls, ["stop", "playURL:https://example.com/a.mp3"])
-        XCTAssertTrue(spy.playFileCalls.isEmpty, "URL track must not touch playFile")
+        XCTAssertEqual(spy.startCalls.count, 1)
+        XCTAssertEqual(spy.startCalls[0].track.sourceUrl, "https://example.com/a.mp3")
+        // URL 分派（playURL 而非 playFile）由 rust-core CO-02 覆盖。
         XCTAssertTrue(appState.isPlaying)
     }
 
@@ -99,7 +102,6 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         XCTAssertFalse(appState.isPlaying)
         XCTAssertFalse(appState.isBuffering)
     }
-
     func testTogglePlayPause_ResumesWhenPaused() throws {
         appState.tracks = [makeLocalTrack(path: "/tmp/p.mp3")]
         appState.playTrack(appState.tracks[0])
@@ -150,7 +152,8 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         appState.togglePlayPause()
 
         XCTAssertEqual(appState.currentTrack, first)
-        XCTAssertTrue(spy.calls.contains("playFile:/tmp/first.mp3"))
+        XCTAssertEqual(spy.startCalls.count, 1)
+        XCTAssertEqual(spy.startCalls[0].track.id, first.id)
         XCTAssertTrue(appState.isPlaying)
     }
 
@@ -165,11 +168,9 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         appState.playNext()
 
         XCTAssertEqual(appState.currentTrack, t2)
-        XCTAssertEqual(spy.calls, ["stop", "playFile:/tmp/two.mp3"], "stop must precede dispatch")
+        // 有界跳过与 stop 先于分派由 rust-core CO-09/CO-10 覆盖。
+        XCTAssertEqual(spy.calls, ["next"])
         XCTAssertTrue(appState.isPlaying)
-        appState.refreshLibrary()
-        XCTAssertEqual(appState.tracks.first(where: { $0.id == t2.id })?.playCount, 1,
-                       "recordPlay(next.id) must reach the DB")
     }
 
     func testPlayNext_NoNext_NoOp() throws {
@@ -180,7 +181,7 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         appState.playNext()
 
         XCTAssertEqual(appState.currentTrack, t1)
-        XCTAssertFalse(spy.hasAnyCall)
+        XCTAssertEqual(spy.calls, ["next"], "next 派发但无下一首时 current 不变")
     }
 
     // MARK: - AS-10 playPrevious
@@ -194,7 +195,7 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         appState.playPrevious()
 
         XCTAssertEqual(appState.currentTrack, t1)
-        XCTAssertEqual(spy.calls, ["stop", "playFile:/tmp/one.mp3"])
+        XCTAssertEqual(spy.calls, ["previous"])
         XCTAssertTrue(appState.isPlaying)
     }
 
@@ -252,7 +253,7 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
 
         XCTAssertEqual(appState.currentTrack, t2, "finished track must auto-advance")
         XCTAssertTrue(appState.isPlaying)
-        XCTAssertEqual(spy.calls, ["stop", "playFile:/tmp/two.mp3"])
+        XCTAssertEqual(spy.calls, ["next"])
     }
 
     // MARK: - AS-14 播完终止
@@ -289,8 +290,7 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
     // #135: locale must be pinned — the assertions below are Chinese, and on
     // an English machine the un-pinned test used to pass for the wrong reason
     // (the early English return ignored `kind` entirely).
-    func testUpdatePlaybackProgress_Error_ExpiredKind_KeepsRepasteAdvice() throws {
-        UserDefaults.standard.set("zh", forKey: "AppLanguage")
+    func testUpdatePlaybackProgress_Error_ExpiredKind_KeepsRepasteAdvice() throws {        UserDefaults.standard.set("zh", forKey: "AppLanguage")
         defer { UserDefaults.standard.removeObject(forKey: "AppLanguage") }
         appState.tracks = [makeLocalTrack(path: "/tmp/p.mp3")]
         appState.playTrack(appState.tracks[0])
@@ -348,7 +348,6 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         XCTAssertEqual(spy.seekCalls, [30])
         XCTAssertEqual(appState.position, 30, "position updates immediately (#73)")
     }
-
     // MARK: - AS-17 cyclePlayMode
 
     func testCyclePlayMode_CyclesAndSyncsQueue() throws {
@@ -417,7 +416,7 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         XCTAssertEqual(appState.tracks[0].sourceUrl, "https://page.example.com/watch?v=1")
         XCTAssertFalse(appState.isPlaying, "import must not auto-play (#74)")
         XCTAssertNil(appState.currentTrack)
-        XCTAssertFalse(spy.hasAnyCall, "no player calls at all")
+        XCTAssertTrue(spy.startCalls.isEmpty, "no playback started at all")
         XCTAssertFalse(appState.isResolvingURL)
         XCTAssertEqual(appState.urlInput, "")
     }
@@ -448,7 +447,7 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         XCTAssertTrue(appState.showImportAlert)
         XCTAssertNotNil(appState.importAlertMessage)
         XCTAssertFalse(appState.isPlaying)
-        XCTAssertFalse(spy.hasAnyCall)
+        XCTAssertTrue(spy.startCalls.isEmpty)
     }
 
     // MARK: - AS-22 playResolved
@@ -465,7 +464,9 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         XCTAssertNotNil(appState.currentTrack)
         XCTAssertGreaterThanOrEqual(appState.currentTrack!.id, 0, "saved with the real DB id (#39)")
         XCTAssertEqual(appState.currentTrack!.title, "Fresh")
-        XCTAssertEqual(spy.calls, ["stop", "playURL:https://example.com/new.mp3"], "#51 stop first")
+        // 持久化后经协调器起播（queue = 刷新后的 tracks）。
+        XCTAssertEqual(spy.startCalls.count, 1)
+        XCTAssertEqual(spy.startCalls[0].track.id, appState.currentTrack!.id)
         // Queue rebuilt from the library (#39) and positioned exactly at the
         // saved track, wherever it sits in the DB order.
         XCTAssertEqual(appState.tracks.count, 2)

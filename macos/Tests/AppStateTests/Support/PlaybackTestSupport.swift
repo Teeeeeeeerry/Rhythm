@@ -2,44 +2,97 @@ import Foundation
 import XCTest
 @testable import Rhythm
 
-// MARK: - SpyPlayer
+// MARK: - SpyCoordinator
 
-/// Records every call `AppState` makes against the player protocol, so tests
-/// can assert the exact sequence (e.g. `stop` before `playFile` — #51)
-/// without touching the audio engine.
-final class SpyPlayer: RhythmPlayerProtocol {
+/// Records every call `AppState` makes against the coordinator protocol, so
+/// tests can assert what the UI asked the core to do without touching the
+/// audio engine.
+///
+/// The spy mirrors the coordinator's contract with a small sequential queue
+/// model (skip unplayable tracks, jump back to the current id on sync, the
+/// no-playable-location guard). The real rules live and are tested in
+/// rust-core (`coordinator_behavior.rs`); this model exists so the AppState
+/// tests stay behavioral instead of hand-wiring every answer.
+final class SpyCoordinator: CoordinatorProtocol {
+    /// Human-readable call log, mirroring the old SpyPlayer format so tests
+    /// read the same way ("stop", "pause", "resume", "seek:30", …).
     private(set) var calls: [String] = []
-    private(set) var playFileCalls: [String] = []
-    private(set) var playURLCalls: [String] = []
+    private(set) var startCalls: [(track: Track, queueTracks: [Track], mode: PlayMode)] = []
+    private(set) var syncQueueCalls: [[Track]] = []
+    private(set) var setPlayModeCalls: [PlayMode] = []
     private(set) var seekCalls: [Double] = []
+    private(set) var stopCount = 0
     /// When false, `seek` reports rejection (engine-side out-of-range seek).
     var seekSucceeds = true
-    private(set) var stopCount = 0
 
+    // Engine mirror (what the UI polls between events).
     var position: Double = 0
     var duration: Double = 0
     var state: Int32 = 0
     var errorMessage: String?
     var errorKind: String?
+    var volume: Float = 1
+
+    // Mini queue model: sequential cursor over the last started queue.
+    private var queueTracks: [Track] = []
+    private var cursor = 0
+    private var playMode: PlayMode = .sequential
 
     var hasAnyCall: Bool { !calls.isEmpty }
 
     func reset() {
         calls = []
-        playFileCalls = []
-        playURLCalls = []
+        startCalls = []
+        syncQueueCalls = []
+        setPlayModeCalls = []
         seekCalls = []
         stopCount = 0
     }
 
-    func playFile(_ path: String) {
-        calls.append("playFile:\(path)")
-        playFileCalls.append(path)
+    @discardableResult
+    func start(track: Track, queueTracks: [Track], mode: PlayMode, library: RhythmLibrary?) -> CoordinatorStartResult {
+        calls.append("start:\(track.title)")
+        startCalls.append((track, queueTracks, mode))
+        // Mirror of the core's no-playable-location guard (#78).
+        guard playable(track) else {
+            return CoordinatorStartResult(
+                ok: false,
+                errorKind: "no_playable_location",
+                errorMessage: "track has no playable location",
+                currentTrack: nil
+            )
+        }
+        self.queueTracks = queueTracks
+        self.playMode = mode
+        cursor = queueTracks.firstIndex { $0.id == track.id } ?? 0
+        self.currentTrack = track
+        return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: track)
     }
 
-    func playURL(_ url: String) {
-        calls.append("playURL:\(url)")
-        playURLCalls.append(url)
+    @discardableResult
+    func playNext(library: RhythmLibrary?) -> CoordinatorStartResult {
+        calls.append("next")
+        return advance(backwards: false)
+    }
+
+    @discardableResult
+    func playPrevious(library: RhythmLibrary?) -> CoordinatorStartResult {
+        calls.append("previous")
+        return advance(backwards: true)
+    }
+
+    func syncQueue(tracks: [Track]) {
+        calls.append("syncQueue")
+        syncQueueCalls.append(tracks)
+        // Mirror of the coordinator: replace, then jump back to the current
+        // track by id (the coordinator's own current, not the UI's).
+        queueTracks = tracks
+        if let current = currentTrack, current.id >= 0,
+           let pos = tracks.firstIndex(where: { $0.id == current.id }) {
+            cursor = pos
+        } else {
+            cursor = 0
+        }
     }
 
     func pause() {
@@ -55,16 +108,75 @@ final class SpyPlayer: RhythmPlayerProtocol {
     func stop() {
         calls.append("stop")
         stopCount += 1
+        currentTrack = nil
+        queueTracks = []
+        cursor = 0
     }
 
     func setVolume(_ v: Float) {
         calls.append("setVolume:\(v)")
     }
 
+    func setPlayMode(_ mode: PlayMode) {
+        calls.append("setPlayMode:\(mode)")
+        setPlayModeCalls.append(mode)
+        playMode = mode
+    }
+
     func seek(_ seconds: Double) -> Bool {
         calls.append("seek:\(seconds)")
         seekCalls.append(seconds)
         return seekSucceeds
+    }
+
+    var currentTrack: Track?
+    var hasNext: Bool {
+        guard currentTrack != nil, !queueTracks.isEmpty else { return false }
+        switch playMode {
+        case .singleLoop: return true
+        case .sequential: return cursor + 1 < queueTracks.count
+        case .shuffle, .listLoop: return true
+        }
+    }
+
+    var hasPrevious: Bool {
+        guard currentTrack != nil, !queueTracks.isEmpty else { return false }
+        return playMode == .sequential ? cursor > 0 : true
+    }
+
+    // ── Model helpers ─────────────────────────────────────────
+
+    /// The player-reachable location check, mirroring the coordinator.
+    private func playable(_ track: Track) -> Bool {
+        if track.sourceType == "local" {
+            return !(track.filePath ?? "").isEmpty
+        }
+        return !(track.sourceUrl ?? "").isEmpty
+    }
+
+    /// Walk the queue from the cursor (bounded by the queue length), skipping
+    /// unplayable tracks (#78). Returns the unchanged current when nothing
+    /// playable is found.
+    private func advance(backwards: Bool) -> CoordinatorStartResult {
+        guard let current = currentTrack, !queueTracks.isEmpty else {
+            return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: currentTrack)
+        }
+        if playMode == .singleLoop {
+            // The queue repeats the current track.
+            return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: current)
+        }
+        let bound = queueTracks.count
+        for _ in 0..<bound {
+            let nextIndex = backwards ? cursor - 1 : cursor + 1
+            guard nextIndex >= 0, nextIndex < queueTracks.count else { break }
+            cursor = nextIndex
+            let candidate = queueTracks[nextIndex]
+            if playable(candidate) {
+                currentTrack = candidate
+                return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: candidate)
+            }
+        }
+        return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: currentTrack)
     }
 }
 
@@ -199,19 +311,19 @@ final class BlockingResolver {
 
 // MARK: - Test base
 
-/// Shared fixture: temp directory, temp SQLite library, and a SpyPlayer
+/// Shared fixture: temp directory, temp SQLite library, and a SpyCoordinator
 /// injected into `AppState`.
 class AppStatePlaybackTestCase: XCTestCase {
     var appState: AppState!
-    var spy: SpyPlayer!
+    var spy: SpyCoordinator!
     var tempDir: URL!
     var dbURL: URL!
 
     override func setUp() {
         super.setUp()
         appState = AppState()
-        spy = SpyPlayer()
-        appState.player = spy
+        spy = SpyCoordinator()
+        appState.coordinator = spy
         tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("RhythmTests-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(
