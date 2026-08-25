@@ -2,16 +2,23 @@
 #include "AppState.h"
 #include "L10n.h"
 
+#include <nlohmann/json.hpp>
+
 #include <thread>
+
+using json = nlohmann::json;
 
 namespace rhythm {
 
 AppState::AppState() {
-    Player = std::make_unique<rhythm::Player>();
+    Coordinator = std::make_unique<rhythm::Coordinator>();
+    Coordinator->SetEventHandler(
+        [this](const std::wstring& json) { OnCoordinatorEvent(json); });
 }
 
 void AppState::OpenDatabase(const std::wstring& path) {
     Library = std::make_unique<rhythm::Library>(path);
+    Coordinator->SetLibrary(Library.get());
     RefreshLibrary();
 }
 
@@ -20,12 +27,10 @@ void AppState::RefreshLibrary() {
     Tracks = Library->AllTracks();
     Playlists = Library->AllPlaylists();
 
-    // WA-20 (#69): keep the play queue in sync so newly imported tracks are
-    // reachable via "next" and deleted tracks are removed.
-    if (Queue && CurrentTrack) {
-        Queue->Replace(Tracks);
-        if (CurrentTrack->id >= 0) Queue->JumpTo(CurrentTrack->id);
-    }
+    // #69: keep the play queue in sync so newly imported tracks are
+    // reachable via "next" and deleted tracks are removed — inside the
+    // coordinator (ticket #173).
+    Coordinator->SyncQueue(Tracks);
 }
 
 void AppState::ImportDirectory(const std::wstring& path) {
@@ -45,112 +50,133 @@ void AppState::ImportDirectory(const std::wstring& path) {
     }
 }
 
+void AppState::ImportM3U8(const std::wstring& path) {
+    if (!Library) return;
+    auto entries = Library->ImportM3U8(path);
+    int32_t imported = 0;
+    int32_t failed = 0;
+    for (const auto& entry : entries) {
+        // Entries without a location are not importable (macOS parity).
+        if (entry.location.empty()) {
+            failed += 1;
+            continue;
+        }
+        // A location that looks like an http(s) URL is stored as a
+        // direct_url; anything else is a local file path (macOS parity,
+        // #136 semantics).
+        bool isUrl = entry.location.rfind(L"http://", 0) == 0 ||
+                     entry.location.rfind(L"https://", 0) == 0;
+        Track track;
+        track.id = 0;
+        track.title = entry.title.empty() ? L"Unknown" : entry.title;
+        track.artist = entry.artist;
+        track.sourceType = isUrl ? L"direct_url" : L"local";
+        if (isUrl) {
+            track.sourceUrl = entry.location;
+        } else {
+            track.filePath = entry.location;
+        }
+        auto saved = Library->AddTrack(track);
+        if (saved.id != 0) {
+            imported += 1;
+        } else {
+            failed += 1;
+        }
+    }
+    RefreshLibrary();
+    if (failed > 0) {
+        ImportAlertMessage = L10n::ImportSomeFailed(imported, failed);
+    } else if (imported > 0) {
+        ImportAlertMessage = L10n::ImportedTracks(imported);
+    }
+    if (imported > 0 || failed > 0) {
+        ShowImportAlert = true;
+    }
+}
+
 void AppState::DoSearch() {
     if (!Library) return;
     Tracks = SearchQuery.empty() ? Library->AllTracks() : Library->Search(SearchQuery);
 }
 
 void AppState::PlayTrack(const Track& track) {
-    // #81: without a playable path there is nothing to play — don't enter
-    // the playing state (silent fake playback).
-    if (!track.filePath && !track.sourceUrl) return;
+    // #81: the no-playable-location guard lives in the coordinator — a track
+    // without a location comes back as a classified failure and nothing
+    // changes (silent fake playback is impossible).
+    auto outcome = Coordinator->Start(track, Tracks, static_cast<int32_t>(CurrentMode));
+    if (!outcome.ok) return;
 
     CurrentTrack = track;
-    StartTrack(track);
-
-    // WA-19: rebuild the play queue from the current track list.
-    auto q = std::make_unique<PlayQueue>(Tracks);
-    q->SetMode(static_cast<int32_t>(CurrentMode));
-    if (track.id >= 0) q->JumpTo(track.id);
-    Queue = std::move(q);
-}
-
-/// Stop → playFile/playURL → IsPlaying → RecordPlay (#51: stop old playback
-/// before starting new). The caller guards the #81 no-path case.
-void AppState::StartTrack(const Track& track) {
-    Player->Stop();
-    if (track.filePath) {
-        Player->PlayFile(*track.filePath);
-    } else if (track.sourceUrl) {
-        Player->PlayURL(*track.sourceUrl);
-    }
     IsPlaying = true;
-    if (Library) Library->RecordPlay(track.id);
 }
 
 void AppState::TogglePlayPause() {
-    if (IsPlaying) {
-        // #111: Pause() also responds in Buffering, so the engine cannot
-        // start Playing and push audio after the UI shows paused.
-        Player->Pause();
-        IsPlaying = false;
-        // #137: nothing polls while paused, so this would otherwise stay
-        // stuck on whatever it was when the user hit pause.
+    // The full transport semantics live in the coordinator (ticket #171):
+    // pause while playing/buffering, resume only when paused, idle-start the
+    // first playable library track.
+    auto outcome = Coordinator->TogglePlayPause();
+    if (!outcome.ok) return;
+    if (outcome.currentTrack) {
+        CurrentTrack = outcome.currentTrack;
+    }
+    IsPlaying = outcome.playbackActive;
+    if (!IsPlaying) {
+        // Nothing polls while paused, so this would otherwise stay stuck on
+        // whatever it was when the user hit pause.
         IsBuffering = false;
-    } else {
-        if (CurrentTrack) {
-            // #111: resume in place instead of restarting from the top (#82),
-            // and only when the engine is actually Paused — in any other state
-            // (Error/Stopped/Buffering) Resume is a no-op and claiming playback
-            // would desync the UI from the engine.
-            if (Player->State() == 2) {
-                Player->Resume();
-                IsPlaying = true;
-            }
-        } else if (!Tracks.empty()) {
-            PlayTrack(Tracks[0]);
-        }
     }
 }
 
 void AppState::SetVolume(double v) {
     Volume = v;
-    Player->SetVolume(static_cast<float>(v));
+    Coordinator->SetVolume(static_cast<float>(v));
 }
 
 // ─── Transport availability (WA-22) ────────────────────────────────
 
 bool AppState::CanTogglePlayback() const {
-    return CurrentTrack.has_value() || !Tracks.empty();
+    return Coordinator->CanTogglePlayback();
 }
 
 bool AppState::CanPlayNext() const {
-    return Queue ? Queue->HasNext() : false;
+    return Coordinator->HasNext();
 }
 
 bool AppState::CanPlayPrevious() const {
-    return Queue ? Queue->HasPrevious() : false;
+    return Coordinator->HasPrevious();
 }
 
 bool AppState::CanStop() const {
-    return IsPlaying;
+    return Coordinator->CanStop();
 }
 
 // ─── Queue transport (WA-19) ───────────────────────────────────────
 
 void AppState::PlayNext() {
-    if (!Queue) return;
-    auto next = Queue->Next();
-    if (!next) return;
-    if (!next->filePath && !next->sourceUrl) return; // #81 guard
-    CurrentTrack = *next;
-    StartTrack(*next);
+    auto outcome = Coordinator->Next();
+    if (!outcome.ok) return;
+    if (outcome.currentTrack) {
+        CurrentTrack = outcome.currentTrack;
+        IsPlaying = true;
+        IsBuffering = false;
+    }
 }
 
 void AppState::PlayPrevious() {
-    if (!Queue) return;
-    auto previous = Queue->Previous();
-    if (!previous) return;
-    if (!previous->filePath && !previous->sourceUrl) return; // #81 guard
-    CurrentTrack = *previous;
-    StartTrack(*previous);
+    auto outcome = Coordinator->Previous();
+    if (!outcome.ok) return;
+    if (outcome.currentTrack) {
+        CurrentTrack = outcome.currentTrack;
+        IsPlaying = true;
+        IsBuffering = false;
+    }
 }
 
 // ─── Play mode (WA-21) ─────────────────────────────────────────────
 
 void AppState::CyclePlayMode() {
     CurrentMode = static_cast<PlayMode>((static_cast<int32_t>(CurrentMode) + 1) % 4);
-    if (Queue) Queue->SetMode(static_cast<int32_t>(CurrentMode));
+    Coordinator->SetPlayMode(static_cast<int32_t>(CurrentMode));
 }
 
 void AppState::ResolveAndPlay(const std::wstring& url) {
@@ -195,6 +221,76 @@ void AppState::ResolveAndPlay(const std::wstring& url) {
             PlayTrack(saved);
         });
     }).detach();
+}
+
+// ─── Coordinator events (ticket #172/#173) ─────────────────────────
+
+void AppState::OnCoordinatorEvent(const std::wstring& json) {
+    auto dq = dispatcher_;
+    if (dq) {
+        dq.TryEnqueue([this, json] { ApplyCoordinatorEvent(json); });
+    } else {
+        // No dispatcher (tests): apply synchronously on the caller thread.
+        ApplyCoordinatorEvent(json);
+    }
+}
+
+void AppState::ApplyCoordinatorEvent(const std::wstring& json) {
+    try {
+        auto j = json::parse(std::string(json.begin(), json.end()));
+        std::string type = j.value("type", "");
+
+        if (type == "progress") {
+            Position = j.value("position", 0.0);
+            Duration = j.value("duration", 0.0);
+        } else if (type == "state") {
+            std::string state = j.value("state", "");
+            IsBuffering = state == "buffering";
+            IsPlaying = state == "playing" || state == "buffering";
+        } else if (type == "finished") {
+            // The coordinator already auto-advanced if possible (a
+            // track_changed event follows); when the queue is exhausted,
+            // stop claiming playback.
+            IsPlaying = false;
+            IsBuffering = false;
+        } else if (type == "error") {
+            IsPlaying = false;
+            IsBuffering = false;
+            std::string message = j.value("message", "");
+            auto detail = std::wstring(message.begin(), message.end());
+            std::wstring kind;
+            if (j.contains("kind") && !j["kind"].is_null()) {
+                kind = Utf8ToWide(j["kind"].get<std::string>());
+            }
+            UrlError = L10n::PlaybackFailed(kind, detail);
+            OutputDebugStringW((L"Playback failed: " + detail + L"\n").c_str());
+            if (OnUrlError) {
+                // #120: classify HTTP failures so the dialog can tell a
+                // genuinely expired link from a CDN rejection.
+                std::wstring kindCode = L"playback_failed";
+                if (j.contains("kind") && !j["kind"].is_null()) {
+                    auto kind = j["kind"].get<std::string>();
+                    if (kind == "expired") {
+                        kindCode = L"playback_expired";
+                    } else if (kind == "cdn_rejected") {
+                        kindCode = L"playback_cdn_rejected";
+                    }
+                }
+                OnUrlError(kindCode, detail);
+            }
+        } else if (type == "track_changed") {
+            if (j.contains("track") && !j["track"].is_null()) {
+                CurrentTrack = rhythm::ParseTrackJson(j["track"].dump());
+            }
+            IsPlaying = true;
+            IsBuffering = false;
+        }
+    } catch (const json::exception&) {
+        // Malformed event: ignore.
+    }
+    if (OnStateChanged) {
+        OnStateChanged();
+    }
 }
 
 } // namespace rhythm

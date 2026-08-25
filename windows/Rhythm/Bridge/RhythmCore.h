@@ -6,6 +6,14 @@
 
 namespace rhythm {
 
+/// UTF-8 → wide-string conversion shared by the bridge and the UI layer
+/// (coordinator event payloads).
+std::wstring Utf8ToWide(const std::string& s);
+
+/// Parse a Track from the core's snake_case JSON (used for coordinator
+/// event payloads like track_changed).
+Track ParseTrackJson(const std::string& json);
+
 /// Effective app theme: the app never pins `Application.RequestedTheme`, so
 /// the UI follows the system (the same resolution ThemeDictionaries use for
 /// `ActualTheme`). Light foreground text ⇒ dark system theme.
@@ -131,31 +139,56 @@ public:
     Track AddTrack(const Track& track);
     /// Delete a track from the library. Returns true if a row was deleted.
     bool RemoveTrack(int64_t id);
+    /// Parse an M3U8 file into entries (parsing only — the caller persists
+    /// each entry and counts failures; ticket #173 fixes the old no-op).
+    std::vector<M3u8Entry> ImportM3U8(const std::wstring& path);
 
 private:
     RhythmLibrary* ptr_ = nullptr;
 };
 
-class Player {
+/// Playback surface seam (ticket #173): the concrete `Player` wrapper
+/// implements this interface so tests can inject a fake and run playback
+/// paths with no audio device. Mirrors the coordinator's Rust `PlayerSurface`
+/// and the macOS `RhythmPlayerProtocol`.
+class IPlayer {
 public:
-    Player();
-    ~Player();
+    virtual ~IPlayer() = default;
 
-    void PlayFile(const std::wstring& path);
-    void PlayURL(const std::wstring& url);
-    void Pause();
-    void Resume();
-    void Stop();
-    void SetVolume(float volume);
-    float Volume() const;
-    int32_t State() const;
+    virtual void PlayFile(const std::wstring& path) = 0;
+    virtual void PlayURL(const std::wstring& url) = 0;
+    virtual void Pause() = 0;
+    virtual void Resume() = 0;
+    virtual void Stop() = 0;
+    virtual void SetVolume(float volume) = 0;
+    virtual float Volume() const = 0;
+    virtual int32_t State() const = 0;
     /// Why playback failed, when State() is 4 (Error); empty otherwise.
-    std::wstring ErrorMessage() const;
+    virtual std::wstring ErrorMessage() const = 0;
     /// Classification of the last playback failure when it was HTTP:
     /// "expired" | "cdn_rejected" | "other"; empty otherwise (#120).
-    std::wstring ErrorKind() const;
-    double Position() const;
-    double Duration() const;
+    virtual std::wstring ErrorKind() const = 0;
+    virtual double Position() const = 0;
+    virtual double Duration() const = 0;
+};
+
+class Player final : public IPlayer {
+public:
+    Player();
+    ~Player() override;
+
+    void PlayFile(const std::wstring& path) override;
+    void PlayURL(const std::wstring& url) override;
+    void Pause() override;
+    void Resume() override;
+    void Stop() override;
+    void SetVolume(float volume) override;
+    float Volume() const override;
+    int32_t State() const override;
+    std::wstring ErrorMessage() const override;
+    std::wstring ErrorKind() const override;
+    double Position() const override;
+    double Duration() const override;
 
 private:
     RhythmPlayer* ptr_ = nullptr;
@@ -184,6 +217,106 @@ public:
 
 private:
     RhythmQueue* ptr_ = nullptr;
+};
+
+/// One imported M3U8 entry (title, artist, location), decoded from the
+/// core's positional entry arrays (ticket #173; the named-struct contract
+/// follows in #177).
+struct M3u8Entry {
+    std::wstring title;
+    std::optional<std::wstring> artist;
+    std::wstring location;
+};
+
+/// Structured result of a coordinator call (mirror of the core's
+/// `CoordinatorResult` JSON): success payload + classified error in one
+/// return. `errorKind` is one of: no_playable_location, playback_failed,
+/// invalid_input.
+struct CoordinatorResult {
+    bool ok = false;
+    std::wstring errorKind;
+    std::wstring errorMessage;
+    std::optional<Track> currentTrack;
+    /// Whether playback is active (engine Playing/Buffering) after the
+    /// operation — what the UI should render for `IsPlaying`.
+    bool playbackActive = false;
+};
+
+/// The playback surface `AppState` orchestrates against (parent issue #165):
+/// owns the engine, the queue, the current track, and the play mode inside
+/// the core. Ticket #173 migrates the Windows AppState onto this seam, and
+/// tests inject a spy (no audio device required).
+class ICoordinator {
+public:
+    virtual ~ICoordinator() = default;
+
+    /// Start playback of `track` with `queueTracks` as the queue. The
+    /// no-playable-location guard lives in the core (#81).
+    virtual CoordinatorResult Start(const Track& track,
+                                    const std::vector<Track>& queueTracks,
+                                    int32_t mode) = 0;
+    virtual CoordinatorResult Next() = 0;
+    virtual CoordinatorResult Previous() = 0;
+    virtual CoordinatorResult TogglePlayPause() = 0;
+    /// Sync the queue after a library refresh (#69).
+    virtual void SyncQueue(const std::vector<Track>& tracks) = 0;
+    virtual void Stop() = 0;
+    virtual void SetVolume(float volume) = 0;
+    virtual void SetPlayMode(int32_t mode) = 0;
+    virtual bool HasNext() const = 0;
+    virtual bool HasPrevious() const = 0;
+    virtual bool CanTogglePlayback() const = 0;
+    virtual bool CanStop() const = 0;
+    virtual double Position() const = 0;
+    virtual double Duration() const = 0;
+    virtual int32_t State() const = 0;
+    virtual std::wstring ErrorMessage() const = 0;
+    virtual std::wstring ErrorKind() const = 0;
+    virtual std::optional<Track> CurrentTrack() const = 0;
+    /// Register the library handle for play recording (auto-advance).
+    virtual void SetLibrary(Library* library) = 0;
+    /// Event subscription (ticket #172): receives event JSON
+    /// (`{"type":"finished"|"error"|"progress"|"state"|"track_changed",...}`).
+    /// Invoked from the playback thread — marshal to the UI thread yourself.
+    virtual void SetEventHandler(std::function<void(const std::wstring&)> handler) = 0;
+};
+
+class Coordinator final : public ICoordinator {
+public:
+    Coordinator();
+    ~Coordinator() override;
+    Coordinator(const Coordinator&) = delete;
+    Coordinator& operator=(const Coordinator&) = delete;
+
+    CoordinatorResult Start(const Track& track,
+                            const std::vector<Track>& queueTracks,
+                            int32_t mode) override;
+    CoordinatorResult Next() override;
+    CoordinatorResult Previous() override;
+    CoordinatorResult TogglePlayPause() override;
+    void SyncQueue(const std::vector<Track>& tracks) override;
+    void Stop() override;
+    void SetVolume(float volume) override;
+    void SetPlayMode(int32_t mode) override;
+    bool HasNext() const override;
+    bool HasPrevious() const override;
+    bool CanTogglePlayback() const override;
+    bool CanStop() const override;
+    double Position() const override;
+    double Duration() const override;
+    int32_t State() const override;
+    std::wstring ErrorMessage() const override;
+    std::wstring ErrorKind() const override;
+    std::optional<Track> CurrentTrack() const override;
+    void SetLibrary(Library* library) override;
+    void SetEventHandler(std::function<void(const std::wstring&)> handler) override;
+    /// Deliver an event JSON string from the C callback (playback thread).
+    void DispatchEvent(const std::string& utf8);
+
+private:
+    RhythmCoordinator* ptr_ = nullptr;
+    Library* library_ = nullptr;
+    std::function<void(const std::wstring&)> handler_;
 };
 
 /// Outcome of a URL resolution: either a playable track, or why it failed.

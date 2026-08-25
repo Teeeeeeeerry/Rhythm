@@ -10,6 +10,222 @@
 namespace fs = std::filesystem;
 using namespace rhythm;
 
+/// UTF-8 conversion for test fixtures (the bridge keeps its own private
+/// converters).
+inline std::string WideToUtf8ForTest(const std::wstring& ws) {
+    if (ws.empty()) return {};
+    int len = WideCharToMultiByte(CP_UTF8, 0, ws.data(), (int)ws.size(), nullptr, 0, nullptr, nullptr);
+    std::string result(len, '\0');
+    WideCharToMultiByte(CP_UTF8, 0, ws.data(), (int)ws.size(), result.data(), len, nullptr, nullptr);
+    return result;
+}
+
+/// Pins the L10n language for the scope of a test (registry override),
+/// restoring the previous value on destruction (fixed-locale assertions,
+/// #142 parity).
+struct LocaleOverride {
+    std::wstring previous;
+    LocaleOverride(const std::wstring& code) {
+        previous = L10n::OverrideLanguage();
+        L10n::SetOverrideLanguage(code);
+    }
+    ~LocaleOverride() {
+        L10n::SetOverrideLanguage(previous);
+    }
+};
+
+/// Call-recording coordinator spy (ticket #173): mirrors the coordinator
+/// contract with a small sequential queue model, so AppState tests run
+/// playback paths with no audio device. The real rules live and are tested
+/// in rust-core (coordinator_behavior.rs).
+class SpyCoordinator : public ICoordinator {
+public:
+    struct StartCall {
+        Track track;
+        std::vector<Track> queueTracks;
+        int32_t mode;
+    };
+
+    std::vector<StartCall> startCalls;
+    std::vector<std::vector<Track>> syncQueueCalls;
+    std::vector<int32_t> setPlayModeCalls;
+    int nextCalls = 0;
+    int previousCalls = 0;
+    int toggleCalls = 0;
+    int stopCalls = 0;
+    float lastVolume = 0.0f;
+
+    // Engine mirror (what the UI renders between events).
+    int32_t engineState = 0;  // 0 Stopped, 1 Playing, 2 Paused, 3 Buffering
+    double position = 0.0;
+    double duration = 0.0;
+    std::wstring errorMessage;
+    std::wstring errorKind;
+
+    // Mini queue model (sequential cursor), mirroring the coordinator.
+    std::vector<Track> queueTracks;
+    std::vector<Track> libraryTracks;
+    int32_t cursor = 0;
+    int32_t mode = 0;
+    std::optional<Track> currentTrack;
+    std::function<void(const std::wstring&)> eventHandler;
+
+    CoordinatorResult Start(const Track& track,
+                            const std::vector<Track>& queueTracks,
+                            int32_t mode) override {
+        startCalls.push_back({track, queueTracks, mode});
+        CoordinatorResult result;
+        // Mirror of the core's no-playable-location guard (#81).
+        if (!Playable(track)) {
+            result.ok = false;
+            result.errorKind = L"no_playable_location";
+            return result;
+        }
+        this->queueTracks = queueTracks;
+        this->mode = mode;
+        cursor = IndexOf(track.id);
+        currentTrack = track;
+        engineState = 1;
+        result.ok = true;
+        result.currentTrack = track;
+        result.playbackActive = true;
+        return result;
+    }
+
+    CoordinatorResult Next() override {
+        ++nextCalls;
+        return Advance(false);
+    }
+
+    CoordinatorResult Previous() override {
+        ++previousCalls;
+        return Advance(true);
+    }
+
+    CoordinatorResult TogglePlayPause() override {
+        ++toggleCalls;
+        CoordinatorResult result;
+        result.ok = true;
+        if (engineState == 1 || engineState == 3) {
+            engineState = 2;  // pause
+            result.currentTrack = currentTrack;
+            result.playbackActive = false;
+        } else if (engineState == 2) {
+            engineState = 1;  // resume
+            result.currentTrack = currentTrack;
+            result.playbackActive = true;
+        } else {
+            if (!currentTrack.has_value() && !libraryTracks.empty()) {
+                // Idle start: first playable library track.
+                for (const auto& t : libraryTracks) {
+                    if (Playable(t)) {
+                        return Start(t, libraryTracks, mode);
+                    }
+                }
+            }
+            result.currentTrack = currentTrack;
+            result.playbackActive = false;
+        }
+        return result;
+    }
+
+    void SyncQueue(const std::vector<Track>& tracks) override {
+        syncQueueCalls.push_back(tracks);
+        libraryTracks = tracks;
+        queueTracks = tracks;
+        if (currentTrack.has_value() && currentTrack->id >= 0) {
+            int32_t pos = IndexOf(currentTrack->id);
+            if (pos >= 0) cursor = pos;
+            else cursor = 0;
+        } else {
+            cursor = 0;
+        }
+    }
+
+    void Stop() override {
+        ++stopCalls;
+        engineState = 0;
+        currentTrack.reset();
+        queueTracks.clear();
+        cursor = 0;
+    }
+
+    void SetVolume(float volume) override { lastVolume = volume; }
+    void SetPlayMode(int32_t m) override { mode = m; setPlayModeCalls.push_back(m); }
+    bool HasNext() const override {
+        if (!currentTrack.has_value() || queueTracks.empty()) return false;
+        return mode == 0 ? cursor + 1 < static_cast<int32_t>(queueTracks.size()) : true;
+    }
+    bool HasPrevious() const override {
+        if (!currentTrack.has_value() || queueTracks.empty()) return false;
+        return mode == 0 ? cursor > 0 : true;
+    }
+    bool CanTogglePlayback() const override {
+        return currentTrack.has_value() || !libraryTracks.empty();
+    }
+    bool CanStop() const override { return engineState == 1 || engineState == 2 || engineState == 3; }
+    double Position() const override { return position; }
+    double Duration() const override { return duration; }
+    int32_t State() const override { return engineState; }
+    std::wstring ErrorMessage() const override { return errorMessage; }
+    std::wstring ErrorKind() const override { return errorKind; }
+    std::optional<Track> CurrentTrack() const override { return currentTrack; }
+    void SetLibrary(Library*) override {}
+    void SetEventHandler(std::function<void(const std::wstring&)> handler) override {
+        eventHandler = std::move(handler);
+    }
+
+    /// Fire a coordinator event JSON through the registered handler.
+    void FireEvent(const std::wstring& json) {
+        if (eventHandler) eventHandler(json);
+    }
+
+private:
+    static bool Playable(const Track& t) {
+        if (t.sourceType == L"local") {
+            return t.filePath.has_value() && !t.filePath->empty();
+        }
+        return t.sourceUrl.has_value() && !t.sourceUrl->empty();
+    }
+
+    int32_t IndexOf(int64_t id) const {
+        for (size_t i = 0; i < queueTracks.size(); ++i) {
+            if (queueTracks[i].id == id) return static_cast<int32_t>(i);
+        }
+        return 0;
+    }
+
+    CoordinatorResult Advance(bool backwards) {
+        CoordinatorResult result;
+        result.ok = true;
+        if (!currentTrack.has_value() || queueTracks.empty()) {
+            result.currentTrack = currentTrack;
+            return result;
+        }
+        if (mode == 2) {  // SingleLoop: repeat the current track.
+            result.currentTrack = currentTrack;
+            result.playbackActive = true;
+            return result;
+        }
+        int32_t bound = static_cast<int32_t>(queueTracks.size());
+        for (int32_t i = 0; i < bound; ++i) {
+            int32_t nextIndex = backwards ? cursor - 1 : cursor + 1;
+            if (nextIndex < 0 || nextIndex >= bound) break;
+            cursor = nextIndex;
+            if (Playable(queueTracks[nextIndex])) {
+                currentTrack = queueTracks[nextIndex];
+                engineState = 1;
+                result.currentTrack = currentTrack;
+                result.playbackActive = true;
+                return result;
+            }
+        }
+        result.currentTrack = currentTrack;
+        result.playbackActive = (engineState == 1 || engineState == 3);
+        return result;
+    }
+};
+
 namespace rhythm_tests {
 
 /// A fresh temp directory, cleaned up when the guard goes out of scope.

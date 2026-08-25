@@ -124,6 +124,11 @@ inline std::wstring ImportFailed() {
     return IsChinese() ? L"导入失败，请检查目录是否可访问"
                        : L"Import failed — check that the folder is accessible";
 }
+inline std::wstring ImportSomeFailed(int32_t imported, int32_t failed) {
+    return IsChinese()
+        ? std::format(L"已导入 {} 首，{} 个失败", imported, failed)
+        : std::format(L"Imported {} tracks, {} failed.", imported, failed);
+}
 
 // ─── Source tags ────────────────────────────────────────────────────
 

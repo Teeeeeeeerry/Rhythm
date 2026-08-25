@@ -1,17 +1,40 @@
-// WA-01–23：Windows AppState 行为清单（manifest:
-// docs/testing/behavior/windows-appstate.md）。零接缝：真 rhythm_core DLL +
-// 临时 SQLite 库；#81/#82 已修复（T7），原红测已解禁转真断言。
+// WA-01–28：Windows AppState 行为清单（manifest:
+// docs/testing/behavior/windows-appstate.md）。
+//
+// 接缝（ticket #173）：AppState 的编排全部经 ICoordinator seam；测试注入
+// SpyCoordinator（内置顺序队列模型，镜像协调器契约）——播放路径不再依赖音频
+// 设备，原「无音频设备 SKIP」用例全部转为确定性断言。真正的编排规则在
+// rust-core 的 coordinator_behavior.rs（CO-xx）测试。
 //
 // 这些测试在本机（macOS）不可运行——提交后在 Windows 上 `ctest` 验证。
 
 #include "pch.h"
 #include "AppState.h"
 
+#include <algorithm>
 #include <catch_amalgamated.hpp>
 #include "TestHelpers.h"
 
 using namespace rhythm;
 using namespace rhythm_tests;
+
+// ─── Test fixture ───────────────────────────────────────────────────
+
+/// AppState with a SpyCoordinator injected and its event handler wired to
+/// ApplyCoordinatorEvent (synchronous — no dispatcher in tests).
+struct SpyApp {
+    TempDir dir;
+    AppState state;
+    SpyCoordinator* spy;
+
+    SpyApp() {
+        spy = new SpyCoordinator();
+        state.Coordinator.reset(spy);
+        spy->SetEventHandler([this](const std::wstring& json) {
+            state.ApplyCoordinatorEvent(json);
+        });
+    }
+};
 
 // ─── WA-01/02 OpenDatabase / RefreshLibrary ─────────────────────────
 
@@ -85,181 +108,141 @@ TEST_CASE("WA-04 DoSearch switches between all tracks and search") {
     REQUIRE(state.Tracks[0].title == L"Alpha Song");
 }
 
-// ─── WA-05 PlayTrack 分派（红测：缺路径仍置位 → #81）────────────────
+// ─── WA-05 PlayTrack 分派（#81 守卫在协调器）─────────────────────────
 
-TEST_CASE("WA-05 PlayTrack dispatches by source and records the play") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
+TEST_CASE("WA-05 PlayTrack dispatches through the coordinator") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
 
-    auto wav = writeWavAt(dir.path, L"play.wav", 3.0);
-    auto saved = state.Library->AddTrack(makeLocalTrack(wav.wstring(), L"Play Me"));
+    auto wav = writeWavAt(app.dir.path, L"play.wav", 3.0);
+    auto saved = app.state.Library->AddTrack(makeLocalTrack(wav.wstring(), L"Play Me"));
 
-    state.PlayTrack(saved);
-    REQUIRE(state.CurrentTrack.has_value());
-    REQUIRE(state.IsPlaying);
-    if (!waitFor([&] { return state.Player->State() == 1; }, 5000)) {
-        SKIP("无音频输出设备，无法观察 Playing 状态（环境跳过）");
-    }
+    app.state.PlayTrack(saved);
 
-    // RecordPlay reached the database.
-    auto tracks = state.Library->AllTracks();
-    REQUIRE(tracks.size() == 1);
-    REQUIRE(tracks[0].playCount == 1);
-
-    state.Player->Stop();
-    state.IsPlaying = false;
+    REQUIRE(app.state.CurrentTrack.has_value());
+    REQUIRE(app.state.IsPlaying);
+    REQUIRE(app.spy->startCalls.size() == 1);
+    REQUIRE(app.spy->startCalls[0].track.id == saved.id);
+    REQUIRE(app.spy->startCalls[0].queueTracks.size() == 1);
+    // recordPlay 落库由 rust-core CO-05 覆盖（协调器内执行）。
 }
 
-TEST_CASE("WA-05 PlayTrack URL dispatch attempts playback") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
+TEST_CASE("WA-05 PlayTrack URL dispatch goes through the coordinator") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
 
     auto urlTrack = makeUrlTrack(L"https://example.com/wa05.mp3", L"URL Track");
-    state.PlayTrack(urlTrack);
+    app.state.PlayTrack(urlTrack);
 
-    REQUIRE(state.CurrentTrack.has_value());
-    REQUIRE(state.IsPlaying);
-    // The URL itself cannot resolve (no network in this suite), but the
-    // dispatch must have gone to the engine — a fresh stopped player would
-    // stay 0; a play attempt ends in Buffering(3) or Error(4).
-    if (!waitFor([&] { return state.Player->State() != 0; }, 8000)) {
-        SKIP("无音频输出设备，State 停在 0（环境跳过）");
-    }
-
-    state.Player->Stop();
-    state.IsPlaying = false;
+    REQUIRE(app.state.CurrentTrack.has_value());
+    REQUIRE(app.state.IsPlaying);
+    REQUIRE(app.spy->startCalls.size() == 1);
+    REQUIRE(app.spy->startCalls[0].track.sourceUrl == L"https://example.com/wa05.mp3");
 }
 
-/// #81（T7 修复）：缺 filePath/sourceUrl 时不进入播放状态。
+/// #81（T7 修复）：缺 filePath/sourceUrl 时不进入播放状态——守卫在协调器
+/// （no_playable_location 分类错误，rust-core CO-03/CO-04）。
 TEST_CASE("WA-05 PlayTrack with no path must not enter playing") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
 
     Track broken;
     broken.id = -1;
     broken.sourceType = L"local";
     broken.title = L"No Path";
-    state.PlayTrack(broken);
+    app.state.PlayTrack(broken);
 
-    REQUIRE_FALSE(state.IsPlaying);
-    REQUIRE_FALSE(state.CurrentTrack.has_value());
+    REQUIRE_FALSE(app.state.IsPlaying);
+    REQUIRE_FALSE(app.state.CurrentTrack.has_value());
+    REQUIRE(app.spy->startCalls.size() == 1);
+    REQUIRE(app.spy->startCalls[0].track.title == L"No Path");
 }
 
-// ─── WA-06/07/08 TogglePlayPause ────────────────────────────────────
+// ─── WA-06/07/08 TogglePlayPause（语义在协调器，ticket #171）─────────
 
 TEST_CASE("WA-06 TogglePlayPause pauses while playing") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
-    auto wav = writeWavAt(dir.path, L"pause.wav", 3.0);
-    auto saved = state.Library->AddTrack(makeLocalTrack(wav.wstring(), L"Pause Me"));
-    state.PlayTrack(saved);
-    if (!waitFor([&] { return state.Player->State() == 1; })) {
-        SKIP("无音频输出设备，无法观察 Playing 状态（环境跳过）");
-    }
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto wav = writeWavAt(app.dir.path, L"pause.wav", 3.0);
+    auto saved = app.state.Library->AddTrack(makeLocalTrack(wav.wstring(), L"Pause Me"));
+    app.state.PlayTrack(saved);
 
-    state.TogglePlayPause();
+    app.state.TogglePlayPause();
 
-    REQUIRE_FALSE(state.IsPlaying);
-    REQUIRE(state.Player->State() == 2); // Paused
-    state.Player->Stop();
+    REQUIRE_FALSE(app.state.IsPlaying);
+    REQUIRE(app.spy->toggleCalls == 1);
+    REQUIRE(app.spy->engineState == 2); // Paused
 }
 
-/// #82（T7 修复）：恢复时 `Player->Resume()` 续播。
+/// #82（T7 修复）：恢复经协调器续播（仅 Paused 可恢复，#111）。
 TEST_CASE("WA-07 TogglePlayPause resume continues playback") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
-    auto wav = writeWavAt(dir.path, L"resume.wav", 3.0);
-    auto saved = state.Library->AddTrack(makeLocalTrack(wav.wstring(), L"Resume Me"));
-    state.PlayTrack(saved);
-    if (!waitFor([&] { return state.Player->State() == 1; })) {
-        SKIP("无音频输出设备，无法观察 Playing 状态（环境跳过）");
-    }
-    ::Sleep(500);
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto wav = writeWavAt(app.dir.path, L"resume.wav", 3.0);
+    auto saved = app.state.Library->AddTrack(makeLocalTrack(wav.wstring(), L"Resume Me"));
+    app.state.PlayTrack(saved);
 
-    double before = state.Player->Position();
-    state.TogglePlayPause(); // pause
-    REQUIRE(state.Player->State() == 2);
-    ::Sleep(200);
+    app.state.TogglePlayPause(); // pause
+    REQUIRE_FALSE(app.state.IsPlaying);
 
-    state.TogglePlayPause(); // resume
-    REQUIRE(state.IsPlaying);
-    ::Sleep(300);
-    double after = state.Player->Position();
-
-    // Without an audio device the position never advances, so the
-    // restart-vs-resume question cannot be decided — skip as environment.
-    if (before == 0.0 && after == 0.0) {
-        SKIP("无音频输出设备，position 恒 0（环境跳过）");
-    }
-    // A real Resume() keeps the position at or past the pause point.
-    REQUIRE(after >= before);
-    state.Player->Stop();
-    state.IsPlaying = false;
+    app.state.TogglePlayPause(); // resume
+    REQUIRE(app.state.IsPlaying);
+    REQUIRE(app.spy->engineState == 1); // Playing
 }
 
 TEST_CASE("WA-08 TogglePlayPause starts the first track when idle") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
-    auto wav = writeWavAt(dir.path, L"first.wav", 3.0);
-    auto saved = state.Library->AddTrack(makeLocalTrack(wav.wstring(), L"First"));
-    state.RefreshLibrary();
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto wav = writeWavAt(app.dir.path, L"first.wav", 3.0);
+    auto saved = app.state.Library->AddTrack(makeLocalTrack(wav.wstring(), L"First"));
+    app.state.RefreshLibrary(); // feeds the coordinator's library mirror
 
-    state.TogglePlayPause(); // idle, tracks non-empty → play Tracks[0]
+    app.state.TogglePlayPause(); // idle, tracks non-empty → first playable
 
-    REQUIRE(state.IsPlaying);
-    REQUIRE(state.CurrentTrack.has_value());
-    REQUIRE(state.CurrentTrack->id == saved.id);
-    state.Player->Stop();
-    state.IsPlaying = false;
+    REQUIRE(app.state.IsPlaying);
+    REQUIRE(app.state.CurrentTrack.has_value());
+    REQUIRE(app.state.CurrentTrack->id == saved.id);
+    REQUIRE(app.spy->startCalls.size() == 1);
 }
 
 /// #111：非 Paused 状态下 resume 是 no-op，UI 不得进入播放状态。
 TEST_CASE("WA-08b TogglePlayPause resume only when paused") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
-    auto wav = writeWavAt(dir.path, L"resume-guard.wav", 3.0);
-    auto saved = state.Library->AddTrack(makeLocalTrack(wav.wstring(), L"Resume Guard"));
-    state.PlayTrack(saved);
-    if (!waitFor([&] { return state.Player->State() == 1; })) {
-        SKIP("无音频输出设备，无法观察 Playing 状态（环境跳过）");
-    }
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto wav = writeWavAt(app.dir.path, L"resume-guard.wav", 3.0);
+    auto saved = app.state.Library->AddTrack(makeLocalTrack(wav.wstring(), L"Resume Guard"));
+    app.state.PlayTrack(saved);
     // Engine back to Stopped while CurrentTrack is still set — the exact
     // shape of the Error/Stopped divergence from #111.
-    state.Player->Stop();
-    state.IsPlaying = false;
+    app.spy->engineState = 0;
+    app.state.IsPlaying = false;
 
-    state.TogglePlayPause();
+    app.state.TogglePlayPause();
 
-    REQUIRE_FALSE(state.IsPlaying);
-    REQUIRE(state.Player->State() == 0); // resume must not have fired
-    state.Player->Stop();
+    REQUIRE_FALSE(app.state.IsPlaying);
+    REQUIRE(app.spy->engineState == 0); // resume must not have fired
 }
 
 TEST_CASE("WA-15 TogglePlayPause no-ops with nothing to play") {
-    AppState state;
+    SpyApp app;
 
-    state.TogglePlayPause();
+    app.state.TogglePlayPause();
 
-    REQUIRE_FALSE(state.IsPlaying);
-    REQUIRE_FALSE(state.CurrentTrack.has_value());
+    REQUIRE_FALSE(app.state.IsPlaying);
+    REQUIRE_FALSE(app.state.CurrentTrack.has_value());
+    REQUIRE(app.spy->toggleCalls == 1);
+    REQUIRE(app.spy->startCalls.empty());
 }
 
 // ─── WA-09 SetVolume ────────────────────────────────────────────────
 
-TEST_CASE("WA-09 SetVolume updates state and player") {
-    AppState state;
+TEST_CASE("WA-09 SetVolume updates state and coordinator") {
+    SpyApp app;
 
-    state.SetVolume(0.42);
+    app.state.SetVolume(0.42);
 
-    REQUIRE(state.Volume == 0.42);
-    REQUIRE(state.Player->Volume() == Catch::Approx(0.42f));
+    REQUIRE(app.state.Volume == 0.42);
+    REQUIRE(app.spy->lastVolume == Catch::Approx(0.42f));
 }
 
 // ─── WA-10/11/12/13/14 ResolveAndPlay ───────────────────────────────
@@ -277,83 +260,79 @@ makeDispatcher() {
 } // namespace
 
 TEST_CASE("WA-10 ResolveAndPlay success persists, inserts, and plays") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
     auto controller = makeDispatcher();
     REQUIRE(controller);
-    state.SetDispatcherQueue(controller.DispatcherQueue());
+    app.state.SetDispatcherQueue(controller.DispatcherQueue());
 
-    state.ResolveAndPlay(L"  https://example.com/wa10-tone.mp3  "); // trims input
+    app.state.ResolveAndPlay(L"  https://example.com/wa10-tone.mp3  "); // trims input
     // The callback clears IsResolvingUrl first, then persists/inserts/plays —
     // wait for the final observable effect instead of the flag.
-    REQUIRE(waitFor([&] { return state.CurrentTrack.has_value(); }));
+    REQUIRE(waitFor([&] { return app.state.CurrentTrack.has_value(); }));
 
-    REQUIRE(state.UrlError.empty());
-    REQUIRE(state.Tracks.size() == 1);
-    REQUIRE(state.CurrentTrack.has_value());
+    REQUIRE(app.state.UrlError.empty());
+    REQUIRE(app.state.Tracks.size() == 1);
+    REQUIRE(app.state.CurrentTrack.has_value());
     // Saved with the database id (#39).
-    REQUIRE(state.CurrentTrack->id > 0);
-    REQUIRE(state.CurrentTrack->sourceUrl == L"https://example.com/wa10-tone.mp3");
-    REQUIRE(state.IsPlaying);
-    state.Player->Stop();
-    state.IsPlaying = false;
+    REQUIRE(app.state.CurrentTrack->id > 0);
+    REQUIRE(app.state.CurrentTrack->sourceUrl == L"https://example.com/wa10-tone.mp3");
+    REQUIRE(app.state.IsPlaying);
+    REQUIRE(app.spy->startCalls.size() == 1);
 }
 
 TEST_CASE("WA-11 ResolveAndPlay failure reports kind and message (#21)") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
     auto controller = makeDispatcher();
     REQUIRE(controller);
-    state.SetDispatcherQueue(controller.DispatcherQueue());
+    app.state.SetDispatcherQueue(controller.DispatcherQueue());
 
     std::wstring kind, message;
-    state.OnUrlError = [&](const std::wstring& k, const std::wstring& m) {
+    app.state.OnUrlError = [&](const std::wstring& k, const std::wstring& m) {
         kind = k;
         message = m;
     };
 
-    state.ResolveAndPlay(L"not a url");
+    app.state.ResolveAndPlay(L"not a url");
     // The callback sets UrlError before OnUrlError; wait for the callback's
     // last write (kind/message) so the reads below don't race it.
     REQUIRE(waitFor([&] { return !kind.empty(); }));
 
-    REQUIRE_FALSE(state.UrlError.empty());
+    REQUIRE_FALSE(app.state.UrlError.empty());
     REQUIRE(kind == L"invalid_url");
     REQUIRE_FALSE(message.empty());
-    REQUIRE(state.Tracks.empty()); // nothing queued for an unplayable URL
+    REQUIRE(app.state.Tracks.empty()); // nothing queued for an unplayable URL
 }
 
 TEST_CASE("WA-12 ResolveAndPlay ignores blank input") {
-    AppState state;
+    SpyApp app;
 
-    state.ResolveAndPlay(L"   \t\n ");
+    app.state.ResolveAndPlay(L"   \t\n ");
 
-    REQUIRE_FALSE(state.IsResolvingUrl.load());
-    REQUIRE(state.UrlError.empty());
+    REQUIRE_FALSE(app.state.IsResolvingUrl.load());
+    REQUIRE(app.state.UrlError.empty());
 }
 
 TEST_CASE("WA-13 ResolveAndPlay ignores re-entrant calls") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
     auto controller = makeDispatcher();
     REQUIRE(controller);
-    state.SetDispatcherQueue(controller.DispatcherQueue());
+    app.state.SetDispatcherQueue(controller.DispatcherQueue());
 
     int errorCallbacks = 0;
-    state.OnUrlError = [&](const std::wstring&, const std::wstring&) {
+    app.state.OnUrlError = [&](const std::wstring&, const std::wstring&) {
         ++errorCallbacks;
     };
 
-    state.ResolveAndPlay(L"not a url");
-    REQUIRE(state.IsResolvingUrl.load());
+    app.state.ResolveAndPlay(L"not a url");
+    REQUIRE(app.state.IsResolvingUrl.load());
     // Re-entrancy is a same-thread check: the second call lands before the
     // (microsecond-fast) background failure can finish, so the window for
     // a spurious double-dispatch is the thread-start latency, not a race
     // in the product.
-    state.ResolveAndPlay(L"also not a url"); // must be ignored
+    app.state.ResolveAndPlay(L"also not a url"); // must be ignored
 
     REQUIRE(waitFor([&] { return errorCallbacks >= 1; }));
     ::Sleep(100); // grace period for a second (wrong) dispatch to land
@@ -361,54 +340,50 @@ TEST_CASE("WA-13 ResolveAndPlay ignores re-entrant calls") {
 }
 
 TEST_CASE("WA-14 ResolveAndPlay without dispatcher drops the result and resets") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
     // No SetDispatcherQueue: the background thread just clears the flag.
 
     int errorCallbacks = 0;
-    state.OnUrlError = [&](const std::wstring&, const std::wstring&) {
+    app.state.OnUrlError = [&](const std::wstring&, const std::wstring&) {
         ++errorCallbacks;
     };
 
-    state.ResolveAndPlay(L"not a url");
-    REQUIRE(waitFor([&] { return !state.IsResolvingUrl.load(); }));
+    app.state.ResolveAndPlay(L"not a url");
+    REQUIRE(waitFor([&] { return !app.state.IsResolvingUrl.load(); }));
 
-    REQUIRE(state.UrlError.empty());
+    REQUIRE(app.state.UrlError.empty());
     REQUIRE(errorCallbacks == 0);
-    REQUIRE(state.Tracks.empty());
+    REQUIRE(app.state.Tracks.empty());
 }
 
 TEST_CASE("WA-24 ResolveAndPlay reloads from DB so list and queue stay in sync (#139)") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
-    auto wa = dir.path / L"wa";
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto wa = app.dir.path / L"wa";
     fs::create_directories(wa);
     auto a = writeWavAt(wa, L"a.wav", 3.0);
-    auto savedA = state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
-    state.RefreshLibrary();
-    state.PlayTrack(savedA);
-    REQUIRE_FALSE(state.CanPlayNext()); // single-track queue
+    auto savedA = app.state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    app.state.RefreshLibrary();
+    app.state.PlayTrack(savedA);
+    REQUIRE_FALSE(app.state.CanPlayNext()); // single-track queue
 
     auto controller = makeDispatcher();
     REQUIRE(controller);
-    state.SetDispatcherQueue(controller.DispatcherQueue());
+    app.state.SetDispatcherQueue(controller.DispatcherQueue());
 
-    state.ResolveAndPlay(L"https://example.com/wa15-tone.mp3");
+    app.state.ResolveAndPlay(L"https://example.com/wa15-tone.mp3");
     REQUIRE(waitFor([&] {
-        return state.CurrentTrack.has_value() &&
-               state.CurrentTrack->sourceUrl == L"https://example.com/wa15-tone.mp3";
+        return app.state.CurrentTrack.has_value() &&
+               app.state.CurrentTrack->sourceUrl == L"https://example.com/wa15-tone.mp3";
     }));
 
     // List reloaded from the DB (not a manual front-insert): both tracks
     // present, and the queue reaches the pre-existing one.
-    REQUIRE(state.Tracks.size() == 2);
-    REQUIRE(state.CanPlayNext());
-    state.PlayNext();
-    REQUIRE(state.CurrentTrack->id == savedA.id);
-    state.Player->Stop();
-    state.IsPlaying = false;
+    REQUIRE(app.state.Tracks.size() == 2);
+    REQUIRE(app.state.CanPlayNext());
+    app.state.PlayNext();
+    REQUIRE(app.state.CurrentTrack->id == savedA.id);
 }
 
 // ─── WA-16 打开失败 ─────────────────────────────────────────────────
@@ -434,38 +409,30 @@ TEST_CASE("WA-16 Library open failure leaves methods as safe no-ops") {
 // WA-17（解析失败各 kind 上报，P2）：invalid_url 已由 WA-11 覆盖；其余
 // kind 需 stub yt-dlp 注入（Windows 无 shell stub 设施），顺延至后续票。
 
-// ─── WA-18 先停后播 ────────────────────────────────────────────────
+// ─── WA-18 先停后播（顺序在协调器内，rust-core CO-01）───────────────
 
-TEST_CASE("WA-18 PlayTrack stops the old stream before starting the new one") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
+TEST_CASE("WA-18 PlayTrack switches to the new track through the coordinator") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
 
-    auto wa = dir.path / L"wa";
+    auto wa = app.dir.path / L"wa";
     fs::create_directories(wa);
     auto a = writeWavAt(wa, L"a.wav", 3.0);
     auto b = writeWavAt(wa, L"b.wav", 3.0);
-    auto c = writeWavAt(wa, L"c.wav", 3.0);
-    auto savedA = state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
-    auto savedB = state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
-    state.Library->AddTrack(makeLocalTrack(c.wstring(), L"C"));
-    state.RefreshLibrary();
+    auto savedA = app.state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    auto savedB = app.state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
+    app.state.RefreshLibrary();
 
-    state.PlayTrack(savedA);
-    if (!waitFor([&] { return state.Player->State() == 1; }, 5000)) {
-        SKIP("无音频输出设备，无法观察 Playing 状态（环境跳过）");
-    }
-    state.PlayTrack(savedB);
-    REQUIRE(state.CurrentTrack->id == savedB.id);
-    REQUIRE(state.IsPlaying);
-    // With #51 honoured the new stream owns the output — the player stays
-    // playing instead of piling two streams onto the device.
-    REQUIRE(waitFor([&] { return state.Player->State() == 1; }, 5000));
-    state.Player->Stop();
-    state.IsPlaying = false;
+    app.state.PlayTrack(savedA);
+    app.state.PlayTrack(savedB);
+    REQUIRE(app.state.CurrentTrack->id == savedB.id);
+    REQUIRE(app.state.IsPlaying);
+    // stop 先于 play 的顺序在协调器（rust-core CO-01）；此处断言协调器被正确调用。
+    REQUIRE(app.spy->startCalls.size() == 2);
+    REQUIRE(app.spy->startCalls[1].track.id == savedB.id);
 }
 
-// ─── WA-19 播放队列 ─────────────────────────────────────────────────
+// ─── WA-19 播放队列（真 FFI 队列包装往返）───────────────────────────
 
 TEST_CASE("WA-19 PlayQueue wrapper roundtrips through FFI") {
     auto t1 = makeLocalTrack(L"C:\\a\\one.mp3", L"One");
@@ -506,152 +473,247 @@ TEST_CASE("WA-19 PlayQueue wrapper roundtrips through FFI") {
 }
 
 TEST_CASE("WA-19 playNext/playPrevious walk the queue, exhausted is a no-op") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
-    auto wa = dir.path / L"wa";
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto wa = app.dir.path / L"wa";
     fs::create_directories(wa);
     auto a = writeWavAt(wa, L"a.wav", 3.0);
     auto b = writeWavAt(wa, L"b.wav", 3.0);
-    auto savedA = state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
-    auto savedB = state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
-    state.RefreshLibrary();
+    auto savedA = app.state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    auto savedB = app.state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
+    app.state.RefreshLibrary();
 
-    state.PlayTrack(savedA);
-    REQUIRE(state.CanPlayNext());
-    REQUIRE_FALSE(state.CanPlayPrevious());
+    app.state.PlayTrack(savedA);
+    REQUIRE(app.state.CanPlayNext());
+    REQUIRE_FALSE(app.state.CanPlayPrevious());
 
-    state.PlayNext();
-    REQUIRE(state.CurrentTrack->id == savedB.id);
-    REQUIRE(state.IsPlaying);
-    REQUIRE_FALSE(state.CanPlayNext());
-    REQUIRE(state.CanPlayPrevious());
+    app.state.PlayNext();
+    REQUIRE(app.state.CurrentTrack->id == savedB.id);
+    REQUIRE(app.state.IsPlaying);
+    REQUIRE(app.spy->nextCalls == 1);
+    REQUIRE_FALSE(app.state.CanPlayNext());
+    REQUIRE(app.state.CanPlayPrevious());
 
-    state.PlayNext(); // exhausted → no-op
-    REQUIRE(state.CurrentTrack->id == savedB.id);
+    app.state.PlayNext(); // exhausted → no-op
+    REQUIRE(app.state.CurrentTrack->id == savedB.id);
 
-    state.PlayPrevious();
-    REQUIRE(state.CurrentTrack->id == savedA.id);
-    state.Player->Stop();
-    state.IsPlaying = false;
+    app.state.PlayPrevious();
+    REQUIRE(app.state.CurrentTrack->id == savedA.id);
 }
 
-// ─── WA-20 RefreshLibrary 队列同步 ──────────────────────────────────
+// ─── WA-20 RefreshLibrary 队列同步（在协调器内，#69）─────────────────
 
 TEST_CASE("WA-20 RefreshLibrary keeps the queue in sync") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
-    auto wa = dir.path / L"wa";
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto wa = app.dir.path / L"wa";
     fs::create_directories(wa);
     auto a = writeWavAt(wa, L"a.wav", 3.0);
     auto b = writeWavAt(wa, L"b.wav", 3.0);
-    auto savedA = state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
-    state.RefreshLibrary();
+    auto savedA = app.state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    app.state.RefreshLibrary();
 
-    state.PlayTrack(savedA);
-    REQUIRE_FALSE(state.CanPlayNext()); // single-track queue
+    app.state.PlayTrack(savedA);
+    REQUIRE_FALSE(app.state.CanPlayNext()); // single-track queue
 
     // Import a second track: the refreshed queue must now reach it (#69).
-    state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
-    state.RefreshLibrary();
-    REQUIRE(state.Tracks.size() == 2);
-    REQUIRE(state.CanPlayNext());
+    app.state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
+    app.state.RefreshLibrary();
+    REQUIRE(app.state.Tracks.size() == 2);
+    REQUIRE(app.state.CanPlayNext());
+    REQUIRE(app.spy->syncQueueCalls.size() >= 2);
 
-    state.PlayNext();
-    REQUIRE(state.CurrentTrack->title == L"B");
-    state.Player->Stop();
-    state.IsPlaying = false;
+    app.state.PlayNext();
+    REQUIRE(app.state.CurrentTrack->title == L"B");
 }
 
 // ─── WA-21 播放模式循环 ─────────────────────────────────────────────
 
 TEST_CASE("WA-21 CyclePlayMode cycles and syncs the queue") {
-    AppState state;
-    REQUIRE(state.CurrentMode == PlayMode::Sequential);
-    state.CyclePlayMode();
-    REQUIRE(state.CurrentMode == PlayMode::Shuffle);
-    state.CyclePlayMode();
-    REQUIRE(state.CurrentMode == PlayMode::SingleLoop);
-    state.CyclePlayMode();
-    REQUIRE(state.CurrentMode == PlayMode::ListLoop);
-    state.CyclePlayMode();
-    REQUIRE(state.CurrentMode == PlayMode::Sequential);
+    SpyApp app;
+    REQUIRE(app.state.CurrentMode == PlayMode::Sequential);
+    app.state.CyclePlayMode();
+    REQUIRE(app.state.CurrentMode == PlayMode::Shuffle);
+    app.state.CyclePlayMode();
+    REQUIRE(app.state.CurrentMode == PlayMode::SingleLoop);
+    app.state.CyclePlayMode();
+    REQUIRE(app.state.CurrentMode == PlayMode::ListLoop);
+    app.state.CyclePlayMode();
+    REQUIRE(app.state.CurrentMode == PlayMode::Sequential);
+    REQUIRE(app.spy->setPlayModeCalls.size() == 4);
 }
 
 TEST_CASE("WA-21 SingleLoop keeps next on the current track") {
-    TempDir dir;
-    AppState state;
-    state.OpenDatabase(dir.dbPath());
-    auto wa = dir.path / L"wa";
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto wa = app.dir.path / L"wa";
     fs::create_directories(wa);
     auto a = writeWavAt(wa, L"a.wav", 3.0);
     auto b = writeWavAt(wa, L"b.wav", 3.0);
-    auto savedA = state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
-    state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
-    state.RefreshLibrary();
+    auto savedA = app.state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    app.state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
+    app.state.RefreshLibrary();
 
-    state.PlayTrack(savedA);
-    state.CyclePlayMode(); // Shuffle — skip (random order)
-    state.CyclePlayMode(); // SingleLoop
+    app.state.PlayTrack(savedA);
+    app.state.CyclePlayMode(); // Shuffle
+    app.state.CyclePlayMode(); // SingleLoop
 
-    state.PlayNext();
-    REQUIRE(state.CurrentTrack->id == savedA.id); // stays put
-    state.Player->Stop();
-    state.IsPlaying = false;
+    app.state.PlayNext();
+    REQUIRE(app.state.CurrentTrack->id == savedA.id); // stays put
 }
 
-// ─── WA-22 传输可用性 ───────────────────────────────────────────────
+// ─── WA-22 传输可用性（来自协调器导出）───────────────────────────────
 
 TEST_CASE("WA-22 transport availability gates") {
-    AppState state;
-    REQUIRE_FALSE(state.CanTogglePlayback());
-    REQUIRE_FALSE(state.CanPlayNext());
-    REQUIRE_FALSE(state.CanPlayPrevious());
-    REQUIRE_FALSE(state.CanStop());
+    SpyApp app;
+    REQUIRE_FALSE(app.state.CanTogglePlayback());
+    REQUIRE_FALSE(app.state.CanPlayNext());
+    REQUIRE_FALSE(app.state.CanPlayPrevious());
+    REQUIRE_FALSE(app.state.CanStop());
 
-    TempDir dir;
-    state.OpenDatabase(dir.dbPath());
-    auto wa = dir.path / L"wa";
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto wa = app.dir.path / L"wa";
     fs::create_directories(wa);
     auto a = writeWavAt(wa, L"a.wav", 3.0);
     auto b = writeWavAt(wa, L"b.wav", 3.0);
-    auto savedA = state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
-    state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
-    state.RefreshLibrary();
-    REQUIRE(state.CanTogglePlayback());
+    auto savedA = app.state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    app.state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
+    app.state.RefreshLibrary();
+    REQUIRE(app.state.CanTogglePlayback());
 
-    state.PlayTrack(savedA);
-    REQUIRE(state.CanStop());
-    REQUIRE(state.CanPlayNext());
-    REQUIRE_FALSE(state.CanPlayPrevious());
+    app.state.PlayTrack(savedA);
+    REQUIRE(app.state.CanStop());
+    REQUIRE(app.state.CanPlayNext());
+    REQUIRE_FALSE(app.state.CanPlayPrevious());
 
-    state.PlayNext();
-    REQUIRE_FALSE(state.CanPlayNext());
-    REQUIRE(state.CanPlayPrevious());
-    state.Player->Stop();
-    state.IsPlaying = false;
-    REQUIRE_FALSE(state.CanStop());
+    app.state.PlayNext();
+    REQUIRE_FALSE(app.state.CanPlayNext());
+    REQUIRE(app.state.CanPlayPrevious());
+    app.state.Coordinator->Stop();
+    app.state.IsPlaying = false;
+    REQUIRE_FALSE(app.state.CanStop());
 }
 
 // ─── WA-23 导入数量反馈 ─────────────────────────────────────────────
 
 TEST_CASE("WA-23 ImportDirectory reports the imported count") {
-    AppState state;
-    state.ImportDirectory(L"C:\\whatever"); // no Library → no feedback
-    REQUIRE_FALSE(state.ShowImportAlert);
+    SpyApp app;
+    app.state.ImportDirectory(L"C:\\whatever"); // no Library → no feedback
+    REQUIRE_FALSE(app.state.ShowImportAlert);
 
-    TempDir dir;
-    state.OpenDatabase(dir.dbPath());
-    auto music = dir.path / L"music";
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto music = app.dir.path / L"music";
     fs::create_directories(music);
     writeWavAt(music, L"one.wav");
     writeWavAt(music, L"two.wav");
 
-    state.ImportDirectory(music.wstring());
+    app.state.ImportDirectory(music.wstring());
 
-    REQUIRE(state.ShowImportAlert);
+    REQUIRE(app.state.ShowImportAlert);
     // #141: copy comes from the language layer, so assert against it
     // (system-language agnostic, mirrors the macOS suite).
-    REQUIRE(state.ImportAlertMessage == L10n::ImportedTracks(2));
+    REQUIRE(app.state.ImportAlertMessage == L10n::ImportedTracks(2));
+}
+
+// ─── WA-25 事件驱动（ticket #172/#173，替代定时器轮询）──────────────
+
+TEST_CASE("WA-25 progress and state events drive the UI") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+
+    app.spy->FireEvent(L"{\"type\":\"progress\",\"position\":42.5,\"duration\":100.0}");
+    REQUIRE(app.state.Position == 42.5);
+    REQUIRE(app.state.Duration == 100.0);
+
+    app.spy->FireEvent(L"{\"type\":\"state\",\"state\":\"buffering\"}");
+    REQUIRE(app.state.IsBuffering);
+    REQUIRE(app.state.IsPlaying);
+
+    app.spy->FireEvent(L"{\"type\":\"state\",\"state\":\"paused\"}");
+    REQUIRE_FALSE(app.state.IsPlaying);
+    REQUIRE_FALSE(app.state.IsBuffering);
+}
+
+TEST_CASE("WA-25 finished auto-advance renders via track_changed") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto wa = app.dir.path / L"wa";
+    fs::create_directories(wa);
+    auto a = writeWavAt(wa, L"a.wav", 3.0);
+    auto b = writeWavAt(wa, L"b.wav", 3.0);
+    auto savedA = app.state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    auto savedB = app.state.Library->AddTrack(makeLocalTrack(b.wstring(), L"B"));
+    app.state.RefreshLibrary();
+    app.state.PlayTrack(savedA);
+
+    // The core auto-advances on Finished (CO-25/CO-26); the UI renders the
+    // Finished event, then the TrackChanged event that follows.
+    app.spy->FireEvent(L"{\"type\":\"finished\"}");
+    REQUIRE_FALSE(app.state.IsPlaying);
+    REQUIRE(app.state.CurrentTrack->id == savedA.id);
+
+    std::string trackJson = R"({"id":)" + std::to_string(savedB.id) +
+        R"(,"file_path":")" + WideToUtf8ForTest(savedB.filePath ? *savedB.filePath : L"") +
+        R"(","source_type":"local","title":")" + WideToUtf8ForTest(savedB.title) + R"("})";
+    app.spy->FireEvent(L"{\"type\":\"track_changed\",\"track\":" +
+                       std::wstring(trackJson.begin(), trackJson.end()) + L"}");
+
+    REQUIRE(app.state.CurrentTrack->id == savedB.id);
+    REQUIRE(app.state.IsPlaying);
+}
+
+TEST_CASE("WA-25 playback failure event surfaces classified copy (#120)") {
+    LocaleOverride zh(L"zh");
+    SpyApp app;
+
+    std::wstring kind, message;
+    app.state.OnUrlError = [&](const std::wstring& k, const std::wstring& m) {
+        kind = k;
+        message = m;
+    };
+
+    app.spy->FireEvent(
+        L"{\"type\":\"error\",\"kind\":\"cdn_rejected\",\"message\":\"GET x failed: HTTP 403\"}");
+
+    REQUIRE_FALSE(app.state.IsPlaying);
+    REQUIRE_FALSE(app.state.UrlError.empty());
+    REQUIRE(kind == L"playback_cdn_rejected");
+    REQUIRE(message == L"GET x failed: HTTP 403");
+}
+
+// ─── WA-26 M3U8 导入逐条入库（ticket #173，修复原 no-op）────────────
+
+TEST_CASE("WA-26 ImportM3U8 persists entries and reports the count") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+
+    // #EXTM3U
+    // #EXTINF:180,Artist One - Song One
+    // https://example.com/one.mp3
+    // #EXTINF:180,Artist Two - Song Two
+    // <local path>
+    auto playlist = app.dir.path / L"list.m3u8";
+    {
+        std::ofstream out(playlist);
+        out << "#EXTM3U\n";
+        out << "#EXTINF:180,Artist One - Song One\n";
+        out << "https://example.com/one.mp3\n";
+        out << "#EXTINF:180,Artist Two - Song Two\n";
+        auto local = writeWavAt(app.dir.path, L"local.wav");
+        out << WideToUtf8ForTest(local.wstring()) << "\n";
+    }
+
+    app.state.ImportM3U8(playlist.wstring());
+
+    REQUIRE(app.state.Tracks.size() == 2);
+    REQUIRE(app.state.ShowImportAlert);
+    REQUIRE(app.state.ImportAlertMessage == L10n::ImportedTracks(2));
+
+    // URL entries are stored as direct_url with the page URL; local entries
+    // as local with the file path (macOS parity, #136 semantics).
+    auto urlTrack = std::find_if(app.state.Tracks.begin(), app.state.Tracks.end(),
+                                 [](const Track& t) { return t.sourceType == L"direct_url"; });
+    REQUIRE(urlTrack != app.state.Tracks.end());
+    REQUIRE(urlTrack->sourceUrl == L"https://example.com/one.mp3");
+    REQUIRE(urlTrack->title == L"Song One");
 }
