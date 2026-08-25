@@ -25,7 +25,7 @@
 ```
 rust-core/          Rust 共享核心（audio 引擎、library、queue、playlist、resolver、metadata、coordinator）
   src/coordinator/  播放协调器（#165 组）：起播/传输/自动切歌/队列同步/可用性的唯一出处，双端 UI 只是薄 adapter
-  src/ffi/mod.rs    C-ABI 导出层：JSON 字符串进出，snake_case 键；导出一律 unsafe extern "C"（#143）
+  src/ffi/mod.rs    C-ABI 导出层：结构化结果（成功载荷+分类错误一次返回）、事件回调、snake_case JSON；导出一律 unsafe extern "C"（#143）；契约单一声明见 contracts/ffi-contract.json（#180）
   tests/            行为测试（audio_engine / coordinator / library / metadata / ffi / playlist_m3u8 / resolver…）
 macos/              SwiftUI (AppKit) 客户端，SPM 可执行目标
   Rhythm/Models/RhythmCore.swift   FFI 封装：RhythmLibrary / RhythmCoordinator（+ 事件订阅）/ resolver + JSON 编解码

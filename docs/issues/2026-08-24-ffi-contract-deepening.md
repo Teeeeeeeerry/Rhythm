@@ -1,8 +1,13 @@
 # Issue: FFI 层 52 个直通导出加深为结构化契约——错误随结果返回、状态走事件、绑定生成
 
+> 已合入（#176~#181 六个 ticket 全部落地）：resolve/classify/install 与协调器全部
+> 一次返回结构化结果；状态/进度走事件通道；M3U8 条目与状态/模式具名化；
+> `contracts/ffi-contract.json` 单一声明 + 生成器产出双端编解码绑定；
+> 旧 player 直通导出与全局错误槽删除。
+
 - **日期**: 2026-08-24
 - **来源**: 架构审查（architecture-review-20260825-094221.html 候选 2）
-- **状态**: 已立项（GitHub issue #166）
+- **状态**: 已合入（GitHub issue #166）
 - **涉及平台**: 双端（macOS + Windows）+ Rust 核心
 
 ---
