@@ -1,6 +1,7 @@
 # 播放协调器（PlaybackCoordinator）行为清单
 
 - 模块：`rust-core/src/coordinator/mod.rs`（起播、传输、队列同步、有界跳过——双端 UI 的编排规则唯一出处，父 issue #165）；测试：`rust-core/tests/coordinator_behavior.rs`（CO-xx）
+- #175 起：本清单即双端编排行为清单（appstate-macos.md 与 windows-appstate.md 的编排条目合并于此）；旧队列直通导出（`rhythm_queue_*`）与双端 `RhythmQueue`/`PlayQueue` 包装已删除
 - 历史回归：`#51`（先停后播）、`#69`（刷新后队列同步）、`#78`（不可播曲目有界跳过）、`#81`（Windows 无位置守卫）、`#120`（错误分类）
 - 接缝需求（最小接缝，已落地）：`PlayerSurface` trait（`play_file`/`play_url`/`pause`/`resume`/`stop`/`seek`/`set_volume`/`volume`/`state`/`position`/`duration`/`error_message`/`error_kind`），生产实现为 `AudioEngine`，测试注入记录调用序列的 Fake（断言 #51 的"先 stop 后 play"顺序）
 - 测试途径：`cargo test --test coordinator_behavior`；FFI 往返经 `rhythm_coordinator_*` 直调（结构化结果 JSON 形状）

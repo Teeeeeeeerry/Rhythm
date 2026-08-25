@@ -32,7 +32,7 @@ fn open_lib(dir: &std::path::Path) -> *mut RhythmLibrary {
     lib
 }
 
-/// A track JSON with a real database id (for queue jump_to by id).
+/// A track JSON with a real database id.
 fn track_json(id: i64, title: &str, path: &str) -> String {
     let t = common::test_local_track(path, title, None, 200.0);
     let mut v = serde_json::to_value(&t).unwrap();
@@ -236,74 +236,6 @@ fn ff10_seek_validation() {
     unsafe { rhythm_player_destroy(player) };
 }
 
-// ─── FF-11 queue 全链路 ─────────────────────────────────────────────
-
-#[test]
-fn ff11_queue_full_roundtrip() {
-    let t1 = track_json(1, "One", "/music/one.mp3");
-    let t2 = track_json(2, "Two", "/music/two.mp3");
-    let queue_json = format!("[{t1},{t2}]");
-
-    let q = unsafe { rhythm_queue_create(c(&queue_json).as_ptr()) };
-    assert!(!q.is_null());
-
-    unsafe {
-        let cur = take(rhythm_queue_current(q));
-        assert!(cur.contains("\"One\""), "initial current = first track");
-    }
-    assert_eq!(unsafe { rhythm_queue_has_next(q) }, 1);
-    assert_eq!(unsafe { rhythm_queue_has_previous(q) }, 0);
-    unsafe {
-        let nxt = take(rhythm_queue_next(q));
-        assert!(nxt.contains("\"Two\""));
-    }
-    // previous() from the second track returns the first.
-    unsafe {
-        let prev = take(rhythm_queue_previous(q));
-        assert!(prev.contains("\"One\""));
-    }
-    unsafe {
-        let nxt = take(rhythm_queue_next(q));
-        assert!(nxt.contains("\"Two\""));
-    }
-    assert_eq!(unsafe { rhythm_queue_has_next(q) }, 0, "sequential queue exhausts");
-    assert!(unsafe { rhythm_queue_next(q) }.is_null(), "exhausted → null");
-    // Exhaustion parks the cursor past the end (len); previous() steps back
-    // onto the last track — locked as current queue semantics.
-    unsafe {
-        let prev = take(rhythm_queue_previous(q));
-        assert!(prev.contains("\"Two\""));
-    }
-    assert_eq!(unsafe { rhythm_queue_jump_to(q, 1) }, 0);
-    unsafe {
-        let cur = take(rhythm_queue_current(q));
-        assert!(cur.contains("\"One\""));
-    }
-    assert_eq!(unsafe { rhythm_queue_jump_to(q, 2) }, 0);
-    unsafe {
-        let cur = take(rhythm_queue_current(q));
-        assert!(cur.contains("\"Two\""));
-    }
-    assert_eq!(unsafe { rhythm_queue_jump_to(q, 999) }, -1, "unknown id → -1");
-
-    // SingleLoop: next() stays at the current track.
-    unsafe { rhythm_queue_set_mode(q, 2) };
-    unsafe {
-        let nxt = take(rhythm_queue_next(q));
-        assert!(nxt.contains("\"Two\""));
-    }
-
-    // replace with a new list resets to the new first track.
-    unsafe { rhythm_queue_replace(q, c(&queue_json).as_ptr()) };
-    unsafe {
-        let cur = take(rhythm_queue_current(q));
-        assert!(cur.contains("\"One\""));
-    }
-
-    unsafe { rhythm_queue_destroy(q) };
-    unsafe { rhythm_queue_destroy(std::ptr::null_mut()) };
-}
-
 // ─── FF-12/13 resolve 与 last_error（#21）───────────────────────────
 
 #[test]
@@ -437,24 +369,6 @@ fn ff17_empty_path_inputs_do_not_crash() {
     assert_eq!(unsafe { rhythm_library_import(std::ptr::null_mut(), c("").as_ptr()) }, -1);
 }
 
-#[test]
-fn ff18_queue_create_invalid_json_is_null() {
-    assert!(unsafe { rhythm_queue_create(c("not json").as_ptr()) }.is_null());
-}
-
-#[test]
-fn ff19_queue_replace_invalid_json_keeps_queue() {
-    let t1 = track_json(1, "Keep Me", "/music/k.mp3");
-    let q = unsafe { rhythm_queue_create(c(&format!("[{t1}]")).as_ptr()) };
-
-    unsafe { rhythm_queue_replace(q, c("bad json{").as_ptr()) };
-    unsafe {
-        let cur = take(rhythm_queue_current(q));
-        assert!(cur.contains("Keep Me"), "invalid replace must not touch the queue");
-    }
-    unsafe { rhythm_queue_destroy(q) };
-}
-
 // ─── FF-20 错误码函数空指针安全默认 ─────────────────────────────────
 
 #[test]
@@ -463,7 +377,6 @@ fn ff20_null_pointer_safe_defaults() {
     let _guard = RESOLVER_LOCK.lock().unwrap();
     let null_lib: *mut RhythmLibrary = std::ptr::null_mut();
     let null_player: *mut RhythmPlayer = std::ptr::null_mut();
-    let null_queue: *mut RhythmQueue = std::ptr::null_mut();
 
     unsafe { rhythm_library_close(null_lib) };
     assert_eq!(unsafe { rhythm_library_import(null_lib, c("x").as_ptr()) }, -1);
@@ -494,54 +407,11 @@ fn ff20_null_pointer_safe_defaults() {
     assert_eq!(unsafe { rhythm_player_get_state(null_player) }, -1);
     assert!(unsafe { rhythm_player_error(null_player) }.is_null());
 
-    unsafe { rhythm_queue_destroy(null_queue) };
-    assert!(unsafe { rhythm_queue_current(null_queue) }.is_null());
-    assert!(unsafe { rhythm_queue_next(null_queue) }.is_null());
-    assert!(unsafe { rhythm_queue_previous(null_queue) }.is_null());
-    unsafe { rhythm_queue_set_mode(null_queue, 1) };
-    assert_eq!(unsafe { rhythm_queue_jump_to(null_queue, 1) }, -1);
-    unsafe { rhythm_queue_replace(null_queue, c("[]").as_ptr()) };
-    assert_eq!(unsafe { rhythm_queue_has_next(null_queue) }, 0);
-    assert_eq!(unsafe { rhythm_queue_has_previous(null_queue) }, 0);
-
     assert!(unsafe { rhythm_metadata_extract(std::ptr::null_mut()) }.is_null());
     assert!(unsafe { rhythm_metadata_scan(std::ptr::null_mut()) }.is_null());
     assert!(unsafe { rhythm_metadata_extract_artwork(std::ptr::null_mut(), std::ptr::null_mut()) }.is_null());
     assert!(unsafe { rhythm_resolve_url(std::ptr::null_mut()) }.is_null());
     assert!(unsafe { rhythm_classify_url(std::ptr::null_mut()) }.is_null());
-}
-
-// ─── FF-21 大 JSON 往返 ─────────────────────────────────────────────
-
-#[test]
-fn ff21_large_json_roundtrip() {
-    let tracks: Vec<serde_json::Value> = (0..300)
-        .map(|i| {
-            let t = common::test_local_track(&format!("/music/{i}.mp3"), &format!("Track {i}"), None, 200.0);
-            let mut v = serde_json::to_value(&t).unwrap();
-            v["id"] = serde_json::json!(i + 1);
-            v
-        })
-        .collect();
-    let json = serde_json::to_string(&tracks).unwrap();
-
-    let q = unsafe { rhythm_queue_create(c(&json).as_ptr()) };
-    assert!(!q.is_null());
-    unsafe {
-        let cur = take(rhythm_queue_current(q));
-        assert!(cur.contains("\"Track 0\""));
-        // Walk to the end — no truncation, no panic.
-        let mut last = cur;
-        loop {
-            let nxt = rhythm_queue_next(q);
-            if nxt.is_null() {
-                break;
-            }
-            last = take(nxt);
-        }
-        assert!(last.contains("\"Track 299\""), "roundtrip must reach the last track");
-    }
-    unsafe { rhythm_queue_destroy(q) };
 }
 
 // ─── FF-22 remove_track 不存在的 id 返回 -1（#98） ──────────────────

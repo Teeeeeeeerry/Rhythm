@@ -20,7 +20,7 @@ use crate::coordinator::{
 use crate::library::Library;
 use crate::metadata;
 use crate::playlist;
-use crate::queue::{PlayMode, PlayQueue};
+use crate::queue::PlayMode;
 use crate::resolver;
 use crate::{PlayerState, TrackInfo};
 use std::ffi::{CStr, CString};
@@ -35,9 +35,6 @@ pub struct RhythmLibrary(Library);
 
 /// Opaque handle to an AudioEngine instance.
 pub struct RhythmPlayer(AudioEngine);
-
-/// Opaque handle to a PlayQueue instance.
-pub struct RhythmQueue(Mutex<PlayQueue>);
 
 /// Opaque handle to a playback coordinator (owns the engine, queue, current
 /// track, and play mode — parent issue #165, ticket #170).
@@ -738,142 +735,6 @@ pub extern "C" fn rhythm_install_ytdlp() -> *mut c_char {
             std::ptr::null_mut()
         }
     }
-}
-
-// ─── Play Queue FFI ───────────────────────────────────────────────
-
-/// Create a new play queue from a JSON array of tracks.
-/// Returns opaque handle, or null on error.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_queue_create(tracks_json: *const c_char) -> *mut RhythmQueue {
-    let json = unsafe { c_str_to_str(tracks_json) };
-    let tracks: Vec<TrackInfo> = match serde_json::from_str(json) {
-        Ok(t) => t,
-        Err(_) => return std::ptr::null_mut(),
-    };
-    Box::into_raw(Box::new(RhythmQueue(Mutex::new(PlayQueue::new(tracks)))))
-}
-
-/// Destroy a queue handle.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_queue_destroy(ptr: *mut RhythmQueue) {
-    if !ptr.is_null() {
-        unsafe { let _ = Box::from_raw(ptr); }
-    }
-}
-
-/// Get the current track as JSON. Caller must free with `rhythm_free_string`.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_queue_current(ptr: *mut RhythmQueue) -> *mut c_char {
-    if ptr.is_null() { return std::ptr::null_mut(); }
-    let q = unsafe { &(*ptr).0 };
-    let guard = q.lock().unwrap();
-    match guard.current() {
-        Some(t) => str_to_c_string(&serde_json::to_string(t).unwrap_or_default()),
-        None => std::ptr::null_mut(),
-    }
-}
-
-/// Advance to the next track and return it as JSON. Returns null if exhausted.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_queue_next(ptr: *mut RhythmQueue) -> *mut c_char {
-    if ptr.is_null() { return std::ptr::null_mut(); }
-    let q = unsafe { &(*ptr).0 };
-    let mut guard = q.lock().unwrap();
-    match guard.advance() {
-        Some(t) => str_to_c_string(&serde_json::to_string(t).unwrap_or_default()),
-        None => std::ptr::null_mut(),
-    }
-}
-
-/// Move to the previous track and return it as JSON.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_queue_previous(ptr: *mut RhythmQueue) -> *mut c_char {
-    if ptr.is_null() { return std::ptr::null_mut(); }
-    let q = unsafe { &(*ptr).0 };
-    let mut guard = q.lock().unwrap();
-    match guard.previous() {
-        Some(t) => str_to_c_string(&serde_json::to_string(t).unwrap_or_default()),
-        None => std::ptr::null_mut(),
-    }
-}
-
-/// Set the play mode: 0=Sequential, 1=Shuffle, 2=SingleLoop, 3=ListLoop
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_queue_set_mode(ptr: *mut RhythmQueue, mode: i32) {
-    if ptr.is_null() { return; }
-    let q = unsafe { &(*ptr).0 };
-    let mut guard = q.lock().unwrap();
-    guard.set_mode(PlayMode::from_i32(mode));
-}
-
-/// Jump to a specific track by ID. Returns 0 on success, -1 if not found.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_queue_jump_to(ptr: *mut RhythmQueue, track_id: i64) -> i32 {
-    if ptr.is_null() { return -1; }
-    let q = unsafe { &(*ptr).0 };
-    let mut guard = q.lock().unwrap();
-    if guard.jump_to(track_id) { 0 } else { -1 }
-}
-
-/// Replace the queue contents with a new track list.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_queue_replace(ptr: *mut RhythmQueue, tracks_json: *const c_char) {
-    if ptr.is_null() { return; }
-    let json = unsafe { c_str_to_str(tracks_json) };
-    let tracks: Vec<TrackInfo> = match serde_json::from_str(json) {
-        Ok(t) => t,
-        Err(_) => return,
-    };
-    let q = unsafe { &(*ptr).0 };
-    let mut guard = q.lock().unwrap();
-    guard.replace(tracks);
-}
-
-/// Whether the queue has a next track. Returns 1 for true, 0 for false.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_queue_has_next(ptr: *mut RhythmQueue) -> i32 {
-    if ptr.is_null() { return 0; }
-    let q = unsafe { &(*ptr).0 };
-    q.lock().unwrap().has_next() as i32
-}
-
-/// Whether the queue has a previous track.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_queue_has_previous(ptr: *mut RhythmQueue) -> i32 {
-    if ptr.is_null() { return 0; }
-    let q = unsafe { &(*ptr).0 };
-    q.lock().unwrap().has_previous() as i32
 }
 
 // ─── Playback Coordinator FFI ─────────────────────────────────────

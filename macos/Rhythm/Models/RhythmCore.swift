@@ -553,63 +553,6 @@ enum PlayMode: Int32 {
     }
 }
 
-final class RhythmQueue {
-    private var ptr: OpaquePointer?
-
-    init?(tracks: [Track]) {
-        let tracksJSON = encodeJSON(tracks)
-        guard let ptr = rhythm_queue_create(tracksJSON) else { return nil }
-        self.ptr = ptr
-    }
-
-    deinit {
-        if let ptr { rhythm_queue_destroy(ptr) }
-    }
-
-    func current() -> Track? {
-        guard let ptr, let json = rhythm_queue_current(ptr) else { return nil }
-        defer { rhythm_free_string(json) }
-        return decodeJSON(String(cString: json))
-    }
-
-    func next() -> Track? {
-        guard let ptr, let json = rhythm_queue_next(ptr) else { return nil }
-        defer { rhythm_free_string(json) }
-        return decodeJSON(String(cString: json))
-    }
-
-    func previous() -> Track? {
-        guard let ptr, let json = rhythm_queue_previous(ptr) else { return nil }
-        defer { rhythm_free_string(json) }
-        return decodeJSON(String(cString: json))
-    }
-
-    func setMode(_ mode: PlayMode) {
-        guard let ptr else { return }
-        rhythm_queue_set_mode(ptr, mode.rawValue)
-    }
-
-    func jumpTo(_ trackId: Int64) -> Bool {
-        guard let ptr else { return false }
-        return rhythm_queue_jump_to(ptr, trackId) == 0
-    }
-
-    func replace(tracks: [Track]) {
-        guard let ptr else { return }
-        rhythm_queue_replace(ptr, encodeJSON(tracks))
-    }
-
-    var hasNext: Bool {
-        guard let ptr else { return false }
-        return rhythm_queue_has_next(ptr) != 0
-    }
-
-    var hasPrevious: Bool {
-        guard let ptr else { return false }
-        return rhythm_queue_has_previous(ptr) != 0
-    }
-}
-
 // MARK: - Resolver Types
 
 struct ResolvedInfo: Codable {

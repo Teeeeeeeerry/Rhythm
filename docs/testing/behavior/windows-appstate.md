@@ -14,17 +14,16 @@
 
 ## 主路径（P0 — 合并门槛）
 
+> 播放编排条目（WA-05~09、WA-18~22、WA-24/25 及 WA-15）自 #175 起并入
+> `coordinator.md`（CO-01~28），双端不再按平台重复维护；本清单只保留
+> AppState 的 UI 状态与流程（打开库、刷新、导入、搜索、URL 解析导入）。
+
 | 编号 | 行为 | 断言 | 状态 |
 |---|---|---|---|
 | WA-01 | `OpenDatabase` | `Library` 创建 + `Tracks`/`Playlists` 填充 | 新测（待 Windows 验证） |
-| WA-02 | `RefreshLibrary` | 无 Library → no-op；有 → Tracks/Playlists 从库刷新 | 新测（待 Windows 验证） |
+| WA-02 | `RefreshLibrary` | 无 Library → no-op；有 → Tracks/Playlists 从库刷新（队列同步在协调器，CO-14） | 新测（待 Windows 验证） |
 | WA-03 | `ImportDirectory` | 有 Library → 导入 + `RefreshLibrary`；无 Library → no-op（数量反馈见 WA-23，T7 已实现） | 新测（待 Windows 验证） |
 | WA-04 | `DoSearch` | 空 query → `AllTracks`；非空 → `Search(query)` | 新测（待 Windows 验证） |
-| WA-05 | `PlayTrack` 分派 | `Coordinator->Start(track, Tracks, mode)` 被调；成功 → `CurrentTrack`/`IsPlaying` 置位；缺位置时协调器返回 `no_playable_location` → 不进入播放状态（守卫在核心，CO-03/CO-04；recordPlay 落库由 CO-05 覆盖） | SpyCoordinator |
-| WA-06 | `TogglePlayPause` 播放中 | `Coordinator->TogglePlayPause()`（语义在核心 CO-18/CO-19）→ `IsPlaying=false` | SpyCoordinator |
-| WA-07 | `TogglePlayPause` 恢复 | 仅 Paused 恢复（#82/#111，核心 CO-19）→ `IsPlaying=true` | SpyCoordinator |
-| WA-08 | `TogglePlayPause` 空闲启动 | 无 CurrentTrack 且库镜像非空 → 协调器启动第一个可播曲目（CO-20），AppState 渲染 | SpyCoordinator |
-| WA-09 | `SetVolume` | `Volume` 状态更新 + `Coordinator->SetVolume(float)` | SpyCoordinator |
 | WA-10 | `ResolveAndPlay` 成功 | trim 输入；`AddTrack` 持久化（#39）；`RefreshLibrary()` 从 DB 重载（#139）；`UrlError` 清空；`PlayTrack(saved)` 经协调器 | SpyCoordinator（真 core 解析，无网络） |
 | WA-11 | `ResolveAndPlay` 失败（#21） | `UrlError`=错误消息 + `OnUrlError(kind, message)` 回调触发 | SpyCoordinator（invalid_url 真 core 失败） |
 
@@ -35,7 +34,6 @@
 | WA-12 | `ResolveAndPlay` 空/纯空白输入 | trim 后为空 → 直接返回 | 新测（待 Windows 验证） |
 | WA-13 | `ResolveAndPlay` 防重入 | `IsResolvingUrl=true` 期间忽略新调用（以 `OnUrlError` 回调计数为观察面：连续两次失败输入只回调一次） | 新测（待 Windows 验证） |
 | WA-14 | `ResolveAndPlay` 无 dispatcher | 后台结果被丢弃、`IsResolvingUrl` 复位（降级模式） | 新测（待 Windows 验证） |
-| WA-15 | `TogglePlayPause` 无曲目可播 | 无 CurrentTrack 且 Tracks 空 → no-op | 新测（待 Windows 验证） |
 | WA-16 | `Library` 打开失败 | `OpenDatabase(坏路径)` → `Library` 内部 ptr 为 null，后续方法安全 no-op | 新测（待 Windows 验证） |
 
 ## 错误路径（P2）
@@ -58,13 +56,7 @@
 
 | 编号 | 行为 | 断言 | 说明 |
 |---|---|---|---|
-| WA-18 | `PlayTrack` 先停后播 | 顺序在协调器（CO-01，#51）；AppState 断言协调器被正确调用 | SpyCoordinator |
-| WA-19 | 播放队列：`playNext`/`playPrevious` | 经 `Coordinator->Next/Previous`（有界跳过 CO-09~12）；队列耗尽 no-op；`PlayQueue` FFI 包装往返测试保留 | SpyCoordinator + 真 FFI 队列 |
-| WA-20 | `RefreshLibrary` 队列同步 | `Coordinator->SyncQueue(Tracks)`（#69/#72，CO-14） | SpyCoordinator |
-| WA-21 | 播放模式循环 | `PlayMode` 四种模式 + `Coordinator->SetPlayMode` 同步 | SpyCoordinator |
-| WA-22 | 传输可用性 | `canPlayNext`/`canPlayPrevious`/`canTogglePlayback`/`canStop` 均来自协调器导出（CO-21） | SpyCoordinator |
 | WA-23（T7 已实现，待 Windows 验证） | `ImportDirectory` 导入反馈 | 导入数量经状态/回调反馈到 UI（对齐 macOS alert） | 功能新增 |
-| WA-24（#139） | `ResolveAndPlay` 后列表与队列同步 | 已有曲目时 URL 入库后 `RefreshLibrary()` 重载，队列可到达既有曲目 | SpyCoordinator |
-| WA-25（#137，#172/#173 改事件驱动） | 自然播完自动切歌/停止 | 定时器删除：`finished` 事件 → `IsPlaying=false`；`track_changed` 事件 → `CurrentTrack` 更新；progress/state 事件驱动进度与缓冲渲染（自动切歌在核心，CO-25） | SpyCoordinator 事件注入 |
 | WA-26（#173） | M3U8 导入逐条入库 | `ImportM3U8(path)` 解析→逐条 `AddTrack`（URL→direct_url、其余→local）→刷新→统计文案；失败计数与 macOS 一致（原 no-op 修复） | 真 FFI 解析 + 临时 M3U8 文件 |
+| WA-27（#175） | 事件驱动渲染（替代定时器） | `finished`/`track_changed`/`progress`/`state`/`error` 事件 → `IsPlaying`/`CurrentTrack`/`Position`/`IsBuffering`/分类文案（自动切歌在核心，CO-25） | SpyCoordinator 事件注入 |
 | WA-26（#141，待 Windows 验证） | Windows 文案层 L10n | 全部用户可见文案经 `L10n`（对齐 macOS `L10n` 枚举）：手动覆盖（注册表 `AppLanguage`）优先、否则跟随系统 UI 语言；#120 expired/cdn_rejected 分类含英文分支；导入反馈、解析状态、来源徽标、托盘菜单同层 | 功能新增（macOS 对齐） |
