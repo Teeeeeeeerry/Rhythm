@@ -27,14 +27,18 @@
 | CO-15 | `stop` | 引擎 stop；current_track/队列清空；无 next/previous | FakePlayer |
 | CO-16 | `set_play_mode` | 模式存储并同步到队列（ListLoop 下末位仍有 next） | 真队列 |
 | CO-17 | FFI 结构化结果 | `rhythm_coordinator_start` 无位置曲目 → `{"ok":false,"error_kind":"no_playable_location",...}`；null 句柄/坏 JSON → `invalid_input`；`has_next`/`has_previous`/`current_track`/`get_play_mode`/`get_state` 空态往返 | FFI 直调 |
+| CO-18 | `toggle_play_pause` 播放/缓冲中 | 引擎 Playing/Buffering → `pause()`；结果 `playback_active=false`（#111：Buffering 中 pause 必须生效） | FakePlayer |
+| CO-19 | `toggle_play_pause` 仅 Paused 恢复 | 引擎 Paused → `resume()`、`playback_active=true`；Error/Finished → no-op（不调 resume/pause，`playback_active=false`） | FakePlayer |
+| CO-20 | `toggle_play_pause` 空闲启动 | 无 current + 库镜像（sync_queue 供给）非空 → 启动第一个可播曲目（#78 候选选择在协调器）；空库 → no-op | FakePlayer |
+| CO-21 | 传输可用性导出 | `can_toggle_playback`（有 current 或库非空）、`can_stop`（引擎 Playing/Buffering/Paused）矩阵；FFI `rhythm_coordinator_can_*` 往返 | FakePlayer + FFI 直调 |
 
 ## 边界情况（P1）
 
 | 编号 | 行为 | 断言 | 测试途径 |
 |---|---|---|---|
-| CO-18 | 单曲循环模式 next | SingleLoop 下 `next` 返回当前曲目（重放） | FakePlayer |
-| CO-19 | sync_queue 坏 JSON（FFI） | 安全 no-op，句柄仍可用 | FFI 直调 |
-| CO-20 | 传输可用性导出 | `can_play_next`/`can_play_previous` 与队列游标一致（含模式矩阵） | 真队列 |
+| CO-22 | 单曲循环模式 next | SingleLoop 下 `next` 返回当前曲目（重放） | FakePlayer |
+| CO-23 | sync_queue 坏 JSON（FFI） | 安全 no-op，句柄仍可用 | FFI 直调 |
+| CO-24 | 传输可用性导出 | `can_play_next`/`can_play_previous` 与队列游标一致（含模式矩阵） | 真队列 |
 
 ## 错误路径（P2）
 

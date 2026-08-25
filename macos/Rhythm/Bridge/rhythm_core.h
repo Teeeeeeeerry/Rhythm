@@ -92,8 +92,8 @@ int32_t rhythm_queue_has_previous(RhythmQueue* queue);
 // The coordinator owns the orchestration rules (stop old playback, dispatch
 // by source type, record plays, queue build + positioning, bounded skip of
 // unplayable tracks). Every call returns a structured result JSON:
-// {"ok":true,"current_track":{...}} or
-// {"ok":false,"error_kind":"...","error_message":"..."}.
+// {"ok":true,"current_track":{...},"playback_active":true} or
+// {"ok":false,"error_kind":"...","error_message":"...","playback_active":false}.
 // Error kinds: no_playable_location, playback_failed, invalid_input.
 
 RhythmCoordinator* rhythm_coordinator_create(void);
@@ -104,6 +104,9 @@ char* rhythm_coordinator_start(RhythmCoordinator* coordinator, RhythmLibrary* li
                                int32_t mode);
 char* rhythm_coordinator_next(RhythmCoordinator* coordinator, RhythmLibrary* library);
 char* rhythm_coordinator_previous(RhythmCoordinator* coordinator, RhythmLibrary* library);
+char* rhythm_coordinator_toggle_play_pause(RhythmCoordinator* coordinator, RhythmLibrary* library);
+int32_t rhythm_coordinator_can_toggle_playback(RhythmCoordinator* coordinator);
+int32_t rhythm_coordinator_can_stop(RhythmCoordinator* coordinator);
 void rhythm_coordinator_sync_queue(RhythmCoordinator* coordinator, const char* tracks_json);
 void rhythm_coordinator_stop(RhythmCoordinator* coordinator);
 void rhythm_coordinator_pause(RhythmCoordinator* coordinator);

@@ -18,9 +18,9 @@
 | AS-03 | `playTrack` 本地曲目 | `coordinator.start(track, queueTracks, mode, library)` 被调（参数正确）；成功 → `currentTrack` 置位、`isPlaying=true`；stop 先于 play/recordPlay 落库由 CO-01/CO-05 覆盖 | SpyCoordinator + 真库 |
 | AS-04 | `playTrack` URL 曲目 | `start` 携带 URL 曲目（sourceUrl 原样传入）；URL 分派由 CO-02 覆盖 | SpyCoordinator |
 | AS-05 | `playTrack(_:queueTracks:)` 自定义队列 | `start` 的 queueTracks 来自调用方（playlist 场景），经可用性断言验证定位 | SpyCoordinator 模型 |
-| AS-06 | `togglePlayPause` 播放中 | `coordinator.pause()`、`isPlaying=false`、`isBuffering=false` | SpyCoordinator |
-| AS-07 | `togglePlayPause` 暂停恢复（#111） | 有 `currentTrack` 且引擎为 Paused(2) → `coordinator.resume()`、`isPlaying=true`；非 Paused（Error/Stopped/Buffering）→ 不调 resume、不置 `isPlaying` | SpyCoordinator |
-| AS-08 | `togglePlayPause` 空闲启动 | 无 `currentTrack` 且曲库非空 → `playTrack(第一个可播曲目)` | SpyCoordinator + 真库 |
+| AS-06 | `togglePlayPause` 播放中 | `coordinator.togglePlayPause(library)` 被调；结果 `playbackActive=false` → `isPlaying=false`、`isBuffering=false` | SpyCoordinator |
+| AS-07 | `togglePlayPause` 暂停恢复（#111） | 引擎 Paused → toggle 内 resume（结果 `playbackActive=true` → `isPlaying=true`）；非 Paused（Error/Stopped/Buffering）→ no-op、不置 `isPlaying`（判定在协调器，CO-19） | SpyCoordinator |
+| AS-08 | `togglePlayPause` 空闲启动 | 无 `currentTrack` 且库镜像非空 → 协调器启动第一个可播曲目（CO-20），AppState 渲染 | SpyCoordinator + 真库 |
 | AS-09 | `playNext` | `coordinator.playNext(library)` 被调；结果带新 current → `currentTrack`/`isPlaying` 更新；无 next：current 不变（跳过/耗尽语义由 CO-09/CO-10/CO-11 覆盖） | SpyCoordinator |
 | AS-10 | `playPrevious` | 对称于 AS-09（`coordinator.playPrevious`） | SpyCoordinator |
 | AS-11 | `stop()` | `coordinator.stop()`（引擎停 + 队列清空）、`isPlaying=false`、`isBuffering=false`、`currentTrack=nil`、`position=0`、`duration=0` | SpyCoordinator |
@@ -30,7 +30,7 @@
 | AS-15 | `updatePlaybackProgress` 播放失败（#23 类） | `state==4`（Error）→ `isPlaying=false`、`urlError=L10n.playbackFailed(detail)` 非空 | SpyCoordinator（预置 Error+消息） |
 | AS-16 | `seek(to:)`（#73） | `coordinator.seek(seconds)` 被调；`position` 乐观更新为秒数 | SpyCoordinator |
 | AS-17 | `cyclePlayMode` | `playMode` 循环至下一模式；`coordinator.setPlayMode` 同步 | SpyCoordinator |
-| AS-18 | 传输可用性（#24/#25） | `canTogglePlayback=currentTrack!=nil || !tracks.isEmpty`；`canPlayNext/Previous=coordinator.hasNext/hasPrevious`；`canStop=isPlaying`——与传输方法实际行为镜像 | SpyCoordinator |
+| AS-18 | 传输可用性（#24/#25） | `canTogglePlayback`/`canStop` 来自协调器导出（CO-21），`canPlayNext/Previous=coordinator.hasNext/hasPrevious`——UI 只渲染不计算 | SpyCoordinator |
 | AS-19 | `resolveAndImport` 成功（#74） | trim 输入；成功后 `importResolved(track)`；**不启动播放**；`isResolvingURL` 复位；URL 曲目 `sourceUrl` 存页面 URL（非 CDN 链接） | stub resolver + SpyPlayer（断言无播放调用） |
 | AS-20 | `resolveAndImport` 失败（#21） | `urlError=L10n.urlResolveError(kind, detail)` 非空；不弹导入 alert | stub resolver 报错 |
 | AS-21 | `importResolved`（#71） | `addTrack` 持久化 → `refreshLibrary`（#66）→ `urlInput=""` → 导入 alert；不播放 | 真库 + SpyPlayer |
@@ -43,7 +43,7 @@
 
 | 编号 | 行为 | 断言 | 测试途径 |
 |---|---|---|---|
-| AS-27 | `togglePlayPause` 无曲目可播 | 无 `currentTrack` 且曲库空 → no-op（不调 player） | SpyPlayer |
+| AS-27 | `togglePlayPause` 无曲目可播 | 无 `currentTrack` 且库镜像空 → 协调器 no-op（不启动不暂停） | SpyCoordinator |
 | AS-28 | `playTrack` 缺路径/URL | 缺 `filePath`/`sourceUrl`（含空串）时 `start` 返回分类失败（守卫在协调器，CO-03/CO-04）→ 不置 `currentTrack`/`isPlaying`。playNext/playPrevious 跳过无位置曲目（有界 skip-loop，全死队列放弃且当前曲继续）；playResolved 同样校验；auto-advance 全死队列停止置位 | SpyCoordinator |
 | AS-29 | `resolveAndImport` 并发防重入 | `isResolvingURL=true` 期间新调用被忽略；空/纯空白输入被忽略 | stub resolver + expectation |
 | AS-30 | resolver 状态轮询生命周期 | resolve 开始启动轮询、结束停止；`isQuiet` 时 `urlStatus=""` | stub resolver + `isPollingResolverStatus` 断言 |

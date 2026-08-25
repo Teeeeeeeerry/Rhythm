@@ -14,6 +14,7 @@ final class AppStatePlaybackBoundaryTests: AppStatePlaybackTestCase {
 
         XCTAssertTrue(spy.startCalls.isEmpty, "nothing to play — the coordinator must not be asked to start")
         XCTAssertFalse(appState.isPlaying)
+        XCTAssertFalse(spy.calls.contains("pause"), "no pause without playback")
     }
 
     // MARK: - AS-28 playTrack 缺路径

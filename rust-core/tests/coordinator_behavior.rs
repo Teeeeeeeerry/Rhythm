@@ -21,23 +21,26 @@ use std::sync::{Arc, Mutex};
 /// exact orchestration sequence (e.g. `stop` before `play_file` — #51).
 struct FakePlayer {
     calls: Arc<Mutex<Vec<String>>>,
-    state: Mutex<PlayerState>,
+    state: Arc<Mutex<PlayerState>>,
     fail_play_file: bool,
     fail_play_url: bool,
     error_kind: Mutex<Option<HttpErrorKind>>,
 }
 
 impl FakePlayer {
-    fn new() -> (FakePlayer, Arc<Mutex<Vec<String>>>) {
+    /// Returns the player plus shared handles for the call log and the
+    /// engine-mirror state (tests force states like Paused/Buffering).
+    fn new() -> (FakePlayer, CallLog, EngineState) {
         let calls = Arc::new(Mutex::new(Vec::new()));
+        let state = Arc::new(Mutex::new(PlayerState::Stopped));
         let player = FakePlayer {
             calls: calls.clone(),
-            state: Mutex::new(PlayerState::Stopped),
+            state: state.clone(),
             fail_play_file: false,
             fail_play_url: false,
             error_kind: Mutex::new(None),
         };
-        (player, calls)
+        (player, calls, state)
     }
 
     fn record(&self, call: &str) {
@@ -146,6 +149,11 @@ fn dummy_track(id: i64, title: &str) -> TrackInfo {
     }
 }
 
+/// Shared call log handle.
+type CallLog = Arc<Mutex<Vec<String>>>;
+/// Shared engine-mirror state handle (tests force states like Paused).
+type EngineState = Arc<Mutex<PlayerState>>;
+
 /// A track with no playable location (no path, no URL).
 fn unplayable_track(id: i64, title: &str) -> TrackInfo {
     let mut t = dummy_track(id, title);
@@ -170,7 +178,7 @@ fn make_coordinator(player: FakePlayer) -> PlaybackCoordinator {
 
 #[test]
 fn co01_start_local_stops_then_plays_and_positions_queue() {
-    let (player, calls) = FakePlayer::new();
+    let (player, calls, _state) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let track = dummy_track(1, "A");
@@ -192,7 +200,7 @@ fn co01_start_local_stops_then_plays_and_positions_queue() {
 
 #[test]
 fn co02_start_url_dispatches_play_url() {
-    let (player, calls) = FakePlayer::new();
+    let (player, calls, _state) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let track = url_track(1, "Stream", "https://cdn.example.com/x.mp3");
@@ -209,7 +217,7 @@ fn co02_start_url_dispatches_play_url() {
 
 #[test]
 fn co03_start_without_playable_location_is_classified_error() {
-    let (player, calls) = FakePlayer::new();
+    let (player, calls, _state) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let track = unplayable_track(1, "Dead");
@@ -229,7 +237,7 @@ fn co03_start_without_playable_location_is_classified_error() {
 
 #[test]
 fn co04_empty_path_or_url_counts_as_missing() {
-    let (player, calls) = FakePlayer::new();
+    let (player, calls, _state) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let mut local = dummy_track(1, "A");
@@ -248,7 +256,7 @@ fn co04_empty_path_or_url_counts_as_missing() {
 
 #[test]
 fn co05_start_records_play_in_library() {
-    let (player, _) = FakePlayer::new();
+    let (player, _, _) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let dir = tempfile::tempdir().unwrap();
@@ -268,7 +276,7 @@ fn co05_start_records_play_in_library() {
 
 #[test]
 fn co06_start_positions_queue_at_track_and_obeys_mode() {
-    let (player, _) = FakePlayer::new();
+    let (player, _, _) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     // Positioned at the last track, Sequential has no next.
@@ -291,7 +299,7 @@ fn co06_start_positions_queue_at_track_and_obeys_mode() {
 
 #[test]
 fn co08_start_reports_immediate_engine_failure() {
-    let (mut player, calls) = FakePlayer::new();
+    let (mut player, calls, _state) = FakePlayer::new();
     player.fail_play_file = true;
     let mut coord = make_coordinator(player);
 
@@ -307,7 +315,7 @@ fn co08_start_reports_immediate_engine_failure() {
 
 #[test]
 fn co09_next_advances_and_stops_before_play() {
-    let (player, calls) = FakePlayer::new();
+    let (player, calls, _state) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -329,7 +337,7 @@ fn co09_next_advances_and_stops_before_play() {
 
 #[test]
 fn co10_next_skips_unplayable_tracks() {
-    let (player, calls) = FakePlayer::new();
+    let (player, calls, _state) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -353,7 +361,7 @@ fn co10_next_skips_unplayable_tracks() {
 
 #[test]
 fn co11_next_all_unplayable_gives_up_without_touching_state() {
-    let (player, calls) = FakePlayer::new();
+    let (player, calls, _state) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -377,7 +385,7 @@ fn co11_next_all_unplayable_gives_up_without_touching_state() {
 
 #[test]
 fn co12_next_exhausted_queue_is_no_op() {
-    let (player, calls) = FakePlayer::new();
+    let (player, calls, _state) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -395,7 +403,7 @@ fn co12_next_exhausted_queue_is_no_op() {
 
 #[test]
 fn co13_previous_walks_backwards_and_stops_at_head() {
-    let (player, calls) = FakePlayer::new();
+    let (player, calls, _state) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -428,7 +436,7 @@ fn co13_previous_walks_backwards_and_stops_at_head() {
 
 #[test]
 fn co14_next_without_queue_is_no_op() {
-    let (player, calls) = FakePlayer::new();
+    let (player, calls, _state) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let result = coord.next(None);
@@ -441,7 +449,7 @@ fn co14_next_without_queue_is_no_op() {
 
 #[test]
 fn co15_sync_queue_replaces_and_jumps_back_to_current() {
-    let (player, _) = FakePlayer::new();
+    let (player, _, _) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -468,7 +476,7 @@ fn co15_sync_queue_replaces_and_jumps_back_to_current() {
 
 #[test]
 fn co16_stop_clears_current_and_queue() {
-    let (player, calls) = FakePlayer::new();
+    let (player, calls, _state) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -488,7 +496,7 @@ fn co16_stop_clears_current_and_queue() {
 
 #[test]
 fn co17_set_play_mode_follows_into_queue() {
-    let (player, _) = FakePlayer::new();
+    let (player, _, _) = FakePlayer::new();
     let mut coord = make_coordinator(player);
 
     let a = dummy_track(1, "A");
@@ -583,4 +591,135 @@ fn ffi_coordinator_sync_queue_and_mode_roundtrip() {
     }
     assert_eq!(unsafe { rhythm_coordinator_get_play_mode(coord) }, 3);
     unsafe { rhythm_coordinator_destroy(coord) };
+}
+// ─── CO-21: toggle pause / resume ─────────────────────────────────
+
+#[test]
+fn co21_toggle_pauses_while_playing_or_buffering() {
+    let (player, calls, state) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+
+    let a = dummy_track(1, "A");
+    assert!(coord.start(None, a.clone(), vec![a], PlayMode::Sequential).ok);
+    calls.lock().unwrap().clear();
+
+    let result = coord.toggle_play_pause(None);
+    assert!(result.ok);
+    assert!(!result.playback_active, "pause must report playback inactive");
+    assert_eq!(calls.lock().unwrap()[0], "pause");
+
+    // #111: pause during Buffering must stick.
+    coord.player().stop();
+    calls.lock().unwrap().clear();
+    *state.lock().unwrap() = PlayerState::Buffering;
+    let result = coord.toggle_play_pause(None);
+    assert!(!result.playback_active);
+    assert_eq!(calls.lock().unwrap()[0], "pause");
+}
+
+#[test]
+fn co22_toggle_resumes_only_when_paused() {
+    let (player, calls, state) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+
+    let a = dummy_track(1, "A");
+    assert!(coord.start(None, a.clone(), vec![a], PlayMode::Sequential).ok);
+    calls.lock().unwrap().clear();
+
+    // Paused → resume.
+    *state.lock().unwrap() = PlayerState::Paused;
+    let result = coord.toggle_play_pause(None);
+    assert!(result.ok);
+    assert!(result.playback_active, "resume must report playback active");
+    assert_eq!(calls.lock().unwrap()[0], "resume");
+
+    // Error → no-op (#111: only Paused may resume).
+    calls.lock().unwrap().clear();
+    *state.lock().unwrap() = PlayerState::Error("boom".into());
+    let result = coord.toggle_play_pause(None);
+    assert!(result.ok);
+    assert!(!result.playback_active);
+    assert!(calls.lock().unwrap().is_empty(), "no resume outside Paused");
+
+    // Finished → no-op, playback inactive (the UI stops claiming playback).
+    calls.lock().unwrap().clear();
+    *state.lock().unwrap() = PlayerState::Finished;
+    let result = coord.toggle_play_pause(None);
+    assert!(result.ok);
+    assert!(!result.playback_active);
+    assert!(calls.lock().unwrap().is_empty());
+}
+
+// ─── CO-23: toggle idle-start ─────────────────────────────────────
+
+#[test]
+fn co23_toggle_idle_starts_first_playable_library_track() {
+    let (player, calls, _state) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+
+    let playable = dummy_track(1, "A");
+    let dead = unplayable_track(2, "Dead");
+    let also_playable = dummy_track(3, "C");
+    // Library mirror is fed by sync_queue (the UI refreshes on open).
+    coord.sync_queue(vec![playable.clone(), dead, also_playable.clone()]);
+
+    let result = coord.toggle_play_pause(None);
+    assert!(result.ok);
+    assert!(result.playback_active);
+    assert_eq!(result.current_track.map(|t| t.title), Some("A".to_string()));
+    assert_eq!(coord.current_track().map(|t| t.id), Some(Some(1)));
+    assert!(coord.can_play_next(), "queue = library mirror, positioned at A");
+
+    let calls = calls.lock().unwrap();
+    assert_eq!(calls[0], "stop", "#51: stop before the idle start dispatch");
+    assert_eq!(calls[1], "play_file:/music/A.mp3");
+}
+
+#[test]
+fn co24_toggle_empty_library_is_no_op() {
+    let (player, calls, _state) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+
+    let result = coord.toggle_play_pause(None);
+    assert!(result.ok);
+    assert!(!result.playback_active);
+    assert!(result.current_track.is_none());
+    assert!(calls.lock().unwrap().is_empty());
+}
+
+// ─── CO-25: availability exports ──────────────────────────────────
+
+#[test]
+fn co25_availability_matrix() {
+    let (player, _, state) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+
+    // Fresh: nothing to toggle, nothing to stop.
+    assert!(!coord.can_toggle_playback());
+    assert!(!coord.can_stop());
+
+    // Library mirror only → toggle can start, still nothing to stop.
+    coord.sync_queue(vec![dummy_track(1, "A")]);
+    assert!(coord.can_toggle_playback());
+    assert!(!coord.can_stop());
+
+    // Started → both available.
+    let a = dummy_track(1, "A");
+    assert!(coord.start(None, a.clone(), vec![a], PlayMode::Sequential).ok);
+    assert!(coord.can_toggle_playback());
+    assert!(coord.can_stop());
+
+    // Paused → still stoppable.
+    *state.lock().unwrap() = PlayerState::Paused;
+    assert!(coord.can_stop());
+
+    // Stopped → nothing to stop.
+    coord.stop();
+    assert!(!coord.can_stop());
+    assert!(coord.can_toggle_playback(), "library mirror still present");
+
+    // Stopped with an empty library → nothing at all.
+    let mut empty = coord;
+    empty.sync_queue(vec![]);
+    assert!(!empty.can_toggle_playback());
 }

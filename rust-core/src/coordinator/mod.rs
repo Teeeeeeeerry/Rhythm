@@ -117,6 +117,9 @@ pub struct CoordinatorResult {
     /// follow transport moves without a second query.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current_track: Option<TrackInfo>,
+    /// Whether playback is active (engine Playing/Buffering) after the
+    /// operation — what the UI should render for `isPlaying`.
+    pub playback_active: bool,
 }
 
 impl CoordinatorResult {
@@ -126,6 +129,7 @@ impl CoordinatorResult {
             error_kind: None,
             error_message: None,
             current_track: None,
+            playback_active: false,
         }
     }
 
@@ -135,6 +139,30 @@ impl CoordinatorResult {
             error_kind: None,
             error_message: None,
             current_track: Some(track),
+            playback_active: true,
+        }
+    }
+
+    /// Like `ok_with_track`, but with an explicit playback-active flag (the
+    /// toggle operation reports the engine state after the op).
+    pub fn ok_with_track_active(track: TrackInfo, active: bool) -> Self {
+        Self {
+            ok: true,
+            error_kind: None,
+            error_message: None,
+            current_track: Some(track),
+            playback_active: active,
+        }
+    }
+
+    /// Successful no-track result with an explicit playback-active flag.
+    pub fn ok_active(active: bool) -> Self {
+        Self {
+            ok: true,
+            error_kind: None,
+            error_message: None,
+            current_track: None,
+            playback_active: active,
         }
     }
 
@@ -144,6 +172,7 @@ impl CoordinatorResult {
             error_kind: Some(kind),
             error_message: Some(message),
             current_track: None,
+            playback_active: false,
         }
     }
 }
@@ -178,12 +207,17 @@ fn playable_location(track: &TrackInfo) -> Option<PlayableLocation> {
 }
 
 /// Owns the playback state machine: the engine, the queue, the current
-/// track, and the play mode.
+/// track, the play mode, and a mirror of the library list (used by the
+/// toggle's idle-start rule).
 pub struct PlaybackCoordinator {
     player: Box<dyn PlayerSurface>,
     queue: Option<PlayQueue>,
     current_track: Option<TrackInfo>,
     play_mode: PlayMode,
+    /// Last library snapshot (`sync_queue` mirror). The toggle's idle-start
+    /// rule picks the first playable track from here when nothing is
+    /// playing (#78 candidate selection lives in the coordinator).
+    library_tracks: Vec<TrackInfo>,
 }
 
 impl PlaybackCoordinator {
@@ -200,6 +234,7 @@ impl PlaybackCoordinator {
             queue: None,
             current_track: None,
             play_mode: PlayMode::Sequential,
+            library_tracks: Vec::new(),
         }
     }
 
@@ -277,9 +312,11 @@ impl PlaybackCoordinator {
         self.play_adjacent(library, Direction::Previous)
     }
 
-    /// Sync the queue after a library refresh (#69): replace the contents
-    /// and jump back to the current track by its database id.
+    /// Sync the queue after a library refresh (#69): replace the contents,
+    /// jump back to the current track by its database id, and mirror the
+    /// library list (the toggle's idle-start source).
     pub fn sync_queue(&mut self, tracks: Vec<TrackInfo>) {
+        self.library_tracks = tracks.clone();
         let Some(queue) = self.queue.as_mut() else { return };
         queue.replace(tracks);
         if let Some(track) = &self.current_track {
@@ -322,6 +359,59 @@ impl PlaybackCoordinator {
     /// Whether the queue has a previous track (transport availability).
     pub fn can_play_previous(&self) -> bool {
         self.queue.as_ref().is_some_and(|q| q.has_previous())
+    }
+
+    /// Whether the toggle has something to act on: a current track (pause /
+    /// resume) or a library to start from (idle start).
+    pub fn can_toggle_playback(&self) -> bool {
+        self.current_track.is_some() || !self.library_tracks.is_empty()
+    }
+
+    /// Whether playback can be stopped: the engine is playing, buffering, or
+    /// paused.
+    pub fn can_stop(&self) -> bool {
+        matches!(
+            self.player.state(),
+            PlayerState::Playing | PlayerState::Buffering | PlayerState::Paused
+        )
+    }
+
+    /// Toggle play/pause, with the full transport semantics the UI layers
+    /// used to implement twice (ticket #171):
+    ///
+    /// - engine Playing/Buffering → pause (#111: pause during Buffering must
+    ///   stick),
+    /// - engine Paused → resume (only Paused may resume — #111),
+    /// - engine Finished → no-op (the UI stops claiming playback),
+    /// - engine Stopped with a current track → no-op (nothing to resume),
+    /// - engine Stopped with no current track → start the first playable
+    ///   library track (idle start; candidate selection lives here — #78).
+    pub fn toggle_play_pause(&mut self, library: Option<&Library>) -> CoordinatorResult {
+        match self.player.state() {
+            PlayerState::Playing | PlayerState::Buffering => {
+                self.player.pause();
+                self.result_for_current_active(false)
+            }
+            PlayerState::Paused => {
+                self.player.resume();
+                self.result_for_current_active(true)
+            }
+            _ => {
+                if self.current_track.is_none() {
+                    // Idle start: first playable library track (#78).
+                    let candidate = self
+                        .library_tracks
+                        .iter()
+                        .find(|t| playable_location(t).is_some());
+                    if let Some(track) = candidate {
+                        let queue = self.library_tracks.clone();
+                        return self.start(library, track.clone(), queue, self.play_mode);
+                    }
+                }
+                // Finished / Stopped with a current track: nothing to do.
+                self.result_for_current_active(false)
+            }
+        }
     }
 }
 
@@ -382,6 +472,13 @@ impl PlaybackCoordinator {
         match &self.current_track {
             Some(track) => CoordinatorResult::ok_with_track(track.clone()),
             None => CoordinatorResult::ok(),
+        }
+    }
+
+    fn result_for_current_active(&self, active: bool) -> CoordinatorResult {
+        match &self.current_track {
+            Some(track) => CoordinatorResult::ok_with_track_active(track.clone(), active),
+            None => CoordinatorResult::ok_active(active),
         }
     }
 }
