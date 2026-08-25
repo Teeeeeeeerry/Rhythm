@@ -88,18 +88,15 @@ def gen_cpp(table: dict) -> str:
         "",
         "namespace rhythm {",
         "",
-        "/// 键表生成的文案取值层（单一事实来源）。Windows 的语言检测（系统 UI",
-        "/// 语言 + 注册表覆盖）留在 L10n.h 的 IsChinese()，本层只做键→文案映射。",
-        "struct L10nKeys {",
-        "    static const wchar_t* Zh(const char* key);",
-        "    static const wchar_t* En(const char* key);",
-        "};",
+        "// 键表生成的文案取值（单一事实来源）。Windows 的语言检测（系统 UI",
+        "// 语言 + 注册表覆盖）留在 L10n.h 的 IsChinese()，本层只做键→文案映射。",
+        "// 带 {占位符} 的模板由 L10n.h 的 Fill 填充。",
         "",
     ]
     for key in sorted(entries):
         e = entries[key]
-        lines.append(f'const wchar_t* L10nKeysZh_{key}() {{ return L"{cpp_escape(e["zh"])}"; }}')
-        lines.append(f'const wchar_t* L10nKeysEn_{key}() {{ return L"{cpp_escape(e["en"])}"; }}')
+        lines.append(f'inline const wchar_t* L10nKeys_zh_{key}() {{ return L"{cpp_escape(e["zh"])}"; }}')
+        lines.append(f'inline const wchar_t* L10nKeys_en_{key}() {{ return L"{cpp_escape(e["en"])}"; }}')
     lines += [
         "",
         "} // namespace rhythm",
