@@ -6,33 +6,40 @@ import Foundation
 /// All entries are computed properties (not cached `static let`): the language
 /// preference is read on every access so a runtime override (AppLanguage) takes
 /// effect immediately, and tests can flip the locale deterministically (#145).
+///
+/// 文案单一事实来源（#167 组）：静态文案全部来自键表
+/// `contracts/l10n-keys.json`（经 `scripts/gen-l10n.py` 生成 `L10nKeys`）；
+/// 本层只保留带参数/逻辑的文案函数。新增文案只改键表。
 enum L10n {
-    private static var locale: Locale {
-        if let code = UserDefaults.standard.string(forKey: "AppLanguage") {
-            return Locale(identifier: code)
-        }
-        return Locale.current
+    static var isChinese: Bool {
+        L10nKeys.isChinese
     }
 
-    static var isChinese: Bool {
-        locale.identifier.hasPrefix("zh")
+    /// 替换 `{name}` 占位符（键表文案的格式化入口）。
+    private static func fill(_ template: String, _ values: [String: String]) -> String {
+        var result = template
+        for (name, value) in values {
+            result = result.replacingOccurrences(of: "{\(name)}", with: value)
+        }
+        return result
     }
 
     // ─── Tab / Sidebar ────────────────────────────────────
 
-    static var libraryTab: String { isChinese ? "资料库" : "Library" }
-    static var playlistsTab: String { isChinese ? "播放列表" : "Playlists" }
+    static var libraryTab: String { L10nKeys.value("library_tab") }
+    static var playlistsTab: String { L10nKeys.value("playlists_tab") }
 
     // ─── Player Bar ───────────────────────────────────────
 
-    static var notPlaying: String { isChinese ? "未在播放" : "Not Playing" }
-    static var playModeTooltip: String { isChinese ? "播放模式" : "Play Mode" }
-    static var urlPlaceholder: String { isChinese ? "粘贴 YouTube / Bilibili 链接播放" : "Paste a YouTube / Bilibili URL to play" }
-    static var urlPlay: String { isChinese ? "播放链接" : "Play URL" }
-    static var urlResolving: String { isChinese ? "解析中…" : "Resolving…" }
-    static var urlErrorTitle: String { isChinese ? "无法播放链接" : "Cannot Play URL" }
-    static var urlResolveFailed: String { isChinese ? "链接解析失败，请检查链接是否有效" : "Failed to resolve the URL. Please check it is valid." }
-    static var ok: String { isChinese ? "确定" : "OK" }
+    static var notPlaying: String { L10nKeys.value("not_playing") }
+    static var playModeTooltip: String { L10nKeys.value("play_mode_tooltip") }
+    static var urlPlaceholder: String { L10nKeys.value("url_placeholder") }
+    static var urlPlay: String { L10nKeys.value("url_play") }
+    static var urlResolving: String { L10nKeys.value("url_resolving") }
+    static var urlErrorTitle: String { L10nKeys.value("url_error_title") }
+    static var urlResolveFailed: String { L10nKeys.value("url_resolve_failed") }
+    static var ok: String { L10nKeys.value("ok") }
+    static var buffering: String { L10nKeys.value("buffering") }
 
     /// Explain a playback failure (as opposed to a resolution failure).
     ///
@@ -46,20 +53,16 @@ enum L10n {
         let headline: String
         switch kind {
         case "expired":
-            headline = isChinese
-                ? "播放失败。链接可能已过期，重新粘贴一次试试。"
-                : "Playback failed. The link may have expired — try pasting it again."
+            headline = L10nKeys.value("playback_failed_expired")
         case "cdn_rejected":
-            headline = isChinese
-                ? "播放失败。YouTube 拒绝了当前网络的请求（可能与 ISP 或 VPN 有关），换网络或稍后再试。"
-                : "Playback failed. YouTube rejected this network's request (possibly your ISP or VPN) — switch networks or try again later."
+            headline = L10nKeys.value("playback_failed_cdn_rejected")
         default:
-            headline = isChinese ? "播放失败。" : "Playback failed."
+            headline = L10nKeys.value("playback_failed_headline")
         }
         return detail.isEmpty
             ? headline
             : isChinese
-                ? "\(headline)\n\n详细信息：\n\(detail)"
+                ? "\(headline)\n\n\(L10nKeys.value("detail_prefix_zh"))\n\(detail)"
                 : "\(headline)\n\n\(detail)"
     }
 
@@ -67,16 +70,16 @@ enum L10n {
     static func resolverStatusText(phase: String, received: Int64?, total: Int64?) -> String {
         switch phase {
         case "checking":
-            return isChinese ? "正在准备解析组件…" : "Preparing resolver…"
+            return L10nKeys.value("resolver_status_checking")
         case "downloading":
             let progress = downloadProgress(received: received, total: total)
-            return isChinese ? "正在下载解析组件 \(progress)" : "Downloading resolver \(progress)"
+            return fill(L10nKeys.value("resolver_status_downloading"), ["progress": progress])
         case "verifying":
-            return isChinese ? "正在校验解析组件…" : "Verifying resolver…"
+            return L10nKeys.value("resolver_status_verifying")
         case "updating":
-            return isChinese ? "正在更新解析组件…" : "Updating resolver…"
+            return L10nKeys.value("resolver_status_updating")
         case "failed":
-            return isChinese ? "解析组件安装失败" : "Resolver install failed"
+            return L10nKeys.value("resolver_status_failed")
         default:
             return ""
         }
@@ -102,135 +105,124 @@ enum L10n {
         let headline: String
         switch kind {
         case "yt_dlp_missing":
-            headline = """
-                未找到 yt-dlp。播放 YouTube / Bilibili 链接需要先安装它：
-                  brew install yt-dlp
-
-                如果已经安装：从访达启动的应用不会继承终端的 PATH，\
-                请把 RHYTHM_YTDLP_PATH 设为 yt-dlp 的完整路径（用 which yt-dlp 查看）。
-                """
+            headline = L10nKeys.value("resolve_error_yt_dlp_missing")
         case "timeout":
-            headline = "解析超时。请检查网络连接后重试。"
+            headline = L10nKeys.value("resolve_error_timeout")
         case "network":
-            headline = "网络错误，无法访问该链接。请检查网络、代理或 VPN 设置。"
+            headline = L10nKeys.value("resolve_error_network")
         case "unavailable":
-            headline = "该视频无法访问：可能是私享、已删除、年龄限制、会员专属或所在地区不可用。"
+            headline = L10nKeys.value("resolve_error_unavailable")
         case "no_audio_stream":
-            headline = "该链接没有可播放的音频流。"
+            headline = L10nKeys.value("resolve_error_no_audio_stream")
         case "yt_dlp_outdated":
-            headline = """
-                yt-dlp 版本过旧，无法解析该站点。请升级后重试：
-                  brew upgrade yt-dlp
-                """
+            headline = L10nKeys.value("resolve_error_yt_dlp_outdated")
         case "invalid_url":
-            headline = "链接无效，请输入以 http:// 或 https:// 开头的地址。"
+            headline = L10nKeys.value("resolve_error_invalid_url")
         default:
             return detail
         }
 
-        return "\(headline)\n\n详细信息：\n\(detail)"
+        return "\(headline)\n\n\(L10nKeys.value("detail_prefix_zh"))\n\(detail)"
     }
 
     // ─── Play Mode Labels ─────────────────────────────────
 
-    static var modeSequential: String { isChinese ? "顺序" : "Sequential" }
-    static var modeShuffle: String { isChinese ? "随机" : "Shuffle" }
-    static var modeSingleLoop: String { isChinese ? "单曲循环" : "Repeat One" }
-    static var modeListLoop: String { isChinese ? "列表循环" : "Repeat All" }
+    static var modeSequential: String { L10nKeys.value("mode_sequential") }
+    static var modeShuffle: String { L10nKeys.value("mode_shuffle") }
+    static var modeSingleLoop: String { L10nKeys.value("mode_single_loop") }
+    static var modeListLoop: String { L10nKeys.value("mode_list_loop") }
 
     // ─── Library ──────────────────────────────────────────
 
-    static var libraryEmpty: String { isChinese ? "无内容" : "No Content" }
-    static var byArtistAlbum: String { isChinese ? "按艺人/专辑" : "By Artist/Album" }
-    static var byLetter: String { isChinese ? "按首字母" : "A–Z" }
-    static var searchPlaceholder: String { isChinese ? "搜索..." : "Search..." }
-    static var importTooltip: String { isChinese ? "导入音乐" : "Import Music" }
-    static var view: String { isChinese ? "视图" : "View" }
+    static var libraryEmpty: String { L10nKeys.value("library_empty") }
+    static var byArtistAlbum: String { L10nKeys.value("by_artist_album") }
+    static var byLetter: String { L10nKeys.value("by_letter") }
+    static var searchPlaceholder: String { L10nKeys.value("search_placeholder") }
+    static var importTooltip: String { L10nKeys.value("import_tooltip") }
+    static var view: String { L10nKeys.value("view") }
 
     static func importedTracks(_ count: Int) -> String {
-        isChinese ? "已导入 \(count) 首歌曲" : "Imported \(count) track\(count == 1 ? "" : "s")."
+        fill(L10nKeys.value("imported_tracks"), ["count": "\(count)", "s": count == 1 ? "" : "s"])
     }
 
     static func trackCount(_ count: Int) -> String {
-        isChinese ? "\(count) 首" : "\(count) track\(count == 1 ? "" : "s")"
+        fill(L10nKeys.value("track_count"), ["count": "\(count)", "s": count == 1 ? "" : "s"])
     }
 
     // ─── Import ───────────────────────────────────────────
 
-    static var importResultTitle: String { isChinese ? "导入结果" : "Import Result" }
-    static var importing: String { isChinese ? "正在导入…" : "Importing…" }
-    static var importButton: String { isChinese ? "导入" : "Import" }
-    static var importDirEmpty: String { isChinese ? "该目录中未找到支持的音频文件" : "No supported audio files found in this directory." }
-    static var importDirFailed: String { isChinese ? "导入失败，请检查目录是否可访问" : "Import failed. Please check that the directory is accessible." }
-    static var importFileUnsupported: String { isChinese ? "不支持的音频格式" : "Unsupported audio format." }
-    static var importFileFailed: String { isChinese ? "导入失败，文件可能已损坏或无法读取" : "Import failed. The file may be corrupted or unreadable." }
-    static var importAllFailed: String { isChinese ? "全部导入失败，请检查文件是否支持" : "All imports failed. Check that the files are supported." }
-    static var importNoneFound: String { isChinese ? "未找到支持的音频文件" : "No supported audio files found." }
-    static var importHint: String { isChinese ? "点击工具栏 + 按钮导入音乐文件或文件夹" : "Click the + button in the toolbar to import music files or folders" }
+    static var importResultTitle: String { L10nKeys.value("import_result_title") }
+    static var importing: String { L10nKeys.value("importing") }
+    static var importButton: String { L10nKeys.value("import_button") }
+    static var importDirEmpty: String { L10nKeys.value("import_dir_empty") }
+    static var importDirFailed: String { L10nKeys.value("import_dir_failed") }
+    static var importFileUnsupported: String { L10nKeys.value("import_file_unsupported") }
+    static var importFileFailed: String { L10nKeys.value("import_file_failed") }
+    static var importAllFailed: String { L10nKeys.value("import_all_failed") }
+    static var importNoneFound: String { L10nKeys.value("import_none_found") }
+    static var importHint: String { L10nKeys.value("import_hint") }
 
     static func importSomeFailed(_ imported: Int, _ failed: Int) -> String {
-        isChinese ? "已导入 \(imported) 首，\(failed) 个失败" : "Imported \(imported) tracks, \(failed) failed."
+        fill(L10nKeys.value("import_some_failed"), ["imported": "\(imported)", "failed": "\(failed)"])
     }
 
     // ─── Playlist ─────────────────────────────────────────
 
-    static var newPlaylist: String { isChinese ? "新建播放列表" : "New Playlist" }
-    static var playlistName: String { isChinese ? "播放列表名称" : "Playlist Name" }
-    static var create: String { isChinese ? "创建" : "Create" }
-    static var cancel: String { isChinese ? "取消" : "Cancel" }
-    static var importM3U8: String { isChinese ? "导入 M3U8" : "Import M3U8" }
-    static var exportM3U8: String { isChinese ? "导出 M3U8" : "Export M3U8" }
-    static var noPlaylists: String { isChinese ? "暂无播放列表" : "No playlists yet" }
-    static var removeFromPlaylist: String { isChinese ? "从列表移除" : "Remove from Playlist" }
-    static var exportFailedTitle: String { isChinese ? "导出失败" : "Export Failed" }
-    static var back: String { isChinese ? "返回" : "Back" }
-    static var playlistEmpty: String { isChinese ? "列表为空" : "Playlist is empty" }
-    static var playlistEmptyHint: String { isChinese ? "从资料库右键添加歌曲" : "Right-click a track in Library to add it here" }
+    static var newPlaylist: String { L10nKeys.value("new_playlist") }
+    static var playlistName: String { L10nKeys.value("playlist_name") }
+    static var create: String { L10nKeys.value("create") }
+    static var cancel: String { L10nKeys.value("cancel") }
+    static var importM3U8: String { L10nKeys.value("import_m3u8") }
+    static var exportM3U8: String { L10nKeys.value("export_m3u8") }
+    static var noPlaylists: String { L10nKeys.value("no_playlists") }
+    static var removeFromPlaylist: String { L10nKeys.value("remove_from_playlist") }
+    static var exportFailedTitle: String { L10nKeys.value("export_failed_title") }
+    static var back: String { L10nKeys.value("back") }
+    static var playlistEmpty: String { L10nKeys.value("playlist_empty") }
+    static var playlistEmptyHint: String { L10nKeys.value("playlist_empty_hint") }
 
     static func exportFailed(_ code: Int) -> String {
-        isChinese ? "导出失败（错误码: \(code)），请重试。" : "Export failed (code: \(code)). Please try again."
+        fill(L10nKeys.value("export_failed"), ["code": "\(code)"])
     }
 
     // ─── Context Menu / Actions ───────────────────────────
 
-    static var play: String { isChinese ? "播放" : "Play" }
-    static var addToPlaylist: String { isChinese ? "添加到播放列表" : "Add to Playlist" }
-    static var deleteFromLibrary: String { isChinese ? "从资料库删除" : "Delete from Library" }
+    static var play: String { L10nKeys.value("play") }
+    static var addToPlaylist: String { L10nKeys.value("add_to_playlist") }
+    static var deleteFromLibrary: String { L10nKeys.value("delete_from_library") }
 
-    static var deleteConfirmTitle: String { isChinese ? "确认删除" : "Confirm Deletion" }
+    static var deleteConfirmTitle: String { L10nKeys.value("delete_confirm_title") }
     static func deleteConfirmMessage(_ title: String) -> String {
-        isChinese ? "确定要从资料库中删除「\(title)」吗？\n此操作不可撤销。" : "Are you sure you want to delete \"\(title)\" from the library?\nThis action cannot be undone."
+        fill(L10nKeys.value("delete_confirm_message"), ["title": title])
     }
-    static var deleteButton: String { isChinese ? "删除" : "Delete" }
-
-    static var buffering: String { isChinese ? "缓冲中…" : "Buffering…" }
+    static var deleteButton: String { L10nKeys.value("delete_button") }
 
     // ─── Tray ─────────────────────────────────────────────
 
     /// Initial title only; the tray menu swaps in `trayPlay` / `trayPause`
     /// on each validation pass.
-    static var trayPlayPause: String { isChinese ? "播放 / 暂停" : "Play / Pause" }
-    static var trayPlay: String { isChinese ? "播放" : "Play" }
-    static var trayPause: String { isChinese ? "暂停" : "Pause" }
-    static var trayStop: String { isChinese ? "停止" : "Stop" }
-    static var trayNext: String { isChinese ? "下一首" : "Next Track" }
-    static var trayPrev: String { isChinese ? "上一首" : "Previous Track" }
-    static var trayShow: String { isChinese ? "显示主窗口" : "Show Window" }
-    static var trayQuit: String { isChinese ? "退出 Rhythm" : "Quit Rhythm" }
+    static var trayPlayPause: String { L10nKeys.value("tray_play_pause") }
+    static var trayPlay: String { L10nKeys.value("tray_play") }
+    static var trayPause: String { L10nKeys.value("tray_pause") }
+    static var trayStop: String { L10nKeys.value("tray_stop") }
+    static var trayNext: String { L10nKeys.value("tray_next") }
+    static var trayPrev: String { L10nKeys.value("tray_prev") }
+    static var trayShow: String { L10nKeys.value("tray_show") }
+    static var trayQuit: String { L10nKeys.value("tray_quit") }
 
     // ─── Source Tags ──────────────────────────────────────
 
-    static var tagLocal: String { isChinese ? "本地" : "Local" }
-    static var tagYoutube: String { "YT" }
-    static var tagBilibili: String { isChinese ? "B站" : "Bili" }
-    static var tagLink: String { isChinese ? "链接" : "Link" }
+    static var tagLocal: String { L10nKeys.value("tag_local") }
+    static var tagYoutube: String { L10nKeys.value("tag_youtube") }
+    static var tagBilibili: String { L10nKeys.value("tag_bilibili") }
+    static var tagLink: String { L10nKeys.value("tag_link") }
 
     // ─── Menu / Commands ──────────────────────────────────
 
-    static var menuPlayback: String { isChinese ? "播放" : "Playback" }
-    static var menuPlayPause: String { isChinese ? "播放/暂停" : "Play/Pause" }
-    static var menuStop: String { isChinese ? "停止" : "Stop" }
-    static var menuNext: String { isChinese ? "下一首" : "Next Track" }
-    static var menuPrev: String { isChinese ? "上一首" : "Previous Track" }
-    static var menuToggleMode: String { isChinese ? "切换播放模式" : "Cycle Play Mode" }
+    static var menuPlayback: String { L10nKeys.value("menu_playback") }
+    static var menuPlayPause: String { L10nKeys.value("menu_play_pause") }
+    static var menuStop: String { L10nKeys.value("menu_stop") }
+    static var menuNext: String { L10nKeys.value("menu_next") }
+    static var menuPrev: String { L10nKeys.value("menu_prev") }
+    static var menuToggleMode: String { L10nKeys.value("menu_toggle_mode") }
 }

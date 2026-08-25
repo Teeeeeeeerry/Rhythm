@@ -200,6 +200,27 @@ final class RhythmCoreSwiftBehaviorTests: XCTestCase {
         XCTAssertEqual(entries?[1].location, "https://x.com/b.mp3")
     }
 
+    // MARK: - SW-17 键表完整性（#182）
+
+    /// 键表是单一事实来源：所有静态文案键在两个语言下都有非空/可用的取值。
+    /// 新增文案只改 contracts/l10n-keys.json，再跑 scripts/gen-l10n.py。
+    func testSW17_KeyTableCoversStaticCopy() {
+        let keys: [String] = [
+            "library_tab", "url_placeholder", "ok", "buffering",
+            "mode_shuffle", "import_button", "new_playlist", "delete_button",
+            "tray_next", "tag_bilibili", "menu_playback",
+        ]
+        UserDefaults.standard.set("zh", forKey: "AppLanguage")
+        for key in keys {
+            XCTAssertFalse(L10nKeys.value(key).isEmpty, "zh copy for \(key)")
+        }
+        UserDefaults.standard.set("en", forKey: "AppLanguage")
+        for key in keys {
+            XCTAssertFalse(L10nKeys.value(key).isEmpty, "en copy for \(key)")
+        }
+        UserDefaults.standard.removeObject(forKey: "AppLanguage")
+    }
+
     // MARK: - SW-08 RhythmLibrary 打开失败
 
     func testSW08_LibraryOpenFailureReturnsNil() {
