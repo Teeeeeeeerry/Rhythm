@@ -21,8 +21,22 @@ pub(crate) static RESOLVED_CACHE: LazyLock<Mutex<HashMap<String, CachedEntry>>> 
 /// Maximum number of entries in the resolution cache.
 pub(crate) const CACHE_MAX_CAPACITY: usize = 256;
 
-/// Time-to-live for a cached resolution result.
-pub(crate) const CACHE_TTL: Duration = Duration::from_secs(3600); // 1 hour
+/// Time-to-live for a cached resolution result (configurable, #190;
+/// default 1 hour — same as before).
+static CACHE_TTL: LazyLock<Mutex<Duration>> =
+    LazyLock::new(|| Mutex::new(Duration::from_secs(3600)));
+
+/// Configure the resolution cache TTL. Defaults to 1 hour; callers of the
+/// public resolve API are unaffected (ticket #190). Test seam for the
+/// strategy tests; production keeps the default.
+#[cfg(test)]
+pub fn set_cache_ttl(ttl: Duration) {
+    *CACHE_TTL.lock().unwrap() = ttl;
+}
+
+pub(crate) fn ttl() -> Duration {
+    *CACHE_TTL.lock().unwrap()
+}
 
 /// Evict the oldest entry if the cache is over capacity, then remove any
 /// entries whose TTL has expired.
@@ -42,7 +56,7 @@ pub(crate) fn prune_cache(cache: &mut HashMap<String, CachedEntry>) {
 
     // TTL pruning.
     let now = Instant::now();
-    cache.retain(|_, entry| now.duration_since(entry.cached_at) < CACHE_TTL);
+    cache.retain(|_, entry| now.duration_since(entry.cached_at) < ttl());
 }
 
 /// Cache lookup: fresh entry for `url`, or `None` (missing/expired).
@@ -50,7 +64,7 @@ pub(crate) fn get(url: &str) -> Option<ResolvedUrl> {
     let mut cache = RESOLVED_CACHE.lock().unwrap();
     prune_cache(&mut cache);
     match cache.get(url) {
-        Some(entry) if entry.cached_at.elapsed() < CACHE_TTL => Some(entry.resolved.clone()),
+        Some(entry) if entry.cached_at.elapsed() < ttl() => Some(entry.resolved.clone()),
         _ => None,
     }
 }

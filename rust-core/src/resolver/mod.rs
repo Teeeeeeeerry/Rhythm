@@ -340,6 +340,24 @@ pub fn evict_resolution(url: &str) {
 ///   并写入缓存（TTL 1 小时，容量 256）。
 /// - `retry=true`（#120 恢复）：先淘汰旧条目（坏 CDN 链接），绕过缓存
 ///   新鲜解析一次（freshly signed URL），成功后写缓存；仍败返回分类错误。
+///
+/// Playback-time fresh-resolution retry count (#190): the #120 recovery
+/// retries at most `playback_retry_count()` times when the fresh resolution
+/// is rejected again. Default 1, matching the status quo; changing the
+/// config does not affect resolve callers' signatures or behavior.
+static PLAYBACK_RETRY_COUNT: std::sync::atomic::AtomicU32 =
+    std::sync::atomic::AtomicU32::new(1);
+
+/// Set the playback-time fresh-resolution retry count (default 1, #190).
+pub fn set_playback_retry_count(count: u32) {
+    PLAYBACK_RETRY_COUNT.store(count, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// The configured playback-time fresh-resolution retry count.
+pub fn playback_retry_count() -> u32 {
+    PLAYBACK_RETRY_COUNT.load(std::sync::atomic::Ordering::SeqCst)
+}
+
 pub fn resolve_for_playback(url: &str, retry: bool) -> ResolveResult<ResolvedUrl> {
     let trimmed = url.trim();
     if retry {
@@ -807,12 +825,22 @@ fn urlencoding_if_needed(s: &str) -> String {
 
 // ─── Tests ───────────────────────────────────────────────────────────
 
+/// Serializes cache-touching tests: the TTL/retry config tests mutate
+/// process-global state and would race parallel tests (#190).
+#[cfg(test)]
+fn cache_lock() -> &'static std::sync::Mutex<()> {
+    static LOCK: std::sync::LazyLock<std::sync::Mutex<()>> =
+        std::sync::LazyLock::new(|| std::sync::Mutex::new(()));
+    &LOCK
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use super::cache::{prune_cache, CachedEntry, RESOLVED_CACHE};
     use std::collections::HashMap;
     use std::sync::{LazyLock, Mutex};
+
 
     // ── classify_url ─────────────────────────────────────────────
 
@@ -1205,6 +1233,7 @@ mod tests {
     /// re-resolution instead of serving the dead CDN URL again.
     #[test]
     fn test_evict_resolution_drops_poisoned_entry() {
+        let _guard = cache_lock().lock().unwrap();
         RESOLVED_CACHE.lock().unwrap().clear();
         let url = "https://example.com/song.mp3";
 
@@ -1232,6 +1261,7 @@ mod tests {
     /// repopulates it), so a rejected stream URL gets a freshly signed one.
     #[test]
     fn test_resolve_url_fresh_bypasses_cache() {
+        let _guard = cache_lock().lock().unwrap();
         RESOLVED_CACHE.lock().unwrap().clear();
         let url = "https://example.com/song.mp3";
         RESOLVED_CACHE.lock().unwrap().insert(
@@ -1333,6 +1363,7 @@ mod tests {
 
     #[test]
     fn test_resolve_for_playback_cache_hit_returns_cached() {
+        let _guard = cache_lock().lock().unwrap();
         let url = "https://example.com/rfp-hit.mp3";
         // First resolution populates the cache (direct URLs resolve locally).
         let first = resolve_for_playback(url, false).unwrap();
@@ -1345,6 +1376,7 @@ mod tests {
 
     #[test]
     fn test_resolve_for_playback_retry_evicts_then_resolves_fresh() {
+        let _guard = cache_lock().lock().unwrap();
         let url = "https://example.com/rfp-retry.mp3";
         let first = resolve_for_playback(url, false).unwrap();
         assert!(cache::get(url).is_some());
@@ -1358,6 +1390,7 @@ mod tests {
 
     #[test]
     fn test_resolve_for_playback_retry_still_fails_classified() {
+        let _guard = cache_lock().lock().unwrap();
         // A persistently failing URL: retry runs exactly once and returns the
         // classified error (no loop).
         let url = "not a url";
@@ -1367,6 +1400,32 @@ mod tests {
 
     #[test]
     fn test_resolve_for_playback_error_is_classified() {
+        let _guard = cache_lock().lock().unwrap();
         let err = resolve_for_playback("not a url", false).unwrap_err();
         assert_eq!(err.kind, ResolveErrorKind::InvalidUrl);
+    }
+
+    // ── 配置（ticket #190）───────────────────────────────────────
+
+    #[test]
+    fn test_cache_ttl_configurable() {
+        let _guard = cache_lock().lock().unwrap();
+        let url = "https://example.com/rfp-ttl.mp3";
+        assert!(resolve_for_playback(url, false).is_ok());
+        assert!(cache::get(url).is_some(), "default TTL keeps the entry");
+
+        // TTL 0: the entry is expired immediately — next get is a miss and a
+        // fresh resolution runs (config change does not affect callers).
+        cache::set_cache_ttl(Duration::from_secs(0));
+        assert!(cache::get(url).is_none(), "zero TTL must evict immediately");
+        assert!(resolve_for_playback(url, false).is_ok(), "fresh resolve still works");
+        cache::set_cache_ttl(Duration::from_secs(3600));
+    }
+
+    #[test]
+    fn test_playback_retry_count_configurable() {
+        assert_eq!(playback_retry_count(), 1, "default matches the status quo");
+        set_playback_retry_count(3);
+        assert_eq!(playback_retry_count(), 3);
+        set_playback_retry_count(1);
     }
