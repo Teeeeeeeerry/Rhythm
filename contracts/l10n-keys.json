@@ -84,7 +84,8 @@
     },
     "resolve_error_yt_dlp_missing": {
       "zh": "未找到 yt-dlp。播放 YouTube / Bilibili 链接需要先安装它：\n  brew install yt-dlp\n\n如果已经安装：从访达启动的应用不会继承终端的 PATH，请把 RHYTHM_YTDLP_PATH 设为 yt-dlp 的完整路径（用 which yt-dlp 查看）。",
-      "en": ""
+      "en": "",
+      "platform": "macos"
     },
     "resolve_error_timeout": {
       "zh": "解析超时。请检查网络连接后重试。",
@@ -104,7 +105,8 @@
     },
     "resolve_error_yt_dlp_outdated": {
       "zh": "yt-dlp 版本过旧，无法解析该站点。请升级后重试：\n  brew upgrade yt-dlp",
-      "en": ""
+      "en": "",
+      "platform": "macos"
     },
     "resolve_error_invalid_url": {
       "zh": "链接无效，请输入以 http:// 或 https:// 开头的地址。",
@@ -358,6 +360,24 @@
     "yt_dlp_install_command_windows": {
       "zh": "winget install yt-dlp",
       "en": "winget install yt-dlp",
+      "platform": "windows"
+    },
+    "import_folder_tooltip": {
+      "zh": "导入文件夹",
+      "en": "Import Folder"
+    },
+    "library_empty_hint": {
+      "zh": "资料库为空 — 点击 + 导入音乐文件夹",
+      "en": "Library is empty — tap + to import a music folder"
+    },
+    "resolve_error_yt_dlp_missing_windows": {
+      "zh": "未找到 yt-dlp。播放 YouTube / Bilibili 链接需要先安装它：\n  winget install yt-dlp   或   pip install yt-dlp\n\n如果已经安装：应用不会继承你在终端里的 PATH，请把 RHYTHM_YTDLP_PATH 设为 yt-dlp.exe 的完整路径。",
+      "en": "",
+      "platform": "windows"
+    },
+    "resolve_error_yt_dlp_outdated_windows": {
+      "zh": "yt-dlp 版本过旧，无法解析该站点。请升级后重试：\n  pip install -U yt-dlp",
+      "en": "",
       "platform": "windows"
     }
   }

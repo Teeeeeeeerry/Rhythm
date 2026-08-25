@@ -38,7 +38,7 @@ TEST_CASE("WA-26 L10n static strings differ per language") {
         REQUIRE(L10n::ByArtistAlbum() == L"按艺人/专辑");
         REQUIRE(L10n::ByLetter() == L"按首字母");
         REQUIRE(L10n::NotPlaying() == L"未在播放");
-        REQUIRE(L10n::PlayUrl() == L"播放");
+        REQUIRE(L10n::PlayUrl() == L"播放链接");
         REQUIRE(L10n::NewPlaylist() == L"新建播放列表");
         REQUIRE(L10n::Create() == L"创建");
         REQUIRE(L10n::Cancel() == L"取消");
@@ -53,7 +53,7 @@ TEST_CASE("WA-26 L10n static strings differ per language") {
         REQUIRE(L10n::ByArtistAlbum() == L"By Artist/Album");
         REQUIRE(L10n::ByLetter() == L"A–Z");
         REQUIRE(L10n::NotPlaying() == L"Not Playing");
-        REQUIRE(L10n::PlayUrl() == L"Play");
+        REQUIRE(L10n::PlayUrl() == L"Play URL");
         REQUIRE(L10n::NewPlaylist() == L"New Playlist");
         REQUIRE(L10n::Create() == L"Create");
         REQUIRE(L10n::Cancel() == L"Cancel");
