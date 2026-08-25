@@ -22,6 +22,8 @@
 | RS-08 | stream URL 提取优先级（stub） | `url` 字段 → `requested_formats` 首个 → `formats`（音频优先、兜底任意）→ `manifest_url`；全无 → `NoAudioStream` |
 | RS-09 | headers 提取（stub） | 顶层 `http_headers` 与 format 级 fallback（Bilibili Referer 场景） |
 | RS-10 | 缓存命中 | 同 URL 二次 resolve 不重复调子进程；TTL 内返回克隆 |
+| RS-18 | 播放期解析入口（#188） | `resolve_for_playback(url, false)` 缓存命中返回、未命中新鲜解析并写缓存；`retry=true` 先淘汰坏条目再绕过缓存新鲜解析一次，仍败返回分类错误（不循环） |
+| RS-19 | 重试与 TTL 配置（#190） | `set_playback_retry_count`/`set_cache_ttl` 调整不影响调用方；默认重试 1 次、TTL 1 小时与现状一致；引擎恢复只调该入口（#189） |
 | RS-11 | 缓存容量 | 超 256 条目驱逐最旧（`prune_cache` 直测）；过期条目被剔除 |
 | RS-12 | 失败 stderr 分类 | outdated/unavailable/network 各关键词 → 对应 kind；未知 → Internal（已有单测 RS-38–41 覆盖；e2e 经 stub 触发 outdated/unavailable/network/未知 全链） |
 | RS-13 | 失败写日志 | resolver.log 追加含 kind/url/message；超 512KB 轮转；日志 IO 失败不影响解析结果 |

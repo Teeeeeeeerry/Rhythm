@@ -221,17 +221,29 @@ impl AudioEngine {
                         // The playback resolution entry evicts the dead cache
                         // entry and re-resolves bypassing the cache (freshly
                         // signed URL) in one call (#188/#189); the open is
-                        // retried once. Stub resolvers don't cache, so an
-                        // unwired engine just resolves again.
+                        // retried up to the configured count (default 1,
+                        // #190). Stub resolvers don't cache, so an unwired
+                        // engine just resolves again.
                         if let RhythmError::Http(http) = &e {
                             crate::resolver::log_playback_http(&url, http);
                         }
                         log::warn!("audio: stream URL rejected ({e}); re-resolving {url}");
-                        let fresh = match &fresh_resolver {
-                            Some(fresh) => fresh(&url)?,
-                            None => resolver(&url)?,
-                        };
-                        open_decoder(fresh)
+                        let retries = crate::resolver::playback_retry_count().max(1);
+                        let mut last_error = e;
+                        for _ in 0..retries {
+                            let fresh = match &fresh_resolver {
+                                Some(fresh) => fresh(&url)?,
+                                None => resolver(&url)?,
+                            };
+                            match open_decoder(fresh) {
+                                Ok(pair) => return Ok(pair),
+                                Err(e2) if is_retryable_http(&e2) => {
+                                    last_error = e2;
+                                }
+                                Err(e2) => return Err(e2),
+                            }
+                        }
+                        Err(last_error)
                     }
                     Err(e) => Err(e),
                 }
