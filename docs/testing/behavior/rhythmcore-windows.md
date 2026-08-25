@@ -15,7 +15,6 @@
 | WB-05 | `JsonToTrack`/`TrackToJson` 往返 | 各字段保真；null 可选字段 → `nullopt`；缺省字段取默认（#101 已修复：album_artist/genre/file_size/date_added/last_played 全部解析；date_added 由 DB 插入时盖章、last_played 新插入为 NULL） | 新测（待 Windows 验证） |
 | WB-06 | `Utf8ToWide`/`WideToUtf8` 往返 | 中文/emoji 标题转换无损坏；空串安全 | 新测 |
 | WB-07 | `Library` 空指针防御 | open 失败（坏路径）→ 各方法安全默认（-1/空列表/false/原 track 返回） | 新测 |
-| WB-08 | `Player` 空指针防御 | `State()==-1`、`Position()/Duration()==0`、`ErrorMessage()` 空（ptr-null 分支不可构造：构造器必 `rhythm_player_create`；测试锁定 fresh 默认 + 停播态方法安全） | 新测（待 Windows 验证） |
 | WB-09 | `Resolver::ResolveURL` 成功 | `ok=true`；track 字段解析正确；`sourceUrl` 保留页面 URL（非 CDN 链接） | 新测（真 core 直链） |
 | WB-10 | `Resolver::ResolveURL` 失败 | null → `LastResolveFailure`：kind/message 来自 core 的 JSON（#21） | 新测 |
 | WB-11 | `LastResolveFailure` 兜底 | 无 payload → kind=internal + 通用英文消息；malformed JSON → 保留通用消息（兜底分支现状不可达：core 失败必先写合法 `{kind,message}`、成功即清空；测试锁定"失败恒携带 core 的 kind/message"） | 新测（待 Windows 验证） |
