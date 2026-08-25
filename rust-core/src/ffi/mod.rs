@@ -13,7 +13,6 @@
 //! keyword is invisible to C/C++/Swift callers but states the contract
 //! honestly.
 
-use crate::audio::AudioEngine;
 use crate::coordinator::{
     CoordinatorErrorKind, CoordinatorEvent, CoordinatorResult, PlaybackCoordinator,
 };
@@ -26,15 +25,12 @@ use crate::{PlayerState, TrackInfo};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::path::Path;
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, Mutex};
 
 // ─── Opaque Handle Types ───────────────────────────────────────────
 
 /// Opaque handle to a Library instance.
 pub struct RhythmLibrary(Library);
-
-/// Opaque handle to an AudioEngine instance.
-pub struct RhythmPlayer(AudioEngine);
 
 /// Opaque handle to a playback coordinator (owns the engine, queue, current
 /// track, and play mode — parent issue #165, ticket #170).
@@ -421,239 +417,7 @@ pub unsafe extern "C" fn rhythm_metadata_extract_artwork(
     }
 }
 
-// ─── Audio Player FFI ─────────────────────────────────────────────
-
-/// Create a new audio player. Returns opaque handle.
-#[no_mangle]
-pub extern "C" fn rhythm_player_create() -> *mut RhythmPlayer {
-    let engine = AudioEngine::new();
-    Box::into_raw(Box::new(RhythmPlayer(engine)))
-}
-
-/// Destroy a player handle.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_destroy(ptr: *mut RhythmPlayer) {
-    if !ptr.is_null() {
-        let player = unsafe { Box::from_raw(ptr) };
-        player.0.stop();
-    }
-}
-
-/// Play a local file by path. Returns 0 on success.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_play_file(
-    ptr: *mut RhythmPlayer,
-    path: *const c_char,
-) -> i32 {
-    if ptr.is_null() {
-        return -1;
-    }
-    let player = unsafe { &(*ptr).0 };
-    let p = unsafe { c_str_to_str(path) };
-    match player.play_file(Path::new(p)) {
-        Ok(_) => 0,
-        Err(_) => -1,
-    }
-}
-
-/// Play a URL stream. Returns 0 on success.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_play_url(
-    ptr: *mut RhythmPlayer,
-    url: *const c_char,
-) -> i32 {
-    if ptr.is_null() {
-        return -1;
-    }
-    let player = unsafe { &(*ptr).0 };
-    let u = unsafe { c_str_to_str(url) };
-    match player.play_url(u) {
-        Ok(_) => 0,
-        Err(_) => -1,
-    }
-}
-
-/// Pause playback.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_pause(ptr: *mut RhythmPlayer) {
-    if let Some(player) = unsafe { ptr.as_ref() } {
-        player.0.pause();
-    }
-}
-
-/// Resume playback.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_resume(ptr: *mut RhythmPlayer) {
-    if let Some(player) = unsafe { ptr.as_ref() } {
-        player.0.resume();
-    }
-}
-
-/// Stop playback.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_stop(ptr: *mut RhythmPlayer) {
-    if let Some(player) = unsafe { ptr.as_ref() } {
-        player.0.stop();
-    }
-}
-
-/// Set volume (0.0 - 1.0).
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_set_volume(ptr: *mut RhythmPlayer, volume: f32) {
-    if let Some(player) = unsafe { ptr.as_ref() } {
-        player.0.set_volume(volume);
-    }
-}
-
-/// Get current volume.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_get_volume(ptr: *mut RhythmPlayer) -> f32 {
-    unsafe { ptr.as_ref().map(|p| p.0.volume()).unwrap_or(0.0) }
-}
-
-/// Seek to a position in seconds. Returns 0 on success, -1 on error
-/// (null pointer, negative position, or position out of range).
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_seek(ptr: *mut RhythmPlayer, seconds: f64) -> i32 {
-    if ptr.is_null() {
-        return -1;
-    }
-    let player = unsafe { &(*ptr).0 };
-    match player.seek(seconds) {
-        Ok(_) => 0,
-        Err(_) => -1,
-    }
-}
-
-/// Get current playback position in seconds.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_get_position(ptr: *mut RhythmPlayer) -> f64 {
-    unsafe { ptr.as_ref().map(|p| p.0.position()).unwrap_or(0.0) }
-}
-
-/// Get media duration in seconds.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_get_duration(ptr: *mut RhythmPlayer) -> f64 {
-    unsafe { ptr.as_ref().map(|p| p.0.duration()).unwrap_or(0.0) }
-}
-
-/// Get player state: 0=Stopped, 1=Playing, 2=Paused, 3=Buffering, 4=Error, 5=Finished
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_get_state(ptr: *mut RhythmPlayer) -> i32 {
-    unsafe {
-        ptr.as_ref()
-            .map(|p| match p.0.state() {
-                PlayerState::Stopped => 0,
-                PlayerState::Playing => 1,
-                PlayerState::Paused => 2,
-                PlayerState::Buffering => 3,
-                PlayerState::Error(_) => 4,
-                PlayerState::Finished => 5,
-            })
-            .unwrap_or(-1)
-    }
-}
-
-/// Why playback failed, when the state is Error (4); null otherwise.
-///
-/// Without this the UI can only show a stopped player sitting at 0:00 with no
-/// explanation — which is exactly how a 403 from a CDN used to look. Free
-/// with `rhythm_free_string`.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_error(ptr: *mut RhythmPlayer) -> *mut c_char {
-    unsafe {
-        match ptr.as_ref().map(|p| p.0.state()) {
-            Some(PlayerState::Error(message)) => str_to_c_string(&message),
-            _ => std::ptr::null_mut(),
-        }
-    }
-}
-
-/// Classification of the last playback failure, when it was HTTP: "expired" |
-/// "cdn_rejected" | "other"; null otherwise (#120).
-///
-/// The error *message* is the same raw network text as before; this lets the
-/// UI swap its headline between "link expired, re-paste it" (which is only
-/// true for `expired`) and "the CDN rejected your network" (`cdn_rejected`).
-/// Free with `rhythm_free_string`.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_player_error_kind(ptr: *mut RhythmPlayer) -> *mut c_char {
-    use crate::HttpErrorKind;
-    unsafe {
-        match ptr.as_ref().and_then(|p| p.0.last_error_kind()) {
-            Some(HttpErrorKind::Expired) => str_to_c_string("expired"),
-            Some(HttpErrorKind::CdnRejected) => str_to_c_string("cdn_rejected"),
-            Some(HttpErrorKind::Other) => str_to_c_string("other"),
-            None => std::ptr::null_mut(),
-        }
-    }
-}
-
 // ─── URL Resolver FFI ─────────────────────────────────────────────
-
-/// The most recent resolver failure, as JSON (legacy global error slot).
-///
-/// `rhythm_resolve_url` no longer uses this slot — failures come back in its
-/// structured result (#176). `rhythm_classify_url` and
-/// `rhythm_install_ytdlp` still record here until the slot is removed
-/// (#181).
-static LAST_RESOLVE_ERROR: LazyLock<Mutex<Option<String>>> = LazyLock::new(|| Mutex::new(None));
-
-fn set_last_resolve_error(failure: &resolver::ResolveFailure) {
-    let json = serde_json::to_string(failure).unwrap_or_else(|_| {
-        format!(
-            "{{\"kind\":\"internal\",\"message\":{}}}",
-            serde_json::Value::String(failure.message.clone())
-        )
-    });
-    *LAST_RESOLVE_ERROR.lock().unwrap() = Some(json);
-}
-
-fn clear_last_resolve_error() {
-    *LAST_RESOLVE_ERROR.lock().unwrap() = None;
-}
 
 /// Structured result of a resolve call (#176): success payload + classified
 /// error in a single return — the old "null, then query `rhythm_last_error`"
@@ -680,30 +444,25 @@ pub unsafe extern "C" fn rhythm_resolve_url(url: *const c_char) -> *mut c_char {
     str_to_c_string(&json.to_string())
 }
 
-/// Classify a URL. Returns the source type string ("youtube", "bilibili", "direct_url", "local").
+/// Classify a URL. Returns a structured result JSON (#181, no global error
+/// slot): `{"ok":true,"source_type":"youtube"}` or
+/// `{"ok":false,"error_kind":"...","error_message":"..."}`.
+/// Free with `rhythm_free_string`.
 #[no_mangle]
 ///
 /// # Safety
 /// See the module-level `# Safety` contract.
 pub unsafe extern "C" fn rhythm_classify_url(url: *const c_char) -> *mut c_char {
     let u = unsafe { c_str_to_str(url) };
-    match resolver::classify_url(u) {
-        Ok(source_type) => str_to_c_string(&source_type.to_string()),
-        Err(failure) => {
-            set_last_resolve_error(&failure);
-            std::ptr::null_mut()
-        }
-    }
-}
-
-/// The last resolver failure as JSON `{"kind": "...", "message": "..."}`, or
-/// null if the last resolution succeeded. Free with `rhythm_free_string`.
-#[no_mangle]
-pub extern "C" fn rhythm_last_error() -> *mut c_char {
-    match LAST_RESOLVE_ERROR.lock().unwrap().as_deref() {
-        Some(json) => str_to_c_string(json),
-        None => std::ptr::null_mut(),
-    }
+    let json = match resolver::classify_url(u) {
+        Ok(source_type) => serde_json::json!({ "ok": true, "source_type": source_type }),
+        Err(failure) => serde_json::json!({
+            "ok": false,
+            "error_kind": failure.kind,
+            "error_message": failure.message,
+        }),
+    };
+    str_to_c_string(&json.to_string())
 }
 
 /// Resolver environment as JSON: yt-dlp path and version, the
@@ -726,21 +485,22 @@ pub extern "C" fn rhythm_resolver_status() -> *mut c_char {
     str_to_c_string(&json)
 }
 
-/// Install or update Rhythm's own yt-dlp copy now. Returns the binary path,
-/// or null on failure — call `rhythm_last_error` for the reason. Blocks for
-/// the duration of the download. Free with `rhythm_free_string`.
+/// Install or update Rhythm's own yt-dlp copy now. Returns a structured
+/// result JSON (#181, no global error slot):
+/// `{"ok":true,"path":"..."}` or
+/// `{"ok":false,"error_kind":"...","error_message":"..."}`.
+/// Blocks for the duration of the download. Free with `rhythm_free_string`.
 #[no_mangle]
 pub extern "C" fn rhythm_install_ytdlp() -> *mut c_char {
-    match resolver::install::update_now() {
-        Ok(path) => {
-            clear_last_resolve_error();
-            str_to_c_string(&path.display().to_string())
-        }
-        Err(failure) => {
-            set_last_resolve_error(&failure);
-            std::ptr::null_mut()
-        }
-    }
+    let json = match resolver::install::update_now() {
+        Ok(path) => serde_json::json!({ "ok": true, "path": path.display().to_string() }),
+        Err(failure) => serde_json::json!({
+            "ok": false,
+            "error_kind": failure.kind,
+            "error_message": failure.message,
+        }),
+    };
+    str_to_c_string(&json.to_string())
 }
 
 // ─── Playback Coordinator FFI ─────────────────────────────────────

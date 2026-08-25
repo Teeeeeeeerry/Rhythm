@@ -10,7 +10,6 @@ extern "C" {
 // ─── Opaque Types ──────────────────────────────────────────────────
 
 typedef struct RhythmLibrary RhythmLibrary;
-typedef struct RhythmPlayer RhythmPlayer;
 typedef struct RhythmQueue RhythmQueue;
 typedef struct RhythmCoordinator RhythmCoordinator;
 
@@ -39,38 +38,6 @@ int32_t rhythm_library_record_play(RhythmLibrary* lib, int64_t track_id);
 char* rhythm_metadata_extract(const char* file_path);
 char* rhythm_metadata_scan(const char* directory);
 char* rhythm_metadata_extract_artwork(const char* file_path, const char* cache_dir);
-
-// ─── Player API ────────────────────────────────────────────────────
-
-RhythmPlayer* rhythm_player_create(void);
-void rhythm_player_destroy(RhythmPlayer* player);
-
-int32_t rhythm_player_play_file(RhythmPlayer* player, const char* file_path);
-int32_t rhythm_player_play_url(RhythmPlayer* player, const char* url);
-void rhythm_player_pause(RhythmPlayer* player);
-void rhythm_player_resume(RhythmPlayer* player);
-void rhythm_player_stop(RhythmPlayer* player);
-void rhythm_player_set_volume(RhythmPlayer* player, float volume);
-float rhythm_player_get_volume(RhythmPlayer* player);
-int32_t rhythm_player_seek(RhythmPlayer* player, double seconds);
-double rhythm_player_get_position(RhythmPlayer* player);
-double rhythm_player_get_duration(RhythmPlayer* player);
-int32_t rhythm_player_get_state(RhythmPlayer* player);
-// State values:
-//   0 = Stopped
-//   1 = Playing
-//   2 = Paused
-//   3 = Buffering
-//   4 = Error
-//   5 = Finished (track ended naturally)
-
-// Why playback failed, when rhythm_player_get_state() is 4 (Error);
-// null otherwise.
-char* rhythm_player_error(RhythmPlayer* player);
-
-// Classification of the last playback failure, when it was HTTP:
-// "expired" | "cdn_rejected" | "other"; null otherwise (#120).
-char* rhythm_player_error_kind(RhythmPlayer* player);
 
 // ─── Playback Coordinator API ─────────────────────────────────────
 //
@@ -130,15 +97,11 @@ int32_t rhythm_coordinator_get_play_mode(RhythmCoordinator* coordinator);
 
 // ─── URL Resolver API ──────────────────────────────────────────────
 
-// Returns JSON ResolvedUrl, or null on failure — call rhythm_last_error()
-// for the reason.
+// Structured result (#176/#181): {"ok":true,"resolved":{...}} or
+// {"ok":false,"error_kind":"...","error_message":"..."}.
 char* rhythm_resolve_url(const char* url);
+// Structured result (#181): {"ok":true,"source_type":"..."} or error.
 char* rhythm_classify_url(const char* url);
-
-// Last resolver failure as JSON {"kind": "...", "message": "..."}, or null
-// if the last resolution succeeded. Kinds: invalid_url, yt_dlp_missing,
-// timeout, network, unavailable, no_audio_stream, yt_dlp_outdated, internal.
-char* rhythm_last_error(void);
 
 // Resolver environment as JSON (yt-dlp path/version, PATH, log file), for
 // bug reports.
@@ -149,8 +112,8 @@ char* rhythm_resolver_diagnostics(void);
 // Phases: idle, checking, downloading, verifying, updating, ready, failed.
 char* rhythm_resolver_status(void);
 
-// Install or update Rhythm's own yt-dlp copy. Returns the binary path, or
-// null on failure (see rhythm_last_error). Blocks during the download.
+// Install or update Rhythm's own yt-dlp copy. Structured result (#181):
+// {"ok":true,"path":"..."} or {"ok":false,"error_kind":"...",...}.
 char* rhythm_install_ytdlp(void);
 
 // ─── M3U8 Import/Export ────────────────────────────────────────────

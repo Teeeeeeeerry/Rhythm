@@ -153,88 +153,6 @@ fn ff06_add_track_json_roundtrip() {
     unsafe { rhythm_library_close(lib) };
 }
 
-// ─── FF-07/08/09/10 player ──────────────────────────────────────────
-
-#[test]
-fn ff07_player_create_destroy() {
-    let player = rhythm_player_create();
-    assert!(!player.is_null());
-    unsafe { rhythm_player_destroy(player) };
-    unsafe { rhythm_player_destroy(std::ptr::null_mut()) }; // must be safe
-}
-
-#[test]
-fn ff08_state_code_mapping() {
-    let dir = tempfile::tempdir().unwrap();
-    let wav = dir.path().join("tone.wav");
-    common::write_wav(&wav, 3.0);
-
-    let player = rhythm_player_create();
-    assert_eq!(unsafe { rhythm_player_get_state(player) }, 0, "fresh → Stopped");
-    unsafe { rhythm_player_play_file(player, c(wav.to_str().unwrap()).as_ptr()) };
-    std::thread::sleep(std::time::Duration::from_millis(150));
-    assert_eq!(unsafe { rhythm_player_get_state(player) }, 1, "playing → 1");
-    unsafe { rhythm_player_pause(player) };
-    assert_eq!(unsafe { rhythm_player_get_state(player) }, 2, "paused → 2");
-    unsafe { rhythm_player_stop(player) };
-    assert_eq!(unsafe { rhythm_player_get_state(player) }, 0, "stopped → 0");
-    assert_eq!(unsafe { rhythm_player_get_state(std::ptr::null_mut()) }, -1, "null → -1");
-    unsafe { rhythm_player_destroy(player) };
-
-    // Finished (5): play a short file to the end. Buffering (3) is not
-    // reachable without a network stream (play_url) and stays unasserted —
-    // noted in the manifest.
-    let short = dir.path().join("short.wav");
-    common::write_wav(&short, 0.3);
-    let player2 = rhythm_player_create();
-    unsafe { rhythm_player_play_file(player2, c(short.to_str().unwrap()).as_ptr()) };
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
-    while unsafe { rhythm_player_get_state(player2) } != 5 && std::time::Instant::now() < deadline {
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
-    assert_eq!(unsafe { rhythm_player_get_state(player2) }, 5, "finished → 5");
-    unsafe { rhythm_player_destroy(player2) };
-}
-
-#[test]
-fn ff09_player_error_message() {
-    let dir = tempfile::tempdir().unwrap();
-    let bad = dir.path().join("bad.wav");
-    std::fs::write(&bad, b"RIFF").unwrap();
-
-    let player = rhythm_player_create();
-    assert!(unsafe { rhythm_player_error(player) }.is_null(), "fresh player has no error");
-
-    unsafe { rhythm_player_play_file(player, c(bad.to_str().unwrap()).as_ptr()) };
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-    while unsafe { rhythm_player_get_state(player) } != 4 && std::time::Instant::now() < deadline {
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
-    assert_eq!(unsafe { rhythm_player_get_state(player) }, 4, "corrupted file → Error state");
-    unsafe {
-        let msg = take(rhythm_player_error(player));
-        assert!(!msg.is_empty(), "error message must be non-empty");
-    }
-    unsafe { rhythm_player_destroy(player) };
-}
-
-#[test]
-fn ff10_seek_validation() {
-    let dir = tempfile::tempdir().unwrap();
-    let wav = dir.path().join("tone.wav");
-    common::write_wav(&wav, 0.5);
-
-    assert_eq!(unsafe { rhythm_player_seek(std::ptr::null_mut(), 1.0) }, -1, "null → -1");
-
-    let player = rhythm_player_create();
-    assert_eq!(unsafe { rhythm_player_seek(player, -1.0) }, -1, "negative → -1");
-
-    unsafe { rhythm_player_play_file(player, c(wav.to_str().unwrap()).as_ptr()) };
-    std::thread::sleep(std::time::Duration::from_millis(150));
-    assert_eq!(unsafe { rhythm_player_seek(player, 99.0) }, -1, "out of range → -1");
-    assert_eq!(unsafe { rhythm_player_seek(player, 0.1) }, 0, "in range → 0");
-    unsafe { rhythm_player_destroy(player) };
-}
 
 // ─── FF-12/13 resolve 与 last_error（#21）───────────────────────────
 
@@ -269,17 +187,27 @@ fn ff12_resolve_returns_structured_result() {
 fn ff13_classify_url() {
     let _guard = RESOLVER_LOCK.lock().unwrap();
 
+    // #181: classify returns a structured result.
     unsafe {
-        assert_eq!(take(rhythm_classify_url(c("https://youtube.com/watch?v=abc").as_ptr())), "youtube");
-        assert_eq!(take(rhythm_classify_url(c("https://www.bilibili.com/video/BV1xx411c7mD").as_ptr())), "bilibili");
-        assert_eq!(take(rhythm_classify_url(c("https://example.com/song.mp3").as_ptr())), "direct_url");
+        for (url, expected) in [
+            ("https://youtube.com/watch?v=abc", "youtube"),
+            ("https://www.bilibili.com/video/BV1xx411c7mD", "bilibili"),
+            ("https://example.com/song.mp3", "direct_url"),
+        ] {
+            let json = take(rhythm_classify_url(c(url).as_ptr()));
+            let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+            assert_eq!(v["ok"], true);
+            assert_eq!(v["source_type"], expected);
+        }
     }
 
+    // #181: classify returns a structured result — no global error slot.
     let bad = unsafe { rhythm_classify_url(c("plain text").as_ptr()) };
-    assert!(bad.is_null(), "unclassifiable input → null");
     unsafe {
-        let err = take(rhythm_last_error());
-        assert!(err.contains("invalid_url"));
+        let json = take(bad);
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(v["ok"], false);
+        assert_eq!(v["error_kind"], "invalid_url");
     }
 }
 
@@ -378,7 +306,6 @@ fn ff20_null_pointer_safe_defaults() {
     // resolve() touches LAST_RESOLVE_ERROR; serialize with the resolver tests.
     let _guard = RESOLVER_LOCK.lock().unwrap();
     let null_lib: *mut RhythmLibrary = std::ptr::null_mut();
-    let null_player: *mut RhythmPlayer = std::ptr::null_mut();
 
     unsafe { rhythm_library_close(null_lib) };
     assert_eq!(unsafe { rhythm_library_import(null_lib, c("x").as_ptr()) }, -1);
@@ -395,20 +322,6 @@ fn ff20_null_pointer_safe_defaults() {
     assert_eq!(unsafe { rhythm_library_delete_playlist(null_lib, 1) }, -1);
     assert_eq!(unsafe { rhythm_library_record_play(null_lib, 1) }, -1);
 
-    unsafe { rhythm_player_destroy(null_player) };
-    assert_eq!(unsafe { rhythm_player_play_file(null_player, c("x").as_ptr()) }, -1);
-    assert_eq!(unsafe { rhythm_player_play_url(null_player, c("x").as_ptr()) }, -1);
-    unsafe { rhythm_player_pause(null_player) };
-    unsafe { rhythm_player_resume(null_player) };
-    unsafe { rhythm_player_stop(null_player) };
-    unsafe { rhythm_player_set_volume(null_player, 0.5) };
-    assert_eq!(unsafe { rhythm_player_get_volume(null_player) }, 0.0);
-    assert_eq!(unsafe { rhythm_player_seek(null_player, 1.0) }, -1);
-    assert_eq!(unsafe { rhythm_player_get_position(null_player) }, 0.0);
-    assert_eq!(unsafe { rhythm_player_get_duration(null_player) }, 0.0);
-    assert_eq!(unsafe { rhythm_player_get_state(null_player) }, -1);
-    assert!(unsafe { rhythm_player_error(null_player) }.is_null());
-
     assert!(unsafe { rhythm_metadata_extract(std::ptr::null_mut()) }.is_null());
     assert!(unsafe { rhythm_metadata_scan(std::ptr::null_mut()) }.is_null());
     assert!(unsafe { rhythm_metadata_extract_artwork(std::ptr::null_mut(), std::ptr::null_mut()) }.is_null());
@@ -419,7 +332,13 @@ fn ff20_null_pointer_safe_defaults() {
         let v: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(v["ok"], false);
     }
-    assert!(unsafe { rhythm_classify_url(std::ptr::null_mut()) }.is_null());
+    // #181: classify never returns null — a structured result always comes
+    // back (null input is a classified failure).
+    unsafe {
+        let json = take(rhythm_classify_url(std::ptr::null_mut()));
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(v["ok"], false);
+    }
 }
 
 // ─── FF-22 remove_track 不存在的 id 返回 -1（#98） ──────────────────

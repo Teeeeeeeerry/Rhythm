@@ -214,20 +214,6 @@ final class RhythmCoreSwiftBehaviorTests: XCTestCase {
         XCTAssertNil(lib, "failed open must yield nil, not a zombie instance")
     }
 
-    // MARK: - SW-09 RhythmPlayer 空指针防御
-
-    func testSW09_PlayerFreshStateDefaults() {
-        // ptr-nil instances cannot be constructed (init() always creates),
-        // so the wrapper's nil-guard branches are defensive. Lock the
-        // observable fresh-player defaults instead.
-        let player = RhythmPlayer()
-        XCTAssertEqual(player.state, 0, "fresh player → Stopped (0)")
-        XCTAssertEqual(player.position, 0)
-        XCTAssertEqual(player.duration, 0)
-        XCTAssertNil(player.errorMessage)
-        XCTAssertNil(player.errorKind, "no failure → no classification (#120)")
-    }
-
 
     // MARK: - SW-11 RhythmLibrary.addTrack
 

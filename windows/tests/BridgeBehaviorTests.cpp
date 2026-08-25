@@ -206,25 +206,6 @@ TEST_CASE("WB-07 Library with failed open returns safe defaults") {
     lib.DeletePlaylist(1);
 }
 
-// ─── WB-08 Player 空指针防御 ────────────────────────────────────────
-
-TEST_CASE("WB-08 Player defaults are observable and safe") {
-    // A failed create() cannot be constructed from the outside (the
-    // constructor always calls rhythm_player_create), so the ptr-null
-    // guard branches are defensive — lock the fresh-player defaults.
-    Player player;
-    REQUIRE(player.State() == 0);
-    REQUIRE(player.Position() == 0.0);
-    REQUIRE(player.Duration() == 0.0);
-    REQUIRE(player.ErrorMessage().empty());
-    REQUIRE(player.ErrorKind().empty()); // no failure → no classification (#120)
-
-    player.Pause();   // must not crash on a stopped player
-    player.Resume();
-    player.Stop();
-    player.SetVolume(0.5f);
-    REQUIRE(player.Volume() == Catch::Approx(0.5f));
-}
 
 // ─── WB-09/10 ResolveURL 分派 ───────────────────────────────────────
 

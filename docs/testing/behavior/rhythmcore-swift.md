@@ -3,6 +3,7 @@
 - 模块：`macos/Rhythm/Models/RhythmCore.swift`（FFI 包装类、`PlayMode`、`Track` 编解码、resolver 分派与辅助函数）
 - #175：`RhythmQueue` 包装随 `rhythm_queue_*` 导出删除（队列在协调器内），SW-10 归档
 - #176：`resolveURL` 消费结构化结果；`lastResolveError` 删除
+- #181：`RhythmPlayer`/`RhythmPlayerProtocol` 随 `rhythm_player_*` 导出删除（SW-09 归档）
 - 历史回归：无直接记录（本层零行为测试是当前缺口本身）
 - 测试途径：XCTest；链接真 rust-core 静态库（现有模式）；无需接缝（薄包装 + 纯函数）。
 
@@ -20,7 +21,6 @@
 | SW-06 | `resolveURL` 失败 | 结构化结果 `ok:false` → `.failure(ResolveError(kind, message))`（#176，不再查全局错误槽） |
 | SW-07 | `resolveURL` malformed 响应 | 非空但解码失败 → `.failure(kind: "internal")`（现状：`ResolvedUrl` 多余键被解码器忽略，分支防御性不可达；`testSW07_MalformedResponseBranchIsDefensive` 锁定可观察分派） |
 | SW-08 | `RhythmLibrary` 打开失败 | `init?` 返回 nil；ptr 为 nil 时各方法返回安全默认（-1/[]/false/nil）（ptr-nil 分支现状不可达：`init?` 失败即 nil，不会交出实例——与 SW-09 同类的防御分支） |
-| SW-09 | `RhythmPlayer` 空指针防御 | ptr 为 nil 时 `state == -1`、`position/duration == 0` 等 |
 | SW-11 | `RhythmLibrary.addTrack` | 成功返回带 DB id 的 `Track`；core 返回 null → nil（core-null 分支现状不可达：模型均为纯 Codable，`encodeJSON` 恒产出合法 JSON——与 SW-07/SW-13 同类的防御分支） |
 
 ## 边界情况（P1）
