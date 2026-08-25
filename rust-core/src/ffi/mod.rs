@@ -633,11 +633,12 @@ pub unsafe extern "C" fn rhythm_player_error_kind(ptr: *mut RhythmPlayer) -> *mu
 
 // ─── URL Resolver FFI ─────────────────────────────────────────────
 
-/// The most recent resolver failure, as JSON.
+/// The most recent resolver failure, as JSON (legacy global error slot).
 ///
-/// A null return from `rhythm_resolve_url` used to be the only signal the UI
-/// got, which reduced every distinct failure — yt-dlp missing, timeout,
-/// private video — to a single generic "resolution failed" alert (#21).
+/// `rhythm_resolve_url` no longer uses this slot — failures come back in its
+/// structured result (#176). `rhythm_classify_url` and
+/// `rhythm_install_ytdlp` still record here until the slot is removed
+/// (#181).
 static LAST_RESOLVE_ERROR: LazyLock<Mutex<Option<String>>> = LazyLock::new(|| Mutex::new(None));
 
 fn set_last_resolve_error(failure: &resolver::ResolveFailure) {
@@ -654,24 +655,29 @@ fn clear_last_resolve_error() {
     *LAST_RESOLVE_ERROR.lock().unwrap() = None;
 }
 
-/// Resolve a URL to a playable stream. Returns JSON ResolvedUrl, or null on
-/// failure — call `rhythm_last_error` for the reason.
+/// Structured result of a resolve call (#176): success payload + classified
+/// error in a single return — the old "null, then query `rhythm_last_error`"
+/// two-step protocol is gone.
+///
+/// Success: `{"ok":true,"resolved":{...ResolvedUrl...}}`
+/// Failure: `{"ok":false,"error_kind":"invalid_url|yt_dlp_missing|timeout|network|unavailable|no_audio_stream|yt_dlp_outdated|internal","error_message":"..."}`
+///
+/// Free with `rhythm_free_string`.
 #[no_mangle]
 ///
 /// # Safety
 /// See the module-level `# Safety` contract.
 pub unsafe extern "C" fn rhythm_resolve_url(url: *const c_char) -> *mut c_char {
     let u = unsafe { c_str_to_str(url) };
-    match resolver::resolve_url(u) {
-        Ok(resolved) => {
-            clear_last_resolve_error();
-            str_to_c_string(&serde_json::to_string(&resolved).unwrap_or_default())
-        }
-        Err(failure) => {
-            set_last_resolve_error(&failure);
-            std::ptr::null_mut()
-        }
-    }
+    let json = match resolver::resolve_url(u) {
+        Ok(resolved) => serde_json::json!({ "ok": true, "resolved": resolved }),
+        Err(failure) => serde_json::json!({
+            "ok": false,
+            "error_kind": failure.kind,
+            "error_message": failure.message,
+        }),
+    };
+    str_to_c_string(&json.to_string())
 }
 
 /// Classify a URL. Returns the source type string ("youtube", "bilibili", "direct_url", "local").

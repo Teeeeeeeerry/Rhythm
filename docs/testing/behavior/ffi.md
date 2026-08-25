@@ -2,6 +2,7 @@
 
 - 模块：`rust-core/src/ffi/mod.rs`（C ABI 导出：opaque 句柄 + JSON 交换 + 空指针防御 + 错误码契约）
 - #175 起：队列直通导出（`rhythm_queue_*`）已删除——队列状态由协调器持有（见 `coordinator.md`）；`ffi_behavior.rs` 相应测试移除，FF-11/FF-18/FF-19/FF-21 归档
+- #176 起：`rhythm_resolve_url` 返回结构化结果（成功载荷 + 分类错误一次返回），不再用全局错误槽
 - 历史回归：`#21`（解析失败只有 null、无原因）
 - 测试途径：`cargo test` 集成测试（现有 `player_ffi.rs` 模式扩展）；library/queue/resolver 部分链接真实现 + 临时库；无需接缝。
 
@@ -19,7 +20,7 @@
 | FF-08 | player 状态码映射 | 0–5 对应 Stopped/Playing/Paused/Buffering/Error/Finished；空指针 -1（Buffering(3) 仅 `play_url` 网络流可触发，无网络依赖的测试不可达，未断言——其余 0/1/2/4/5/-1 全绿） |
 | FF-09 | `rhythm_player_error` | Error 状态返回消息字符串；其他状态 null |
 | FF-10 | `rhythm_player_seek` | 空指针 -1；负数/超范围 -1；合法 0 |
-| FF-12 | resolve 与 last_error（#21） | 成功 → JSON 且 last_error 清空；失败 → null 且 `rhythm_last_error` 返回 `{kind, message}`；成功后再读 → null |
+| FF-12 | resolve 结构化结果（#176） | 一次返回 `{"ok":true,"resolved":{...}}` 或 `{"ok":false,"error_kind":"...","error_message":"..."}`；不再返回 null、不再读全局错误槽 |
 | FF-13 | `rhythm_classify_url` | 返回 "youtube"/"bilibili"/"direct_url" 字符串；失败 → null + last_error |
 | FF-14 | M3U8 FFI | export 成功 0/失败 -1；import 成功 JSON/失败 null |
 | FF-15 | `rhythm_free_string` | 空指针安全 |

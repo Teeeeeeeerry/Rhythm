@@ -481,54 +481,51 @@ std::optional<Track> Coordinator::CurrentTrack() const {
 
 // ─── Resolver ───────────────────────────────────────────────────────
 
-/// Read the core's last resolution failure. Falls back to a generic message
-/// when no payload is available.
-static ResolveOutcome LastResolveFailure() {
-    ResolveOutcome outcome;
-    outcome.ok = false;
-    outcome.errorKind = L"internal";
-    outcome.errorMessage = L"Failed to resolve the URL.";
-
-    char* raw = rhythm_last_error();
-    if (!raw) return outcome;
-
-    std::string payload(raw);
-    rhythm_free_string(raw);
-
-    try {
-        auto j = json::parse(payload);
-        if (j.contains("kind") && !j["kind"].is_null()) {
-            outcome.errorKind = Utf8ToWide(j["kind"].get<std::string>());
-        }
-        if (j.contains("message") && !j["message"].is_null()) {
-            outcome.errorMessage = Utf8ToWide(j["message"].get<std::string>());
-        }
-    } catch (const json::exception&) {
-        // Keep the generic message.
-    }
-    return outcome;
-}
-
+/// Parse the core's structured resolve result (#176): success payload +
+/// classified error in a single return — the old "null, then query the
+/// global error slot" two-step protocol is gone.
 ResolveOutcome Resolver::ResolveURL(const std::wstring& url) {
     auto u = WideToUtf8(url);
     char* json_str = rhythm_resolve_url(u.c_str());
-    // A null return means the core recorded a reason — surface it instead of
-    // handing the UI an unplayable placeholder track (#21).
-    if (!json_str) return LastResolveFailure();
 
     ResolveOutcome outcome;
+    if (!json_str) {
+        outcome.ok = false;
+        outcome.errorKind = L"internal";
+        outcome.errorMessage = L"Failed to resolve the URL.";
+        return outcome;
+    }
+
     try {
         auto j = json::parse(json_str);
         rhythm_free_string(json_str);
 
-        outcome.track = JsonToTrack(j);
+        bool ok = j.value("ok", false);
+        if (!ok) {
+            outcome.ok = false;
+            if (j.contains("error_kind") && !j["error_kind"].is_null()) {
+                outcome.errorKind = Utf8ToWide(j["error_kind"].get<std::string>());
+            }
+            if (j.contains("error_message") && !j["error_message"].is_null()) {
+                outcome.errorMessage = Utf8ToWide(j["error_message"].get<std::string>());
+            }
+            return outcome;
+        }
+
+        if (!j.contains("resolved") || j["resolved"].is_null()) {
+            outcome.ok = false;
+            outcome.errorKind = L"internal";
+            outcome.errorMessage = L"Malformed resolver response";
+            return outcome;
+        }
+
+        outcome.track = JsonToTrack(j["resolved"]);
         // Keep the page URL, not the resolved CDN link: the core re-resolves
         // (from cache) at playback time, and those CDN links carry a deadline
         // that expires.
         outcome.track.sourceUrl = url;
         outcome.ok = true;
     } catch (const json::exception& e) {
-        rhythm_free_string(json_str);
         outcome.ok = false;
         outcome.errorKind = L"internal";
         outcome.errorMessage = L"Malformed resolver response: " + Utf8ToWide(e.what());
