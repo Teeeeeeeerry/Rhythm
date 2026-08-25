@@ -185,55 +185,6 @@ std::vector<M3u8Entry> Library::ImportM3U8(const std::wstring& path) {
     return entries;
 }
 
-// ─── Player ─────────────────────────────────────────────────────────
-
-Player::Player() {
-    ptr_ = rhythm_player_create();
-}
-
-Player::~Player() {
-    if (ptr_) rhythm_player_destroy(ptr_);
-}
-
-void Player::PlayFile(const std::wstring& path) {
-    if (!ptr_) return;
-    auto p = WideToUtf8(path);
-    rhythm_player_play_file(ptr_, p.c_str());
-}
-
-void Player::PlayURL(const std::wstring& url) {
-    if (!ptr_) return;
-    auto u = WideToUtf8(url);
-    rhythm_player_play_url(ptr_, u.c_str());
-}
-
-void Player::Pause() { if (ptr_) rhythm_player_pause(ptr_); }
-void Player::Resume() { if (ptr_) rhythm_player_resume(ptr_); }
-void Player::Stop() { if (ptr_) rhythm_player_stop(ptr_); }
-void Player::SetVolume(float v) { if (ptr_) rhythm_player_set_volume(ptr_, v); }
-float Player::Volume() const { return ptr_ ? rhythm_player_get_volume(ptr_) : 0.0f; }
-int32_t Player::State() const { return ptr_ ? rhythm_player_get_state(ptr_) : -1; }
-
-std::wstring Player::ErrorMessage() const {
-    if (!ptr_) return {};
-    char* raw = rhythm_player_error(ptr_);
-    if (!raw) return {};
-    auto message = Utf8ToWide(raw);
-    rhythm_free_string(raw);
-    return message;
-}
-
-std::wstring Player::ErrorKind() const {
-    if (!ptr_) return {};
-    char* raw = rhythm_player_error_kind(ptr_);
-    if (!raw) return {};
-    auto kind = Utf8ToWide(raw);
-    rhythm_free_string(raw);
-    return kind;
-}
-double Player::Position() const { return ptr_ ? rhythm_player_get_position(ptr_) : 0.0; }
-double Player::Duration() const { return ptr_ ? rhythm_player_get_duration(ptr_) : 0.0; }
-
 // ─── Coordinator ────────────────────────────────────────────────────
 
 /// Parse the core's structured result JSON into a CoordinatorResult.
@@ -498,12 +449,21 @@ std::wstring Resolver::StatusText(const ResolverStatus& status) {
 }
 
 std::wstring Resolver::ClassifyURL(const std::wstring& url) {
+    // #181: structured result — no global error slot.
     auto u = WideToUtf8(url);
     char* result = rhythm_classify_url(u.c_str());
     if (!result) return L"";
-    auto s = Utf8ToWide(result);
-    rhythm_free_string(result);
-    return s;
+    std::wstring sourceType;
+    try {
+        auto j = json::parse(result);
+        rhythm_free_string(result);
+        if (j.value("ok", false) && j.contains("source_type") && !j["source_type"].is_null()) {
+            sourceType = Utf8ToWide(j["source_type"].get<std::string>());
+        }
+    } catch (const json::exception&) {
+        rhythm_free_string(result);
+    }
+    return sourceType;
 }
 
 } // namespace rhythm

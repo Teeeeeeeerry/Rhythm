@@ -147,53 +147,6 @@ private:
     RhythmLibrary* ptr_ = nullptr;
 };
 
-/// Playback surface seam (ticket #173): the concrete `Player` wrapper
-/// implements this interface so tests can inject a fake and run playback
-/// paths with no audio device. Mirrors the coordinator's Rust `PlayerSurface`
-/// and the macOS `RhythmPlayerProtocol`.
-class IPlayer {
-public:
-    virtual ~IPlayer() = default;
-
-    virtual void PlayFile(const std::wstring& path) = 0;
-    virtual void PlayURL(const std::wstring& url) = 0;
-    virtual void Pause() = 0;
-    virtual void Resume() = 0;
-    virtual void Stop() = 0;
-    virtual void SetVolume(float volume) = 0;
-    virtual float Volume() const = 0;
-    virtual int32_t State() const = 0;
-    /// Why playback failed, when State() is 4 (Error); empty otherwise.
-    virtual std::wstring ErrorMessage() const = 0;
-    /// Classification of the last playback failure when it was HTTP:
-    /// "expired" | "cdn_rejected" | "other"; empty otherwise (#120).
-    virtual std::wstring ErrorKind() const = 0;
-    virtual double Position() const = 0;
-    virtual double Duration() const = 0;
-};
-
-class Player final : public IPlayer {
-public:
-    Player();
-    ~Player() override;
-
-    void PlayFile(const std::wstring& path) override;
-    void PlayURL(const std::wstring& url) override;
-    void Pause() override;
-    void Resume() override;
-    void Stop() override;
-    void SetVolume(float volume) override;
-    float Volume() const override;
-    int32_t State() const override;
-    std::wstring ErrorMessage() const override;
-    std::wstring ErrorKind() const override;
-    double Position() const override;
-    double Duration() const override;
-
-private:
-    RhythmPlayer* ptr_ = nullptr;
-};
-
 /// Structured result of a coordinator call (mirror of the core's
 /// `CoordinatorResult` JSON): success payload + classified error in one
 /// return. `errorKind` is one of: no_playable_location, playback_failed,
