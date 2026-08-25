@@ -151,6 +151,55 @@ final class RhythmCoreSwiftBehaviorTests: XCTestCase {
         XCTAssertNotNil(resolved, "well-formed core payloads always decode")
     }
 
+    // MARK: - SW-16 生成绑定与手写绑定产物一致（#180）
+
+    func testSW16_GeneratedCodecMatchesCodableRoundtrip() {
+        // The generated codec and the Codable+convertFromSnakeCase path must
+        // produce identical results for the same payloads (expand-contract
+        // acceptance: "生成绑定与手写绑定产物对比一致").
+        let track = makeTrack(
+            id: 42,
+            title: "Generated vs Codable",
+            sourceType: "local",
+            filePath: "/music/parity.mp3",
+            sourceUrl: nil,
+            duration: 210.5
+        )
+        // Codable encode (snake_case) → generated decode.
+        let codableJSON = encodeJSON(track)
+        let viaGenerated = GeneratedCodec.decodeTrack(codableJSON)
+        XCTAssertEqual(viaGenerated?.id, track.id)
+        XCTAssertEqual(viaGenerated?.title, track.title)
+        XCTAssertEqual(viaGenerated?.filePath, track.filePath)
+        XCTAssertEqual(viaGenerated?.duration, track.duration)
+
+        // Generated encode → Codable decode (the reverse direction).
+        let generatedJSON = GeneratedCodec.encodeTrack(track)
+        let viaCodable: Track? = decodeJSON(generatedJSON)
+        XCTAssertEqual(viaCodable?.id, track.id)
+        XCTAssertEqual(viaCodable?.title, track.title)
+        XCTAssertEqual(viaCodable?.sourceType, track.sourceType)
+        XCTAssertEqual(viaCodable?.filePath, track.filePath)
+
+        // Both encoders produce the same snake_case payload (key parity).
+        let a = (try? JSONSerialization.jsonObject(with: codableJSON.data(using: .utf8)!)) as? [String: Any]
+        let b = (try? JSONSerialization.jsonObject(with: generatedJSON.data(using: .utf8)!)) as? [String: Any]
+        XCTAssertEqual(a?["file_path"] as? String, b?["file_path"] as? String)
+        XCTAssertEqual(a?["source_type"] as? String, b?["source_type"] as? String)
+        XCTAssertEqual(a?["duration"] as? Double, b?["duration"] as? Double)
+    }
+
+    func testSW16_GeneratedCodecDecodesM3u8Entries() {
+        let json = #"[{"title":"A","artist":"Artist","location":"/music/a.mp3"},{"title":"B","location":"https://x.com/b.mp3"}]"#
+        let entries = GeneratedCodec.decodeM3u8Entries(json)
+        XCTAssertEqual(entries?.count, 2)
+        XCTAssertEqual(entries?[0].title, "A")
+        XCTAssertEqual(entries?[0].artist, "Artist")
+        XCTAssertEqual(entries?[0].location, "/music/a.mp3")
+        XCTAssertNil(entries?[1].artist)
+        XCTAssertEqual(entries?[1].location, "https://x.com/b.mp3")
+    }
+
     // MARK: - SW-08 RhythmLibrary 打开失败
 
     func testSW08_LibraryOpenFailureReturnsNil() {
