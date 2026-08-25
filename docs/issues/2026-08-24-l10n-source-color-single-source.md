@@ -1,8 +1,12 @@
 # Issue: L10n 文案与来源徽标色收敛为单一事实来源——palette.json 机制扩展到文案
 
+> 已合入（#182~#186 五个 ticket 全部落地）：`contracts/l10n-keys.json` 键表 + 生成器
+> 产出双端 L10n（平台差异保留为字段）；来源徽标色以 palette.json 为唯一来源写回双端；
+> L0 校验（check-l10n-keys/check-ffi-contract）纳入 run-all；行为清单合并为 l10n-keys.md。
+
 - **日期**: 2026-08-24
 - **来源**: 架构审查（architecture-review-20260825-094221.html 候选 3）
-- **状态**: 已立项（GitHub issue #167）
+- **状态**: 已合入（GitHub issue #167）
 - **涉及平台**: 双端（macOS + Windows）
 
 ---
