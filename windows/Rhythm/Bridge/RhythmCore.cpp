@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "RhythmCore.h"
+#include "GeneratedCodec.h"
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
@@ -24,54 +25,9 @@ static std::string WideToUtf8(const std::wstring& ws) {
     return result;
 }
 
-static Track JsonToTrack(const json& j) {
-    Track t;
-    t.id = j.value("id", 0);
-    if (j.contains("file_path") && !j["file_path"].is_null())
-        t.filePath = Utf8ToWide(j["file_path"].get<std::string>());
-    t.sourceType = Utf8ToWide(j.value("source_type", "local"));
-    if (j.contains("source_url") && !j["source_url"].is_null())
-        t.sourceUrl = Utf8ToWide(j["source_url"].get<std::string>());
-    t.title = Utf8ToWide(j.value("title", "Unknown"));
-    if (j.contains("artist") && !j["artist"].is_null())
-        t.artist = Utf8ToWide(j["artist"].get<std::string>());
-    if (j.contains("album") && !j["album"].is_null())
-        t.album = Utf8ToWide(j["album"].get<std::string>());
-    if (j.contains("album_artist") && !j["album_artist"].is_null())
-        t.albumArtist = Utf8ToWide(j["album_artist"].get<std::string>());
-    t.duration = j.value("duration", 0.0);
-    if (j.contains("format") && !j["format"].is_null())
-        t.format = Utf8ToWide(j["format"].get<std::string>());
-    t.trackNumber = j.contains("track_number") && !j["track_number"].is_null()
-        ? std::optional(j["track_number"].get<int32_t>()) : std::nullopt;
-    t.discNumber = j.contains("disc_number") && !j["disc_number"].is_null()
-        ? std::optional(j["disc_number"].get<int32_t>()) : std::nullopt;
-    t.year = j.contains("year") && !j["year"].is_null()
-        ? std::optional(j["year"].get<int32_t>()) : std::nullopt;
-    t.bitrate = j.contains("bitrate") && !j["bitrate"].is_null()
-        ? std::optional(j["bitrate"].get<int32_t>()) : std::nullopt;
-    t.sampleRate = j.contains("sample_rate") && !j["sample_rate"].is_null()
-        ? std::optional(j["sample_rate"].get<int32_t>()) : std::nullopt;
-    t.channels = j.contains("channels") && !j["channels"].is_null()
-        ? std::optional(j["channels"].get<int32_t>()) : std::nullopt;
-    if (j.contains("genre") && !j["genre"].is_null())
-        t.genre = Utf8ToWide(j["genre"].get<std::string>());
-    if (j.contains("file_size") && !j["file_size"].is_null())
-        t.fileSize = std::optional(j["file_size"].get<int64_t>());
-    if (j.contains("date_added") && !j["date_added"].is_null())
-        t.dateAdded = Utf8ToWide(j["date_added"].get<std::string>());
-    if (j.contains("last_played") && !j["last_played"].is_null())
-        t.lastPlayed = Utf8ToWide(j["last_played"].get<std::string>());
-    t.playCount = j.value("play_count", 0);
-    t.isAvailable = j.value("is_available", true);
-    if (j.contains("artwork_path") && !j["artwork_path"].is_null())
-        t.artworkPath = Utf8ToWide(j["artwork_path"].get<std::string>());
-    return t;
-}
-
 Track ParseTrackJson(const std::string& json) {
     try {
-        return JsonToTrack(json::parse(json));
+        return generated::TrackFromJson(json::parse(json));
     } catch (const json::exception&) {
         return Track{};
     }
@@ -82,7 +38,7 @@ static std::vector<Track> ParseTrackList(const char* json) {
     auto j = json::parse(json);
     std::vector<Track> tracks;
     for (const auto& item : j) {
-        tracks.push_back(JsonToTrack(item));
+        tracks.push_back(generated::TrackFromJson(item));
     }
     return tracks;
 }
@@ -98,7 +54,7 @@ static std::vector<Playlist> ParsePlaylistList(const char* json) {
         if (item.contains("description") && !item["description"].is_null())
             p.description = Utf8ToWide(item["description"].get<std::string>());
         for (const auto& tj : item["tracks"]) {
-            p.tracks.push_back(JsonToTrack(tj));
+            p.tracks.push_back(generated::TrackFromJson(tj));
         }
         playlists.push_back(p);
     }
@@ -179,40 +135,12 @@ void Library::RecordPlay(int64_t trackId) {
     rhythm_library_record_play(ptr_, trackId);
 }
 
-static std::string TrackToJson(const Track& t) {
-    json j;
-    j["id"] = t.id;
-    if (t.filePath) j["file_path"] = WideToUtf8(*t.filePath);
-    j["source_type"] = WideToUtf8(t.sourceType);
-    if (t.sourceUrl) j["source_url"] = WideToUtf8(*t.sourceUrl);
-    j["title"] = WideToUtf8(t.title);
-    if (t.artist) j["artist"] = WideToUtf8(*t.artist);
-    if (t.album) j["album"] = WideToUtf8(*t.album);
-    if (t.albumArtist) j["album_artist"] = WideToUtf8(*t.albumArtist);
-    if (t.trackNumber) j["track_number"] = *t.trackNumber;
-    if (t.discNumber) j["disc_number"] = *t.discNumber;
-    if (t.genre) j["genre"] = WideToUtf8(*t.genre);
-    if (t.year) j["year"] = *t.year;
-    j["duration"] = t.duration;
-    if (t.format) j["format"] = WideToUtf8(*t.format);
-    if (t.bitrate) j["bitrate"] = *t.bitrate;
-    if (t.sampleRate) j["sample_rate"] = *t.sampleRate;
-    if (t.channels) j["channels"] = *t.channels;
-    if (t.fileSize) j["file_size"] = *t.fileSize;
-    if (t.dateAdded) j["date_added"] = WideToUtf8(*t.dateAdded);
-    if (t.lastPlayed) j["last_played"] = WideToUtf8(*t.lastPlayed);
-    j["play_count"] = t.playCount;
-    if (t.artworkPath) j["artwork_path"] = WideToUtf8(*t.artworkPath);
-    j["is_available"] = t.isAvailable;
-    return j.dump();
-}
-
 Track Library::AddTrack(const Track& track) {
     if (!ptr_) return track;
-    auto json = TrackToJson(track);
+    auto json = generated::TrackToJson(track).dump();
     char* result = rhythm_library_add_track(ptr_, json.c_str());
     if (!result) return track;
-    auto saved = JsonToTrack(json::parse(result));
+    auto saved = generated::TrackFromJson(json::parse(result));
     rhythm_free_string(result);
     return saved;
 }
@@ -322,7 +250,7 @@ static CoordinatorResult ParseCoordinatorResult(const char* json) {
             result.errorMessage = Utf8ToWide(j["error_message"].get<std::string>());
         }
         if (j.contains("current_track") && !j["current_track"].is_null()) {
-            result.currentTrack = JsonToTrack(j["current_track"]);
+            result.currentTrack = generated::TrackFromJson(j["current_track"]);
         }
         result.playbackActive = j.value("playback_active", false);
     } catch (const json::exception&) {
@@ -373,7 +301,7 @@ CoordinatorResult Coordinator::Start(const Track& track,
                                      const std::vector<Track>& queueTracks,
                                      int32_t mode) {
     if (!ptr_) return {};
-    auto trackJson = TrackToJson(track);
+    auto trackJson = generated::TrackToJson(track).dump();
     auto queueJson = TracksToJson(queueTracks);
     char* raw = rhythm_coordinator_start(
         ptr_, library_ ? library_->Handle() : nullptr,
@@ -475,7 +403,7 @@ std::optional<Track> Coordinator::CurrentTrack() const {
     if (!ptr_) return std::nullopt;
     char* raw = rhythm_coordinator_current_track(ptr_);
     if (!raw) return std::nullopt;
-    auto track = JsonToTrack(json::parse(raw));
+    auto track = generated::TrackFromJson(json::parse(raw));
     rhythm_free_string(raw);
     return track;
 }
@@ -520,7 +448,7 @@ ResolveOutcome Resolver::ResolveURL(const std::wstring& url) {
             return outcome;
         }
 
-        outcome.track = JsonToTrack(j["resolved"]);
+        outcome.track = generated::TrackFromJson(j["resolved"]);
         // Keep the page URL, not the resolved CDN link: the core re-resolves
         // (from cache) at playback time, and those CDN links carry a deadline
         // that expires.

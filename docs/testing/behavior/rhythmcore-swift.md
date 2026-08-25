@@ -14,6 +14,7 @@
 | SW-02 | `decodeJSON` 非法输入 | 返回 nil，不崩溃 |
 | SW-03 | `PlayMode.next()` | 0→1→2→3→0 循环 |
 | SW-03b | `PlayMode` 契约值（#179） | rawValue 锁定 0-3（与核心 `queue::PlayMode` 一致，双端 static_assert/测试同锁） |
+| SW-16 | 生成绑定与手写绑定产物一致（#180） | `GeneratedCodec` 与 Codable+convertFromSnakeCase 双向解码/编码结果一致（key 级对比）；`decodeM3u8Entries` 契约解码 |
 | SW-04 | `ResolverStatus.isQuiet` | idle/ready → true；其余 phase → false |
 | SW-05 | `resolveURL` 成功分派 | 结构化结果 `ok:true` → `.success(ResolvedInfo)`（snake_case 解码，#176） |
 | SW-06 | `resolveURL` 失败 | 结构化结果 `ok:false` → `.failure(ResolveError(kind, message))`（#176，不再查全局错误槽） |

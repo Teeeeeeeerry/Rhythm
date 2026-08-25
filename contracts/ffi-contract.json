@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "doc": "Rhythm FFI 数据契约单一声明（#180）：Track/M3u8Entry/ResolvedUrl 的跨 seam 字段与枚举。生成器 scripts/gen-ffi-bindings.py 由此产出双端编解码绑定：macos/Rhythm/Models/GeneratedCodec.swift 与 windows/Rhythm/Bridge/GeneratedCodec.h。改契约只改本文件，再跑生成器。",
+  "enums": {
+    "source_type": [
+      "local",
+      "youtube",
+      "bilibili",
+      "direct_url"
+    ],
+    "play_mode": [
+      "sequential",
+      "shuffle",
+      "single_loop",
+      "list_loop"
+    ],
+    "player_state": [
+      "stopped",
+      "playing",
+      "paused",
+      "buffering",
+      "finished",
+      "error"
+    ],
+    "resolve_error_kind": [
+      "invalid_url",
+      "yt_dlp_missing",
+      "timeout",
+      "network",
+      "unavailable",
+      "no_audio_stream",
+      "yt_dlp_outdated",
+      "internal"
+    ],
+    "http_error_kind": [
+      "expired",
+      "cdn_rejected",
+      "other"
+    ]
+  },
+  "track": {
+    "id": "i64",
+    "file_path": "string?",
+    "source_type": "source_type",
+    "source_url": "string?",
+    "title": "string",
+    "artist": "string?",
+    "album": "string?",
+    "album_artist": "string?",
+    "track_number": "i32?",
+    "disc_number": "i32?",
+    "genre": "string?",
+    "year": "i32?",
+    "duration": "f64",
+    "format": "string?",
+    "bitrate": "i32?",
+    "sample_rate": "i32?",
+    "channels": "i32?",
+    "file_size": "i64?",
+    "date_added": "string?",
+    "last_played": "string?",
+    "play_count": "i32",
+    "artwork_path": "string?",
+    "is_available": "bool"
+  },
+  "m3u8_entry": {
+    "title": "string",
+    "artist": "string?",
+    "location": "string"
+  },
+  "resolved_url": {
+    "title": "string",
+    "artist": "string?",
+    "stream_url": "string",
+    "duration": "f64",
+    "source_type": "source_type",
+    "thumbnail_url": "string?",
+    "http_headers": "map"
+  },
+  "results": {
+    "coordinator_result": [
+      "ok",
+      "error_kind",
+      "error_message",
+      "current_track",
+      "playback_active"
+    ],
+    "resolve_result": [
+      "ok",
+      "resolved",
+      "error_kind",
+      "error_message"
+    ]
+  }
+}

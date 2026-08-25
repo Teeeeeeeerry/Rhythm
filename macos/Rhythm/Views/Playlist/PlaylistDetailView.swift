@@ -111,8 +111,9 @@ struct PlaylistDetailView: View {
         defer { rhythm_free_string(json) }
         let s = String(cString: json)
         // #136: the core only parses the file — persist every entry here,
-        // otherwise the import is a silent no-op.
-        if let entries: [M3u8Entry] = decodeJSON(s) {
+        // otherwise the import is a silent no-op. Decoding goes through the
+        // generated codec (contract-driven, #180).
+        if let entries: [M3u8Entry] = GeneratedCodec.decodeM3u8Entries(s) {
             appState.importM3U8Entries(entries)
         }
     }
