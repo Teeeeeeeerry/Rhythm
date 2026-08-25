@@ -214,6 +214,9 @@ struct CoordinatorStartResult: Codable {
     let errorKind: String?
     let errorMessage: String?
     let currentTrack: Track?
+    /// Whether playback is active (engine Playing/Buffering) after the
+    /// operation — what the UI should render for `isPlaying`.
+    let playbackActive: Bool
 }
 
 /// The playback surface `AppState` orchestrates against (parent issue #165).
@@ -237,6 +240,12 @@ protocol CoordinatorProtocol {
     /// Move to the previous playable track (bounded skip of unplayable ones).
     @discardableResult
     func playPrevious(library: RhythmLibrary?) -> CoordinatorStartResult
+    /// Toggle play/pause with the full transport semantics (pause while
+    /// playing/buffering, resume only when paused, idle-start the first
+    /// playable library track). The result's `playbackActive` tells the UI
+    /// what to render.
+    @discardableResult
+    func togglePlayPause(library: RhythmLibrary?) -> CoordinatorStartResult
     /// Sync the queue after a library refresh (#69): replace + jump to the
     /// current track.
     func syncQueue(tracks: [Track])
@@ -248,6 +257,8 @@ protocol CoordinatorProtocol {
     var volume: Float { get }
     var hasNext: Bool { get }
     var hasPrevious: Bool { get }
+    var canTogglePlayback: Bool { get }
+    var canStop: Bool { get }
     var currentTrack: Track? { get }
     var position: Double { get }
     var duration: Double { get }
@@ -276,7 +287,7 @@ final class RhythmCoordinator: CoordinatorProtocol {
     @discardableResult
     func start(track: Track, queueTracks: [Track], mode: PlayMode, library: RhythmLibrary?) -> CoordinatorStartResult {
         guard let ptr else {
-            return CoordinatorStartResult(ok: false, errorKind: "invalid_input", errorMessage: "null coordinator handle", currentTrack: nil)
+            return CoordinatorStartResult(ok: false, errorKind: "invalid_input", errorMessage: "null coordinator handle", currentTrack: nil, playbackActive: false)
         }
         guard let json = rhythm_coordinator_start(
             ptr,
@@ -285,31 +296,41 @@ final class RhythmCoordinator: CoordinatorProtocol {
             encodeJSON(queueTracks),
             mode.rawValue
         ) else {
-            return CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil)
+            return CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil, playbackActive: false)
         }
         defer { rhythm_free_string(json) }
         return decodeJSON(String(cString: json))
-            ?? CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil)
+            ?? CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil, playbackActive: false)
     }
 
     @discardableResult
     func playNext(library: RhythmLibrary?) -> CoordinatorStartResult {
         guard let ptr, let json = rhythm_coordinator_next(ptr, library?.handle) else {
-            return CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil)
+            return CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil, playbackActive: false)
         }
         defer { rhythm_free_string(json) }
         return decodeJSON(String(cString: json))
-            ?? CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil)
+            ?? CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil, playbackActive: false)
     }
 
     @discardableResult
     func playPrevious(library: RhythmLibrary?) -> CoordinatorStartResult {
         guard let ptr, let json = rhythm_coordinator_previous(ptr, library?.handle) else {
-            return CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil)
+            return CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil, playbackActive: false)
         }
         defer { rhythm_free_string(json) }
         return decodeJSON(String(cString: json))
-            ?? CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil)
+            ?? CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil, playbackActive: false)
+    }
+
+    @discardableResult
+    func togglePlayPause(library: RhythmLibrary?) -> CoordinatorStartResult {
+        guard let ptr, let json = rhythm_coordinator_toggle_play_pause(ptr, library?.handle) else {
+            return CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil, playbackActive: false)
+        }
+        defer { rhythm_free_string(json) }
+        return decodeJSON(String(cString: json))
+            ?? CoordinatorStartResult(ok: false, errorKind: "internal", errorMessage: "Malformed coordinator response", currentTrack: nil, playbackActive: false)
     }
 
     func syncQueue(tracks: [Track]) {
@@ -355,6 +376,16 @@ final class RhythmCoordinator: CoordinatorProtocol {
     var hasPrevious: Bool {
         guard let ptr else { return false }
         return rhythm_coordinator_has_previous(ptr) != 0
+    }
+
+    var canTogglePlayback: Bool {
+        guard let ptr else { return false }
+        return rhythm_coordinator_can_toggle_playback(ptr) != 0
+    }
+
+    var canStop: Bool {
+        guard let ptr else { return false }
+        return rhythm_coordinator_can_stop(ptr) != 0
     }
 
     var currentTrack: Track? {

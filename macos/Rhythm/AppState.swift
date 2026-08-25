@@ -394,9 +394,10 @@ final class AppState: ObservableObject {
     // enabled for an action that would silently no-op. The queue-side checks
     // come from the coordinator (#170).
 
-    /// `togglePlayPause` needs either something playing or something to start.
+    /// Transport availability comes from the coordinator (ticket #171) —
+    /// the UI renders it, it does not compute it.
     var canTogglePlayback: Bool {
-        currentTrack != nil || !tracks.isEmpty
+        coordinator.canTogglePlayback
     }
 
     var canPlayNext: Bool {
@@ -407,31 +408,25 @@ final class AppState: ObservableObject {
         coordinator.hasPrevious
     }
 
-    var canStop: Bool { isPlaying }
+    var canStop: Bool {
+        coordinator.canStop
+    }
 
-    /// Toggle between play and pause.
+    /// Toggle between play and pause. The full semantics live in the
+    /// coordinator (ticket #171): pause while playing/buffering (#111),
+    /// resume only when the engine is actually Paused (#111), idle-start the
+    /// first playable library track (#78).
     func togglePlayPause() {
-        if isPlaying {
-            coordinator.pause()
-            isPlaying = false
-            // Nothing polls while paused, so this would otherwise stay stuck on
-            // whatever it was when the user hit pause.
+        let outcome = coordinator.togglePlayPause(library: library)
+        guard outcome.ok else { return }
+        if let track = outcome.currentTrack {
+            currentTrack = track
+        }
+        isPlaying = outcome.playbackActive
+        if !isPlaying {
+            // Nothing polls while paused, so this would otherwise stay stuck
+            // on whatever it was when the user hit pause.
             isBuffering = false
-        } else {
-            if currentTrack != nil {
-                // #111: resume only when the engine is actually paused. In
-                // any other state (Error / Stopped / Buffering) resume is a
-                // no-op, so claiming playback would desync the UI from the
-                // engine.
-                if coordinator.state == 2 {
-                    coordinator.resume()
-                    isPlaying = true
-                }
-            } else if let first = tracks.first(where: { playableLocation($0) != nil }) {
-                // Skip over library tracks with no playable location rather
-                // than dead-ending on tracks.first (#78).
-                playTrack(first)
-            }
         }
     }
 
@@ -455,26 +450,6 @@ final class AppState: ObservableObject {
             currentTrack = track
             isPlaying = true
             isBuffering = false
-        }
-    }
-
-    /// The player-reachable location of a track: local tracks need a file
-    /// path, streamed tracks a URL. Nil when nothing can be handed to the
-    /// player (#78). Empty strings count as missing — they pass the old
-    /// nil-only check and reach the player as a doomed play call.
-    private enum PlayableLocation {
-        case file(String)
-        case url(String)
-    }
-
-    private func playableLocation(_ track: Track) -> PlayableLocation? {
-        switch track.sourceType {
-        case "local":
-            guard let path = track.filePath, !path.isEmpty else { return nil }
-            return .file(path)
-        default:
-            guard let url = track.sourceUrl, !url.isEmpty else { return nil }
-            return .url(url)
         }
     }
 

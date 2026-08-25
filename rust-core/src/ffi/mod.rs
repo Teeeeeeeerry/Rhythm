@@ -973,6 +973,49 @@ pub unsafe extern "C" fn rhythm_coordinator_previous(
     coordinator_result_to_c_string(&result)
 }
 
+/// Toggle play/pause (pause while playing/buffering, resume only when
+/// paused, idle-start the first playable library track). Returns structured
+/// result JSON like `rhythm_coordinator_start`, including `playback_active`.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_toggle_play_pause(
+    ptr: *mut RhythmCoordinator,
+    library: *mut RhythmLibrary,
+) -> *mut c_char {
+    if ptr.is_null() {
+        return coordinator_result_to_c_string(&CoordinatorResult::error(
+            CoordinatorErrorKind::InvalidInput,
+            "null coordinator handle".to_string(),
+        ));
+    }
+    let lib = if library.is_null() { None } else { Some(unsafe { &(*library).0 }) };
+    let mut coord = unsafe { &(*ptr).0 }.lock().unwrap();
+    let result = coord.toggle_play_pause(lib);
+    coordinator_result_to_c_string(&result)
+}
+
+/// Whether the toggle has something to act on. Returns 1 for true, 0 for
+/// false.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_can_toggle_playback(ptr: *mut RhythmCoordinator) -> i32 {
+    unsafe { ptr.as_ref().map(|c| c.0.lock().unwrap().can_toggle_playback() as i32).unwrap_or(0) }
+}
+
+/// Whether playback can be stopped (engine playing/buffering/paused).
+/// Returns 1 for true, 0 for false.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_coordinator_can_stop(ptr: *mut RhythmCoordinator) -> i32 {
+    unsafe { ptr.as_ref().map(|c| c.0.lock().unwrap().can_stop() as i32).unwrap_or(0) }
+}
+
 /// Sync the queue after a library refresh (#69): replace contents and jump
 /// back to the current track by its database id.
 #[no_mangle]

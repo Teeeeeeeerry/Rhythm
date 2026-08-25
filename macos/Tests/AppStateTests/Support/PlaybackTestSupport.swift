@@ -33,10 +33,12 @@ final class SpyCoordinator: CoordinatorProtocol {
     var errorKind: String?
     var volume: Float = 1
 
-    // Mini queue model: sequential cursor over the last started queue.
+    // Mini queue model: sequential cursor over the last started queue, plus
+    // a library mirror fed by syncQueue (the toggle's idle-start source).
     private var queueTracks: [Track] = []
     private var cursor = 0
     private var playMode: PlayMode = .sequential
+    private var libraryTracks: [Track] = []
 
     var hasAnyCall: Bool { !calls.isEmpty }
 
@@ -59,20 +61,49 @@ final class SpyCoordinator: CoordinatorProtocol {
                 ok: false,
                 errorKind: "no_playable_location",
                 errorMessage: "track has no playable location",
-                currentTrack: nil
+                currentTrack: nil,
+                playbackActive: false
             )
         }
         self.queueTracks = queueTracks
         self.playMode = mode
         cursor = queueTracks.firstIndex { $0.id == track.id } ?? 0
         self.currentTrack = track
-        return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: track)
+        state = 1 // mirror the engine: Playing
+        return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: track, playbackActive: true)
     }
 
     @discardableResult
     func playNext(library: RhythmLibrary?) -> CoordinatorStartResult {
         calls.append("next")
         return advance(backwards: false)
+    }
+
+    @discardableResult
+    func togglePlayPause(library: RhythmLibrary?) -> CoordinatorStartResult {
+        calls.append("togglePlayPause")
+        // Mirror of the coordinator's toggle: pause while playing/buffering,
+        // resume only when paused, idle-start the first playable library
+        // track, otherwise no-op with playback_active = false.
+        switch state {
+        case 1, 3: // Playing / Buffering
+            pause()
+            return result(active: false)
+        case 2: // Paused
+            resume()
+            return result(active: true)
+        default:
+            if currentTrack == nil {
+                if let first = libraryTracks.first(where: { playable($0) }) {
+                    return start(track: first, queueTracks: libraryTracks, mode: playMode, library: library)
+                }
+            }
+            return result(active: false)
+        }
+    }
+
+    private func result(active: Bool) -> CoordinatorStartResult {
+        CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: currentTrack, playbackActive: active)
     }
 
     @discardableResult
@@ -84,6 +115,7 @@ final class SpyCoordinator: CoordinatorProtocol {
     func syncQueue(tracks: [Track]) {
         calls.append("syncQueue")
         syncQueueCalls.append(tracks)
+        libraryTracks = tracks
         // Mirror of the coordinator: replace, then jump back to the current
         // track by id (the coordinator's own current, not the UI's).
         queueTracks = tracks
@@ -108,6 +140,7 @@ final class SpyCoordinator: CoordinatorProtocol {
     func stop() {
         calls.append("stop")
         stopCount += 1
+        state = 0 // mirror the engine: Stopped
         currentTrack = nil
         queueTracks = []
         cursor = 0
@@ -130,6 +163,15 @@ final class SpyCoordinator: CoordinatorProtocol {
     }
 
     var currentTrack: Track?
+
+    var canTogglePlayback: Bool {
+        currentTrack != nil || !libraryTracks.isEmpty
+    }
+
+    var canStop: Bool {
+        state == 1 || state == 2 || state == 3
+    }
+
     var hasNext: Bool {
         guard currentTrack != nil, !queueTracks.isEmpty else { return false }
         switch playMode {
@@ -159,11 +201,11 @@ final class SpyCoordinator: CoordinatorProtocol {
     /// playable is found.
     private func advance(backwards: Bool) -> CoordinatorStartResult {
         guard let current = currentTrack, !queueTracks.isEmpty else {
-            return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: currentTrack)
+            return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: currentTrack, playbackActive: false)
         }
         if playMode == .singleLoop {
             // The queue repeats the current track.
-            return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: current)
+            return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: current, playbackActive: true)
         }
         let bound = queueTracks.count
         for _ in 0..<bound {
@@ -173,10 +215,11 @@ final class SpyCoordinator: CoordinatorProtocol {
             let candidate = queueTracks[nextIndex]
             if playable(candidate) {
                 currentTrack = candidate
-                return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: candidate)
+                state = 1 // mirror the engine: Playing
+                return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: candidate, playbackActive: true)
             }
         }
-        return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: currentTrack)
+        return CoordinatorStartResult(ok: true, errorKind: nil, errorMessage: nil, currentTrack: currentTrack, playbackActive: state == 1 || state == 3)
     }
 }
 
