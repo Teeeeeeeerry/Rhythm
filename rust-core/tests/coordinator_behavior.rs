@@ -107,16 +107,19 @@ impl PlayerSurface for FakePlayer {
     fn pause(&self) {
         self.record("pause");
         *self.state.lock().unwrap() = PlayerState::Paused;
+        self.bus.fire_state(PlayerState::Paused);
     }
 
     fn resume(&self) {
         self.record("resume");
         *self.state.lock().unwrap() = PlayerState::Playing;
+        self.bus.fire_state(PlayerState::Playing);
     }
 
     fn stop(&self) {
         self.record("stop");
         *self.state.lock().unwrap() = PlayerState::Stopped;
+        self.bus.fire_state(PlayerState::Stopped);
     }
 
     fn seek(&self, seconds: f64) -> RhythmResult<()> {
@@ -941,4 +944,90 @@ fn co28_sync_queue_after_deleting_current_track() {
     coord.sync_queue(vec![c.clone()]); // B deleted, C remains
     assert_eq!(coord.current_track().map(|t| t.id), Some(Some(2)), "UI-facing current unchanged");
     assert!(!coord.can_play_next(), "queue head is the only remaining track");
+}
+
+// ─── CO-31: 事件序列契约（ticket #178）─────────────────────────────
+
+#[test]
+fn co31_event_sequence_contract() {
+    let (player, _, state, bus) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+    let events = subscribe(&coord);
+
+    // Start: TrackChanged then the engine's State transitions.
+    let a = dummy_track(1, "A");
+    let b = dummy_track(2, "B");
+    assert!(coord.start(None, a.clone(), vec![a, b], PlayMode::Sequential).ok);
+    *state.lock().unwrap() = PlayerState::Playing;
+    bus.fire_state(PlayerState::Playing);
+
+    // Progress flows during playback.
+    bus.fire_progress(5.0, 180.0);
+    bus.fire_progress(10.0, 180.0);
+
+    // Pause → resume → state events.
+    coord.player().pause();
+    coord.player().resume();
+
+    // Natural end: Finished, then the auto-advance's TrackChanged.
+    bus.fire_state(PlayerState::Finished);
+    coord.handle_finished(None);
+
+    let events = events.lock().unwrap();
+    let kinds: Vec<&str> = events
+        .iter()
+        .map(|e| match e {
+            CoordinatorEvent::Finished => "finished",
+            CoordinatorEvent::Error { .. } => "error",
+            CoordinatorEvent::Progress { .. } => "progress",
+            CoordinatorEvent::State { .. } => "state",
+            CoordinatorEvent::TrackChanged { .. } => "track_changed",
+        })
+        .collect();
+
+    // The contract: state(stopped, #51 stop before play) → track_changed
+    // (start) → state(playing) → progress* → state(paused) → state(playing)
+    // → finished → track_changed (auto-advance).
+    assert_eq!(kinds[0], "state", "a start begins with the #51 stop transition");
+    assert_eq!(kinds[1], "track_changed", "then the current track is published");
+    assert_eq!(kinds[2], "state", "the engine state follows");
+    assert_eq!(kinds[3], "progress");
+    assert_eq!(kinds[4], "progress");
+    let paused = kinds.iter().position(|k| *k == "state").expect("state events");
+    assert!(kinds[paused..].contains(&"state"), "pause/resume publish state transitions");
+    let finished = kinds.iter().position(|k| *k == "finished").expect("finished event");
+    assert_eq!(&kinds[finished + 1], &"state", "the auto-advance starts with a #51 stop");
+    assert_eq!(&kinds[finished + 2], &"track_changed", "auto-advance follows finished");
+}
+
+// ─── CO-32: 事件 JSON 形状（契约文档即测试）────────────────────────
+
+#[test]
+fn co32_event_json_shapes() {
+    let event = CoordinatorEvent::Finished;
+    let json = serde_json::to_string(&event).unwrap();
+    assert_eq!(json, r#"{"type":"finished"}"#);
+
+    let event = CoordinatorEvent::State {
+        state: PlayerState::Paused,
+    };
+    let json = serde_json::to_string(&event).unwrap();
+    assert_eq!(json, r#"{"type":"state","state":"paused"}"#);
+
+    let event = CoordinatorEvent::Progress {
+        position: 12.5,
+        duration: 180.0,
+    };
+    let json = serde_json::to_string(&event).unwrap();
+    assert_eq!(json, r#"{"type":"progress","position":12.5,"duration":180.0}"#);
+
+    let event = CoordinatorEvent::Error {
+        kind: Some(HttpErrorKind::CdnRejected),
+        message: "GET x failed: HTTP 403".to_string(),
+    };
+    let json = serde_json::to_string(&event).unwrap();
+    assert_eq!(
+        json,
+        r#"{"type":"error","kind":"cdn_rejected","message":"GET x failed: HTTP 403"}"#
+    );
 }
