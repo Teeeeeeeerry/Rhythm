@@ -325,24 +325,25 @@ final class AppState: ObservableObject {
     /// Persist M3U8 entries decoded by `playlist::import_m3u8` — the core
     /// only parses, the caller must add the tracks (#136). A location that
     /// looks like an http(s) URL is stored as a direct_url; anything else is
-    /// a local file path. Returns the imported/failed counts.
+    /// a local file path. Returns the imported/failed counts. Entries carry
+    /// named fields (title/artist/location) — no positional indexing (#177).
     @discardableResult
-    func importM3U8Entries(_ entries: [[String?]]) -> (imported: Int, failed: Int) {
+    func importM3U8Entries(_ entries: [M3u8Entry]) -> (imported: Int, failed: Int) {
         var imported = 0
         var failed = 0
         for entry in entries {
-            let title = entry.first.flatMap { $0 } ?? "Unknown"
-            let artist = entry.count > 1 ? entry[1] : nil
-            guard let location = entry.count > 2 ? entry[2] : nil, !location.isEmpty else {
+            let title = entry.title.isEmpty ? "Unknown" : entry.title
+            let artist = entry.artist
+            guard !entry.location.isEmpty else {
                 failed += 1
                 continue
             }
-            let isURL = location.hasPrefix("http://") || location.hasPrefix("https://")
+            let isURL = entry.location.hasPrefix("http://") || entry.location.hasPrefix("https://")
             let track = Track(
                 id: -1,
-                filePath: isURL ? nil : location,
+                filePath: isURL ? nil : entry.location,
                 sourceType: isURL ? "direct_url" : "local",
-                sourceUrl: isURL ? location : nil,
+                sourceUrl: isURL ? entry.location : nil,
                 title: title,
                 artist: artist,
                 album: nil,

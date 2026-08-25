@@ -4,7 +4,7 @@
 
 mod common;
 
-use rhythm_core::playlist::{export_m3u8, import_m3u8};
+use rhythm_core::playlist::{export_m3u8, import_m3u8, M3u8Entry};
 use rhythm_core::{SourceType, TrackInfo};
 
 fn track(
@@ -113,8 +113,8 @@ fn pl04_import_m3u8_standard_parsing_preserves_order() {
     assert_eq!(
         entries,
         vec![
-            ("Title A".to_string(), Some("Artist A".to_string()), Some("/music/a.mp3".to_string())),
-            ("Title B".to_string(), Some("Artist B".to_string()), Some("https://x.com/b.mp3".to_string())),
+            M3u8Entry { title: "Title A".to_string(), artist: Some("Artist A".to_string()), location: "/music/a.mp3".to_string() },
+            M3u8Entry { title: "Title B".to_string(), artist: Some("Artist B".to_string()), location: "https://x.com/b.mp3".to_string() },
         ]
     );
 }
@@ -127,7 +127,7 @@ fn pl05_import_m3u8_skips_header_and_blank_lines() {
 
     let entries = import_m3u8(&file).unwrap();
     assert_eq!(entries.len(), 1);
-    assert_eq!(entries[0].0, "T");
+    assert_eq!(entries[0].title, "T");
 }
 
 #[test]
@@ -137,8 +137,8 @@ fn pl06_import_m3u8_extinf_without_separator() {
     std::fs::write(&file, "#EXTM3U\n#EXTINF:180,Some Title\n/x.mp3\n").unwrap();
 
     let entries = import_m3u8(&file).unwrap();
-    assert_eq!(entries[0].0, "Some Title", "whole text after comma is the title");
-    assert_eq!(entries[0].1, None, "no ` - ` separator → no artist");
+    assert_eq!(entries[0].title, "Some Title", "whole text after comma is the title");
+    assert_eq!(entries[0].artist, None, "no ` - ` separator → no artist");
 }
 
 #[test]
@@ -148,9 +148,9 @@ fn pl07_import_m3u8_location_without_extinf_falls_back_to_stem() {
     std::fs::write(&file, "#EXTM3U\n/music/song.mp3\nhttps://x.com/a.mp3\n").unwrap();
 
     let entries = import_m3u8(&file).unwrap();
-    assert_eq!(entries[0].0, "song", "title falls back to the file stem");
-    assert_eq!(entries[0].1, None);
-    assert_eq!(entries[1].0, "a");
+    assert_eq!(entries[0].title, "song", "title falls back to the file stem");
+    assert_eq!(entries[0].artist, None);
+    assert_eq!(entries[1].title, "a");
 }
 
 #[test]
@@ -161,7 +161,7 @@ fn pl08_import_m3u8_skips_other_comment_lines() {
 
     let entries = import_m3u8(&file).unwrap();
     assert_eq!(entries.len(), 1);
-    assert_eq!(entries[0].0, "T");
+    assert_eq!(entries[0].title, "T");
 }
 
 // ─── PL-11/14 错误路径 ──────────────────────────────────────────────
@@ -196,13 +196,10 @@ fn pl12_export_then_import_roundtrip() {
     export_m3u8(&out, &tracks).unwrap();
 
     let entries = import_m3u8(&out).unwrap();
-    assert_eq!(
-        entries,
-        vec![
-            ("Local One".to_string(), Some("Artist One".to_string()), Some("/music/one.mp3".to_string())),
-            ("URL Two".to_string(), Some("Artist Two".to_string()), Some("https://example.com/two.mp3".to_string())),
-            ("No Artist".to_string(), Some("Unknown Artist".to_string()), Some("/music/three.mp3".to_string())),
-        ],
-        "title/artist/location must survive a full roundtrip"
-    );
+    let expected: Vec<M3u8Entry> = vec![
+        M3u8Entry { title: "Local One".to_string(), artist: Some("Artist One".to_string()), location: "/music/one.mp3".to_string() },
+        M3u8Entry { title: "URL Two".to_string(), artist: Some("Artist Two".to_string()), location: "https://example.com/two.mp3".to_string() },
+        M3u8Entry { title: "No Artist".to_string(), artist: Some("Unknown Artist".to_string()), location: "/music/three.mp3".to_string() },
+    ];
+    assert_eq!(entries, expected, "title/artist/location must survive a full roundtrip");
 }

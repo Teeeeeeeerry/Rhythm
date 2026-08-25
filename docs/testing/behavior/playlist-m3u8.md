@@ -11,7 +11,7 @@
 | PL-01 | `export_m3u8` 格式 | 首行 `#EXTM3U`；每曲 `#EXTINF:{整数秒},{artist} - {title}` + 位置行 |
 | PL-02 | `export_m3u8` 位置行 | local → `file_path`；URL → `source_url`（断言并入 `pl01_export_m3u8_format_and_locations`） |
 | PL-03 | `export_m3u8` 缺 artist | 回退 "Unknown Artist" |
-| PL-04 | `import_m3u8` 标准解析 | 返回 `(title, artist, location)` 列表，顺序保真 |
+| PL-04 | `import_m3u8` 标准解析 | 返回具名字段 `M3u8Entry{title, artist, location}` 列表，顺序保真（#177） |
 | PL-05 | `import_m3u8` 头行与空行 | `#EXTM3U` 与空白行被忽略 |
 | PL-06 | `import_m3u8` EXTINF 无 ` - ` 分隔 | title = 逗号后全文，artist = None |
 | PL-07 | `import_m3u8` 位置行无前置 EXTINF | title 回退为文件 stem |
