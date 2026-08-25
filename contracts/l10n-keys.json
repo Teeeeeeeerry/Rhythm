@@ -1,0 +1,364 @@
+{
+  "version": 1,
+  "doc": "L10n 文案键表单一事实来源（#167 组）。新增文案只改本文件，再跑 scripts/gen-l10n.py 生成双端实现。platform 字段标记平台差异（缺省双端共用）。",
+  "keys": {
+    "library_tab": {
+      "zh": "资料库",
+      "en": "Library"
+    },
+    "playlists_tab": {
+      "zh": "播放列表",
+      "en": "Playlists"
+    },
+    "not_playing": {
+      "zh": "未在播放",
+      "en": "Not Playing"
+    },
+    "play_mode_tooltip": {
+      "zh": "播放模式",
+      "en": "Play Mode"
+    },
+    "url_placeholder": {
+      "zh": "粘贴 YouTube / Bilibili 链接播放",
+      "en": "Paste a YouTube / Bilibili URL to play"
+    },
+    "url_play": {
+      "zh": "播放链接",
+      "en": "Play URL"
+    },
+    "url_resolving": {
+      "zh": "解析中…",
+      "en": "Resolving…"
+    },
+    "url_error_title": {
+      "zh": "无法播放链接",
+      "en": "Cannot Play URL"
+    },
+    "url_resolve_failed": {
+      "zh": "链接解析失败，请检查链接是否有效",
+      "en": "Failed to resolve the URL. Please check it is valid."
+    },
+    "ok": {
+      "zh": "确定",
+      "en": "OK"
+    },
+    "buffering": {
+      "zh": "缓冲中…",
+      "en": "Buffering…"
+    },
+    "playback_failed_headline": {
+      "zh": "播放失败。",
+      "en": "Playback failed."
+    },
+    "playback_failed_expired": {
+      "zh": "播放失败。链接可能已过期，重新粘贴一次试试。",
+      "en": "Playback failed. The link may have expired — try pasting it again."
+    },
+    "playback_failed_cdn_rejected": {
+      "zh": "播放失败。YouTube 拒绝了当前网络的请求（可能与 ISP 或 VPN 有关），换网络或稍后再试。",
+      "en": "Playback failed. YouTube rejected this network's request (possibly your ISP or VPN) — switch networks or try again later."
+    },
+    "detail_prefix_zh": {
+      "zh": "详细信息：",
+      "en": ""
+    },
+    "resolver_status_checking": {
+      "zh": "正在准备解析组件…",
+      "en": "Preparing resolver…"
+    },
+    "resolver_status_downloading": {
+      "zh": "正在下载解析组件 {progress}",
+      "en": "Downloading resolver {progress}"
+    },
+    "resolver_status_verifying": {
+      "zh": "正在校验解析组件…",
+      "en": "Verifying resolver…"
+    },
+    "resolver_status_updating": {
+      "zh": "正在更新解析组件…",
+      "en": "Updating resolver…"
+    },
+    "resolver_status_failed": {
+      "zh": "解析组件安装失败",
+      "en": "Resolver install failed"
+    },
+    "resolve_error_yt_dlp_missing": {
+      "zh": "未找到 yt-dlp。播放 YouTube / Bilibili 链接需要先安装它：\n  brew install yt-dlp\n\n如果已经安装：从访达启动的应用不会继承终端的 PATH，请把 RHYTHM_YTDLP_PATH 设为 yt-dlp 的完整路径（用 which yt-dlp 查看）。",
+      "en": ""
+    },
+    "resolve_error_timeout": {
+      "zh": "解析超时。请检查网络连接后重试。",
+      "en": ""
+    },
+    "resolve_error_network": {
+      "zh": "网络错误，无法访问该链接。请检查网络、代理或 VPN 设置。",
+      "en": ""
+    },
+    "resolve_error_unavailable": {
+      "zh": "该视频无法访问：可能是私享、已删除、年龄限制、会员专属或所在地区不可用。",
+      "en": ""
+    },
+    "resolve_error_no_audio_stream": {
+      "zh": "该链接没有可播放的音频流。",
+      "en": ""
+    },
+    "resolve_error_yt_dlp_outdated": {
+      "zh": "yt-dlp 版本过旧，无法解析该站点。请升级后重试：\n  brew upgrade yt-dlp",
+      "en": ""
+    },
+    "resolve_error_invalid_url": {
+      "zh": "链接无效，请输入以 http:// 或 https:// 开头的地址。",
+      "en": ""
+    },
+    "mode_sequential": {
+      "zh": "顺序",
+      "en": "Sequential"
+    },
+    "mode_shuffle": {
+      "zh": "随机",
+      "en": "Shuffle"
+    },
+    "mode_single_loop": {
+      "zh": "单曲循环",
+      "en": "Repeat One"
+    },
+    "mode_list_loop": {
+      "zh": "列表循环",
+      "en": "Repeat All"
+    },
+    "library_empty": {
+      "zh": "无内容",
+      "en": "No Content"
+    },
+    "by_artist_album": {
+      "zh": "按艺人/专辑",
+      "en": "By Artist/Album"
+    },
+    "by_letter": {
+      "zh": "按首字母",
+      "en": "A–Z"
+    },
+    "search_placeholder": {
+      "zh": "搜索...",
+      "en": "Search..."
+    },
+    "import_tooltip": {
+      "zh": "导入音乐",
+      "en": "Import Music"
+    },
+    "view": {
+      "zh": "视图",
+      "en": "View"
+    },
+    "imported_tracks": {
+      "zh": "已导入 {count} 首歌曲",
+      "en": "Imported {count} track{s}."
+    },
+    "track_count": {
+      "zh": "{count} 首",
+      "en": "{count} track{s}"
+    },
+    "import_result_title": {
+      "zh": "导入结果",
+      "en": "Import Result"
+    },
+    "importing": {
+      "zh": "正在导入…",
+      "en": "Importing…"
+    },
+    "import_button": {
+      "zh": "导入",
+      "en": "Import"
+    },
+    "import_dir_empty": {
+      "zh": "该目录中未找到支持的音频文件",
+      "en": "No supported audio files found in this directory."
+    },
+    "import_dir_failed": {
+      "zh": "导入失败，请检查目录是否可访问",
+      "en": "Import failed. Please check that the directory is accessible."
+    },
+    "import_file_unsupported": {
+      "zh": "不支持的音频格式",
+      "en": "Unsupported audio format."
+    },
+    "import_file_failed": {
+      "zh": "导入失败，文件可能已损坏或无法读取",
+      "en": "Import failed. The file may be corrupted or unreadable."
+    },
+    "import_all_failed": {
+      "zh": "全部导入失败，请检查文件是否支持",
+      "en": "All imports failed. Check that the files are supported."
+    },
+    "import_none_found": {
+      "zh": "未找到支持的音频文件",
+      "en": "No supported audio files found."
+    },
+    "import_hint": {
+      "zh": "点击工具栏 + 按钮导入音乐文件或文件夹",
+      "en": "Click the + button in the toolbar to import music files or folders"
+    },
+    "import_some_failed": {
+      "zh": "已导入 {imported} 首，{failed} 个失败",
+      "en": "Imported {imported} tracks, {failed} failed."
+    },
+    "new_playlist": {
+      "zh": "新建播放列表",
+      "en": "New Playlist"
+    },
+    "playlist_name": {
+      "zh": "播放列表名称",
+      "en": "Playlist Name"
+    },
+    "create": {
+      "zh": "创建",
+      "en": "Create"
+    },
+    "cancel": {
+      "zh": "取消",
+      "en": "Cancel"
+    },
+    "import_m3u8": {
+      "zh": "导入 M3U8",
+      "en": "Import M3U8"
+    },
+    "export_m3u8": {
+      "zh": "导出 M3U8",
+      "en": "Export M3U8"
+    },
+    "no_playlists": {
+      "zh": "暂无播放列表",
+      "en": "No playlists yet"
+    },
+    "remove_from_playlist": {
+      "zh": "从列表移除",
+      "en": "Remove from Playlist"
+    },
+    "export_failed_title": {
+      "zh": "导出失败",
+      "en": "Export Failed"
+    },
+    "export_failed": {
+      "zh": "导出失败（错误码: {code}），请重试。",
+      "en": "Export failed (code: {code}). Please try again."
+    },
+    "back": {
+      "zh": "返回",
+      "en": "Back"
+    },
+    "playlist_empty": {
+      "zh": "列表为空",
+      "en": "Playlist is empty"
+    },
+    "playlist_empty_hint": {
+      "zh": "从资料库右键添加歌曲",
+      "en": "Right-click a track in Library to add it here"
+    },
+    "play": {
+      "zh": "播放",
+      "en": "Play"
+    },
+    "add_to_playlist": {
+      "zh": "添加到播放列表",
+      "en": "Add to Playlist"
+    },
+    "delete_from_library": {
+      "zh": "从资料库删除",
+      "en": "Delete from Library"
+    },
+    "delete_confirm_title": {
+      "zh": "确认删除",
+      "en": "Confirm Deletion"
+    },
+    "delete_confirm_message": {
+      "zh": "确定要从资料库中删除「{title}」吗？\n此操作不可撤销。",
+      "en": "Are you sure you want to delete \"{title}\" from the library?\nThis action cannot be undone."
+    },
+    "delete_button": {
+      "zh": "删除",
+      "en": "Delete"
+    },
+    "tray_play_pause": {
+      "zh": "播放 / 暂停",
+      "en": "Play / Pause"
+    },
+    "tray_play": {
+      "zh": "播放",
+      "en": "Play"
+    },
+    "tray_pause": {
+      "zh": "暂停",
+      "en": "Pause"
+    },
+    "tray_stop": {
+      "zh": "停止",
+      "en": "Stop"
+    },
+    "tray_next": {
+      "zh": "下一首",
+      "en": "Next Track"
+    },
+    "tray_prev": {
+      "zh": "上一首",
+      "en": "Previous Track"
+    },
+    "tray_show": {
+      "zh": "显示主窗口",
+      "en": "Show Window"
+    },
+    "tray_quit": {
+      "zh": "退出 Rhythm",
+      "en": "Quit Rhythm"
+    },
+    "tag_local": {
+      "zh": "本地",
+      "en": "Local"
+    },
+    "tag_youtube": {
+      "zh": "YT",
+      "en": "YT"
+    },
+    "tag_bilibili": {
+      "zh": "B站",
+      "en": "Bili"
+    },
+    "tag_link": {
+      "zh": "链接",
+      "en": "Link"
+    },
+    "menu_playback": {
+      "zh": "播放",
+      "en": "Playback"
+    },
+    "menu_play_pause": {
+      "zh": "播放/暂停",
+      "en": "Play/Pause"
+    },
+    "menu_stop": {
+      "zh": "停止",
+      "en": "Stop"
+    },
+    "menu_next": {
+      "zh": "下一首",
+      "en": "Next Track"
+    },
+    "menu_prev": {
+      "zh": "上一首",
+      "en": "Previous Track"
+    },
+    "menu_toggle_mode": {
+      "zh": "切换播放模式",
+      "en": "Cycle Play Mode"
+    },
+    "yt_dlp_install_command": {
+      "zh": "brew install yt-dlp",
+      "en": "brew install yt-dlp",
+      "platform": "macos"
+    },
+    "yt_dlp_install_command_windows": {
+      "zh": "winget install yt-dlp",
+      "en": "winget install yt-dlp",
+      "platform": "windows"
+    }
+  }
+}
