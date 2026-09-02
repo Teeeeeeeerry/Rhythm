@@ -653,6 +653,44 @@ TEST_CASE("WA-25 playback failure event surfaces classified copy (#120)") {
     REQUIRE(message == L"GET x failed: HTTP 403");
 }
 
+// ─── WA-29 单文件导入（#242，Windows 首次具备该能力）──────────────
+
+TEST_CASE("WA-29 ImportFile imports one audio file and reports the outcome") {
+    SpyApp app;
+    app.state.ImportFile(L"C:\\whatever\\x.wav"); // no Library -> no feedback
+    REQUIRE_FALSE(app.state.ShowImportAlert);
+
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto wav = writeWavAt(app.dir.path, L"single.wav");
+
+    app.state.ImportFile(wav.wstring());
+
+    REQUIRE(app.state.ShowImportAlert);
+    REQUIRE(app.state.ImportAlertMessage == L10n::ImportedTracks(1));
+    // Reloaded from the database, not stitched together by hand.
+    REQUIRE(app.state.Tracks.size() == 1);
+    REQUIRE(app.state.Tracks[0].title == L"single");
+}
+
+TEST_CASE("WA-29 ImportFile tells unsupported apart from unreadable") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+
+    auto txt = app.dir.path / L"notes.txt";
+    {
+        std::ofstream out(txt);
+        out << "not audio";
+    }
+
+    app.state.ImportFile(txt.wstring());
+    REQUIRE(app.state.ImportAlertMessage == L10n::ImportFileUnsupported());
+
+    app.state.ImportFile((app.dir.path / L"missing.wav").wstring());
+    REQUIRE(app.state.ImportAlertMessage == L10n::ImportFileFailed());
+
+    REQUIRE(app.state.Tracks.empty());
+}
+
 // ─── WA-26 M3U8 导入结果渲染（#236，入库策略在核心）────────────────
 
 /// The core parses and stores; this layer only renders the counts and

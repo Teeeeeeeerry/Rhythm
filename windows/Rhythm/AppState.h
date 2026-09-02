@@ -60,13 +60,17 @@ public:
     void OpenDatabase(const std::wstring& path);
     void RefreshLibrary();
     void ImportDirectory(const std::wstring& path);
+    /// Import a single audio file (#242, macOS parity). Unsupported format
+    /// and read failure get different alerts -- the user needs to know
+    /// whether to swap the file or check permissions.
+    void ImportFile(const std::wstring& path);
     void DoSearch();
     void PlayTrack(const Track& track);
     void TogglePlayPause();
     void SetVolume(double v);
     void ResolveAndPlay(const std::wstring& url);
-    /// Import an M3U8 file: parse entries, persist each one, count failures,
-    /// refresh, and surface the import alert (ticket #173 — the old no-op).
+    /// Import an M3U8 file through the core's parse-and-store entry point:
+    /// pick the alert text from the named counts and reload the list (#236).
     void ImportM3U8(const std::wstring& path);
 
     /// Transport availability (WA-22, mirrors the macOS tray-menu gates).

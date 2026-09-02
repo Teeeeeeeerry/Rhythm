@@ -36,6 +36,9 @@
                     <Button x:Name="btnImport" Click="OnImportClick">
                         <SymbolIcon Symbol="Add" />
                     </Button>
+                    <Button x:Name="btnImportFile" Click="OnImportFileClick">
+                        <SymbolIcon Symbol="Audio" />
+                    </Button>
                     <AutoSuggestBox
                         x:Name="searchBox"
                         Width="200"

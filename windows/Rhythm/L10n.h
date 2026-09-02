@@ -204,6 +204,7 @@ inline std::wstring PlaylistsTab() { return Key("playlists_tab"); }
 // ─── Main window ────────────────────────────────────────────────────
 
 inline std::wstring ImportFolderTooltip() { return Key("import_folder_tooltip"); }
+inline std::wstring ImportTooltip() { return Key("import_tooltip"); }
 inline std::wstring SearchPlaceholder() { return Key("search_placeholder"); }
 inline std::wstring ByArtistAlbum() { return Key("by_artist_album"); }
 inline std::wstring ByLetter() { return Key("by_letter"); }
@@ -237,6 +238,8 @@ inline std::wstring ImportedTracks(int32_t count) {
 }
 inline std::wstring ImportNoFiles() { return Key("import_dir_empty"); }
 inline std::wstring ImportFailed() { return Key("import_dir_failed"); }
+inline std::wstring ImportFileUnsupported() { return Key("import_file_unsupported"); }
+inline std::wstring ImportFileFailed() { return Key("import_file_failed"); }
 inline std::wstring ImportSomeFailed(int32_t imported, int32_t failed) {
     return Fill(Key("import_some_failed"),
                 {{L"imported", std::to_wstring(imported)}, {L"failed", std::to_wstring(failed)}});

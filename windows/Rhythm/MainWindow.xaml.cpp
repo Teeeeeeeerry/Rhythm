@@ -17,6 +17,7 @@ MainWindow::MainWindow() {
     navLibrary().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::LibraryTab() }));
     navPlaylists().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::PlaylistsTab() }));
     btnImport().ToolTip(winrt::box_value(winrt::hstring{ rhythm::L10n::ImportFolderTooltip() }));
+    btnImportFile().ToolTip(winrt::box_value(winrt::hstring{ rhythm::L10n::ImportTooltip() }));
     searchBox().PlaceholderText(rhythm::L10n::SearchPlaceholder());
     comboArtistAlbum().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::ByArtistAlbum() }));
     comboByLetter().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::ByLetter() }));
@@ -69,6 +70,25 @@ void MainWindow::OnImportClick(IInspectable const&, RoutedEventArgs const&) {
     picker.PickSingleFolderAsync().Completed([this](auto const& operation, auto) {
         if (auto folder = operation.GetResults()) {
             appState_.ImportDirectory(folder.Path().c_str());
+        }
+    });
+}
+
+/// #242: Windows can import a single audio file, not only a folder. The
+/// picker offers files -- the capability macOS has always had.
+void MainWindow::OnImportFileClick(IInspectable const&, RoutedEventArgs const&) {
+    auto picker = winrt::Windows::Storage::Pickers::FileOpenPicker();
+    picker.SuggestedStartLocation(
+        winrt::Windows::Storage::Pickers::PickerLocationId::MusicLibrary);
+    for (const auto& ext : rhythm::kAudioFileTypes) {
+        picker.FileTypeFilter().Append(ext);
+    }
+    auto hwnd = GetWindowHandle();
+    picker.as<winrt::Windows::Foundation::IInitializeWithWindow>()->Initialize(hwnd);
+
+    picker.PickSingleFileAsync().Completed([this](auto const& operation, auto) {
+        if (auto file = operation.GetResults()) {
+            appState_.ImportFile(file.Path().c_str());
         }
     });
 }
