@@ -152,7 +152,9 @@ public:
     explicit Library(const std::wstring& dbPath);
     ~Library();
 
-    int32_t ImportDirectory(const std::wstring& path);
+    /// Import every audio file under a directory, reporting the core's
+    /// named outcome (#241). nullopt only when the library handle is gone.
+    std::optional<ImportOutcome> ImportDirectory(const std::wstring& path);
     std::vector<Track> AllTracks();
     std::vector<Track> Search(const std::wstring& query);
     void VerifyFiles();

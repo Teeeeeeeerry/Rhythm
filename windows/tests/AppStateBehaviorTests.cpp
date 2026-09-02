@@ -397,7 +397,7 @@ TEST_CASE("WA-16 Library open failure leaves methods as safe no-ops") {
 
     REQUIRE(state.Tracks.empty());
     REQUIRE(state.Playlists.empty());
-    REQUIRE(state.Library->ImportDirectory(L"C:\\x") == -1);
+    REQUIRE_FALSE(state.Library->ImportDirectory(L"C:\\x").has_value());
     REQUIRE(state.Library->RemoveTrack(1) == false);
 
     auto original = makeLocalTrack(L"C:\\x\\t.mp3", L"T");
@@ -576,6 +576,15 @@ TEST_CASE("WA-23 ImportDirectory reports the imported count") {
     // #141: copy comes from the language layer, so assert against it
     // (system-language agnostic, mirrors the macOS suite).
     REQUIRE(app.state.ImportAlertMessage == L10n::ImportedTracks(2));
+
+    // #241: the three arms come from the named counts, not a magic integer.
+    auto empty = app.dir.path / L"empty";
+    fs::create_directories(empty);
+    app.state.ImportDirectory(empty.wstring());
+    REQUIRE(app.state.ImportAlertMessage == L10n::ImportNoFiles());
+
+    app.state.ImportDirectory((app.dir.path / L"missing").wstring());
+    REQUIRE(app.state.ImportAlertMessage == L10n::ImportFailed());
 }
 
 // ─── WA-25 事件驱动（ticket #172/#173，替代定时器轮询）──────────────

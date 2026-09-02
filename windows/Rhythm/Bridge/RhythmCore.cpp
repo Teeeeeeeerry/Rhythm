@@ -72,10 +72,23 @@ Library::~Library() {
     if (ptr_) rhythm_library_close(ptr_);
 }
 
-int32_t Library::ImportDirectory(const std::wstring& path) {
-    if (!ptr_) return -1;
+/// Decode a named import outcome returned by the core (#241).
+static std::optional<ImportOutcome> ParseImportOutcome(char* raw) {
+    if (!raw) return std::nullopt;
+    std::optional<ImportOutcome> outcome;
+    try {
+        outcome = generated::ImportOutcomeFromJson(json::parse(raw));
+    } catch (const json::exception&) {
+        // Malformed payload: nothing to report.
+    }
+    rhythm_free_string(raw);
+    return outcome;
+}
+
+std::optional<ImportOutcome> Library::ImportDirectory(const std::wstring& path) {
+    if (!ptr_) return std::nullopt;
     auto p = WideToUtf8(path);
-    return rhythm_library_import(ptr_, p.c_str());
+    return ParseImportOutcome(rhythm_library_import_directory(ptr_, p.c_str()));
 }
 
 std::vector<Track> Library::AllTracks() {

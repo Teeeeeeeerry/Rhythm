@@ -191,7 +191,7 @@ TEST_CASE("WB-07 Library with failed open returns safe defaults") {
     REQUIRE(lib.AllTracks().empty());
     REQUIRE(lib.AllPlaylists().empty());
     REQUIRE(lib.Search(L"x").empty());
-    REQUIRE(lib.ImportDirectory(L"C:\\x") == -1);
+    REQUIRE_FALSE(lib.ImportDirectory(L"C:\\x").has_value());
     REQUIRE(lib.CreatePlaylist(L"p") == -1);
 
     auto original = makeUrlTrack(L"https://example.com/x.mp3", L"Keep Me");
