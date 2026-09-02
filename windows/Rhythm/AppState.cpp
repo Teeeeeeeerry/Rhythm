@@ -35,19 +35,19 @@ void AppState::RefreshLibrary() {
 
 void AppState::ImportDirectory(const std::wstring& path) {
     if (!Library) return;
-    int32_t count = Library->ImportDirectory(path);
-    // WA-23: mirror the macOS import alert, including its zero/failure arms.
-    if (count > 0) {
+    auto outcome = Library->ImportDirectory(path);
+    if (!outcome) return;
+    // WA-23: mirror the macOS import alert. The counts are named (#241) --
+    // no reverse-engineering a magic integer.
+    if (outcome->imported > 0) {
         RefreshLibrary();
-        ImportAlertMessage = L10n::ImportedTracks(count);
-        ShowImportAlert = true;
-    } else if (count == 0) {
-        ImportAlertMessage = L10n::ImportNoFiles();
-        ShowImportAlert = true;
-    } else {
+        ImportAlertMessage = L10n::ImportedTracks(outcome->imported);
+    } else if (outcome->failed > 0) {
         ImportAlertMessage = L10n::ImportFailed();
-        ShowImportAlert = true;
+    } else {
+        ImportAlertMessage = L10n::ImportNoFiles();
     }
+    ShowImportAlert = true;
 }
 
 void AppState::ImportM3U8(const std::wstring& path) {
