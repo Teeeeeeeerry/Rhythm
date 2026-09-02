@@ -644,26 +644,24 @@ TEST_CASE("WA-25 playback failure event surfaces classified copy (#120)") {
     REQUIRE(message == L"GET x failed: HTTP 403");
 }
 
-// ─── WA-26 M3U8 导入逐条入库（ticket #173，修复原 no-op）────────────
+// ─── WA-26 M3U8 导入结果渲染（#236，入库策略在核心）────────────────
 
-TEST_CASE("WA-26 ImportM3U8 persists entries and reports the count") {
+/// The core parses and stores; this layer only renders the counts and
+/// reloads the list. The storage rules are asserted in rust-core
+/// (playlist_m3u8_behavior.rs PL-17 to PL-24). Same playlist shape as the
+/// macOS test, so both platforms must report the same counts and text.
+TEST_CASE("WA-26 ImportM3U8 renders the core's counts and reloads the list") {
     SpyApp app;
     app.state.OpenDatabase(app.dir.dbPath());
 
-    // #EXTM3U
-    // #EXTINF:180,Artist One - Song One
-    // https://example.com/one.mp3
-    // #EXTINF:180,Artist Two - Song Two
-    // <local path>
     auto playlist = app.dir.path / L"list.m3u8";
     {
         std::ofstream out(playlist);
         out << "#EXTM3U\n";
-        out << "#EXTINF:180,Artist One - Song One\n";
-        out << "https://example.com/one.mp3\n";
-        out << "#EXTINF:180,Artist Two - Song Two\n";
-        auto local = writeWavAt(app.dir.path, L"local.wav");
-        out << WideToUtf8ForTest(local.wstring()) << "\n";
+        out << "#EXTINF:180,Local Artist - Local Song\n";
+        out << "/music/local.mp3\n";
+        out << "#EXTINF:0,Remote Artist - Remote Song\n";
+        out << "https://example.com/remote.mp3\n";
     }
 
     app.state.ImportM3U8(playlist.wstring());
@@ -671,12 +669,14 @@ TEST_CASE("WA-26 ImportM3U8 persists entries and reports the count") {
     REQUIRE(app.state.Tracks.size() == 2);
     REQUIRE(app.state.ShowImportAlert);
     REQUIRE(app.state.ImportAlertMessage == L10n::ImportedTracks(2));
+}
 
-    // URL entries are stored as direct_url with the page URL; local entries
-    // as local with the file path (macOS parity, #136 semantics).
-    auto urlTrack = std::find_if(app.state.Tracks.begin(), app.state.Tracks.end(),
-                                 [](const Track& t) { return t.sourceType == L"direct_url"; });
-    REQUIRE(urlTrack != app.state.Tracks.end());
-    REQUIRE(urlTrack->sourceUrl == L"https://example.com/one.mp3");
-    REQUIRE(urlTrack->title == L"Song One");
+TEST_CASE("WA-26 ImportM3U8 on an unreadable playlist shows no alert") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+
+    app.state.ImportM3U8((app.dir.path / L"missing.m3u8").wstring());
+
+    REQUIRE_FALSE(app.state.ShowImportAlert);
+    REQUIRE(app.state.Tracks.empty());
 }

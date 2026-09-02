@@ -157,9 +157,10 @@ public:
     Track AddTrack(const Track& track);
     /// Delete a track from the library. Returns true if a row was deleted.
     bool RemoveTrack(int64_t id);
-    /// Parse an M3U8 file into entries (parsing only — the caller persists
-    /// each entry and counts failures; ticket #173 fixes the old no-op).
-    std::vector<M3u8Entry> ImportM3U8(const std::wstring& path);
+    /// Parse an M3U8 file and import every entry (#236). Parsing, location
+    /// mapping, title fallback and the success test all live in the core
+    /// (#233); nullopt means the playlist could not be read.
+    std::optional<M3u8ImportOutcome> ImportM3U8(const std::wstring& path);
 
 private:
     RhythmLibrary* ptr_ = nullptr;
