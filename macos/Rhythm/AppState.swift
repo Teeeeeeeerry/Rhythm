@@ -93,61 +93,49 @@ final class AppState: ObservableObject {
     }
 
     func importDirectory(_ url: URL) {
-        guard let lib = library else { return }
-        let count = lib.importDirectory(url.path)
-        if count > 0 {
+        guard let outcome = library?.importDirectory(url.path) else { return }
+        if outcome.imported > 0 {
             refreshLibrary()
-            importAlertMessage = L10n.importedTracks(count)
-            showImportAlert = true
-        } else if count == 0 {
-            importAlertMessage = L10n.importDirEmpty
-            showImportAlert = true
-        } else {
+            importAlertMessage = L10n.importedTracks(outcome.imported)
+        } else if outcome.failed > 0 {
             importAlertMessage = L10n.importDirFailed
-            showImportAlert = true
+        } else {
+            importAlertMessage = L10n.importDirEmpty
         }
+        showImportAlert = true
     }
 
     func importFile(_ url: URL) {
-        guard let lib = library else { return }
-        let result = lib.importFile(url.path)
-        if result > 0 {
+        guard let outcome = library?.importFile(url.path) else { return }
+        if outcome.imported > 0 {
             refreshLibrary()
-            importAlertMessage = L10n.importedTracks(result)
-            showImportAlert = true
-        } else if result == 0 {
+            importAlertMessage = L10n.importedTracks(outcome.imported)
+        } else if outcome.unsupported > 0 {
             importAlertMessage = L10n.importFileUnsupported
-            showImportAlert = true
         } else {
             importAlertMessage = L10n.importFileFailed
-            showImportAlert = true
         }
+        showImportAlert = true
     }
 
-    /// Dispatch a list of URLs — files go to `importFile`, directories to
-    /// `importDirectory`.  Runs on a background queue so the UI stays
-    /// responsive during metadata extraction and SQLite writes (#38).
+    /// Dispatch a list of URLs to the core's batch import. Runs on a
+    /// background queue so the UI stays responsive during metadata
+    /// extraction and SQLite writes (#38).
+    ///
+    /// Directory/file dispatch and the "partial success" aggregation live in
+    /// the core (#240) — this layer only picks the alert text from the
+    /// named counts.
     func importURLs(_ urls: [URL]) {
         guard !isImporting else { return }
         isImporting = true
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            var imported = 0
-            var failed = 0
-            for url in urls {
-                guard let self else { return }
-                let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-                if isDir {
-                    let count = self.library?.importDirectory(url.path) ?? -1
-                    if count > 0 { imported += count } else if count < 0 { failed += 1 }
-                } else {
-                    let r = self.library?.importFile(url.path) ?? -1
-                    if r > 0 { imported += 1 } else if r < 0 { failed += 1 }
-                }
-            }
+            let outcome = self?.library?.importPaths(urls.map(\.path))
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.isImporting = false
+                let imported = outcome?.imported ?? 0
+                let failed = outcome?.failed ?? 0
                 if imported > 0 { self.refreshLibrary() }
                 if imported > 0 && failed == 0 {
                     self.importAlertMessage = L10n.importedTracks(imported)
