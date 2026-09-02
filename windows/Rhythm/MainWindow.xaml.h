@@ -13,6 +13,8 @@ struct MainWindow : winrt::Microsoft::UI::Xaml::WindowT<MainWindow> {
         winrt::Microsoft::UI::Xaml::Controls::NavigationViewSelectionChangedEventArgs const& args);
     void OnImportClick(winrt::Windows::Foundation::IInspectable const&,
                        winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
+    void OnImportFileClick(winrt::Windows::Foundation::IInspectable const&,
+                           winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
     void OnSearchSubmitted(winrt::Microsoft::UI::Xaml::Controls::AutoSuggestBox const& sender,
                            winrt::Microsoft::UI::Xaml::Controls::AutoSuggestBoxQuerySubmittedEventArgs const& args);
     void OnSearchTextChanged(winrt::Microsoft::UI::Xaml::Controls::AutoSuggestBox const& sender,

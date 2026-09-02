@@ -113,6 +113,15 @@ struct Track {
 
 /// One parsed M3U8 entry — named fields across the seam (#177). Field list
 /// and codec come from contracts/ffi-contract.json (#180).
+/// Audio extensions the file picker offers, mirroring the core's
+/// SUPPORTED_EXTENSIONS (rust-core/src/metadata/mod.rs) -- the core is still
+/// the gate, this list only shapes the dialog (#242).
+inline const std::vector<winrt::hstring> kAudioFileTypes = {
+    L".mp3", L".m4a", L".aac", L".flac", L".wav", L".ogg", L".oga", L".opus",
+    L".alac", L".ape", L".wma", L".mp4", L".m4b", L".m4p", L".m4r", L".aiff",
+    L".aif", L".aifc", L".wv",
+};
+
 struct M3u8Entry {
     std::wstring title;
     std::optional<std::wstring> artist;
@@ -155,6 +164,9 @@ public:
     /// Import every audio file under a directory, reporting the core's
     /// named outcome (#241). nullopt only when the library handle is gone.
     std::optional<ImportOutcome> ImportDirectory(const std::wstring& path);
+    /// Import one audio file (#242). Same result shape as the directory
+    /// path; an unsupported format and a read failure keep their own counts.
+    std::optional<ImportOutcome> ImportFile(const std::wstring& path);
     std::vector<Track> AllTracks();
     std::vector<Track> Search(const std::wstring& query);
     void VerifyFiles();

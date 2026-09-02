@@ -91,6 +91,12 @@ std::optional<ImportOutcome> Library::ImportDirectory(const std::wstring& path) 
     return ParseImportOutcome(rhythm_library_import_directory(ptr_, p.c_str()));
 }
 
+std::optional<ImportOutcome> Library::ImportFile(const std::wstring& path) {
+    if (!ptr_) return std::nullopt;
+    auto p = WideToUtf8(path);
+    return ParseImportOutcome(rhythm_library_import_single_file(ptr_, p.c_str()));
+}
+
 std::vector<Track> Library::AllTracks() {
     if (!ptr_) return {};
     char* json = rhythm_library_get_all_tracks(ptr_);

@@ -50,6 +50,21 @@ void AppState::ImportDirectory(const std::wstring& path) {
     ShowImportAlert = true;
 }
 
+void AppState::ImportFile(const std::wstring& path) {
+    if (!Library) return;
+    auto outcome = Library->ImportFile(path);
+    if (!outcome) return;
+    if (outcome->imported > 0) {
+        RefreshLibrary();
+        ImportAlertMessage = L10n::ImportedTracks(outcome->imported);
+    } else if (outcome->unsupported > 0) {
+        ImportAlertMessage = L10n::ImportFileUnsupported();
+    } else {
+        ImportAlertMessage = L10n::ImportFileFailed();
+    }
+    ShowImportAlert = true;
+}
+
 void AppState::ImportM3U8(const std::wstring& path) {
     if (!Library) return;
     // #236: parsing and storing are one core entry point — this layer only
