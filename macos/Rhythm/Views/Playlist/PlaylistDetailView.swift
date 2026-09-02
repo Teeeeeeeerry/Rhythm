@@ -107,14 +107,8 @@ struct PlaylistDetailView: View {
     }
 
     private func importM3U8(_ url: URL) {
-        guard let json = rhythm_import_m3u8(url.path) else { return }
-        defer { rhythm_free_string(json) }
-        let s = String(cString: json)
-        // #136: the core only parses the file — persist every entry here,
-        // otherwise the import is a silent no-op. Decoding goes through the
-        // generated codec (contract-driven, #180).
-        if let entries: [M3u8Entry] = GeneratedCodec.decodeM3u8Entries(s) {
-            appState.importM3U8Entries(entries)
-        }
+        // #235: parsing and storing are one core entry point — this layer
+        // only hands over the file and lets AppState render the counts.
+        appState.importM3U8(url)
     }
 }

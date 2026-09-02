@@ -29,6 +29,15 @@ final class RhythmLibrary {
         return Int(rhythm_library_import_file(ptr, path))
     }
 
+    /// Parse an M3U8 playlist and import every entry — parsing, location
+    /// mapping, title fallback and the success test all live in the core
+    /// (#235). Returns nil when the playlist cannot be read.
+    func importM3U8(_ path: String) -> M3u8ImportOutcome? {
+        guard let ptr, let json = rhythm_import_m3u8_into_library(ptr, path) else { return nil }
+        defer { rhythm_free_string(json) }
+        return GeneratedCodec.decodeM3u8ImportOutcome(String(cString: json))
+    }
+
     func allTracks() -> [Track] {
         guard let ptr, let json = rhythm_library_get_all_tracks(ptr) else { return [] }
         defer { rhythm_free_string(json) }
