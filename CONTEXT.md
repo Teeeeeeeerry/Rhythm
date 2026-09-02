@@ -9,7 +9,7 @@
 |----|------|
 | **Track** | 资料库中的一首曲目。`sourceType` 决定播放方式：`local`（filePath）、`youtube`/`bilibili`/`direct_url`（sourceUrl）。`id == -1` 表示未入库（如刚解析出的 URL 曲目）；`addTrack` 返回带真实 DB id 的副本 |
 | **resolve** | 把粘贴的 URL（YouTube/Bilibili/直链）解析成可播放信息（ResolvedInfo）。可能触发 yt-dlp 首次下载（~36MB，与 README 同步），有进度状态轮询 |
-| **import** | 仅入库不播放：持久化到 SQLite + 刷新列表 + 显示导入提示（#71 拆分出的 `importResolved`）。本地文件导入和 URL 导入在此汇合，行为一致。M3U8 列表导入自 #217 起整条在核心完成，双端只渲染结果 |
+| **import** | 仅入库不播放：持久化到 SQLite + 刷新列表 + 显示导入提示（#71 拆分出的 `importResolved`）。本地文件导入和 URL 导入在此汇合，行为一致。M3U8 列表导入自 #217 起整条在核心完成，本地导入自 #218 起返回具名结果，双端只渲染 |
 | **play** | 完整播放流程：`player.stop()` 停旧曲目（#51）→ 按 sourceType 播 → `isPlaying = true` → 建队列。`playResolved` = import + play |
 | **Queue** | 播放队列（RhythmQueue），与资料库列表（tracks）是两回事。`refreshLibrary()` 会同步队列（#69：`replace` + `jumpTo` 当前曲目） |
 | **Playlist** | 用户自建歌单，独立于播放队列 |
@@ -27,6 +27,7 @@ rust-core/          Rust 共享核心（audio 引擎、library、queue、playlis
   src/coordinator/  播放协调器（#165 组）：起播/传输/自动切歌/队列同步/可用性的唯一出处，双端 UI 只是薄 adapter
   src/resolver/     解析（#168 组起按职责拆 cache/classify/stderr/install；播放期解析入口 resolve_for_playback 一次完成缓存命中/淘汰/重试/分类）
   src/playlist/     M3U8 解析与导出；#217 组起「解析并入库」入口 import_m3u8_into_library 一次完成解析与入库，入库判定/位置类型识别/标题回退的唯一出处
+  src/library/      SQLite 曲库（CRUD/去重/播放列表/FTS）；#218 组起导入三条路径 import_directory / import_single_file / import_paths 共用具名结果 ImportOutcome，批量「部分成功」聚合在此
   src/ffi/mod.rs    C-ABI 导出层：结构化结果（成功载荷+分类错误一次返回）、事件回调、snake_case JSON；导出一律 unsafe extern "C"（#143）；契约单一声明见 contracts/ffi-contract.json（#180）
   tests/            行为测试（audio_engine / coordinator / library / metadata / ffi / playlist_m3u8 / resolver…）
 macos/              SwiftUI (AppKit) 客户端，SPM 可执行目标
@@ -49,6 +50,7 @@ scripts/            build-macos.sh / build-rust-macos.sh / build-windows.* / che
 
 - **URL 导入**：`PlayerBarView` 输入 → `AppState.resolveAndImport` → `resolveURL`（FFI）→ `importResolved`（仅入库，不打断播放）
 - **M3U8 导入**：`PlaylistDetailView` 选文件 → `AppState.importM3U8` → `rhythm_import_m3u8_into_library`（FFI）→ 核心解析并入库，返回具名结果 `{imported, failed}`；双端只按结果选提示语并从数据库重载列表（#217）
+- **本地导入**：选目录/文件 → `AppState.importDirectory` / `importFile` / `importURLs`（Windows 为 `ImportDirectory` / `ImportFile` / `ImportPaths`）→ `rhythm_library_import_directory` / `_single_file` / `_paths`（FFI）→ 核心返回 `{imported, unsupported, failed}`；目录与文件的分派、「部分成功」的聚合都在核心，双端只选提示语（#218）
 - **播放**：双击曲目 → `playTrack` → 协调器 `start`（先停后播 → 按来源分派 → recordPlay → 队列定位）→ 引擎播放；进度/状态/播完/失败经协调器事件回流（#172）
 - **进度/音量**：`PlayerBarView` 的 Slider → `player.seek/setVolume`（FFI 直通）
 - **测试**：`macos/Tests/`（AppStateTests + RhythmThemeTests）。AppState 测试用真实临时数据库 + SpyCoordinator（编排规则在 rust-core `coordinator_behavior.rs`，无音频设备依赖）；
@@ -76,6 +78,9 @@ scripts/            build-macos.sh / build-rust-macos.sh / build-windows.* / che
 - **M3U8 入库策略单一出处**：位置类型识别、标题缺失回退、入库判定与计数只写在 `rust-core/src/playlist/mod.rs`；
   双端在这条路径上只允许三步——调核心入口、按具名结果选提示语、从数据库重载列表。历史上 #136 与 #173 是
   同一缺陷在两平台各修一次，#217 组把策略下沉后不再可能修两次
+- **导入结果具名不用魔数**：资料库导入不再有魔数返回码（#244 起）。三条路径共用 `ImportOutcome{imported, unsupported, failed}`，
+  「格式不支持」与「读写失败」必须分开——合并会丢掉用户唯一能据以行动的信息。新增一条导入路径沿用同一形状，
+  不发明新的返回约定；结果结构声明在 `contracts/ffi-contract.json`，双端绑定由生成器产出，少接一条路径会在生成物比对时暴露
 - **构建产物**：放 `build/` 目录（scripts/build-macos.sh 生成 Rhythm.app）
 
 ## 坑（非显而易见，踩过才写）

@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.108 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
+Initial development is complete. Current version: **v0.5.109 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
 
 ### Implementation Status
 
@@ -32,6 +32,7 @@ Initial development is complete. Current version: **v0.5.108 "Motif"** (kept in 
 |---------|--------|-------|
 | Local audio playback (MP3/FLAC/AAC/WAV/OGG/ALAC/APE/WMA/AIFF/WavPack/MP4) | Done | — |
 | Library management + FTS5 full-text search | Done | — |
+| Local import (folder / single file / batch, with per-count partial success) | Done (parity on both platforms) | [#218](https://github.com/Teeeeeeeerry/Rhythm/issues/218) |
 | Playlists (mixed local/online, M3U8 import/export) | Done | — |
 | Play queue (sequential/shuffle/single-loop/list-loop) | Done | — |
 | Album cover extraction | Done | — |
