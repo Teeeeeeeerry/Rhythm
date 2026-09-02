@@ -66,7 +66,7 @@ scripts/            build-macos.sh / build-rust-macos.sh / build-windows.* / che
 - **L10n**：全部文案走 `L10n`（macOS `Models/L10n.swift` + `L10nKeys`、Windows `L10n.h` + `L10nKeys.h`，
   均由 `contracts/l10n-keys.json` 键表生成，#167 组）；视图里既不写死字符串也不就地写 inline 三元。
   新增文案只改键表再跑 `scripts/gen-l10n.py`；键表漂移由 L0 校验拦截（#185）
-- **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `python3 scripts/check-no-emoji.py` 校验；发现即修，不得绕过
+- **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `python3 scripts/check-no-emoji.py` 校验；发现即修，不得绕过。校验范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物，二进制按内容跳过），新增语言或文件类型自动纳入；已挂进 `testing/run-all.sh` 与 CI 静态分析作业（#224）
 - **品牌色**：只用 `RhythmTheme` 模块的 token（如 `.rhythmAccent`），不硬编码色值
 - **版本号单一出处**：版本号只改 `Cargo.toml` 的 `[workspace.package] version`；其余六处（依赖锁文件、两份 README 版本行、macOS `Info.plist`、
   `windows/CMakeLists.txt`、`testing/README.md` 状态表）是副本，随之同步。漂移由 `python3 testing/l0/check-version-drift.py` 拦截，
