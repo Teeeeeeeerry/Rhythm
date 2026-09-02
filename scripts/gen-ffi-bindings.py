@@ -132,6 +132,7 @@ def gen_swift(schema: dict) -> str:
         ("Track", schema["track"]),
         ("M3u8Entry", schema["m3u8_entry"]),
         ("M3u8ImportOutcome", schema["m3u8_import_outcome"]),
+        ("ImportOutcome", schema["import_outcome"]),
     ):
         out.append(swift_decode_object(model, fields, model))
         out.append("")
@@ -270,6 +271,7 @@ def gen_cpp(schema: dict) -> str:
         ("Track", schema["track"]),
         ("M3u8Entry", schema["m3u8_entry"]),
         ("M3u8ImportOutcome", schema["m3u8_import_outcome"]),
+        ("ImportOutcome", schema["import_outcome"]),
     ):
         out.append(cpp_decode_object(name, fields, name))
         out.append("")

@@ -127,6 +127,16 @@ struct M3u8ImportOutcome {
     int32_t failed = 0;
 };
 
+/// Named outcome of a library import (#237): stored / skipped as an
+/// unsupported format / failed to read. The three counts stay separate --
+/// folding "unsupported" into "failed" loses the only detail the user can
+/// act on. Field list and codec come from contracts/ffi-contract.json.
+struct ImportOutcome {
+    int32_t imported = 0;
+    int32_t unsupported = 0;
+    int32_t failed = 0;
+};
+
 struct Playlist {
     std::optional<int64_t> id;
     std::wstring name;

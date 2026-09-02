@@ -108,6 +108,27 @@ enum GeneratedCodec {
         return String(data: data, encoding: .utf8) ?? "{}"
     }
 
+    /// Decode a ImportOutcome from the core's snake_case JSON.
+    static func decodeImportOutcome(_ json: String) -> ImportOutcome? {
+        guard let data = json.data(using: .utf8),
+              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        return ImportOutcome(
+            imported: (obj["imported"] as? NSNumber)?.intValue ?? 0,
+            unsupported: (obj["unsupported"] as? NSNumber)?.intValue ?? 0,
+            failed: (obj["failed"] as? NSNumber)?.intValue ?? 0
+        )
+    }
+
+    /// Encode a ImportOutcome with snake_case keys (mirror of the core's JSON).
+    static func encodeImportOutcome(_ value: ImportOutcome) -> String {
+        var obj: [String: Any] = [:]
+        obj["imported"] = value.imported
+        obj["unsupported"] = value.unsupported
+        obj["failed"] = value.failed
+        guard let data = try? JSONSerialization.data(withJSONObject: obj) else { return "{}" }
+        return String(data: data, encoding: .utf8) ?? "{}"
+    }
+
     /// Decode a list of M3u8Entry objects (the M3U8 import path).
     static func decodeM3u8Entries(_ json: String) -> [M3u8Entry]? {
         guard let data = json.data(using: .utf8),

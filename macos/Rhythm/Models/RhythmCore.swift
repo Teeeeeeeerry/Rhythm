@@ -475,6 +475,16 @@ struct M3u8ImportOutcome: Codable, Equatable {
     let failed: Int
 }
 
+/// Named outcome of a library import (#237): how many tracks were stored,
+/// how many were skipped because the format is unsupported, and how many
+/// failed to read. The three counts stay separate — folding "unsupported"
+/// into "failed" loses the only detail the user can act on.
+struct ImportOutcome: Codable, Equatable {
+    let imported: Int
+    let unsupported: Int
+    let failed: Int
+}
+
 // MARK: - Resolver Types
 
 struct ResolvedInfo: Codable {

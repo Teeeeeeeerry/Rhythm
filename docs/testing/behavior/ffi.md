@@ -7,6 +7,7 @@
 - #180 起：数据契约单一声明 `contracts/ffi-contract.json`，`scripts/gen-ffi-bindings.py` 生成双端编解码绑定（`macos/Rhythm/Models/GeneratedCodec.swift`、`windows/Rhythm/Bridge/GeneratedCodec.h`）；Windows 桥的 Track 编解码已迁移到生成绑定，macOS 以产物一致性测试锁定
 - #181 起：旧直通导出收缩——`rhythm_player_*`（15 个，被协调器取代）与进程级全局错误槽 `rhythm_last_error` 删除；`classify_url`/`install_ytdlp` 改结构化结果；FF-07~10 归档，双端 Player 包装与测试删除
 - #234 起：M3U8 导入新增「解析并入库」导出 `rhythm_import_m3u8_into_library`，返回具名结果 `M3u8ImportOutcome`（契约声明 `m3u8_import_outcome`，双端绑定由生成器产出）；旧的纯解析导出保持可用
+- #237 起：资料库导入结果具名结构 `ImportOutcome`（`imported`/`unsupported`/`failed` 三计数分开）进入契约声明 `import_outcome`，双端绑定由生成器产出；expand 阶段与旧魔数导出并存，双端行为未变
 - 历史回归：`#21`（解析失败只有 null、无原因）
 - 测试途径：`cargo test` 集成测试（现有 `player_ffi.rs` 模式扩展）；library/queue/resolver 部分链接真实现 + 临时库；无需接缝。
 
