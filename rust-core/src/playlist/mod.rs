@@ -4,7 +4,8 @@
 //! tightly coupled to the track database. This module provides
 //! import/export functionality and standalone playlist operations.
 
-use crate::{RhythmResult, TrackInfo};
+use crate::library::Library;
+use crate::{RhythmResult, SourceType, TrackInfo};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 
@@ -99,4 +100,104 @@ pub fn import_m3u8(path: &Path) -> RhythmResult<Vec<M3u8Entry>> {
     }
 
     Ok(entries)
+}
+
+/// Named outcome of importing a playlist into the library (#233): how many
+/// entries were persisted and how many could not be. Counts are the whole
+/// contract — callers never re-derive "was this entry stored" themselves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct M3u8ImportOutcome {
+    pub imported: i32,
+    pub failed: i32,
+}
+
+/// Placeholder title for an entry whose `#EXTINF` carried no title (#233).
+const UNTITLED: &str = "Unknown";
+
+/// Parse an M3U8 playlist file and persist every entry into `library` (#217).
+///
+/// Parsing and storing are one entry point so the storage rules live in a
+/// single place: an empty location counts as a failure, an http(s) location
+/// becomes a `direct_url` track and anything else a local file path, a
+/// missing title falls back to a placeholder. Whether a write succeeded is
+/// decided here, never across the seam — the two UI layers used to answer it
+/// differently (#136 on macOS, #173 on Windows: one defect, fixed twice).
+pub fn import_m3u8_into_library(path: &Path, library: &Library) -> RhythmResult<M3u8ImportOutcome> {
+    let entries = import_m3u8(path)?;
+    Ok(import_entries_into_library(&entries, library))
+}
+
+/// The storage half of [`import_m3u8_into_library`], for callers that already
+/// hold parsed entries. Not exported across the FFI seam — the UI layers only
+/// ever see the file-level entry point.
+pub fn import_entries_into_library(
+    entries: &[M3u8Entry],
+    library: &Library,
+) -> M3u8ImportOutcome {
+    let mut outcome = M3u8ImportOutcome {
+        imported: 0,
+        failed: 0,
+    };
+
+    for entry in entries {
+        let Some(track) = entry_to_track(entry) else {
+            outcome.failed += 1;
+            continue;
+        };
+        match library.add_track(&track) {
+            Ok(_) => outcome.imported += 1,
+            Err(e) => {
+                log::warn!("M3U8 import failed for {}: {e}", entry.location);
+                outcome.failed += 1;
+            }
+        }
+    }
+
+    outcome
+}
+
+/// Map one parsed entry onto a track, or `None` when it has no location to
+/// play from. An http(s) location is a `direct_url` track; anything else is a
+/// local file path.
+fn entry_to_track(entry: &M3u8Entry) -> Option<TrackInfo> {
+    if entry.location.is_empty() {
+        return None;
+    }
+    let is_url =
+        entry.location.starts_with("http://") || entry.location.starts_with("https://");
+    let title = if entry.title.is_empty() {
+        UNTITLED.to_string()
+    } else {
+        entry.title.clone()
+    };
+
+    Some(TrackInfo {
+        id: None,
+        file_path: (!is_url).then(|| entry.location.clone()),
+        source_type: if is_url {
+            SourceType::DirectUrl
+        } else {
+            SourceType::Local
+        },
+        source_url: is_url.then(|| entry.location.clone()),
+        title,
+        artist: entry.artist.clone(),
+        album: None,
+        album_artist: None,
+        track_number: None,
+        disc_number: None,
+        genre: None,
+        year: None,
+        duration: 0.0,
+        format: None,
+        bitrate: None,
+        sample_rate: None,
+        channels: None,
+        file_size: None,
+        date_added: None,
+        last_played: None,
+        play_count: 0,
+        artwork_path: None,
+        is_available: true,
+    })
 }
