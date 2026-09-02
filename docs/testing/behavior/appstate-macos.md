@@ -23,7 +23,8 @@
 | AS-20 | `resolveAndImport` 失败（#21） | `urlError=L10n.urlResolveError(kind, detail)` 非空；不弹导入 alert | stub resolver 报错 |
 | AS-21 | `importResolved`（#71） | `addTrack` 持久化 → `refreshLibrary`（#66）→ `urlInput=""` → 导入 alert；不播放 | 真库 + SpyCoordinator |
 | AS-22 | `playResolved`（#39/#66） | `addTrack` → `refreshLibrary` → `coordinator.start(saved, tracks, …)`（真实 DB id）→ `isPlaying=true`；队列定位经可用性断言 | 真库 + SpyCoordinator |
-| AS-23 | `importURLs` 批量导入（#38） | `isImporting` 防重入；后台执行；目录/文件分派；成功才 `refreshLibrary`；四种统计文案（全成/部分成/全败/无支持） | 真库（临时目录夹具）+ expectation | 备注：**现状三种可达**（全成/部分成/全败），"未找到支持的音频文件"分支因 #79（importFile 对不支持格式返回 -1）不可达，测试锁定现状 || AS-24 | `importDirectory`/`importFile` 单路径 | `>0` 成功文案+刷新；`==0` "未找到/格式不支持"；`<0` 失败文案 | 真库 + 夹具目录 | 备注：`==0` 分支因 #79（不支持格式走 Err → -1）当前不可达，测试锁定现状（坏文件落失败文案） |
+| AS-23 | `importURLs` 批量导入（#38/#240） | `isImporting` 防重入；后台执行；目录/文件分派与「部分成功」聚合在核心，本端只按具名结果 `{imported, unsupported, failed}` 选文案；`imported>0` 才 `refreshLibrary`；四种统计文案（全成/部分成/全败/无支持） | 真库（临时目录夹具）+ expectation |
+| AS-24 | `importDirectory`/`importFile` 单路径（#240） | 断言基于具名结果：`imported>0` → 成功文案 + 刷新；目录 `failed>0` → 目录失败文案，三项全 0 → 目录为空文案；单文件 `unsupported>0` → 格式不支持文案，`failed>0` → 读取失败文案 | 真库 + 夹具目录 |
 | AS-25 | `confirmDeleteTrack` 删除当前播放曲目 | `coordinator.stop()`、`isPlaying=false`、`currentTrack=nil`；`removeTrack` + `refreshLibrary`（#33） | SpyCoordinator + 真库 |
 | AS-26 | `search` | 空 query → `allTracks()`；非空 → `lib.search(query)` | 真库 |
 

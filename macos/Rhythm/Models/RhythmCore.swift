@@ -19,14 +19,30 @@ final class RhythmLibrary {
         if let ptr { rhythm_library_close(ptr) }
     }
 
-    func importDirectory(_ path: String) -> Int {
-        guard let ptr else { return -1 }
-        return Int(rhythm_library_import(ptr, path))
+    /// Import every audio file under a directory, reporting the core's
+    /// named outcome (#240). Nil only when the library handle is gone.
+    func importDirectory(_ path: String) -> ImportOutcome? {
+        guard let ptr, let json = rhythm_library_import_directory(ptr, path) else { return nil }
+        defer { rhythm_free_string(json) }
+        return GeneratedCodec.decodeImportOutcome(String(cString: json))
     }
 
-    func importFile(_ path: String) -> Int {
-        guard let ptr else { return -1 }
-        return Int(rhythm_library_import_file(ptr, path))
+    /// Import a single audio file, reporting the core's named outcome (#240).
+    func importFile(_ path: String) -> ImportOutcome? {
+        guard let ptr, let json = rhythm_library_import_single_file(ptr, path) else { return nil }
+        defer { rhythm_free_string(json) }
+        return GeneratedCodec.decodeImportOutcome(String(cString: json))
+    }
+
+    /// Import a mixed batch of directories and files. The "partial success"
+    /// aggregation happens in the core (#240) — this layer never sums counts.
+    func importPaths(_ paths: [String]) -> ImportOutcome? {
+        guard let ptr,
+              let payload = try? JSONSerialization.data(withJSONObject: paths),
+              let json = rhythm_library_import_paths(ptr, String(decoding: payload, as: UTF8.self))
+        else { return nil }
+        defer { rhythm_free_string(json) }
+        return GeneratedCodec.decodeImportOutcome(String(cString: json))
     }
 
     /// Parse an M3U8 playlist and import every entry — parsing, location
