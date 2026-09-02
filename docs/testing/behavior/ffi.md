@@ -8,6 +8,7 @@
 - #181 起：旧直通导出收缩——`rhythm_player_*`（15 个，被协调器取代）与进程级全局错误槽 `rhythm_last_error` 删除；`classify_url`/`install_ytdlp` 改结构化结果；FF-07~10 归档，双端 Player 包装与测试删除
 - #234 起：M3U8 导入新增「解析并入库」导出 `rhythm_import_m3u8_into_library`，返回具名结果 `M3u8ImportOutcome`（契约声明 `m3u8_import_outcome`，双端绑定由生成器产出）；旧的纯解析导出保持可用
 - #237 起：资料库导入结果具名结构 `ImportOutcome`（`imported`/`unsupported`/`failed` 三计数分开）进入契约声明 `import_outcome`，双端绑定由生成器产出；expand 阶段与旧魔数导出并存，双端行为未变
+- #239 起：三条导入路径的新导出落地（`rhythm_library_import_directory`/`_single_file`/`_paths`），返回同一结果形状；旧魔数导出仍并存，双端尚未切换
 - 历史回归：`#21`（解析失败只有 null、无原因）
 - 测试途径：`cargo test` 集成测试（现有 `player_ffi.rs` 模式扩展）；library/queue/resolver 部分链接真实现 + 临时库；无需接缝。
 
@@ -18,7 +19,8 @@
 | FF-01 | library open/close 往返 | 合法路径 → 非空句柄；close 后不泄漏崩溃；close(null) 安全 |
 | FF-02 | library open 失败 | 不可写路径 → null |
 | FF-03 | `rhythm_library_import` | 成功返回导入数；错误/空指针 → -1 |
-| FF-04 | `rhythm_library_import_file` 返回值契约 | 成功 1、不支持格式 0、错误 -1（#79 修复后启用） |
+| FF-04 | `rhythm_library_import_file` 返回值契约 | 成功 1、不支持格式 0、错误 -1（#79 修复后启用；魔数导出，#244 删除） |
+| FF-24 | 三条导入路径的具名结果（#239） | `import_directory`/`import_single_file`/`import_paths` 返回同一形状 `{"imported":N,"unsupported":N,"failed":N}`；批量聚合来自核心；非法批量载荷 → 三项全 0；空句柄 → null |
 | FF-05 | 字符串内存契约 | `get_all_tracks` 等返回 JSON 需 `rhythm_free_string` 释放；空指针入参 → null/-1 安全默认 |
 | FF-06 | `rhythm_library_add_track` JSON 往返 | 合法 JSON → 带 DB id 的 JSON；非法 JSON → null |
 | FF-12 | resolve 结构化结果（#176） | 一次返回 `{"ok":true,"resolved":{...}}` 或 `{"ok":false,"error_kind":"...","error_message":"..."}`；不再返回 null、不再读全局错误槽 |

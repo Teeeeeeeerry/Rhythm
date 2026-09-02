@@ -168,6 +168,77 @@ pub unsafe extern "C" fn rhythm_library_import_file(
     }
 }
 
+/// Serialize a library import outcome for the seam (#239).
+fn import_outcome_to_c_string(outcome: &crate::library::ImportOutcome) -> *mut c_char {
+    str_to_c_string(&serde_json::to_string(outcome).unwrap_or_default())
+}
+
+/// Import every audio file under a directory (#239).
+///
+/// Returns the named outcome as snake_case JSON
+/// (`{"imported":N,"unsupported":N,"failed":N}`), or null for a null handle.
+/// Caller must free the string with `rhythm_free_string`.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_import_directory(
+    ptr: *mut RhythmLibrary,
+    dir: *const c_char,
+) -> *mut c_char {
+    if ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+    let lib = unsafe { &(*ptr).0 };
+    let path = unsafe { c_str_to_str(dir) };
+    import_outcome_to_c_string(&lib.import_directory(Path::new(path)))
+}
+
+/// Import a single audio file (#239). Same result shape as the directory
+/// path; an unsupported format and a read failure keep their own counts.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_import_single_file(
+    ptr: *mut RhythmLibrary,
+    file_path: *const c_char,
+) -> *mut c_char {
+    if ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+    let lib = unsafe { &(*ptr).0 };
+    let path = unsafe { c_str_to_str(file_path) };
+    import_outcome_to_c_string(&lib.import_single_file(Path::new(path)))
+}
+
+/// Import a mixed batch of directories and files (#239). `paths_json` is a
+/// JSON array of path strings; the "partial success" aggregation happens in
+/// the core, so both UI layers render the same counts. A malformed array
+/// imports nothing and reports all zeroes.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_library_import_paths(
+    ptr: *mut RhythmLibrary,
+    paths_json: *const c_char,
+) -> *mut c_char {
+    if ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+    let lib = unsafe { &(*ptr).0 };
+    let json = unsafe { c_str_to_str(paths_json) };
+    let paths: Vec<std::path::PathBuf> = match serde_json::from_str::<Vec<String>>(json) {
+        Ok(list) => list.into_iter().map(std::path::PathBuf::from).collect(),
+        Err(e) => {
+            log::error!("Import paths payload is not a JSON string array: {e}");
+            return import_outcome_to_c_string(&crate::library::ImportOutcome::default());
+        }
+    };
+    import_outcome_to_c_string(&lib.import_paths(&paths))
+}
+
 /// Get all tracks as a JSON string. Caller must free with `rhythm_free_string`.
 #[no_mangle]
 ///

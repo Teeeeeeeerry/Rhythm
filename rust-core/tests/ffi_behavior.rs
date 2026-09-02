@@ -105,6 +105,67 @@ fn ff04_import_file_success_and_errors() {
     unsafe { rhythm_library_close(lib) };
 }
 
+/// FF-24: the three new import exports share one result shape (#239) —
+/// counts are named across the seam, not reverse-engineered from an integer.
+#[test]
+fn ff24_import_exports_share_one_named_result_shape() {
+    let dir = tempfile::tempdir().unwrap();
+    let music = dir.path().join("music");
+    std::fs::create_dir_all(&music).unwrap();
+    common::write_wav(&music.join("a.wav"), 0.5);
+    common::write_wav(&music.join("b.wav"), 0.5);
+    let lone = dir.path().join("lone.wav");
+    common::write_wav(&lone, 0.5);
+    let txt = dir.path().join("note.txt");
+    std::fs::write(&txt, b"not audio").unwrap();
+
+    let lib = open_lib(dir.path());
+
+    let decode = |json: String| -> (i64, i64, i64) {
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        (
+            v["imported"].as_i64().unwrap(),
+            v["unsupported"].as_i64().unwrap(),
+            v["failed"].as_i64().unwrap(),
+        )
+    };
+
+    let dir_json = unsafe {
+        take(rhythm_library_import_directory(lib, c(music.to_str().unwrap()).as_ptr()))
+    };
+    assert_eq!(decode(dir_json), (2, 0, 0));
+
+    let file_json = unsafe {
+        take(rhythm_library_import_single_file(lib, c(txt.to_str().unwrap()).as_ptr()))
+    };
+    assert_eq!(decode(file_json), (0, 1, 0), "unsupported keeps its own count");
+
+    let batch = serde_json::to_string(&vec![
+        lone.to_str().unwrap(),
+        txt.to_str().unwrap(),
+        dir.path().join("missing.wav").to_str().unwrap(),
+    ])
+    .unwrap();
+    let batch_json = unsafe {
+        take(rhythm_library_import_paths(lib, c(&batch).as_ptr()))
+    };
+    assert_eq!(decode(batch_json), (1, 1, 1), "the batch aggregation comes from the core");
+
+    // A malformed batch payload imports nothing and reports all zeroes.
+    let bad = unsafe { take(rhythm_library_import_paths(lib, c("not json").as_ptr())) };
+    assert_eq!(decode(bad), (0, 0, 0));
+
+    // Null handles report null on all three.
+    for ptr in [
+        unsafe { rhythm_library_import_directory(std::ptr::null_mut(), c("x").as_ptr()) },
+        unsafe { rhythm_library_import_single_file(std::ptr::null_mut(), c("x").as_ptr()) },
+        unsafe { rhythm_library_import_paths(std::ptr::null_mut(), c("[]").as_ptr()) },
+    ] {
+        assert!(ptr.is_null());
+    }
+    unsafe { rhythm_library_close(lib) };
+}
+
 // ─── FF-05/06 JSON 契约 ─────────────────────────────────────────────
 
 #[test]
