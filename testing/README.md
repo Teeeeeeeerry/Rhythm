@@ -9,7 +9,8 @@
 |---|---|---|---|
 | 数据源 | `palette.json` | 单一事实来源（tokens/sources 由源码自动提取，决策段人工维护） | — |
 | 数据源 | `sync-palette.py` | 源码 ↔ palette.json 同步；`--check` CI 校验；`--emit-swift-seed` 生成 L1 种子 | 改色后 |
-| L0 静态 | `l0/` | 5 个零依赖 Python 脚本（parity/contrast/forbidden/coverage/doc-drift） | 每次 push/PR |
+| L0 静态 | `l0/` | 8 个零依赖 Python 脚本（parity/contrast/forbidden/coverage/doc-drift/ffi-contract/l10n-keys/version-drift） | 每次 push/PR |
+| L0 自测 | `l0/tests/` | L0 校验脚本自身的行为测试（stdlib unittest，临时文件树夹具） | 每次 push/PR |
 | L1 单元 | `l1/macos/` | PaletteSeed + 五组 Swift 测试（isDark/RGB/对比度/语义/互异） | `swift test` |
 | L1 单元 | `l1/windows/` | 来源徽标色 assert 测试 exe（直测 `RhythmCore.h`，#121/#122） | ctest |
 | L2 快照 | `l2/macos/` | swift-snapshot-testing 模板（8 视图 × 状态 × 外观 × 语言） | visual CI |
@@ -28,13 +29,18 @@ cd /Users/home-folder/GitHub/Rhythm
 python3 testing/sync-palette.py --check        # palette.json 与源码一致？
 python3 testing/sync-palette.py --emit-swift-seed  # 刷新 L1 测试种子
 
-# 2. L0 静态分析（现状五项全绿；F1/F2/F4 已分别由 #121/#124/#125 修复）
+# 2. L0 静态分析（现状全绿；F1/F2/F4 已分别由 #121/#124/#125 修复）
 #    每个脚本结束自动把完整输出写入 testing/logs/<脚本名>.log（--log 可覆盖）
 python3 testing/l0/check-color-parity.py
 python3 testing/l0/check-contrast.py
 python3 testing/l0/check-forbidden-colors.py
 python3 testing/l0/check-token-coverage.py
 python3 testing/l0/check-doc-drift.py
+python3 testing/l0/check-ffi-contract.py
+python3 testing/l0/check-l10n-keys.py
+python3 testing/l0/check-version-drift.py
+# L0 校验脚本自身的测试：
+python3 -m unittest discover -s testing/l0/tests
 # 或一键全量（含 sync 校验 + L1 swift test，日志统一落盘）：
 bash testing/run-all.sh
 # Windows 侧：
@@ -53,7 +59,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.91）
+## 当前状态（main，v0.5.92）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
@@ -63,6 +69,7 @@ EOF
 | `check-forbidden-colors.py` | PASS | 9 个 Swift 视图 + 5 个 XAML 视图无裸色（F4 已修复：#125/#128） |
 | `check-token-coverage.py` | PASS | 7 个 macOS 视图 + 5 个 Windows 视图全部引用 token（F2 已修复：#124/#133） |
 | `check-doc-drift.py` | PASS | 文档色值全部收录于 palette.json |
+| `check-version-drift.py` | PASS | 六处版本副本与 `Cargo.toml` 一致（版本号只改 `Cargo.toml`，#251/#252/#253） |
 
 L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门槛见 deep-testing-plan.md §7；
 状态表随每次改色/改视图核对，方式是重跑 `bash testing/run-all.sh`（严格模式，任一红即非零退出，#144）。
@@ -70,7 +77,7 @@ L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门�
 ## 关键约定
 
 1. **改色流程**：改 `Theme.swift` / `Colors.xaml` / `RhythmCore.h` →
-   `sync-palette.py`（刷新 palette.json + 测试种子）→ L0 五脚本 → `swift test`。
+   `sync-palette.py`（刷新 palette.json + 测试种子）→ L0 脚本 → `swift test`。
    任何一步红都要解释，禁止 `|| true` 静默吞掉。
 2. **palette.json 决策段**（usage/backgrounds/exceptions/whitelist）人工维护，
    是 L0 检查的"立法"：低对比度要么修复要么登记例外，两者都留痕。

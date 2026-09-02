@@ -48,11 +48,18 @@ else
   FAILED=$((FAILED + 1))
 fi
 
-step "L0 静态分析（5 项，各自写入默认日志）"
+step "L0 静态分析（testing/l0/check-*.py，各自写入默认日志）"
+# 含版本号漂移校验 check-version-drift.py（#253）：版本号只改 Cargo.toml，
+# 其余六处副本漂移在此报红，不必等到发布后才发现。
 for s in testing/l0/check-*.py; do
   echo ">>> $s"
   python3 "$s" || FAILED=$((FAILED + 1))
 done
+
+step "L0 校验脚本自测（testing/l0/tests/）"
+python3 -m unittest discover -s testing/l0/tests 2>&1 | tee "$LOG_DIR/l0-script-tests.log"
+rc=${PIPESTATUS[0]}
+[[ $rc -eq 0 ]] || FAILED=$((FAILED + 1))
 
 if [[ $L0_ONLY -eq 0 ]]; then
   step "拷贝 L1 测试到 SwiftPM 目录（与 CI 一致，保证种子最新）"
