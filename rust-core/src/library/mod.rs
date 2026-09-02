@@ -560,7 +560,112 @@ impl Library {
         Ok(tracks?)
     }
 
+    /// Import every audio file under `dir`, reporting the named outcome
+    /// (#238). Files the scanner does not recognise are not audio at all and
+    /// are silently skipped, so a directory scan never reports `unsupported`;
+    /// a scan that cannot run (missing path, not a directory) is one failure.
+    pub fn import_directory(&self, dir: &Path) -> ImportOutcome {
+        let artwork_cache = artwork_cache_for(dir);
+        let tracks = match crate::metadata::scan_directory(dir) {
+            Ok(tracks) => tracks,
+            Err(e) => {
+                log::error!("Import scan failed for {}: {e}", dir.display());
+                return ImportOutcome::one_failed();
+            }
+        };
+
+        let mut outcome = ImportOutcome::default();
+        for track in &tracks {
+            if self.store_scanned(track, &artwork_cache) {
+                outcome.imported += 1;
+            } else {
+                outcome.failed += 1;
+            }
+        }
+        outcome
+    }
+
+    /// Import one audio file, reporting the named outcome (#238). An
+    /// unsupported extension is counted apart from a read/write failure:
+    /// the two tell the user different things to do about it.
+    pub fn import_single_file(&self, file_path: &Path) -> ImportOutcome {
+        use crate::metadata::{extract_artwork, extract_track_info, is_supported_audio};
+
+        if !is_supported_audio(file_path) {
+            return ImportOutcome {
+                unsupported: 1,
+                ..Default::default()
+            };
+        }
+
+        let mut track = match extract_track_info(file_path) {
+            Ok(track) => track,
+            Err(e) => {
+                log::warn!("Import failed for {}: {e}", file_path.display());
+                return ImportOutcome::one_failed();
+            }
+        };
+
+        // Artwork cache goes next to the file (unlike directory imports,
+        // where .rhythm_artwork sits next to the imported directory).
+        if let Ok(Some(art_path)) = extract_artwork(file_path, &artwork_cache_for(file_path)) {
+            track.artwork_path = Some(art_path);
+        }
+
+        match self.add_track(&track) {
+            Ok(_) => ImportOutcome {
+                imported: 1,
+                ..Default::default()
+            },
+            Err(e) => {
+                log::warn!("Import failed for {}: {e}", file_path.display());
+                ImportOutcome::one_failed()
+            }
+        }
+    }
+
+    /// Import a mixed batch of directories and files, aggregating the counts
+    /// (#238). "Partial success" is decided here, once, instead of in each
+    /// UI layer -- macOS used to aggregate on its own and Windows not at all.
+    pub fn import_paths(&self, paths: &[std::path::PathBuf]) -> ImportOutcome {
+        let mut total = ImportOutcome::default();
+        for path in paths {
+            let outcome = if path.is_dir() {
+                self.import_directory(path)
+            } else {
+                self.import_single_file(path)
+            };
+            total.merge(outcome);
+        }
+        total
+    }
+
+    /// Extract artwork for a scanned track and persist it. Returns whether
+    /// the row made it into the database.
+    fn store_scanned(&self, track: &TrackInfo, artwork_cache: &Path) -> bool {
+        use crate::metadata::extract_artwork;
+
+        let mut t = track.clone();
+        if t.source_type == SourceType::Local {
+            if let Some(ref file_path) = t.file_path {
+                if let Ok(Some(art_path)) = extract_artwork(Path::new(file_path), artwork_cache) {
+                    t.artwork_path = Some(art_path);
+                }
+            }
+        }
+        match self.add_track(&t) {
+            Ok(_) => true,
+            Err(e) => {
+                log::warn!("Failed to import {}: {e}", t.title);
+                false
+            }
+        }
+    }
+
     /// Batch-import tracks from a directory scan.
+    ///
+    /// Legacy magic-number path (positive count / 0 / error) kept while the
+    /// UI layers migrate to `import_directory`; removed in #244.
     pub fn import_from_directory(&self, dir: &Path) -> RhythmResult<usize> {
         use crate::metadata::{scan_directory, extract_artwork};
 
@@ -593,6 +698,9 @@ impl Library {
     /// Uses `is_supported_audio` as the gate, extracts metadata & artwork,
     /// then delegates to `add_track`. Returns 1 on success, or an error
     /// if the file is not a supported audio format or cannot be read.
+    ///
+    /// Legacy magic-number path kept while the UI layers migrate to
+    /// `import_single_file`; removed in #244.
     pub fn import_file(&self, file_path: &Path) -> RhythmResult<i32> {
         use crate::metadata::{is_supported_audio, extract_track_info, extract_artwork};
 
@@ -618,6 +726,40 @@ impl Library {
         self.add_track(&track)?;
         Ok(1)
     }
+}
+
+/// Named outcome of a library import (#238): how many tracks were stored,
+/// how many were skipped because the format is unsupported, and how many
+/// failed to read or write. The three counts stay separate — folding
+/// "unsupported" into "failed" loses the only detail the user can act on.
+/// Field list mirrors the contract declaration `import_outcome` (#237).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ImportOutcome {
+    pub imported: i32,
+    pub unsupported: i32,
+    pub failed: i32,
+}
+
+impl ImportOutcome {
+    /// One path that could not be read or written.
+    fn one_failed() -> Self {
+        Self {
+            failed: 1,
+            ..Default::default()
+        }
+    }
+
+    /// Fold another path's counts in — the "partial success" aggregation.
+    fn merge(&mut self, other: ImportOutcome) {
+        self.imported += other.imported;
+        self.unsupported += other.unsupported;
+        self.failed += other.failed;
+    }
+}
+
+/// Artwork cache directory for an imported path: `.rhythm_artwork` next to it.
+fn artwork_cache_for(path: &Path) -> std::path::PathBuf {
+    path.parent().unwrap_or(Path::new(".")).join(".rhythm_artwork")
 }
 
 fn row_to_track(row: &rusqlite::Row<'_>) -> rusqlite::Result<TrackInfo> {

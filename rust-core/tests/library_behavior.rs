@@ -7,7 +7,7 @@
 mod common;
 
 use lofty::prelude::*;
-use rhythm_core::library::Library;
+use rhythm_core::library::{ImportOutcome, Library};
 use rhythm_core::{SourceType, TrackInfo};
 use std::path::Path;
 
@@ -604,4 +604,123 @@ fn lb26_import_from_directory_non_dir_is_invalid_input() {
 
     let err = lib.import_from_directory(&file).unwrap_err();
     assert!(matches!(err, rhythm_core::RhythmError::InvalidInput(_)));
+}
+
+
+// ─── LB-27–33 导入结果分类（#238） ──────────────────────────────────
+
+fn outcome(imported: i32, unsupported: i32, failed: i32) -> ImportOutcome {
+    ImportOutcome {
+        imported,
+        unsupported,
+        failed,
+    }
+}
+
+#[test]
+fn lb27_import_directory_all_succeed() {
+    let dir = tempfile::tempdir().unwrap();
+    let music = dir.path().join("music");
+    std::fs::create_dir_all(&music).unwrap();
+    common::write_wav(&music.join("a.wav"), 0.5);
+    common::write_wav(&music.join("b.wav"), 0.5);
+    let lib = open_lib(dir.path());
+
+    assert_eq!(lib.import_directory(&music), outcome(2, 0, 0));
+    assert_eq!(lib.get_all_tracks().unwrap().len(), 2);
+}
+
+#[test]
+fn lb28_import_directory_empty_reports_zeroes() {
+    let dir = tempfile::tempdir().unwrap();
+    let empty = dir.path().join("empty");
+    std::fs::create_dir_all(&empty).unwrap();
+    let lib = open_lib(dir.path());
+
+    assert_eq!(lib.import_directory(&empty), outcome(0, 0, 0));
+    assert!(lib.get_all_tracks().unwrap().is_empty());
+}
+
+#[test]
+fn lb29_import_directory_missing_path_is_one_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open_lib(dir.path());
+
+    assert_eq!(lib.import_directory(&dir.path().join("nope")), outcome(0, 0, 1));
+    // A file is not a directory either — the scan cannot run.
+    let file = dir.path().join("f.txt");
+    std::fs::write(&file, b"x").unwrap();
+    assert_eq!(lib.import_directory(&file), outcome(0, 0, 1));
+}
+
+#[test]
+fn lb30_import_single_file_separates_unsupported_from_failed() {
+    let dir = tempfile::tempdir().unwrap();
+    let wav = dir.path().join("tone.wav");
+    common::write_wav(&wav, 0.5);
+    let txt = dir.path().join("note.txt");
+    std::fs::write(&txt, b"not audio").unwrap();
+    let lib = open_lib(dir.path());
+
+    assert_eq!(lib.import_single_file(&wav), outcome(1, 0, 0));
+    assert_eq!(
+        lib.import_single_file(&txt),
+        outcome(0, 1, 0),
+        "unsupported format is not a read failure"
+    );
+    assert_eq!(
+        lib.import_single_file(&dir.path().join("missing.wav")),
+        outcome(0, 0, 1),
+        "a supported extension that cannot be read is a failure"
+    );
+    assert_eq!(lib.get_all_tracks().unwrap().len(), 1);
+}
+
+#[test]
+fn lb31_import_paths_aggregates_partial_success() {
+    let dir = tempfile::tempdir().unwrap();
+    let music = dir.path().join("music");
+    std::fs::create_dir_all(&music).unwrap();
+    common::write_wav(&music.join("a.wav"), 0.5);
+    common::write_wav(&music.join("b.wav"), 0.5);
+    let lone = dir.path().join("lone.wav");
+    common::write_wav(&lone, 0.5);
+    let lib = open_lib(dir.path());
+
+    let total = lib.import_paths(&[music, lone, dir.path().join("missing.wav")]);
+
+    assert_eq!(total, outcome(3, 0, 1), "the batch aggregation lives in the core");
+    assert_eq!(lib.get_all_tracks().unwrap().len(), 3);
+}
+
+#[test]
+fn lb32_import_paths_all_fail() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open_lib(dir.path());
+
+    let total = lib.import_paths(&[
+        dir.path().join("missing-one.wav"),
+        dir.path().join("missing-two.wav"),
+    ]);
+
+    assert_eq!(total, outcome(0, 0, 2));
+    assert!(lib.get_all_tracks().unwrap().is_empty());
+}
+
+#[test]
+fn lb33_import_paths_mixes_success_and_unsupported() {
+    let dir = tempfile::tempdir().unwrap();
+    let wav = dir.path().join("tone.wav");
+    common::write_wav(&wav, 0.5);
+    let txt = dir.path().join("note.txt");
+    std::fs::write(&txt, b"not audio").unwrap();
+    let lib = open_lib(dir.path());
+
+    let total = lib.import_paths(&[wav, txt]);
+
+    assert_eq!(
+        total,
+        outcome(1, 1, 0),
+        "unsupported keeps its own count next to a success"
+    );
 }
