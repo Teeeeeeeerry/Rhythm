@@ -6,6 +6,7 @@
 - #179 起：状态与模式以具名枚举跨 seam（事件 state 字符串、PlayMode 契约值 0-3 双端锁定）；UI 层无状态/模式魔法整数
 - #180 起：数据契约单一声明 `contracts/ffi-contract.json`，`scripts/gen-ffi-bindings.py` 生成双端编解码绑定（`macos/Rhythm/Models/GeneratedCodec.swift`、`windows/Rhythm/Bridge/GeneratedCodec.h`）；Windows 桥的 Track 编解码已迁移到生成绑定，macOS 以产物一致性测试锁定
 - #181 起：旧直通导出收缩——`rhythm_player_*`（15 个，被协调器取代）与进程级全局错误槽 `rhythm_last_error` 删除；`classify_url`/`install_ytdlp` 改结构化结果；FF-07~10 归档，双端 Player 包装与测试删除
+- #234 起：M3U8 导入新增「解析并入库」导出 `rhythm_import_m3u8_into_library`，返回具名结果 `M3u8ImportOutcome`（契约声明 `m3u8_import_outcome`，双端绑定由生成器产出）；旧的纯解析导出保持可用
 - 历史回归：`#21`（解析失败只有 null、无原因）
 - 测试途径：`cargo test` 集成测试（现有 `player_ffi.rs` 模式扩展）；library/queue/resolver 部分链接真实现 + 临时库；无需接缝。
 
@@ -22,6 +23,7 @@
 | FF-12 | resolve 结构化结果（#176） | 一次返回 `{"ok":true,"resolved":{...}}` 或 `{"ok":false,"error_kind":"...","error_message":"..."}`；不再返回 null、不再读全局错误槽 |
 | FF-13 | `rhythm_classify_url` | 结构化结果：成功 `{"ok":true,"source_type":...}`；失败 `{"ok":false,"error_kind":...}`（#181，无全局错误槽） |
 | FF-14 | M3U8 FFI | export 成功 0/失败 -1；import 成功 JSON/失败 null |
+| FF-23 | M3U8 解析并入库（#234） | 返回具名结果 JSON `{"imported":N,"failed":M}`；不可读列表与空句柄 → null |
 | FF-15 | `rhythm_free_string` | 空指针安全 |
 | FF-16 | metadata FFI | `rhythm_metadata_extract`/`scan`/`extract_artwork`：成功 JSON/路径，失败 null |
 
