@@ -64,6 +64,10 @@ public:
     /// and read failure get different alerts -- the user needs to know
     /// whether to swap the file or check permissions.
     void ImportFile(const std::wstring& path);
+    /// Import a batch of files and folders (#243, macOS parity). Partial
+    /// failure shows the split counts instead of being reported as one
+    /// whole failure; the aggregation itself comes from the core.
+    void ImportPaths(const std::vector<std::wstring>& paths);
     void DoSearch();
     void PlayTrack(const Track& track);
     void TogglePlayPause();

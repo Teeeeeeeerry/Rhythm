@@ -691,6 +691,52 @@ TEST_CASE("WA-29 ImportFile tells unsupported apart from unreadable") {
     REQUIRE(app.state.Tracks.empty());
 }
 
+// ─── WA-30 批量导入与部分成功（#243，Windows 首次具备该能力）────────
+
+/// Same batch shape as the macOS suite (one good file, one unreadable
+/// path), so both platforms must produce the same counts and the same text.
+TEST_CASE("WA-30 ImportPaths shows the split counts on partial failure") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto ok = writeWavAt(app.dir.path, L"ok.wav");
+    auto missing = app.dir.path / L"missing.mp3";
+
+    app.state.ImportPaths({ok.wstring(), missing.wstring()});
+
+    REQUIRE(app.state.ShowImportAlert);
+    REQUIRE(app.state.ImportAlertMessage == L10n::ImportSomeFailed(1, 1));
+    REQUIRE(app.state.Tracks.size() == 1);
+}
+
+TEST_CASE("WA-30 ImportPaths covers the all-success, all-failed and none-found arms") {
+    SpyApp app;
+    app.state.ImportPaths({L"C:\\whatever\\x.wav"}); // no Library -> no feedback
+    REQUIRE_FALSE(app.state.ShowImportAlert);
+
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto music = app.dir.path / L"music";
+    fs::create_directories(music);
+    writeWavAt(music, L"one.wav");
+    auto lone = writeWavAt(app.dir.path, L"two.wav");
+
+    // A folder and a file in one batch: the dispatch happens in the core.
+    app.state.ImportPaths({music.wstring(), lone.wstring()});
+    REQUIRE(app.state.ImportAlertMessage == L10n::ImportedTracks(2));
+    REQUIRE(app.state.Tracks.size() == 2);
+
+    app.state.ImportPaths({(app.dir.path / L"m1.mp3").wstring(),
+                           (app.dir.path / L"m2.mp3").wstring()});
+    REQUIRE(app.state.ImportAlertMessage == L10n::ImportAllFailed());
+
+    auto txt = app.dir.path / L"notes.txt";
+    {
+        std::ofstream out(txt);
+        out << "not audio";
+    }
+    app.state.ImportPaths({txt.wstring()});
+    REQUIRE(app.state.ImportAlertMessage == L10n::ImportNoneFound());
+}
+
 // ─── WA-26 M3U8 导入结果渲染（#236，入库策略在核心）────────────────
 
 /// The core parses and stores; this layer only renders the counts and

@@ -240,6 +240,8 @@ inline std::wstring ImportNoFiles() { return Key("import_dir_empty"); }
 inline std::wstring ImportFailed() { return Key("import_dir_failed"); }
 inline std::wstring ImportFileUnsupported() { return Key("import_file_unsupported"); }
 inline std::wstring ImportFileFailed() { return Key("import_file_failed"); }
+inline std::wstring ImportAllFailed() { return Key("import_all_failed"); }
+inline std::wstring ImportNoneFound() { return Key("import_none_found"); }
 inline std::wstring ImportSomeFailed(int32_t imported, int32_t failed) {
     return Fill(Key("import_some_failed"),
                 {{L"imported", std::to_wstring(imported)}, {L"failed", std::to_wstring(failed)}});

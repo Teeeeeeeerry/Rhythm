@@ -65,6 +65,25 @@ void AppState::ImportFile(const std::wstring& path) {
     ShowImportAlert = true;
 }
 
+void AppState::ImportPaths(const std::vector<std::wstring>& paths) {
+    if (!Library) return;
+    auto outcome = Library->ImportPaths(paths);
+    if (!outcome) return;
+    // Same four arms as macOS, in the same order, from the same counts --
+    // both platforms must render one batch identically (#243).
+    if (outcome->imported > 0) RefreshLibrary();
+    if (outcome->imported > 0 && outcome->failed == 0) {
+        ImportAlertMessage = L10n::ImportedTracks(outcome->imported);
+    } else if (outcome->imported > 0) {
+        ImportAlertMessage = L10n::ImportSomeFailed(outcome->imported, outcome->failed);
+    } else if (outcome->failed > 0) {
+        ImportAlertMessage = L10n::ImportAllFailed();
+    } else {
+        ImportAlertMessage = L10n::ImportNoneFound();
+    }
+    ShowImportAlert = true;
+}
+
 void AppState::ImportM3U8(const std::wstring& path) {
     if (!Library) return;
     // #236: parsing and storing are one core entry point — this layer only
