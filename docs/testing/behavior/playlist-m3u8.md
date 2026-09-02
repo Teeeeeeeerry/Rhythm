@@ -51,12 +51,14 @@
 |---|---|---|
 | PL-14 | 非法 UTF-8 的 M3U8 文件 | 返回 Err，不 panic |
 
-## 视图层（macOS）
+## 视图层（macOS，#235 起只剩结果渲染）
+
+入库策略已归属核心（PL-17 至 PL-24），macOS 侧只做三步：调用核心入口、按结果选提示语、从数据库重载列表。
 
 | 编号 | 行为 | 断言 |
 |---|---|---|
-| PL-15 | `importM3U8Entries` 入库（#136） | local 路径 → `sourceType=local` + `filePath`；http(s) → `direct_url` + `sourceUrl`；全部写入数据库 |
-| PL-16 | `importM3U8Entries` 无效条目 | 缺失/空 location → 计入 failed，不写库，弹窗汇总 imported/failed |
+| PL-15 | `AppState.importM3U8` 结果渲染 | 具名结果 `{imported, failed}` → 全成 `importedTracks`、有失败 `importSomeFailed`；调用后从数据库重载列表 |
+| PL-16 | `AppState.importM3U8` 列表不可读 | 核心返回 null → 不弹提示、列表不变 |
 
 ## 红测登记
 

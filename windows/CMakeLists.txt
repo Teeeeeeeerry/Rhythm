@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Rhythm VERSION 0.5.97 LANGUAGES CXX)
+project(Rhythm VERSION 0.5.98 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

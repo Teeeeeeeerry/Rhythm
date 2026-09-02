@@ -322,64 +322,25 @@ final class AppState: ObservableObject {
         showImportAlert = true
     }
 
-    /// Persist M3U8 entries decoded by `playlist::import_m3u8` — the core
-    /// only parses, the caller must add the tracks (#136). A location that
-    /// looks like an http(s) URL is stored as a direct_url; anything else is
-    /// a local file path. Returns the imported/failed counts. Entries carry
-    /// named fields (title/artist/location) — no positional indexing (#177).
+    /// Import an M3U8 playlist through the core entry point (#235).
+    ///
+    /// The core parses the file and stores every entry — location type,
+    /// title fallback and the success test all live there (#217). This layer
+    /// only picks the alert text, reloads the list from the database (#66)
+    /// and returns the counts.
     @discardableResult
-    func importM3U8Entries(_ entries: [M3u8Entry]) -> (imported: Int, failed: Int) {
-        var imported = 0
-        var failed = 0
-        for entry in entries {
-            let title = entry.title.isEmpty ? "Unknown" : entry.title
-            let artist = entry.artist
-            guard !entry.location.isEmpty else {
-                failed += 1
-                continue
-            }
-            let isURL = entry.location.hasPrefix("http://") || entry.location.hasPrefix("https://")
-            let track = Track(
-                id: -1,
-                filePath: isURL ? nil : entry.location,
-                sourceType: isURL ? "direct_url" : "local",
-                sourceUrl: isURL ? entry.location : nil,
-                title: title,
-                artist: artist,
-                album: nil,
-                albumArtist: nil,
-                trackNumber: nil,
-                discNumber: nil,
-                genre: nil,
-                year: nil,
-                duration: 0,
-                format: nil,
-                bitrate: nil,
-                sampleRate: nil,
-                channels: nil,
-                fileSize: nil,
-                dateAdded: nil,
-                lastPlayed: nil,
-                playCount: 0,
-                artworkPath: nil,
-                isAvailable: true
-            )
-            if library?.addTrack(track) != nil {
-                imported += 1
-            } else {
-                failed += 1
-            }
-        }
+    func importM3U8(_ url: URL) -> M3u8ImportOutcome? {
+        guard let outcome = library?.importM3U8(url.path) else { return nil }
         refreshLibrary()
-        if failed > 0 {
-            importAlertMessage = L10n.importSomeFailed(imported, failed)
-        } else if imported > 0 {
-            importAlertMessage = L10n.importedTracks(imported)
+        if outcome.failed > 0 {
+            importAlertMessage = L10n.importSomeFailed(outcome.imported, outcome.failed)
+        } else if outcome.imported > 0 {
+            importAlertMessage = L10n.importedTracks(outcome.imported)
         }
-        if imported > 0 || failed > 0 {
+        if outcome.imported > 0 || outcome.failed > 0 {
             showImportAlert = true
         }
-        return (imported, failed)
+        return outcome
     }
 
     /// Play a resolved URL track: persist it to the library so it survives

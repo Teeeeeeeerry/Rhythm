@@ -87,42 +87,46 @@ final class AppStateImportTests: AppStatePlaybackTestCase {
             "resolveAndImport should not set a current track")
     }
 
-    // MARK: - Seam 4: importM3U8Entries (#136 regression)
+    // MARK: - Seam 4: importM3U8 result rendering (#235)
 
-    /// M3U8 entries are persisted to the library, not discarded — local
-    /// paths become local tracks, http(s) locations become direct_url tracks.
-    func testImportM3U8Entries_PersistsTracksWithMappedSources() {
-        let entries: [M3u8Entry] = [
-            M3u8Entry(title: "Local Song", artist: "Local Artist", location: "/music/local.mp3"),
-            M3u8Entry(title: "Remote Song", artist: nil, location: "https://example.com/remote.mp3"),
-        ]
-        let result = appState.importM3U8Entries(entries)
+    /// The core entry point stores the entries; this layer only renders the
+    /// counts and reloads the list from the database. The storage rules
+    /// themselves are asserted in rust-core (PL-17 to PL-24).
+    func testImportM3U8_RendersCountsAndReloadsLibrary() {
+        let playlist = writePlaylist([
+            ("180,Local Artist - Local Song", "/music/local.mp3"),
+            ("0,Remote Artist - Remote Song", "https://example.com/remote.mp3"),
+        ])
 
-        XCTAssertEqual(result.imported, 2)
-        XCTAssertEqual(result.failed, 0)
-        XCTAssertEqual(appState.tracks.count, 2, "entries must be written to the database")
-        let local = appState.tracks.first { $0.sourceType == "local" }
-        let remote = appState.tracks.first { $0.sourceType == "direct_url" }
-        XCTAssertEqual(local?.title, "Local Song")
-        XCTAssertEqual(local?.artist, "Local Artist")
-        XCTAssertEqual(local?.filePath, "/music/local.mp3")
-        XCTAssertEqual(remote?.title, "Remote Song")
-        XCTAssertEqual(remote?.sourceUrl, "https://example.com/remote.mp3")
-        XCTAssertNil(remote?.filePath)
-        XCTAssertTrue(appState.showImportAlert, "import should surface feedback")
+        let outcome = appState.importM3U8(playlist)
+
+        XCTAssertEqual(outcome, M3u8ImportOutcome(imported: 2, failed: 0))
+        XCTAssertEqual(appState.tracks.count, 2, "the list must be reloaded from the database")
+        XCTAssertTrue(appState.showImportAlert, "import must surface feedback")
+        XCTAssertEqual(appState.importAlertMessage, L10n.importedTracks(2))
     }
 
-    /// Entries without a usable location are counted as failures and skipped.
-    func testImportM3U8Entries_CountsInvalidEntriesAsFailed() {
-        let entries: [M3u8Entry] = [
-            M3u8Entry(title: "Good", artist: nil, location: "/music/good.mp3"),
-            M3u8Entry(title: "No Location", artist: nil, location: ""),
-            M3u8Entry(title: "Empty Location", artist: nil, location: ""),
-        ]
-        let result = appState.importM3U8Entries(entries)
+    /// An unreadable playlist reports nothing — no alert, no list change.
+    func testImportM3U8_UnreadableFileShowsNoAlert() {
+        let missing = FileManager.default.temporaryDirectory
+            .appendingPathComponent("missing-\(UUID().uuidString).m3u8")
 
-        XCTAssertEqual(result.imported, 1)
-        XCTAssertEqual(result.failed, 2)
-        XCTAssertEqual(appState.tracks.count, 1)
+        let outcome = appState.importM3U8(missing)
+
+        XCTAssertNil(outcome)
+        XCTAssertFalse(appState.showImportAlert)
+        XCTAssertTrue(appState.tracks.isEmpty)
+    }
+
+    /// Write a playlist file whose entries are `(extinf, location)` pairs.
+    private func writePlaylist(_ entries: [(String, String)]) -> URL {
+        var body = "#EXTM3U\n"
+        for (extinf, location) in entries {
+            body += "#EXTINF:\(extinf)\n\(location)\n"
+        }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playlist-\(UUID().uuidString).m3u8")
+        try? body.write(to: url, atomically: true, encoding: .utf8)
+        return url
     }
 }
