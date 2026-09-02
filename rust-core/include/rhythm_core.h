@@ -20,6 +20,14 @@ void rhythm_library_close(RhythmLibrary* lib);
 
 int32_t rhythm_library_import(RhythmLibrary* lib, const char* dir);
 int32_t rhythm_library_import_file(RhythmLibrary* lib, const char* file_path);
+
+// Named import outcome as JSON: {"imported":N,"unsupported":N,"failed":N} (#239).
+// Null only for a null handle. Free with rhythm_free_string.
+// rhythm_library_import_paths takes a JSON array of path strings; the
+// partial-success aggregation happens in the core.
+char* rhythm_library_import_directory(RhythmLibrary* lib, const char* dir);
+char* rhythm_library_import_single_file(RhythmLibrary* lib, const char* file_path);
+char* rhythm_library_import_paths(RhythmLibrary* lib, const char* paths_json);
 char* rhythm_library_get_all_tracks(RhythmLibrary* lib);
 char* rhythm_library_search(RhythmLibrary* lib, const char* query);
 char* rhythm_library_add_track(RhythmLibrary* lib, const char* track_json);
