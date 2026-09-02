@@ -9,6 +9,7 @@
 - #234 起：M3U8 导入新增「解析并入库」导出 `rhythm_import_m3u8_into_library`，返回具名结果 `M3u8ImportOutcome`（契约声明 `m3u8_import_outcome`，双端绑定由生成器产出）；旧的纯解析导出保持可用
 - #237 起：资料库导入结果具名结构 `ImportOutcome`（`imported`/`unsupported`/`failed` 三计数分开）进入契约声明 `import_outcome`，双端绑定由生成器产出；expand 阶段与旧魔数导出并存，双端行为未变
 - #239 起：三条导入路径的新导出落地（`rhythm_library_import_directory`/`_single_file`/`_paths`），返回同一结果形状；旧魔数导出仍并存，双端尚未切换
+- #244 起：旧魔数导入导出 `rhythm_library_import` 与 `rhythm_library_import_file` 删除，资料库导入路径的魔数返回码清零；FF-03/FF-04 归档
 - 历史回归：`#21`（解析失败只有 null、无原因）
 - 测试途径：`cargo test` 集成测试（现有 `player_ffi.rs` 模式扩展）；library/queue/resolver 部分链接真实现 + 临时库；无需接缝。
 
@@ -18,8 +19,8 @@
 |---|---|---|
 | FF-01 | library open/close 往返 | 合法路径 → 非空句柄；close 后不泄漏崩溃；close(null) 安全 |
 | FF-02 | library open 失败 | 不可写路径 → null |
-| FF-03 | `rhythm_library_import` | 成功返回导入数；错误/空指针 → -1 |
-| FF-04 | `rhythm_library_import_file` 返回值契约 | 成功 1、不支持格式 0、错误 -1（#79 修复后启用；魔数导出，#244 删除） |
+| FF-03 | ~~`rhythm_library_import`~~ | 已删除（#244）：导入路径不再有魔数返回码，覆盖归 FF-24 |
+| FF-04 | ~~`rhythm_library_import_file` 返回值契约~~ | 已删除（#244）：同上，成功/不支持/失败三种结局改由 FF-24 的具名计数覆盖 |
 | FF-24 | 三条导入路径的具名结果（#239） | `import_directory`/`import_single_file`/`import_paths` 返回同一形状 `{"imported":N,"unsupported":N,"failed":N}`；批量聚合来自核心；非法批量载荷 → 三项全 0；空句柄 → null |
 | FF-05 | 字符串内存契约 | `get_all_tracks` 等返回 JSON 需 `rhythm_free_string` 释放；空指针入参 → null/-1 安全默认 |
 | FF-06 | `rhythm_library_add_track` JSON 往返 | 合法 JSON → 带 DB id 的 JSON；非法 JSON → null |
@@ -47,4 +48,4 @@
 
 | 编号 | 缺陷 | issue | 状态 |
 |---|---|---|---|
-| FF-04 | `rhythm_library_import_file` 从不返回 0：不支持格式映射为 -1，Swift 侧"不支持的音频格式"分支死代码 | [#79](https://github.com/Teeeeeeerry/Rhythm/issues/79) | 已修复（#108） |
+| FF-04 | `rhythm_library_import_file` 从不返回 0：不支持格式映射为 -1，Swift 侧"不支持的音频格式"分支死代码 | [#79](https://github.com/Teeeeeeerry/Rhythm/issues/79) | 已修复（#108）；导出本身已随 #244 删除，语义由具名计数承载 |

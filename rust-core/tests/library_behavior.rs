@@ -21,6 +21,14 @@ fn url_track(source_url: &str, title: &str, source_type: SourceType) -> TrackInf
     common::test_url_track(source_url, title, Some("URL Artist"), source_type, 240.0)
 }
 
+fn outcome(imported: i32, unsupported: i32, failed: i32) -> ImportOutcome {
+    ImportOutcome {
+        imported,
+        unsupported,
+        failed,
+    }
+}
+
 fn open_lib(dir: &Path) -> Library {
     Library::open(&dir.join("test.db")).unwrap()
 }
@@ -398,10 +406,10 @@ fn lb14_search_sanitizes_special_chars() {
     assert_eq!(hits.len(), 1, "`*`/`\"`/`(`/`)` must be stripped, not error");
 }
 
-// ─── LB-15/16/23 目录与文件导入 ─────────────────────────────────────
+// ─── LB-15/16/23 目录与文件导入（#244 起只剩具名结果入口） ──────────
 
 #[test]
-fn lb15_import_from_directory_recursive_with_partial_failure() {
+fn lb15_import_directory_recursive_with_partial_failure() {
     let dir = tempfile::tempdir().unwrap();
     let lib = open_lib(dir.path());
 
@@ -416,8 +424,8 @@ fn lb15_import_from_directory_recursive_with_partial_failure() {
     std::fs::write(music.join("bad.wav"), b"RIFF").unwrap(); // truncated: fails
     std::fs::write(music.join("note.txt"), b"not audio").unwrap();
 
-    let scanned = lib.import_from_directory(&music).unwrap();
-    assert_eq!(scanned, 2, "returns the number of scanned tracks");
+    let result = lib.import_directory(&music);
+    assert_eq!(result, outcome(2, 0, 0), "a truncated file is skipped by the scan");
     assert_eq!(lib.get_all_tracks().unwrap().len(), 2);
     assert!(
         lib.search("bad").unwrap().is_empty(),
@@ -436,7 +444,7 @@ fn lb16_import_file_supported_returns_1_with_metadata() {
         tag.set_artist(String::from("Tagged Artist"));
     });
 
-    assert_eq!(lib.import_file(&wav).unwrap(), 1);
+    assert_eq!(lib.import_single_file(&wav), outcome(1, 0, 0));
     let tracks = lib.get_all_tracks().unwrap();
     assert_eq!(tracks.len(), 1);
     assert_eq!(tracks[0].title, "Tagged Title");
@@ -460,14 +468,14 @@ fn lb16_import_file_extracts_artwork() {
         ));
     });
 
-    lib.import_file(&wav).unwrap();
+    lib.import_single_file(&wav);
     let tracks = lib.get_all_tracks().unwrap();
     let art = tracks[0].artwork_path.as_ref().expect("embedded art must be extracted");
     assert!(Path::new(art).exists(), "artwork file must exist: {art}");
 }
 
 #[test]
-fn lb23_import_from_directory_twice_no_duplicate_rows() {
+fn lb23_import_directory_twice_no_duplicate_rows() {
     let dir = tempfile::tempdir().unwrap();
     let lib = open_lib(dir.path());
 
@@ -475,8 +483,8 @@ fn lb23_import_from_directory_twice_no_duplicate_rows() {
     std::fs::create_dir_all(&music).unwrap();
     common::write_wav(&music.join("only.wav"), 0.5);
 
-    lib.import_from_directory(&music).unwrap();
-    lib.import_from_directory(&music).unwrap();
+    lib.import_directory(&music);
+    lib.import_directory(&music);
 
     assert_eq!(lib.get_all_tracks().unwrap().len(), 1, "file_path dedup");
 }
@@ -530,23 +538,16 @@ fn lb19_search_blank_query_does_not_panic() {
 }
 
 #[test]
-fn lb20_import_file_missing_file_errors() {
+fn lb20_import_single_file_missing_file_is_a_failure() {
     let dir = tempfile::tempdir().unwrap();
     let lib = open_lib(dir.path());
 
+    // A supported extension that is not on disk cannot be read: one failure,
+    // not a panic and not an "unsupported format" (#244).
     let missing = dir.path().join("missing.mp3");
-    let err = lib.import_file(&missing).unwrap_err();
-    assert!(
-        matches!(
-            err,
-            rhythm_core::RhythmError::FileNotFound(_)
-                | rhythm_core::RhythmError::UnsupportedFormat(_)
-        ),
-        "Unsupported or FileNotFound is acceptable, got: {err:?}"
-    );
+    assert_eq!(lib.import_single_file(&missing), outcome(0, 0, 1));
+    assert!(lib.get_all_tracks().unwrap().is_empty());
 }
-
-// ─── LB-21/22 边界 ──────────────────────────────────────────────────
 
 #[test]
 fn lb21_mark_unavailable() {
@@ -595,27 +596,7 @@ fn lb25_record_play_missing_id_is_noop() {
     assert_eq!(lib.get_all_tracks().unwrap()[0].play_count, 0);
 }
 
-#[test]
-fn lb26_import_from_directory_non_dir_is_invalid_input() {
-    let dir = tempfile::tempdir().unwrap();
-    let lib = open_lib(dir.path());
-    let file = dir.path().join("f.txt");
-    std::fs::write(&file, b"x").unwrap();
-
-    let err = lib.import_from_directory(&file).unwrap_err();
-    assert!(matches!(err, rhythm_core::RhythmError::InvalidInput(_)));
-}
-
-
 // ─── LB-27–33 导入结果分类（#238） ──────────────────────────────────
-
-fn outcome(imported: i32, unsupported: i32, failed: i32) -> ImportOutcome {
-    ImportOutcome {
-        imported,
-        unsupported,
-        failed,
-    }
-}
 
 #[test]
 fn lb27_import_directory_all_succeed() {

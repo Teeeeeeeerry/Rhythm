@@ -18,9 +18,6 @@ typedef struct RhythmCoordinator RhythmCoordinator;
 RhythmLibrary* rhythm_library_open(const char* db_path);
 void rhythm_library_close(RhythmLibrary* lib);
 
-int32_t rhythm_library_import(RhythmLibrary* lib, const char* dir);
-int32_t rhythm_library_import_file(RhythmLibrary* lib, const char* file_path);
-
 // Named import outcome as JSON: {"imported":N,"unsupported":N,"failed":N} (#239).
 // Null only for a null handle. Free with rhythm_free_string.
 // rhythm_library_import_paths takes a JSON array of path strings; the
