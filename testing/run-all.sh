@@ -56,6 +56,9 @@ for s in testing/l0/check-*.py; do
   python3 "$s" || FAILED=$((FAILED + 1))
 done
 
+step "L0 零 emoji（硬性约定，覆盖 git 跟踪的全部文件减排除清单）"
+python3 scripts/check-no-emoji.py || FAILED=$((FAILED + 1))
+
 step "L0 校验脚本自测（testing/l0/tests/）"
 python3 -m unittest discover -s testing/l0/tests 2>&1 | tee "$LOG_DIR/l0-script-tests.log"
 rc=${PIPESTATUS[0]}
