@@ -121,6 +121,11 @@ char* rhythm_install_ytdlp(void);
 int32_t rhythm_export_m3u8(const char* file_path, const char* tracks_json);
 char* rhythm_import_m3u8(const char* file_path);
 
+// Parse an M3U8 file and import every entry into the library (#234).
+// Returns the named outcome as JSON: {"imported":N,"failed":M}, or null
+// when the playlist cannot be read. Free with rhythm_free_string.
+char* rhythm_import_m3u8_into_library(RhythmLibrary* lib, const char* file_path);
+
 // ─── Memory Management ────────────────────────────────────────────
 
 void rhythm_free_string(char* ptr);

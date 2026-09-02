@@ -122,5 +122,21 @@ inline json M3u8EntryToJson(const M3u8Entry& t) {
     return j;
 }
 
+/// Decode a M3u8ImportOutcome from the core's snake_case JSON (contract #M3u8ImportOutcome).
+inline M3u8ImportOutcome M3u8ImportOutcomeFromJson(const json& j) {
+    M3u8ImportOutcome t;
+    t.imported = j.value("imported", (int32_t)0);
+    t.failed = j.value("failed", (int32_t)0);
+    return t;
+}
+
+/// Encode a M3u8ImportOutcome with snake_case keys (contract #M3u8ImportOutcome).
+inline json M3u8ImportOutcomeToJson(const M3u8ImportOutcome& t) {
+    json j;
+    j["imported"] = t.imported;
+    j["failed"] = t.failed;
+    return j;
+}
+
 
 } // namespace rhythm::generated

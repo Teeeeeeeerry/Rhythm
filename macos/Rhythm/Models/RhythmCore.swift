@@ -458,6 +458,14 @@ struct M3u8Entry: Codable {
     let location: String
 }
 
+/// Named outcome of an M3U8 import (#234): how many entries the core stored
+/// and how many it could not. The counts are the whole contract — the UI
+/// never re-derives "did this entry make it" (#217).
+struct M3u8ImportOutcome: Codable, Equatable {
+    let imported: Int
+    let failed: Int
+}
+
 // MARK: - Resolver Types
 
 struct ResolvedInfo: Codable {

@@ -232,6 +232,45 @@ fn ff14_m3u8_export_import() {
     assert!(unsafe { rhythm_import_m3u8(c("/nonexistent/nope.m3u8").as_ptr()) }.is_null());
 }
 
+/// FF-23: the parse-and-store export returns the named outcome as JSON
+/// (#234) — the UI decodes counts, never re-derives them.
+#[test]
+fn ff23_m3u8_import_into_library_returns_named_outcome() {
+    let dir = tempfile::tempdir().unwrap();
+    let playlist = dir.path().join("list.m3u8");
+    std::fs::write(
+        &playlist,
+        "#EXTM3U\n#EXTINF:180,A - One\n/music/one.mp3\n#EXTINF:0,B - Two\nhttps://example.com/two.mp3\n",
+    )
+    .unwrap();
+
+    let lib = open_lib(dir.path());
+    let json = unsafe {
+        take(rhythm_import_m3u8_into_library(
+            lib,
+            c(playlist.to_str().unwrap()).as_ptr(),
+        ))
+    };
+    let outcome: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(outcome["imported"], 2, "snake_case named counts, not a magic number");
+    assert_eq!(outcome["failed"], 0);
+
+    // The tracks really are in the library, both source types mapped.
+    let tracks = unsafe { take(rhythm_library_get_all_tracks(lib)) };
+    assert!(tracks.contains("\"local\"") && tracks.contains("\"direct_url\""));
+
+    // Unreadable playlist and a null handle both report null.
+    assert!(unsafe {
+        rhythm_import_m3u8_into_library(lib, c("/nonexistent/nope.m3u8").as_ptr())
+    }
+    .is_null());
+    assert!(unsafe {
+        rhythm_import_m3u8_into_library(std::ptr::null_mut(), c(playlist.to_str().unwrap()).as_ptr())
+    }
+    .is_null());
+    unsafe { rhythm_library_close(lib) };
+}
+
 // ─── FF-15/16 memory 与 metadata ────────────────────────────────────
 
 #[test]

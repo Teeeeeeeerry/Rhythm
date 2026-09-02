@@ -111,6 +111,22 @@ struct Track {
     }
 };
 
+/// One parsed M3U8 entry — named fields across the seam (#177). Field list
+/// and codec come from contracts/ffi-contract.json (#180).
+struct M3u8Entry {
+    std::wstring title;
+    std::optional<std::wstring> artist;
+    std::wstring location;
+};
+
+/// Named outcome of an M3U8 import (#234): how many entries the core stored
+/// and how many it could not. Field list and codec come from
+/// contracts/ffi-contract.json.
+struct M3u8ImportOutcome {
+    int32_t imported = 0;
+    int32_t failed = 0;
+};
+
 struct Playlist {
     std::optional<int64_t> id;
     std::wstring name;

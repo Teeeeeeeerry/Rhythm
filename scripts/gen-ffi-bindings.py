@@ -128,7 +128,11 @@ def swift_encode_object(name: str, fields: dict, model: str) -> str:
 
 def gen_swift(schema: dict) -> str:
     out = [SWIFT_HEADER]
-    for model, fields in (("Track", schema["track"]), ("M3u8Entry", schema["m3u8_entry"])):
+    for model, fields in (
+        ("Track", schema["track"]),
+        ("M3u8Entry", schema["m3u8_entry"]),
+        ("M3u8ImportOutcome", schema["m3u8_import_outcome"]),
+    ):
         out.append(swift_decode_object(model, fields, model))
         out.append("")
         out.append(swift_encode_object(model, fields, model))
@@ -262,7 +266,11 @@ def cpp_encode_object(name: str, fields: dict, model: str) -> str:
 
 def gen_cpp(schema: dict) -> str:
     out = [CPP_HEADER]
-    for name, fields in (("Track", schema["track"]), ("M3u8Entry", schema["m3u8_entry"])):
+    for name, fields in (
+        ("Track", schema["track"]),
+        ("M3u8Entry", schema["m3u8_entry"]),
+        ("M3u8ImportOutcome", schema["m3u8_import_outcome"]),
+    ):
         out.append(cpp_decode_object(name, fields, name))
         out.append("")
         out.append(cpp_encode_object(name, fields, name))

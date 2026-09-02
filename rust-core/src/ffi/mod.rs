@@ -996,6 +996,35 @@ pub unsafe extern "C" fn rhythm_import_m3u8(path: *const c_char) -> *mut c_char 
     }
 }
 
+/// Parse an M3U8 file and import every entry into the library (#234).
+///
+/// Returns the named import outcome as snake_case JSON
+/// (`{"imported":N,"failed":M}`), or null when the playlist cannot be read.
+/// The storage rules (location type, title fallback, success test) live in
+/// the core (#233) — callers only render the counts. Caller must free the
+/// string with `rhythm_free_string`.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_import_m3u8_into_library(
+    ptr: *mut RhythmLibrary,
+    path: *const c_char,
+) -> *mut c_char {
+    if ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+    let lib = unsafe { &(*ptr).0 };
+    let p = unsafe { c_str_to_str(path) };
+    match playlist::import_m3u8_into_library(Path::new(p), lib) {
+        Ok(outcome) => str_to_c_string(&serde_json::to_string(&outcome).unwrap_or_default()),
+        Err(e) => {
+            log::error!("M3U8 import failed: {e}");
+            std::ptr::null_mut()
+        }
+    }
+}
+
 // ─── Memory Management ────────────────────────────────────────────
 
 /// Free a string returned by any rhythm_* function.
