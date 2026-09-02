@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "doc": "Rhythm FFI 数据契约单一声明（#180）：Track/M3u8Entry/M3u8ImportOutcome/ResolvedUrl 的跨 seam 字段与枚举。生成器 scripts/gen-ffi-bindings.py 由此产出双端编解码绑定：macos/Rhythm/Models/GeneratedCodec.swift 与 windows/Rhythm/Bridge/GeneratedCodec.h。改契约只改本文件，再跑生成器。",
+  "doc": "Rhythm FFI 数据契约单一声明（#180）：Track/M3u8Entry/M3u8ImportOutcome/ImportOutcome/ResolvedUrl 的跨 seam 字段与枚举。生成器 scripts/gen-ffi-bindings.py 由此产出双端编解码绑定：macos/Rhythm/Models/GeneratedCodec.swift 与 windows/Rhythm/Bridge/GeneratedCodec.h。改契约只改本文件，再跑生成器。",
   "enums": {
     "source_type": [
       "local",
@@ -70,6 +70,11 @@
   },
   "m3u8_import_outcome": {
     "imported": "i32",
+    "failed": "i32"
+  },
+  "import_outcome": {
+    "imported": "i32",
+    "unsupported": "i32",
     "failed": "i32"
   },
   "resolved_url": {
