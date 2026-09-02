@@ -68,6 +68,9 @@ scripts/            build-macos.sh / build-rust-macos.sh / build-windows.* / che
   新增文案只改键表再跑 `scripts/gen-l10n.py`；键表漂移由 L0 校验拦截（#185）
 - **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `scripts/check-no-emoji.sh` 校验；发现即修，不得绕过
 - **品牌色**：只用 `RhythmTheme` 模块的 token（如 `.rhythmAccent`），不硬编码色值
+- **版本号单一出处**：版本号只改 `Cargo.toml` 的 `[workspace.package] version`；其余六处（依赖锁文件、两份 README 版本行、macOS `Info.plist`、
+  `windows/CMakeLists.txt`、`testing/README.md` 状态表）是副本，随之同步。漂移由 `python3 testing/l0/check-version-drift.py` 拦截，
+  已挂进 `testing/run-all.sh` 的 L0 段与 CI 静态分析作业（#251/#252/#253）
 - **构建产物**：放 `build/` 目录（scripts/build-macos.sh 生成 Rhythm.app）
 
 ## 坑（非显而易见，踩过才写）
@@ -91,5 +94,5 @@ scripts/            build-macos.sh / build-rust-macos.sh / build-windows.* / che
 | docs/testing/behavior/ | 人+agent | 按模块的行为清单 + 红测登记（测试完整性的交付物） |
 | docs/issues/ | 人+agent | 已调查并辑录的 bug 报告（issue 草稿，可直接贴 GitHub） |
 | testing/deep-testing-plan.md | 人 | 主题色彩测试方案（L0-L4）+ F1-F8 修复状态 |
-| testing/README.md | 人+agent | 测试基础设施：palette 同步、L0 五脚本、各层测试源码、当前状态表 |
+| testing/README.md | 人+agent | 测试基础设施：palette 同步、L0 脚本与自测、各层测试源码、当前状态表 |
 | 本文 CONTEXT.md | agent | 领域词汇 + 导航 + 约定 |
