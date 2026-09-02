@@ -150,39 +150,21 @@ bool Library::RemoveTrack(int64_t id) {
     return rhythm_library_remove_track(ptr_, id) == 0;
 }
 
-/// Decode the core's M3U8 entries — named fields (title/artist/location),
-/// no positional indexing (#177).
-static std::vector<M3u8Entry> ParseM3u8Entries(const char* json) {
-    std::vector<M3u8Entry> entries;
-    if (!json) return entries;
-    try {
-        auto j = json::parse(json);
-        for (const auto& item : j) {
-            M3u8Entry entry;
-            if (item.contains("title") && !item["title"].is_null()) {
-                entry.title = Utf8ToWide(item["title"].get<std::string>());
-            }
-            if (item.contains("artist") && !item["artist"].is_null()) {
-                entry.artist = Utf8ToWide(item["artist"].get<std::string>());
-            }
-            if (item.contains("location") && !item["location"].is_null()) {
-                entry.location = Utf8ToWide(item["location"].get<std::string>());
-            }
-            entries.push_back(std::move(entry));
-        }
-    } catch (const json::exception&) {
-        // Malformed payload: nothing to import.
-    }
-    return entries;
-}
-
-std::vector<M3u8Entry> Library::ImportM3U8(const std::wstring& path) {
-    if (!ptr_) return {};
+/// Decode the core's named import outcome (#236) — the counts are the whole
+/// contract, the UI never re-derives "did this entry make it".
+std::optional<M3u8ImportOutcome> Library::ImportM3U8(const std::wstring& path) {
+    if (!ptr_) return std::nullopt;
     auto p = WideToUtf8(path);
-    char* raw = rhythm_import_m3u8(p.c_str());
-    auto entries = ParseM3u8Entries(raw);
-    if (raw) rhythm_free_string(raw);
-    return entries;
+    char* raw = rhythm_import_m3u8_into_library(ptr_, p.c_str());
+    if (!raw) return std::nullopt;
+    std::optional<M3u8ImportOutcome> outcome;
+    try {
+        outcome = generated::M3u8ImportOutcomeFromJson(json::parse(raw));
+    } catch (const json::exception&) {
+        // Malformed payload: nothing to report.
+    }
+    rhythm_free_string(raw);
+    return outcome;
 }
 
 // ─── Coordinator ────────────────────────────────────────────────────

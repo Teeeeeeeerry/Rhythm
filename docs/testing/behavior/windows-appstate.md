@@ -57,7 +57,7 @@
 | 编号 | 行为 | 断言 | 说明 |
 |---|---|---|---|
 | WA-23（T7 已实现，待 Windows 验证） | `ImportDirectory` 导入反馈 | 导入数量经状态/回调反馈到 UI（对齐 macOS alert） | 功能新增 |
-| WA-26（#173） | M3U8 导入逐条入库 | `ImportM3U8(path)` 解析→逐条 `AddTrack`（URL→direct_url、其余→local）→刷新→统计文案；失败计数与 macOS 一致（原 no-op 修复） | 真 FFI 解析 + 临时 M3U8 文件 |
+| WA-26（#236） | M3U8 导入结果渲染 | `ImportM3U8(path)` 调核心解析并入库入口 → 按具名结果 `{imported, failed}` 选提示语 → 从数据库重载列表；入库策略断言归属核心（PL-17 至 PL-24），列表不可读时不弹提示 | 真 FFI + 临时 M3U8 文件 |
 | WA-28（#186） | 文案断言引用合并清单 | Windows 文案断言（原 WA-26 文案层）随 `l10n-keys.md`（LK-01~06）——固定 locale、键表驱动 | L10nTests.cpp |
 | WA-27（#175） | 事件驱动渲染（替代定时器） | `finished`/`track_changed`/`progress`/`state`/`error` 事件 → `IsPlaying`/`CurrentTrack`/`Position`/`IsBuffering`/分类文案（自动切歌在核心，CO-25） | SpyCoordinator 事件注入 |
 | WA-26（#141，待 Windows 验证） | Windows 文案层 L10n | 全部用户可见文案经 `L10n`（对齐 macOS `L10n` 枚举）：手动覆盖（注册表 `AppLanguage`）优先、否则跟随系统 UI 语言；#120 expired/cdn_rejected 分类含英文分支；导入反馈、解析状态、来源徽标、托盘菜单同层 | 功能新增（macOS 对齐） |

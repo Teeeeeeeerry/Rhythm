@@ -52,44 +52,17 @@ void AppState::ImportDirectory(const std::wstring& path) {
 
 void AppState::ImportM3U8(const std::wstring& path) {
     if (!Library) return;
-    auto entries = Library->ImportM3U8(path);
-    int32_t imported = 0;
-    int32_t failed = 0;
-    for (const auto& entry : entries) {
-        // Entries without a location are not importable (macOS parity).
-        if (entry.location.empty()) {
-            failed += 1;
-            continue;
-        }
-        // A location that looks like an http(s) URL is stored as a
-        // direct_url; anything else is a local file path (macOS parity,
-        // #136 semantics).
-        bool isUrl = entry.location.rfind(L"http://", 0) == 0 ||
-                     entry.location.rfind(L"https://", 0) == 0;
-        Track track;
-        track.id = 0;
-        track.title = entry.title.empty() ? L"Unknown" : entry.title;
-        track.artist = entry.artist;
-        track.sourceType = isUrl ? L"direct_url" : L"local";
-        if (isUrl) {
-            track.sourceUrl = entry.location;
-        } else {
-            track.filePath = entry.location;
-        }
-        auto saved = Library->AddTrack(track);
-        if (saved.id != 0) {
-            imported += 1;
-        } else {
-            failed += 1;
-        }
-    }
+    // #236: parsing and storing are one core entry point — this layer only
+    // picks the alert text and reloads the list from the database.
+    auto outcome = Library->ImportM3U8(path);
+    if (!outcome) return;
     RefreshLibrary();
-    if (failed > 0) {
-        ImportAlertMessage = L10n::ImportSomeFailed(imported, failed);
-    } else if (imported > 0) {
-        ImportAlertMessage = L10n::ImportedTracks(imported);
+    if (outcome->failed > 0) {
+        ImportAlertMessage = L10n::ImportSomeFailed(outcome->imported, outcome->failed);
+    } else if (outcome->imported > 0) {
+        ImportAlertMessage = L10n::ImportedTracks(outcome->imported);
     }
-    if (imported > 0 || failed > 0) {
+    if (outcome->imported > 0 || outcome->failed > 0) {
         ShowImportAlert = true;
     }
 }
