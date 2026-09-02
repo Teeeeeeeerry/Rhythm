@@ -22,8 +22,8 @@
 | LB-12 | `remove_from_playlist`/`reorder_playlist_track` | 删除/改序生效，`get_playlist` 按 position 返回（reorder 到已占用 position 时其余行移位、position 无重复 → #95） |
 | LB-13 | `get_all_playlists`/`get_playlist` | 元数据完整，tracks 按 position 排序 |
 | LB-14 | `search`（FTS） | title/artist/album/genre 命中；rank 排序；上限 100；`*`/`"`/`(`/`)` 被清洗不报错 |
-| LB-15 | `import_from_directory` | 递归扫描入库；单曲失败（log warn）不中断整体；返回扫描曲目数 |
-| LB-16 | `import_file` | 支持格式 → 1；metadata 与 artwork 提取后入库 |
+| LB-15 | `import_from_directory` | 递归扫描入库；单曲失败（log warn）不中断整体；返回扫描曲目数（魔数返回码路径，#244 删除） |
+| LB-16 | `import_file` | 支持格式 → 1；metadata 与 artwork 提取后入库（魔数返回码路径，#244 删除） |
 
 ## 边界情况（P1）
 
@@ -44,6 +44,21 @@
 | LB-24 | 库路径不可写/损坏 | `open` 返回 Err（现状以目录路径代测 `lb24_open_directory_path_errors`：权限变体在 CI 不可靠、损坏库由 SQLite 自身报错兜底） |
 | LB-25 | `record_play` 不存在的 id | 影响 0 行，不报错 |
 | LB-26 | `import_from_directory` 非目录路径 | `InvalidInput` |
+
+## 导入结果分类（P0 — 具名结果与聚合规则，#238）
+
+三条导入路径共用同一结果形状 `ImportOutcome{imported, unsupported, failed}`；「格式不支持」与
+「读写失败」分开计数，多路径批量导入的聚合在核心完成（此前只有 macOS 有，Windows 完全没有）。
+
+| 编号 | 行为 | 断言 |
+|---|---|---|
+| LB-27 | `import_directory` 全部成功 | 每条入库，`imported` = 扫描数，另两项为 0 |
+| LB-28 | `import_directory` 空目录 | 三项全 0，库中无新增 |
+| LB-29 | `import_directory` 路径不存在/非目录 | 扫描跑不起来 → `failed` = 1 |
+| LB-30 | `import_single_file` 三种结局 | 支持格式 → `imported`；扩展名不支持 → `unsupported`；支持但读不出 → `failed` |
+| LB-31 | `import_paths` 部分成功 | 目录与文件混合，成功与失败分项累加，聚合在核心 |
+| LB-32 | `import_paths` 全部失败 | `failed` = 路径数，库中无新增 |
+| LB-33 | `import_paths` 成功与不支持混合 | `unsupported` 与 `imported` 各自计数，不被合并 |
 
 ## 与 library_integration.rs 的关系
 
