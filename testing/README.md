@@ -10,6 +10,7 @@
 | 数据源 | `palette.json` | 单一事实来源（tokens/sources 由源码自动提取，决策段人工维护） | — |
 | 数据源 | `sync-palette.py` | 源码 ↔ palette.json 同步；`--check` CI 校验；`--emit-swift-seed` 生成 L1 种子 | 改色后 |
 | L0 静态 | `l0/` | 8 个零依赖 Python 脚本（parity/contrast/forbidden/coverage/doc-drift/ffi-contract/l10n-keys/version-drift） | 每次 push/PR |
+| L0 静态 | `../scripts/check-no-emoji.py` | 零 emoji 硬性约定校验：范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物），二进制按内容探测跳过（#224/#257） | 提交前 / 每次 push/PR |
 | L0 自测 | `l0/tests/` | L0 校验脚本自身的行为测试（stdlib unittest，临时文件树夹具） | 每次 push/PR |
 | L1 单元 | `l1/macos/` | PaletteSeed + 五组 Swift 测试（isDark/RGB/对比度/语义/互异） | `swift test` |
 | L1 单元 | `l1/windows/` | 来源徽标色 assert 测试 exe（直测 `RhythmCore.h`，#121/#122） | ctest |
@@ -39,6 +40,7 @@ python3 testing/l0/check-doc-drift.py
 python3 testing/l0/check-ffi-contract.py
 python3 testing/l0/check-l10n-keys.py
 python3 testing/l0/check-version-drift.py
+python3 scripts/check-no-emoji.py
 # L0 校验脚本自身的测试：
 python3 -m unittest discover -s testing/l0/tests
 # 或一键全量（含 sync 校验 + L1 swift test，日志统一落盘）：
@@ -59,7 +61,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.93）
+## 当前状态（main，v0.5.94）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
@@ -70,6 +72,7 @@ EOF
 | `check-token-coverage.py` | PASS | 7 个 macOS 视图 + 5 个 Windows 视图全部引用 token（F2 已修复：#124/#133） |
 | `check-doc-drift.py` | PASS | 文档色值全部收录于 palette.json |
 | `check-version-drift.py` | PASS | 六处版本副本与 `Cargo.toml` 一致（版本号只改 `Cargo.toml`，#251/#252/#253） |
+| `check-no-emoji.py` | PASS | 203 个被跟踪文件零 emoji；范围由扩展名白名单翻转为排除清单，此前漏检的 43 个文件（Windows UI 实现层、L0 脚本、界面标记文件）自此纳入（#224/#257） |
 
 L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门槛见 deep-testing-plan.md §7；
 状态表随每次改色/改视图核对，方式是重跑 `bash testing/run-all.sh`（严格模式，任一红即非零退出，#144）。

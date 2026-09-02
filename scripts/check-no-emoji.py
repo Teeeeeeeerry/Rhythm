@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """零 emoji 校验（硬性约定，见 CONTEXT.md 工作约定）。
 
-扫描被 git 跟踪的文本文件，发现 emoji 即报错退出（exit 1）。
+检查范围是「被 git 跟踪的全部文件减去排除清单」：新增语言或文件类型默认被覆盖，
+不需要有人记得回来补白名单（#224/#257，此前的扩展名白名单漏掉 43 个文件）。
+跳过两类：EXCLUDED 列出的路径（有意声明的豁免）与内容探测判定的二进制文件。
+发现 emoji 即报错退出（exit 1）。
 
 用法：python3 scripts/check-no-emoji.py [--root PATH] [--log PATH]
 """
@@ -26,16 +29,51 @@ EMOJI_RE = re.compile(
     "\u2721\u3030\u303D\u3297\u3299]"
 )
 
-EXTS = (
-    ".md", ".rs", ".swift", ".txt", ".toml", ".plist", ".m", ".h", ".js",
-    ".ts", ".json", ".bat", ".sh", ".yml", ".yaml", ".css", ".html",
-    ".xcconfig", ".strings",
+# 排除清单：这条硬性约定不管辖的地方，一眼可读。
+# 目录前缀（含结尾斜杠）与完整路径分开列，改动时只动这一处。
+EXCLUDED_PREFIXES = (
+    "windows/tests/vendor/",  # 第三方单头测试框架（Catch2 amalgamated），非本仓库文本
+    "build/",                 # 构建产物
+    "target/",                # Rust 构建产物
 )
+EXCLUDED_PATHS = (
+    "Cargo.lock",             # 依赖锁文件，由包管理器生成
+)
+# 二进制资源的扩展名兜底（内容探测之外的快速跳过）。
+EXCLUDED_SUFFIXES = (
+    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".icns", ".webp", ".pdf",
+    ".zip", ".gz", ".tar", ".xz", ".ttf", ".otf", ".woff", ".woff2",
+    ".mp3", ".mp4", ".wav", ".flac", ".car", ".pyc",
+)
+
+BINARY_PROBE_BYTES = 8192
+
+
+def is_excluded(rel: str) -> bool:
+    """是否在排除清单内（有意声明的豁免，不受这条约定管辖）。"""
+    return (rel in EXCLUDED_PATHS
+            or rel.startswith(EXCLUDED_PREFIXES)
+            or rel.endswith(EXCLUDED_SUFFIXES))
+
+
+def is_binary(path: Path) -> bool:
+    """按内容探测二进制：前 8KB 出现 NUL 字节即判定为二进制。"""
+    try:
+        with open(path, "rb") as fh:
+            return b"\x00" in fh.read(BINARY_PROBE_BYTES)
+    except OSError:
+        return True
 
 
 def tracked_files(root: Path) -> list[str]:
-    out = subprocess.check_output(["git", "ls-files"], text=True, cwd=root)
-    return [f for f in out.splitlines() if f.endswith(EXTS)]
+    """git 跟踪的全部文件减去排除清单。
+
+    用 -z 取原始路径：默认输出会对非 ASCII 路径加引号转义，
+    那样的路径既匹配不上排除清单也打不开（此前 docs/adr 下的中文文件名即因此漏检）。
+    """
+    out = subprocess.check_output(["git", "ls-files", "-z"], cwd=root)
+    rels = [f for f in out.decode("utf-8").split("\0") if f]
+    return sorted(f for f in rels if not is_excluded(f))
 
 
 def main() -> int:
@@ -49,23 +87,28 @@ def main() -> int:
     pl.open_log(args.log or pl.default_log_path("check-no-emoji", root))
 
     bad = 0
+    scanned = 0
     for f in tracked_files(root):
+        path = root / f
+        if is_binary(path):
+            continue
         try:
-            with open(root / f, encoding="utf-8", errors="strict") as fh:
+            with open(path, encoding="utf-8", errors="strict") as fh:
                 for lineno, line in enumerate(fh, 1):
                     m = EMOJI_RE.search(line)
                     if m:
                         bad += 1
                         print(f"{f}:{lineno}: emoji U+{ord(m.group()):04X}: {line.rstrip()}")
         except (UnicodeDecodeError, OSError):
-            # 二进制或不可读文件跳过（git ls-files 已排除构建产物）。
-            pass
+            # 非 UTF-8 或不可读文件跳过：校验不因编码错误中断。
+            continue
+        scanned += 1
 
     if bad:
         print(f"FAIL: {bad} emoji found (CONTEXT.md 工作约定: 零 emoji, 必须修掉)",
               file=sys.stderr)
         return 1
-    print("OK: no emoji found")
+    print(f"OK: no emoji found ({scanned} files scanned)")
     return 0
 
 
