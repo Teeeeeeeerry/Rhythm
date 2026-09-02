@@ -74,8 +74,9 @@ void MainWindow::OnImportClick(IInspectable const&, RoutedEventArgs const&) {
     });
 }
 
-/// #242: Windows can import a single audio file, not only a folder. The
-/// picker offers files -- the capability macOS has always had.
+/// #242/#243: Windows can import audio files, not only a folder, and more
+/// than one at a time -- the capability macOS has always had. One file goes
+/// through the single-file path, several through the core's batch import.
 void MainWindow::OnImportFileClick(IInspectable const&, RoutedEventArgs const&) {
     auto picker = winrt::Windows::Storage::Pickers::FileOpenPicker();
     picker.SuggestedStartLocation(
@@ -86,10 +87,18 @@ void MainWindow::OnImportFileClick(IInspectable const&, RoutedEventArgs const&) 
     auto hwnd = GetWindowHandle();
     picker.as<winrt::Windows::Foundation::IInitializeWithWindow>()->Initialize(hwnd);
 
-    picker.PickSingleFileAsync().Completed([this](auto const& operation, auto) {
-        if (auto file = operation.GetResults()) {
-            appState_.ImportFile(file.Path().c_str());
+    picker.PickMultipleFilesAsync().Completed([this](auto const& operation, auto) {
+        auto files = operation.GetResults();
+        if (!files || files.Size() == 0) return;
+        if (files.Size() == 1) {
+            appState_.ImportFile(files.GetAt(0).Path().c_str());
+            return;
         }
+        std::vector<std::wstring> paths;
+        for (const auto& file : files) {
+            paths.emplace_back(file.Path().c_str());
+        }
+        appState_.ImportPaths(paths);
     });
 }
 

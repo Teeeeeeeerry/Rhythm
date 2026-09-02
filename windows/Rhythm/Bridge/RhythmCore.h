@@ -167,6 +167,10 @@ public:
     /// Import one audio file (#242). Same result shape as the directory
     /// path; an unsupported format and a read failure keep their own counts.
     std::optional<ImportOutcome> ImportFile(const std::wstring& path);
+    /// Import a mixed batch of directories and files (#243). The directory
+    /// dispatch and the "partial success" aggregation happen in the core --
+    /// this side never sums counts.
+    std::optional<ImportOutcome> ImportPaths(const std::vector<std::wstring>& paths);
     std::vector<Track> AllTracks();
     std::vector<Track> Search(const std::wstring& query);
     void VerifyFiles();
