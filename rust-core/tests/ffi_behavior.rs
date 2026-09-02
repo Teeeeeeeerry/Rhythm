@@ -1,7 +1,7 @@
 //! FF-01–21：FFI 层行为清单（manifest: docs/testing/behavior/ffi.md）。
 //!
 //! 零接缝：C ABI 直调 + 真实 Library/Queue/Player，tempfile 临时库。
-//! 历史回归：#21（解析失败只有 null、无原因）、#79（import_file 返回值契约）。
+//! 历史回归：#21（解析失败只有 null、无原因）、#79（旧 import_file 返回值契约，导出已随 #244 删除）。
 
 mod common;
 
@@ -57,53 +57,7 @@ fn ff02_open_failure_returns_null() {
     assert!(lib.is_null(), "a directory is not a valid database path");
 }
 
-// ─── FF-03/04 import ────────────────────────────────────────────────
-
-#[test]
-fn ff03_import_directory_counts_and_errors() {
-    let dir = tempfile::tempdir().unwrap();
-    let music = dir.path().join("music");
-    std::fs::create_dir_all(&music).unwrap();
-    common::write_wav(&music.join("a.wav"), 0.5);
-    common::write_wav(&music.join("b.wav"), 0.5);
-
-    let lib = open_lib(dir.path());
-    let count = unsafe { rhythm_library_import(lib, c(music.to_str().unwrap()).as_ptr()) };
-    assert_eq!(count, 2);
-
-    // Errors → -1: null pointer and non-directory path.
-    assert_eq!(unsafe { rhythm_library_import(std::ptr::null_mut(), c("x").as_ptr()) }, -1);
-    let file = music.join("a.wav");
-    assert_eq!(unsafe { rhythm_library_import(lib, c(file.to_str().unwrap()).as_ptr()) }, -1);
-    unsafe { rhythm_library_close(lib) };
-}
-
-/// 文档契约 "1 成功、0 不支持、-1 错误"（#79 修复后启用）。
-#[test]
-fn ff04_import_file_unsupported_returns_zero() {
-    let dir = tempfile::tempdir().unwrap();
-    let txt = dir.path().join("note.txt");
-    std::fs::write(&txt, b"not audio").unwrap();
-
-    let lib = open_lib(dir.path());
-    let ret = unsafe { rhythm_library_import_file(lib, c(txt.to_str().unwrap()).as_ptr()) };
-    assert_eq!(ret, 0, "unsupported format must return 0");
-    unsafe { rhythm_library_close(lib) };
-}
-
-#[test]
-fn ff04_import_file_success_and_errors() {
-    let dir = tempfile::tempdir().unwrap();
-    let wav = dir.path().join("tone.wav");
-    common::write_wav(&wav, 0.5);
-    let missing = dir.path().join("missing.mp3");
-
-    let lib = open_lib(dir.path());
-    assert_eq!(unsafe { rhythm_library_import_file(lib, c(wav.to_str().unwrap()).as_ptr()) }, 1);
-    assert_eq!(unsafe { rhythm_library_import_file(lib, c(missing.to_str().unwrap()).as_ptr()) }, -1);
-    assert_eq!(unsafe { rhythm_library_import_file(std::ptr::null_mut(), c("x").as_ptr()) }, -1);
-    unsafe { rhythm_library_close(lib) };
-}
+// ─── FF-24 导入结果契约 ─────────────────────────────────────────────
 
 /// FF-24: the three new import exports share one result shape (#239) —
 /// counts are named across the seam, not reverse-engineered from an integer.
@@ -396,7 +350,7 @@ fn ff17_empty_path_inputs_do_not_crash() {
     if !lib.is_null() {
         unsafe { rhythm_library_close(lib) };
     }
-    assert_eq!(unsafe { rhythm_library_import(std::ptr::null_mut(), c("").as_ptr()) }, -1);
+    assert!(unsafe { rhythm_library_import_directory(std::ptr::null_mut(), c("").as_ptr()) }.is_null());
 }
 
 // ─── FF-20 错误码函数空指针安全默认 ─────────────────────────────────
@@ -408,8 +362,9 @@ fn ff20_null_pointer_safe_defaults() {
     let null_lib: *mut RhythmLibrary = std::ptr::null_mut();
 
     unsafe { rhythm_library_close(null_lib) };
-    assert_eq!(unsafe { rhythm_library_import(null_lib, c("x").as_ptr()) }, -1);
-    assert_eq!(unsafe { rhythm_library_import_file(null_lib, c("x").as_ptr()) }, -1);
+    assert!(unsafe { rhythm_library_import_directory(null_lib, c("x").as_ptr()) }.is_null());
+    assert!(unsafe { rhythm_library_import_single_file(null_lib, c("x").as_ptr()) }.is_null());
+    assert!(unsafe { rhythm_library_import_paths(null_lib, c("[]").as_ptr()) }.is_null());
     assert!(unsafe { rhythm_library_get_all_tracks(null_lib) }.is_null());
     assert!(unsafe { rhythm_library_search(null_lib, c("x").as_ptr()) }.is_null());
     assert!(unsafe { rhythm_library_add_track(null_lib, c("{}").as_ptr()) }.is_null());

@@ -117,57 +117,6 @@ pub unsafe extern "C" fn rhythm_library_close(ptr: *mut RhythmLibrary) {
     }
 }
 
-/// Scan a directory and import all audio files into the library.
-/// Returns the number of tracks imported, or -1 on error.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_library_import(ptr: *mut RhythmLibrary, dir: *const c_char) -> i32 {
-    if ptr.is_null() {
-        return -1;
-    }
-    let lib = unsafe { &(*ptr).0 };
-    let path = unsafe { c_str_to_str(dir) };
-    match lib.import_from_directory(Path::new(path)) {
-        Ok(count) => count as i32,
-        Err(e) => {
-            log::error!("Import failed: {e}");
-            -1
-        }
-    }
-}
-
-/// Import a single audio file into the library.
-/// Returns 1 on success, 0 if the file is not a supported audio format,
-/// or -1 on error.
-#[no_mangle]
-///
-/// # Safety
-/// See the module-level `# Safety` contract.
-pub unsafe extern "C" fn rhythm_library_import_file(
-    ptr: *mut RhythmLibrary,
-    file_path: *const c_char,
-) -> i32 {
-    if ptr.is_null() {
-        return -1;
-    }
-    let lib = unsafe { &(*ptr).0 };
-    let path = unsafe { c_str_to_str(file_path) };
-    match lib.import_file(Path::new(path)) {
-        Ok(count) => count,
-        // Unsupported format → 0 per the documented contract (#79).
-        Err(crate::RhythmError::UnsupportedFormat(msg)) => {
-            log::warn!("Import file skipped: {msg}");
-            0
-        }
-        Err(e) => {
-            log::error!("Import file failed: {e}");
-            -1
-        }
-    }
-}
-
 /// Serialize a library import outcome for the seam (#239).
 fn import_outcome_to_c_string(outcome: &crate::library::ImportOutcome) -> *mut c_char {
     str_to_c_string(&serde_json::to_string(outcome).unwrap_or_default())
