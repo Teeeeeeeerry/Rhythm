@@ -271,20 +271,10 @@ void AppState::ApplyCoordinatorEvent(const std::wstring& json) {
             }
             UrlError = L10n::PlaybackFailed(kind, detail);
             OutputDebugStringW((L"Playback failed: " + detail + L"\n").c_str());
-            if (OnUrlError) {
-                // #120: classify HTTP failures so the dialog can tell a
-                // genuinely expired link from a CDN rejection.
-                std::wstring kindCode = L"playback_failed";
-                if (j.contains("kind") && !j["kind"].is_null()) {
-                    auto kind = j["kind"].get<std::string>();
-                    if (kind == "expired") {
-                        kindCode = L"playback_expired";
-                    } else if (kind == "cdn_rejected") {
-                        kindCode = L"playback_cdn_rejected";
-                    }
-                }
-                OnUrlError(kindCode, detail);
-            }
+            // #226: the event carries the core's own classification value
+            // (#120 expired / cdn_rejected / other, empty when the failure
+            // was not HTTP) — no UI-side prefix to encode and decode.
+            if (OnUrlError) OnUrlError(kind, detail);
         } else if (type == "track_changed") {
             if (j.contains("track") && !j["track"].is_null()) {
                 CurrentTrack = rhythm::ParseTrackJson(j["track"].dump());

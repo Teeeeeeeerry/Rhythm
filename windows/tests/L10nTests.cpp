@@ -95,9 +95,9 @@ TEST_CASE("LK-03 L10n playback failure classification has English branches") {
         auto generic = L10n::PlaybackFailed(L"other", L"detail");
         REQUIRE(generic.find(L"Playback failed") != std::wstring::npos);
 
-        // The Windows "playback_"-prefixed codes normalize to the same copy.
-        auto prefixed = L10n::PlaybackFailed(L"playback_expired", L"detail");
-        REQUIRE(prefixed == expired);
+        // #226: the kind crossing the seam is the core's own value.
+        REQUIRE(L10n::UrlErrorText(L"expired", L"detail") == expired);
+        REQUIRE(L10n::UrlErrorText(L"", L"detail") == generic);
     }
     {
         LanguageScope zh(L"zh");

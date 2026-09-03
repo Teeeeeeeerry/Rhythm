@@ -317,18 +317,13 @@ inline std::wstring UrlResolveError(const std::wstring& kind, const std::wstring
 /// core classifies HTTP failures: a genuinely expired link ("expired")
 /// keeps the "re-paste" advice; a CDN rejecting a still-valid URL
 /// ("cdn_rejected") gets the truthful "your network is being rejected"
-/// copy. Accepts both the raw core kinds and the "playback_"-prefixed
-/// codes the UI maps them to (mirrors macOS `playbackFailed`).
+/// copy. `kind` is the core's own value (#226 — the UI no longer encodes
+/// a prefix, so there is nothing to strip; mirrors macOS `playbackFailed`).
 inline std::wstring PlaybackFailed(const std::wstring& kind, const std::wstring& detail) {
-    std::wstring normalized = kind;
-    if (normalized.rfind(L"playback_", 0) == 0) {
-        normalized = normalized.substr(9);
-    }
-
     std::wstring headline;
-    if (normalized == L"expired") {
+    if (kind == L"expired") {
         headline = Key("playback_failed_expired");
-    } else if (normalized == L"cdn_rejected") {
+    } else if (kind == L"cdn_rejected") {
         headline = Key("playback_failed_cdn_rejected");
     } else {
         headline = Key("playback_failed_headline");
@@ -341,8 +336,11 @@ inline std::wstring PlaybackFailed(const std::wstring& kind, const std::wstring&
 }
 
 /// Dispatch an OnUrlError (kind, message) pair to the matching localizer.
+/// The two families are told apart by the core's own values (#226): the
+/// #120 HTTP classification, or an empty kind for a non-HTTP playback
+/// failure, means playback; anything else is a ResolveErrorKind.
 inline std::wstring UrlErrorText(const std::wstring& kind, const std::wstring& message) {
-    if (kind.rfind(L"playback_", 0) == 0) {
+    if (kind.empty() || kind == L"expired" || kind == L"cdn_rejected" || kind == L"other") {
         return PlaybackFailed(kind, message);
     }
     return UrlResolveError(kind, message);
