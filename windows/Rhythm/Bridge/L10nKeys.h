@@ -70,8 +70,6 @@ inline const wchar_t* L10nKeys_zh_importing() { return L"正在导入…"; }
 inline const wchar_t* L10nKeys_en_importing() { return L"Importing…"; }
 inline const wchar_t* L10nKeys_zh_library_empty() { return L"无内容"; }
 inline const wchar_t* L10nKeys_en_library_empty() { return L"No Content"; }
-inline const wchar_t* L10nKeys_zh_library_empty_hint() { return L"资料库为空 — 点击 + 导入音乐文件夹"; }
-inline const wchar_t* L10nKeys_en_library_empty_hint() { return L"Library is empty — tap + to import a music folder"; }
 inline const wchar_t* L10nKeys_zh_library_tab() { return L"资料库"; }
 inline const wchar_t* L10nKeys_en_library_tab() { return L"Library"; }
 inline const wchar_t* L10nKeys_zh_menu_next() { return L"下一首"; }

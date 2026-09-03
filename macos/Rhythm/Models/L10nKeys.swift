@@ -46,7 +46,6 @@ enum L10nKeys {
         "imported_tracks": (zh: "已导入 {count} 首歌曲", en: "Imported {count} track{s}."),
         "importing": (zh: "正在导入…", en: "Importing…"),
         "library_empty": (zh: "无内容", en: "No Content"),
-        "library_empty_hint": (zh: "资料库为空 — 点击 + 导入音乐文件夹", en: "Library is empty — tap + to import a music folder"),
         "library_tab": (zh: "资料库", en: "Library"),
         "menu_next": (zh: "下一首", en: "Next Track"),
         "menu_play_pause": (zh: "播放/暂停", en: "Play/Pause"),
