@@ -1,10 +1,14 @@
-//! MS-01~03：核心消息规格（manifest: docs/testing/behavior/l10n-keys.md）。
+//! MS-01~06：核心消息规格（manifest: docs/testing/behavior/l10n-keys.md）。
 //!
 //! 零接缝：纯函数，无 UI 框架依赖，确定性运行。
 //! 历史回归：#120（播放失败分类）、#135（分类判断被写进中文分支，英文用户
 //! 拿不到分类建议）——分派下沉到核心后，两端两语言不可能再分叉。
 
-use rhythm_core::message::{playback_failure, MessageLanguage, MessageSegment, MessageSpec};
+use rhythm_core::message::{
+    playback_failure, resolve_failure, MessageLanguage, MessagePlatform, MessageSegment,
+    MessageSpec,
+};
+use rhythm_core::resolver::ResolveErrorKind;
 use rhythm_core::HttpErrorKind;
 
 /// 规格里第一个键段的键名（拼装形状的「标题」那一段）。
@@ -97,5 +101,118 @@ fn ms03_empty_detail_leaves_only_the_headline() {
         let spec = playback_failure(Some(HttpErrorKind::CdnRejected), "", language);
         assert_eq!(spec.segments.len(), 1, "{language:?} 只该剩标题一段");
         assert_eq!(render(&spec), "<playback_failed_cdn_rejected>");
+    }
+}
+
+// ─── MS-04 解析失败分类到文案键 ─────────────────────────────────────
+
+#[test]
+fn ms04_resolve_failure_maps_each_classification_to_its_key() {
+    // 表驱动：每一种解析错误分类一行（macOS 键；平台差异见 MS-05）。
+    let cases: &[(ResolveErrorKind, &str)] = &[
+        (ResolveErrorKind::InvalidUrl, "resolve_error_invalid_url"),
+        (ResolveErrorKind::YtDlpMissing, "resolve_error_yt_dlp_missing"),
+        (ResolveErrorKind::Timeout, "resolve_error_timeout"),
+        (ResolveErrorKind::Network, "resolve_error_network"),
+        (ResolveErrorKind::Unavailable, "resolve_error_unavailable"),
+        (ResolveErrorKind::NoAudioStream, "resolve_error_no_audio_stream"),
+        (ResolveErrorKind::YtDlpOutdated, "resolve_error_yt_dlp_outdated"),
+    ];
+
+    for (kind, expected_key) in cases {
+        let spec = resolve_failure(
+            Some(*kind),
+            "engine detail",
+            MessageLanguage::Chinese,
+            MessagePlatform::MacOs,
+        );
+        assert_eq!(headline_key(&spec), *expected_key, "{kind:?} 应当选中 {expected_key}");
+    }
+}
+
+#[test]
+fn ms04_unrecognised_classification_falls_back_to_the_engine_detail() {
+    // Internal 与未识别分类：引擎原文就是全部已知信息，不猜文案。
+    for kind in [Some(ResolveErrorKind::Internal), None] {
+        let spec = resolve_failure(
+            kind,
+            "engine detail",
+            MessageLanguage::Chinese,
+            MessagePlatform::MacOs,
+        );
+        assert_eq!(render(&spec), "engine detail", "{kind:?} 应当回退引擎原文");
+    }
+}
+
+#[test]
+fn ms04_english_returns_the_engine_detail_verbatim() {
+    // 键表的英文栏对解析失败条目是空的：原文本身就是可行动的信息。
+    let spec = resolve_failure(
+        Some(ResolveErrorKind::Timeout),
+        "engine detail",
+        MessageLanguage::English,
+        MessagePlatform::MacOs,
+    );
+    assert_eq!(render(&spec), "engine detail");
+}
+
+#[test]
+fn ms04_chinese_keeps_the_headline_plus_detail_shape() {
+    let spec = resolve_failure(
+        Some(ResolveErrorKind::Timeout),
+        "engine detail",
+        MessageLanguage::Chinese,
+        MessagePlatform::MacOs,
+    );
+    assert_eq!(
+        render(&spec),
+        "<resolve_error_timeout>\n\n<detail_prefix_zh>\nengine detail"
+    );
+}
+
+// ─── MS-05 平台差异键 ───────────────────────────────────────────────
+
+#[test]
+fn ms05_platform_diff_keys_come_from_the_platform_marker() {
+    // 安装命令在两个平台不同：规格带平台标记选键，适配层不再分叉。
+    let cases: &[(ResolveErrorKind, &str, &str)] = &[
+        (
+            ResolveErrorKind::YtDlpMissing,
+            "resolve_error_yt_dlp_missing",
+            "resolve_error_yt_dlp_missing_windows",
+        ),
+        (
+            ResolveErrorKind::YtDlpOutdated,
+            "resolve_error_yt_dlp_outdated",
+            "resolve_error_yt_dlp_outdated_windows",
+        ),
+    ];
+
+    for (kind, mac_key, win_key) in cases {
+        let mac = resolve_failure(Some(*kind), "d", MessageLanguage::Chinese, MessagePlatform::MacOs);
+        let win = resolve_failure(
+            Some(*kind),
+            "d",
+            MessageLanguage::Chinese,
+            MessagePlatform::Windows,
+        );
+        assert_eq!(headline_key(&mac), *mac_key);
+        assert_eq!(headline_key(&win), *win_key);
+    }
+}
+
+#[test]
+fn ms05_platform_marker_does_not_touch_the_shared_keys() {
+    // 没有平台差异的分类：两个平台选同一个键。
+    for kind in [
+        ResolveErrorKind::InvalidUrl,
+        ResolveErrorKind::Timeout,
+        ResolveErrorKind::Network,
+        ResolveErrorKind::Unavailable,
+        ResolveErrorKind::NoAudioStream,
+    ] {
+        let mac = resolve_failure(Some(kind), "d", MessageLanguage::Chinese, MessagePlatform::MacOs);
+        let win = resolve_failure(Some(kind), "d", MessageLanguage::Chinese, MessagePlatform::Windows);
+        assert_eq!(headline_key(&mac), headline_key(&win), "{kind:?} 不该有平台差异");
     }
 }
