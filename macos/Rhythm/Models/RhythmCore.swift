@@ -587,6 +587,51 @@ func resolverDiagnostics() -> String {
     return String(cString: json)
 }
 
+// ─── 核心消息规格（#227/#228）──────────────────────────────────────
+
+/// 核心产出的一段文案：键表条目（可带占位符参数）或原样输出的字面量。
+enum MessageSegment: Decodable {
+    case key(String, [String: String])
+    case literal(String)
+
+    private enum CodingKeys: String, CodingKey {
+        case segment, key, params, text
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if try c.decode(String.self, forKey: .segment) == "key" {
+            self = .key(
+                try c.decode(String.self, forKey: .key),
+                try c.decodeIfPresent([String: String].self, forKey: .params) ?? [:]
+            )
+        } else {
+            self = .literal(try c.decode(String.self, forKey: .text))
+        }
+    }
+}
+
+/// 一条消息规格：按顺序拼接的段。段为空表示不显示任何文案。
+struct MessageSpec: Decodable {
+    let segments: [MessageSegment]
+}
+
+/// 解码消息规格（键名都是单词，不走 snake_case 转换，参数名原样保留）。
+private func decodeMessageSpec(_ json: String) -> MessageSpec? {
+    guard let data = json.data(using: .utf8) else { return nil }
+    return try? JSONDecoder().decode(MessageSpec.self, from: data)
+}
+
+/// 播放失败的消息规格。选哪个键、中英拼成什么形状由核心决定（#227）；
+/// `language` 是本层解析出的语言标识，语言解析仍是平台特异的。
+func playbackFailureSpec(kind: String?, detail: String, language: String) -> MessageSpec? {
+    guard let json = rhythm_message_playback_failure(kind ?? "", detail, language) else {
+        return nil
+    }
+    defer { rhythm_free_string(json) }
+    return decodeMessageSpec(String(cString: json))
+}
+
 /// Progress of yt-dlp provisioning, polled while a resolution is running so a
 /// first-run download doesn't look like a hang.
 struct ResolverStatus: Decodable {

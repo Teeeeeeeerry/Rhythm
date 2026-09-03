@@ -41,29 +41,30 @@ enum L10n {
     static var ok: String { L10nKeys.value("ok") }
     static var buffering: String { L10nKeys.value("buffering") }
 
+    /// 本层解析出的语言标识，交给核心决定拼装形状。语言解析（系统语言 +
+    /// 手动覆盖）是平台特异的，不下沉。
+    private static var languageCode: String { isChinese ? "zh" : "en" }
+
+    /// 渲染核心的消息规格：按键取模板、按参数填占位符，顺序拼接。
+    /// 这是适配层剩下的全部职责（#228）。
+    private static func render(_ spec: MessageSpec) -> String {
+        spec.segments.map { segment in
+            switch segment {
+            case .key(let key, let params): return fill(L10nKeys.value(key), params)
+            case .literal(let text): return text
+            }
+        }.joined()
+    }
+
     /// Explain a playback failure (as opposed to a resolution failure).
     ///
-    /// `kind` is the core's classification of HTTP failures (#120): a link
-    /// that genuinely expired ("expired") keeps the old "re-paste it" advice;
-    /// a CDN refusing a still-valid URL ("cdn_rejected") gets the truthful
-    /// "your network is being rejected" copy — re-pasting cannot help there.
+    /// `kind` 是核心对 HTTP 失败的分类（#120）。分类到文案键的分派、中英
+    /// 拼装形状都在核心（#227/#228），本层只填模板；核心不可用时退回引擎
+    /// 原文，不再本地重写一套分派。
     static func playbackFailed(kind: String?, detail: String) -> String {
-        // #135: the classification switch must not be inside the Chinese
-        // branch — English users need the same expired / cdn_rejected advice.
-        let headline: String
-        switch kind {
-        case "expired":
-            headline = L10nKeys.value("playback_failed_expired")
-        case "cdn_rejected":
-            headline = L10nKeys.value("playback_failed_cdn_rejected")
-        default:
-            headline = L10nKeys.value("playback_failed_headline")
-        }
-        return detail.isEmpty
-            ? headline
-            : isChinese
-                ? "\(headline)\n\n\(L10nKeys.value("detail_prefix_zh"))\n\(detail)"
-                : "\(headline)\n\n\(detail)"
+        guard let spec = playbackFailureSpec(kind: kind, detail: detail, language: languageCode)
+        else { return detail }
+        return render(spec)
     }
 
     /// Describe what the resolver is doing while the user waits.

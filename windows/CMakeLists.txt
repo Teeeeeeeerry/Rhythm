@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Rhythm VERSION 0.5.113 LANGUAGES CXX)
+project(Rhythm VERSION 0.5.114 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,6 +9,10 @@ set(CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION "10.0")
 
 # Find WinUI 3 via NuGet or vcpkg
 find_package(Microsoft.WindowsAppSDK REQUIRED)
+
+# L10n.h now includes Bridge/MessageSpec.h, which parses the core's message
+# spec JSON — the header-only json dependency is declared for both targets.
+find_package(nlohmann_json CONFIG REQUIRED)
 
 # Source files
 set(SOURCES
@@ -21,6 +25,7 @@ set(SOURCES
     Rhythm/MainWindow.xaml.h
     Rhythm/AppState.h
     Rhythm/AppState.cpp
+    Rhythm/Bridge/MessageSpec.h
     Rhythm/Bridge/RhythmCore.h
     Rhythm/Bridge/RhythmCore.cpp
     Rhythm/Models/Track.h
@@ -61,6 +66,7 @@ endif()
 # Link WinUI 3
 target_link_libraries(${PROJECT_NAME} PRIVATE
     Microsoft.WindowsAppSDK
+    nlohmann_json::nlohmann_json
 )
 
 # Link Rust core DLL (import library)
@@ -79,12 +85,9 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 # ─── Tests (Wave 4a) ────────────────────────────────────────────────
 
 # Catch2 v3 header-only test target. The main target never built a test
-# binary before; this also registers the pre-existing implicit dependency
-# on nlohmann/json (RhythmCore.cpp includes <nlohmann/json.hpp> without
-# the main target declaring it — tracked here explicitly for tests).
+# binary before. The json dependency is declared once above — both targets
+# need it (RhythmCore.cpp and, since #228, L10n.h via Bridge/MessageSpec.h).
 enable_testing()
-
-find_package(nlohmann_json CONFIG REQUIRED)
 
 set(TEST_SOURCES
     Rhythm/pch.h
@@ -92,6 +95,7 @@ set(TEST_SOURCES
     Rhythm/L10n.h
     Rhythm/AppState.h
     Rhythm/AppState.cpp
+    Rhythm/Bridge/MessageSpec.h
     Rhythm/Bridge/RhythmCore.h
     Rhythm/Bridge/RhythmCore.cpp
     Rhythm/Models/Track.h
