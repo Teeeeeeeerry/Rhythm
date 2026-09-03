@@ -146,6 +146,7 @@ inline const wchar_t* Key(const char* key) {
         L10N_ENTRY(resolve_error_yt_dlp_outdated_windows)
         L10N_ENTRY(resolver_status_checking)
         L10N_ENTRY(resolver_status_downloading)
+        L10N_ENTRY(resolver_status_downloading_unknown_total)
         L10N_ENTRY(resolver_status_failed)
         L10N_ENTRY(resolver_status_updating)
         L10N_ENTRY(resolver_status_verifying)
@@ -282,26 +283,10 @@ inline std::wstring SourceTag(const std::wstring& sourceType) {
 
 // ─── Resolver provisioning status ───────────────────────────────────
 
+/// 阶段分派、字节到 MB 的换算与「已收 / 总量」的格式化都在核心
+/// （#231/#232），本层只填模板；静默阶段与核心不可用时都是空串。
 inline std::wstring ResolverStatusText(const std::wstring& phase, int64_t received, int64_t total) {
-    auto mb = [](int64_t bytes) { return static_cast<double>(bytes) / 1048576.0; };
-    if (phase == L"checking")   return Key("resolver_status_checking");
-    if (phase == L"verifying")  return Key("resolver_status_verifying");
-    if (phase == L"updating")   return Key("resolver_status_updating");
-    if (phase == L"failed")     return Key("resolver_status_failed");
-    if (phase == L"downloading") {
-        std::wstring progress;
-        if (total > 0) {
-            wchar_t buf[64];
-            swprintf_s(buf, L"%.1f / %.1f MB", mb(received), mb(total));
-            progress = buf;
-        } else {
-            wchar_t buf[64];
-            swprintf_s(buf, L"%.1f MB", mb(received));
-            progress = buf;
-        }
-        return Fill(Key("resolver_status_downloading"), {{L"progress", progress}});
-    }
-    return L"";
+    return RenderMessageSpec(ResolverStatusSpec(phase, received, total));
 }
 
 // ─── URL resolution failure ─────────────────────────────────────────

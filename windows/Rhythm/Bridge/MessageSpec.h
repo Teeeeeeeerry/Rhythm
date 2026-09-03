@@ -80,4 +80,16 @@ inline std::vector<MessageSegment> ResolveFailureSpec(const std::wstring& kind,
     return ParseMessageSpec(owned);
 }
 
+/// 取一条解析器供给状态的消息规格。阶段分派、字节到 MB 的换算与
+/// 「已收 / 总量」的格式化都在核心（#231）；静默阶段返回空规格。
+inline std::vector<MessageSegment> ResolverStatusSpec(const std::wstring& phase,
+                                                      int64_t received, int64_t total) {
+    auto phaseUtf8 = WideToUtf8(phase);
+    char* json = rhythm_message_resolver_status(phaseUtf8.c_str(), received, total);
+    if (!json) return {};
+    std::string owned(json);
+    rhythm_free_string(json);
+    return ParseMessageSpec(owned);
+}
+
 } // namespace rhythm
