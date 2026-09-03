@@ -3,7 +3,14 @@ members = ["rust-core"]
 resolver = "2"
 
 [workspace.package]
-version = "0.5.109"
+version = "0.5.110"
 edition = "2021"
 license = "MIT"
 authors = ["Rhythm contributors"]
+
+# 控制 target/ 体积：debug 构建默认写入完整 DWARF，11 个集成测试
+# target 每次编译各产生 20-35MB 二进制，旧哈希产物不会被回收。
+# test profile 继承 dev，无需重复声明。
+[profile.dev]
+debug = "line-tables-only"
+incremental = false
