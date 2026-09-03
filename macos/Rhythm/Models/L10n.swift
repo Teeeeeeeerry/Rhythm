@@ -97,33 +97,12 @@ enum L10n {
 
     /// Explain a resolution failure.
     ///
-    /// The core's `kind` drives a localized headline; its English `message`
-    /// carries the actionable detail (install commands, yt-dlp's own output)
-    /// and is appended so nothing is lost on an unrecognised kind.
+    /// 分类到文案键的分派、中英拼装形状、平台差异选键都在核心
+    /// （#229/#230），本层只填模板；核心不可用时退回引擎原文。
     static func urlResolveError(kind: String, detail: String) -> String {
-        guard isChinese else { return detail }
-
-        let headline: String
-        switch kind {
-        case "yt_dlp_missing":
-            headline = L10nKeys.value("resolve_error_yt_dlp_missing")
-        case "timeout":
-            headline = L10nKeys.value("resolve_error_timeout")
-        case "network":
-            headline = L10nKeys.value("resolve_error_network")
-        case "unavailable":
-            headline = L10nKeys.value("resolve_error_unavailable")
-        case "no_audio_stream":
-            headline = L10nKeys.value("resolve_error_no_audio_stream")
-        case "yt_dlp_outdated":
-            headline = L10nKeys.value("resolve_error_yt_dlp_outdated")
-        case "invalid_url":
-            headline = L10nKeys.value("resolve_error_invalid_url")
-        default:
-            return detail
-        }
-
-        return "\(headline)\n\n\(L10nKeys.value("detail_prefix_zh"))\n\(detail)"
+        guard let spec = resolveFailureSpec(kind: kind, detail: detail, language: languageCode)
+        else { return detail }
+        return render(spec)
     }
 
     // ─── Play Mode Labels ─────────────────────────────────

@@ -136,6 +136,13 @@ char* rhythm_install_ytdlp(void);
 char* rhythm_message_playback_failure(const char* kind, const char* detail,
                                       const char* language);
 
+// kind: the core's ResolveErrorKind ("timeout", "yt_dlp_missing", ...);
+// "internal" and unknown values fall back to the engine detail. The
+// platform-specific install copy (brew vs winget) is picked by the core
+// from its build target. Free with rhythm_free_string.
+char* rhythm_message_resolve_failure(const char* kind, const char* detail,
+                                     const char* language);
+
 // ─── M3U8 Import/Export ────────────────────────────────────────────
 
 int32_t rhythm_export_m3u8(const char* file_path, const char* tracks_json);

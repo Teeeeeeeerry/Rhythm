@@ -16,23 +16,18 @@ void PlayerBarView::BindState(rhythm::AppState* state) {
     appState_ = state;
     if (!appState_) return;
 
-    appState_->OnUrlError = [this](const std::wstring& kind, const std::wstring& message) {
-        ShowUrlError(kind, message);
+    appState_->OnUrlError = [this](const std::wstring&, const std::wstring&) {
+        // #230: 分派在核心，AppState 已在每个失败处一次性本地化；本层
+        // 只渲染，UI 侧不再有第二个错误分派入口（macOS 一直如此）。
+        ShowUrlError();
     };
 }
 
-std::wstring PlayerBarView::UrlErrorText(const std::wstring& kind, const std::wstring& message) {
-    // #141: resolve/playback copy lives in L10n (system language, manual
-    // override); the #120 expired/cdn_rejected classification has English
-    // branches there, so English users get the truthful advice too.
-    return rhythm::L10n::UrlErrorText(kind, message);
-}
-
-void PlayerBarView::ShowUrlError(const std::wstring& kind, const std::wstring& message) {
+void PlayerBarView::ShowUrlError() {
     winrt::Microsoft::UI::Xaml::Controls::ContentDialog dialog;
     dialog.XamlRoot(XamlRoot());
     dialog.Title(winrt::box_value(winrt::hstring{ rhythm::L10n::UrlErrorTitle() }));
-    dialog.Content(winrt::box_value(winrt::hstring{ UrlErrorText(kind, message) }));
+    dialog.Content(winrt::box_value(winrt::hstring{ appState_->UrlError }));
     dialog.CloseButtonText(rhythm::L10n::Ok());
     dialog.ShowAsync();
 }

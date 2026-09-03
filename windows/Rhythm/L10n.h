@@ -308,30 +308,13 @@ inline std::wstring ResolverStatusText(const std::wstring& phase, int64_t receiv
 
 /// Chinese users get a translated headline plus the engine detail; English
 /// users get the engine message verbatim (mirrors macOS `urlResolveError`).
-/// The yt-dlp install copy comes from the platform-diff key (winget /
-/// RHYTHM_YTDLP_PATH — #167 platform field).
+///
+/// 分类到文案键的分派、中英拼装形状、平台差异选键（winget 而非 brew）
+/// 都在核心（#229/#230），本层只填模板；核心不可用时退回引擎原文。
 inline std::wstring UrlResolveError(const std::wstring& kind, const std::wstring& detail) {
-    if (!IsChinese()) return detail;
-
-    std::wstring headline;
-    if (kind == L"yt_dlp_missing") {
-        headline = Key("resolve_error_yt_dlp_missing_windows");
-    } else if (kind == L"timeout") {
-        headline = Key("resolve_error_timeout");
-    } else if (kind == L"network") {
-        headline = Key("resolve_error_network");
-    } else if (kind == L"unavailable") {
-        headline = Key("resolve_error_unavailable");
-    } else if (kind == L"no_audio_stream") {
-        headline = Key("resolve_error_no_audio_stream");
-    } else if (kind == L"yt_dlp_outdated") {
-        headline = Key("resolve_error_yt_dlp_outdated_windows");
-    } else if (kind == L"invalid_url") {
-        headline = Key("resolve_error_invalid_url");
-    } else {
-        return detail;
-    }
-    return headline + L"\n\n" + Key("detail_prefix_zh") + L"\n" + detail;
+    auto spec = ResolveFailureSpec(kind, detail, IsChinese());
+    if (spec.empty()) return detail;
+    return RenderMessageSpec(spec);
 }
 
 // ─── Playback failure (#120 classification) ──────────────────────────
@@ -345,17 +328,6 @@ inline std::wstring PlaybackFailed(const std::wstring& kind, const std::wstring&
     auto spec = PlaybackFailureSpec(kind, detail, IsChinese());
     if (spec.empty()) return detail;
     return RenderMessageSpec(spec);
-}
-
-/// Dispatch an OnUrlError (kind, message) pair to the matching localizer.
-/// The two families are told apart by the core's own values (#226): the
-/// #120 HTTP classification, or an empty kind for a non-HTTP playback
-/// failure, means playback; anything else is a ResolveErrorKind.
-inline std::wstring UrlErrorText(const std::wstring& kind, const std::wstring& message) {
-    if (kind.empty() || kind == L"expired" || kind == L"cdn_rejected" || kind == L"other") {
-        return PlaybackFailed(kind, message);
-    }
-    return UrlResolveError(kind, message);
 }
 
 // ─── Tray ───────────────────────────────────────────────────────────

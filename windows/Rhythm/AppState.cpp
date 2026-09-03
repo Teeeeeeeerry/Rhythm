@@ -211,7 +211,8 @@ void AppState::ResolveAndPlay(const std::wstring& url) {
                 // Report the reason rather than queueing a track that cannot
                 // play — the core distinguishes a missing yt-dlp from a
                 // timeout, a private video, and so on (#21).
-                UrlError = outcome.errorMessage;
+                // #230: 每个失败处一次性本地化（分派在核心），视图只渲染。
+                UrlError = L10n::UrlResolveError(outcome.errorKind, outcome.errorMessage);
                 OutputDebugStringW(
                     (L"URL resolution failed [" + outcome.errorKind + L"]: " +
                      outcome.errorMessage + L"\n").c_str());

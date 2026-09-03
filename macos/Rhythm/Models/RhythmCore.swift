@@ -632,6 +632,14 @@ func playbackFailureSpec(kind: String?, detail: String, language: String) -> Mes
     return decodeMessageSpec(String(cString: json))
 }
 
+/// 解析失败的消息规格。平台差异（yt-dlp 安装命令）由核心按构建目标
+/// 选键（#229）；本层只解析出语言标识。
+func resolveFailureSpec(kind: String, detail: String, language: String) -> MessageSpec? {
+    guard let json = rhythm_message_resolve_failure(kind, detail, language) else { return nil }
+    defer { rhythm_free_string(json) }
+    return decodeMessageSpec(String(cString: json))
+}
+
 /// Progress of yt-dlp provisioning, polled while a resolution is running so a
 /// first-run download doesn't look like a hang.
 struct ResolverStatus: Decodable {
