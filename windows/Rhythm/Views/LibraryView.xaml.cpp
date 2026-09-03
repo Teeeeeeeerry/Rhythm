@@ -9,7 +9,10 @@ LibraryView::LibraryView() {
     // #141: copy from the language layer.
     pivotArtistAlbum().Header(winrt::box_value(winrt::hstring{ rhythm::L10n::ByArtistAlbum() }));
     pivotByLetter().Header(winrt::box_value(winrt::hstring{ rhythm::L10n::ByLetter() }));
+    // #225: the empty state reads the same two keys as macOS
+    // (library_empty + import_hint) — one key per line of copy.
     emptyMessage().Text(rhythm::L10n::LibraryEmpty());
+    emptyHint().Text(rhythm::L10n::ImportHint());
 }
 
 void LibraryView::OnNavigatedTo(Navigation::NavigationEventArgs const& args) {
@@ -79,7 +82,7 @@ void LibraryView::PopulateAlphabetical() {
 }
 
 void LibraryView::ShowEmptyMessage(bool show) {
-    emptyMessage().Visibility(show ? Visibility::Visible : Visibility::Collapsed);
+    emptyState().Visibility(show ? Visibility::Visible : Visibility::Collapsed);
     trackList().Visibility(show ? Visibility::Collapsed : Visibility::Visible);
 }
 

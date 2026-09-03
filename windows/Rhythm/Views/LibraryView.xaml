@@ -43,9 +43,16 @@
             </ListView.ItemTemplate>
         </ListView>
 
-        <TextBlock x:Name="emptyMessage" Grid.Row="1"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                   Foreground="{ThemeResource RhythmTextSecondaryBrush}"
-                   Visibility="Collapsed" />
+        <StackPanel x:Name="emptyState" Grid.Row="1" Spacing="4"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Visibility="Collapsed">
+            <TextBlock x:Name="emptyMessage"
+                       HorizontalAlignment="Center"
+                       Foreground="{ThemeResource RhythmTextSecondaryBrush}" />
+            <TextBlock x:Name="emptyHint"
+                       HorizontalAlignment="Center"
+                       FontSize="12"
+                       Foreground="{ThemeResource RhythmTextSecondaryBrush}" />
+        </StackPanel>
     </Grid>
 </UserControl>

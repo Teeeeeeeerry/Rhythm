@@ -366,10 +366,6 @@
       "zh": "导入文件夹",
       "en": "Import Folder"
     },
-    "library_empty_hint": {
-      "zh": "资料库为空 — 点击 + 导入音乐文件夹",
-      "en": "Library is empty — tap + to import a music folder"
-    },
     "resolve_error_yt_dlp_missing_windows": {
       "zh": "未找到 yt-dlp。播放 YouTube / Bilibili 链接需要先安装它：\n  winget install yt-dlp   或   pip install yt-dlp\n\n如果已经安装：应用不会继承你在终端里的 PATH，请把 RHYTHM_YTDLP_PATH 设为 yt-dlp.exe 的完整路径。",
       "en": "",

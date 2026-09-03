@@ -111,7 +111,6 @@ inline const wchar_t* Key(const char* key) {
         L10N_ENTRY(imported_tracks)
         L10N_ENTRY(importing)
         L10N_ENTRY(library_empty)
-        L10N_ENTRY(library_empty_hint)
         L10N_ENTRY(library_tab)
         L10N_ENTRY(menu_next)
         L10N_ENTRY(menu_play_pause)
@@ -208,7 +207,8 @@ inline std::wstring ImportTooltip() { return Key("import_tooltip"); }
 inline std::wstring SearchPlaceholder() { return Key("search_placeholder"); }
 inline std::wstring ByArtistAlbum() { return Key("by_artist_album"); }
 inline std::wstring ByLetter() { return Key("by_letter"); }
-inline std::wstring LibraryEmpty() { return Key("library_empty_hint"); }
+inline std::wstring LibraryEmpty() { return Key("library_empty"); }
+inline std::wstring ImportHint() { return Key("import_hint"); }
 
 // ─── Playlist ───────────────────────────────────────────────────────
 

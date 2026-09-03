@@ -3,6 +3,7 @@
 - 模块：`contracts/l10n-keys.json`（单一事实来源，中英文案 + platform 差异字段）+ `scripts/gen-l10n.py`（生成器）+ 双端适配层（macOS `L10n.swift`/`L10nKeys.swift`、Windows `L10n.h`/`L10nKeys.h`）；测试：macOS `RhythmCoreSwiftBehaviorTests`（SW-17）、Windows `L10nTests.cpp`（LK-01~06）
 - 历史回归：`#141`（Windows 文案层）、`#145`（macOS 文案层收敛）、`#120`（播放失败分类文案）、`#142`（固定 locale 确定性断言）
 - 教义（#167 组）：文案键只定义一次；双端实现由同一键表生成，漂移结构性不可能；平台差异（安装命令、语言检测机制）保留为键表字段/适配层差异
+- 键名对齐（#225）：同一处文案双端查同一个键——资料库空态与导入提示曾各查一个键，已对齐为 `library_empty` + `import_hint`，重复键删除
 - 校验：`testing/l0/check-l10n-keys.py`（#185）——键表结构、双端生成物一致性、Windows 映射覆盖，任一红即 run-all 非零退出
 
 ## 主路径（P0 — 合并门槛）
