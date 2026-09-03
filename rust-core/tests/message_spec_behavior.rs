@@ -1,4 +1,4 @@
-//! MS-01~06：核心消息规格（manifest: docs/testing/behavior/l10n-keys.md）。
+//! MS-01~08：核心消息规格（manifest: docs/testing/behavior/l10n-keys.md）。
 //!
 //! 零接缝：纯函数，无 UI 框架依赖，确定性运行。
 //! 历史回归：#120（播放失败分类）、#135（分类判断被写进中文分支，英文用户
@@ -8,6 +8,8 @@ use rhythm_core::message::{
     playback_failure, resolve_failure, MessageLanguage, MessagePlatform, MessageSegment,
     MessageSpec,
 };
+use rhythm_core::message::resolver_status;
+use rhythm_core::resolver::install::InstallStatus;
 use rhythm_core::resolver::ResolveErrorKind;
 use rhythm_core::HttpErrorKind;
 
@@ -214,5 +216,108 @@ fn ms05_platform_marker_does_not_touch_the_shared_keys() {
         let mac = resolve_failure(Some(kind), "d", MessageLanguage::Chinese, MessagePlatform::MacOs);
         let win = resolve_failure(Some(kind), "d", MessageLanguage::Chinese, MessagePlatform::Windows);
         assert_eq!(headline_key(&mac), headline_key(&win), "{kind:?} 不该有平台差异");
+    }
+}
+
+// ─── MS-06 解析器阶段到文案键 ───────────────────────────────────────
+
+#[test]
+fn ms06_each_phase_maps_to_its_key() {
+    let cases: &[(InstallStatus, &str)] = &[
+        (InstallStatus::Checking, "resolver_status_checking"),
+        (InstallStatus::Verifying, "resolver_status_verifying"),
+        (InstallStatus::Updating, "resolver_status_updating"),
+        (
+            InstallStatus::Failed {
+                message: "boom".into(),
+            },
+            "resolver_status_failed",
+        ),
+        (
+            InstallStatus::Downloading {
+                received: 1_048_576,
+                total: Some(2_097_152),
+            },
+            "resolver_status_downloading",
+        ),
+    ];
+
+    for (status, expected_key) in cases {
+        let spec = resolver_status(status);
+        assert_eq!(headline_key(&spec), *expected_key, "{status:?} 应当选中 {expected_key}");
+    }
+}
+
+#[test]
+fn ms06_quiet_phases_produce_an_empty_spec() {
+    // 空闲与就绪没有值得告诉用户的事。
+    for status in [InstallStatus::Idle, InstallStatus::Ready] {
+        assert!(resolver_status(&status).is_silent(), "{status:?} 应当静默");
+    }
+}
+
+// ─── MS-07 下载进度的两种形态 ───────────────────────────────────────
+
+#[test]
+fn ms07_download_with_total_reports_received_and_total() {
+    let spec = resolver_status(&InstallStatus::Downloading {
+        received: 1_048_576,
+        total: Some(2_097_152),
+    });
+    assert_eq!(headline_key(&spec), "resolver_status_downloading");
+    assert_eq!(
+        render(&spec),
+        "<resolver_status_downloading>",
+        "键段本身不含参数以外的内容"
+    );
+    match &spec.segments[0] {
+        MessageSegment::Key { params, .. } => {
+            assert_eq!(params.get("received").map(String::as_str), Some("1.0"));
+            assert_eq!(params.get("total").map(String::as_str), Some("2.0"));
+        }
+        other => panic!("expected a key segment, got {other:?}"),
+    }
+}
+
+#[test]
+fn ms07_download_without_total_reports_only_the_received_size() {
+    // 服务端未给出总量：另一个键，只有已收量一个参数。
+    for total in [None, Some(0)] {
+        let spec = resolver_status(&InstallStatus::Downloading {
+            received: 3_145_728,
+            total,
+        });
+        assert_eq!(headline_key(&spec), "resolver_status_downloading_unknown_total");
+        match &spec.segments[0] {
+            MessageSegment::Key { params, .. } => {
+                assert_eq!(params.get("received").map(String::as_str), Some("3.0"));
+                assert!(params.get("total").is_none(), "无总量时不该产出总量参数");
+            }
+            other => panic!("expected a key segment, got {other:?}"),
+        }
+    }
+}
+
+// ─── MS-08 字节到 MB 的换算 ─────────────────────────────────────────
+
+#[test]
+fn ms08_byte_to_megabyte_conversion_keeps_one_decimal() {
+    let cases: &[(u64, &str)] = &[
+        (0, "0.0"),
+        (1_048_576, "1.0"),
+        (1_572_864, "1.5"),
+        (41_943_040, "40.0"),
+    ];
+    for (bytes, expected) in cases {
+        let spec = resolver_status(&InstallStatus::Downloading {
+            received: *bytes,
+            total: None,
+        });
+        match &spec.segments[0] {
+            MessageSegment::Key { params, .. } => {
+                assert_eq!(params.get("received").map(String::as_str), Some(*expected));
+            }
+            other => panic!("expected a key segment, got {other:?}"),
+        }
     }
 }

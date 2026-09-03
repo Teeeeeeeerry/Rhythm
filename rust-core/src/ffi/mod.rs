@@ -596,6 +596,37 @@ pub unsafe extern "C" fn rhythm_message_resolve_failure(
     str_to_c_string(&serde_json::to_string(&spec).unwrap_or_default())
 }
 
+/// 解析器供给状态的文案规格（#231）。`phase` 是核心 `InstallStatus` 的
+/// 阶段标签（idle / checking / downloading / verifying / updating / ready /
+/// failed），`received` / `total` 是下载字节数（`total` 传 0 表示服务端
+/// 未给出总量）。静默阶段返回空段列表。Free with `rhythm_free_string`.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_message_resolver_status(
+    phase: *const c_char,
+    received: i64,
+    total: i64,
+) -> *mut c_char {
+    let status = match unsafe { c_str_to_str(phase) } {
+        "checking" => resolver::install::InstallStatus::Checking,
+        "verifying" => resolver::install::InstallStatus::Verifying,
+        "updating" => resolver::install::InstallStatus::Updating,
+        "failed" => resolver::install::InstallStatus::Failed {
+            message: String::new(),
+        },
+        "downloading" => resolver::install::InstallStatus::Downloading {
+            received: received.max(0) as u64,
+            total: (total > 0).then(|| total as u64),
+        },
+        // idle / ready / 未知阶段都没有值得告诉用户的事。
+        _ => resolver::install::InstallStatus::Idle,
+    };
+    let spec = message::resolver_status(&status);
+    str_to_c_string(&serde_json::to_string(&spec).unwrap_or_default())
+}
+
 // ─── Playback Coordinator FFI ─────────────────────────────────────
 //
 // The coordinator owns the orchestration rules (stop old playback, dispatch

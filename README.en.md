@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.116 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
+Initial development is complete. Current version: **v0.5.117 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
 
 ### Implementation Status
 
