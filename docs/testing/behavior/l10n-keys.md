@@ -14,7 +14,7 @@
 | LK-01 | 静态文案双语言 | 键表每键 zh/en 齐全；固定 locale 下取对应语言（macOS UserDefaults 覆盖、Windows 注册表覆盖） | 固定 locale 断言 |
 | LK-02 | 播放失败分类文案（#120） | `expired` → 保留"重新粘贴"建议；`cdn_rejected` → 换网络且**不**建议重贴；其它 → 泛化"播放失败"；中英分支同分类 | 核心表驱动（MS-01/MS-02，#228 起分派在核心） |
 | LK-03 | 解析失败文案 | 中文 headline（各 kind）+ 英文原始 detail；未识别 kind → 原文 | 核心表驱动（MS-04/MS-05，#230 起分派在核心） |
-| LK-04 | 解析器状态文案 | checking/verifying/updating/failed 各文案；downloading 有 total → `x / y MB`、无 → `x MB`；未知/quiet → 空串 | 双端 |
+| LK-04 | 解析器状态文案 | checking/verifying/updating/failed 各文案；downloading 有 total → `x / y MB`、无 → `x MB`；未知/quiet → 空串 | 核心表驱动（MS-06~08，#232 起分派与换算在核心） |
 | LK-05 | 来源徽标与托盘文案 | tag local/youtube/bilibili/direct_url、托盘播放/暂停/停止/上下首 | 双端 |
 | LK-06 | 键表覆盖（#182/#185） | 键表在 zh/en 两语言下均有可用取值；生成物与键表一致；Windows `Key()` 映射覆盖全部 windows 键 | SW-17 + L0 校验 |
 

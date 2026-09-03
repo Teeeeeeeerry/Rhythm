@@ -143,6 +143,12 @@ char* rhythm_message_playback_failure(const char* kind, const char* detail,
 char* rhythm_message_resolve_failure(const char* kind, const char* detail,
                                      const char* language);
 
+// phase: the core's InstallStatus phase (idle / checking / downloading /
+// verifying / updating / ready / failed). total 0 means the server sent no
+// content length. Quiet phases return an empty segment list.
+// Free with rhythm_free_string.
+char* rhythm_message_resolver_status(const char* phase, int64_t received, int64_t total);
+
 // ─── M3U8 Import/Export ────────────────────────────────────────────
 
 int32_t rhythm_export_m3u8(const char* file_path, const char* tracks_json);

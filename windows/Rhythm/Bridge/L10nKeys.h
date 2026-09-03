@@ -136,8 +136,10 @@ inline const wchar_t* L10nKeys_zh_resolve_error_yt_dlp_outdated_windows() { retu
 inline const wchar_t* L10nKeys_en_resolve_error_yt_dlp_outdated_windows() { return L""; }
 inline const wchar_t* L10nKeys_zh_resolver_status_checking() { return L"正在准备解析组件…"; }
 inline const wchar_t* L10nKeys_en_resolver_status_checking() { return L"Preparing resolver…"; }
-inline const wchar_t* L10nKeys_zh_resolver_status_downloading() { return L"正在下载解析组件 {progress}"; }
-inline const wchar_t* L10nKeys_en_resolver_status_downloading() { return L"Downloading resolver {progress}"; }
+inline const wchar_t* L10nKeys_zh_resolver_status_downloading() { return L"正在下载解析组件 {received} / {total} MB"; }
+inline const wchar_t* L10nKeys_en_resolver_status_downloading() { return L"Downloading resolver {received} / {total} MB"; }
+inline const wchar_t* L10nKeys_zh_resolver_status_downloading_unknown_total() { return L"正在下载解析组件 {received} MB"; }
+inline const wchar_t* L10nKeys_en_resolver_status_downloading_unknown_total() { return L"Downloading resolver {received} MB"; }
 inline const wchar_t* L10nKeys_zh_resolver_status_failed() { return L"解析组件安装失败"; }
 inline const wchar_t* L10nKeys_en_resolver_status_failed() { return L"Resolver install failed"; }
 inline const wchar_t* L10nKeys_zh_resolver_status_updating() { return L"正在更新解析组件…"; }

@@ -68,31 +68,13 @@ enum L10n {
     }
 
     /// Describe what the resolver is doing while the user waits.
+    ///
+    /// 阶段分派、字节到 MB 的换算与「已收 / 总量」的格式化都在核心
+    /// （#231/#232），本层只填模板；静默阶段与核心不可用时都是空串。
     static func resolverStatusText(phase: String, received: Int64?, total: Int64?) -> String {
-        switch phase {
-        case "checking":
-            return L10nKeys.value("resolver_status_checking")
-        case "downloading":
-            let progress = downloadProgress(received: received, total: total)
-            return fill(L10nKeys.value("resolver_status_downloading"), ["progress": progress])
-        case "verifying":
-            return L10nKeys.value("resolver_status_verifying")
-        case "updating":
-            return L10nKeys.value("resolver_status_updating")
-        case "failed":
-            return L10nKeys.value("resolver_status_failed")
-        default:
-            return ""
-        }
-    }
-
-    /// "12.3 / 40.1 MB" — or just the received size when the server sent no
-    /// content length.
-    private static func downloadProgress(received: Int64?, total: Int64?) -> String {
-        let mb = { (bytes: Int64) in String(format: "%.1f", Double(bytes) / 1_048_576) }
-        guard let received else { return "" }
-        guard let total, total > 0 else { return "\(mb(received)) MB" }
-        return "\(mb(received)) / \(mb(total)) MB"
+        guard let spec = resolverStatusSpec(phase: phase, received: received, total: total)
+        else { return "" }
+        return render(spec)
     }
 
     /// Explain a resolution failure.

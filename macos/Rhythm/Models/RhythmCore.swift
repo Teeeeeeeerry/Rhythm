@@ -640,6 +640,16 @@ func resolveFailureSpec(kind: String, detail: String, language: String) -> Messa
     return decodeMessageSpec(String(cString: json))
 }
 
+/// 解析器供给状态的消息规格。阶段分派、字节到 MB 的换算与「已收 / 总量」
+/// 的格式化都在核心（#231）；静默阶段返回空段列表。
+func resolverStatusSpec(phase: String, received: Int64?, total: Int64?) -> MessageSpec? {
+    guard let json = rhythm_message_resolver_status(phase, received ?? 0, total ?? 0) else {
+        return nil
+    }
+    defer { rhythm_free_string(json) }
+    return decodeMessageSpec(String(cString: json))
+}
+
 /// Progress of yt-dlp provisioning, polled while a resolution is running so a
 /// first-run download doesn't look like a hang.
 struct ResolverStatus: Decodable {

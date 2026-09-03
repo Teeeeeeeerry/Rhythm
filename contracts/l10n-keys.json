@@ -67,8 +67,12 @@
       "en": "Preparing resolver…"
     },
     "resolver_status_downloading": {
-      "zh": "正在下载解析组件 {progress}",
-      "en": "Downloading resolver {progress}"
+      "zh": "正在下载解析组件 {received} / {total} MB",
+      "en": "Downloading resolver {received} / {total} MB"
+    },
+    "resolver_status_downloading_unknown_total": {
+      "zh": "正在下载解析组件 {received} MB",
+      "en": "Downloading resolver {received} MB"
     },
     "resolver_status_verifying": {
       "zh": "正在校验解析组件…",
