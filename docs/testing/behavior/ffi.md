@@ -28,6 +28,7 @@
 | FF-13 | `rhythm_classify_url` | 结构化结果：成功 `{"ok":true,"source_type":...}`；失败 `{"ok":false,"error_kind":...}`（#181，无全局错误槽） |
 | FF-14 | M3U8 FFI | export 成功 0/失败 -1；import 成功 JSON/失败 null |
 | FF-23 | M3U8 解析并入库（#234） | 返回具名结果 JSON `{"imported":N,"failed":M}`；不可读列表与空句柄 → null |
+| FF-25 | 消息规格导出（#227） | `rhythm_message_playback_failure(kind, detail, language)` 返回 `{"segments":[…]}`：键段带 `key`/`params`，字面量段带 `text`；空指针与未知分类 → 泛化标题单段 |
 | FF-15 | `rhythm_free_string` | 空指针安全 |
 | FF-16 | metadata FFI | `rhythm_metadata_extract`/`scan`/`extract_artwork`：成功 JSON/路径，失败 null |
 
