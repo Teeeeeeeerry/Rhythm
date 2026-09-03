@@ -13,7 +13,7 @@
 |---|---|---|---|
 | LK-01 | 静态文案双语言 | 键表每键 zh/en 齐全；固定 locale 下取对应语言（macOS UserDefaults 覆盖、Windows 注册表覆盖） | 固定 locale 断言 |
 | LK-02 | 播放失败分类文案（#120） | `expired` → 保留"重新粘贴"建议；`cdn_rejected` → 换网络且**不**建议重贴；其它 → 泛化"播放失败"；中英分支同分类 | 核心表驱动（MS-01/MS-02，#228 起分派在核心） |
-| LK-03 | 解析失败文案 | 中文 headline（各 kind）+ 英文原始 detail；未识别 kind → 原文 | Windows LK-04/LK-05 同源 |
+| LK-03 | 解析失败文案 | 中文 headline（各 kind）+ 英文原始 detail；未识别 kind → 原文 | 核心表驱动（MS-04/MS-05，#230 起分派在核心） |
 | LK-04 | 解析器状态文案 | checking/verifying/updating/failed 各文案；downloading 有 total → `x / y MB`、无 → `x MB`；未知/quiet → 空串 | 双端 |
 | LK-05 | 来源徽标与托盘文案 | tag local/youtube/bilibili/direct_url、托盘播放/暂停/停止/上下首 | 双端 |
 | LK-06 | 键表覆盖（#182/#185） | 键表在 zh/en 两语言下均有可用取值；生成物与键表一致；Windows `Key()` 映射覆盖全部 windows 键 | SW-17 + L0 校验 |
@@ -34,7 +34,7 @@
 
 | 编号 | 行为 | 断言 | 测试途径 |
 |---|---|---|---|
-| LK-07 | 平台差异字段 | yt-dlp 安装命令（macOS brew / Windows winget）只出现在对应平台生成物中 | L0 生成物比对 |
+| LK-07 | 平台差异字段 | yt-dlp 安装命令（macOS brew / Windows winget）只出现在对应平台生成物中；选键由核心按构建目标决定（MS-05） | L0 生成物比对 + 核心表驱动 |
 | LK-08 | 语言检测差异（适配层） | macOS 跟随系统 Locale + AppLanguage；Windows 系统 UI 语言 + 注册表覆盖——检测机制不入键表 | 双端固定 locale |
 | LK-09 | 适配层模板填充（#228） | 按键取模板、按参数填 `{占位符}`、按顺序拼接核心规格的各段；未知键回退（macOS 回退键名、Windows 回退空串） | 双端固定 locale |
 

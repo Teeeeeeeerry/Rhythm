@@ -21,9 +21,8 @@ struct PlayerBarView : winrt::Microsoft::UI::Xaml::Controls::UserControlT<Player
     void Update();
 
 private:
-    /// Localized headline for a resolver failure kind, plus the core's detail.
-    static std::wstring UrlErrorText(const std::wstring& kind, const std::wstring& message);
-    void ShowUrlError(const std::wstring& kind, const std::wstring& message);
+    /// 弹出错误对话框，内容取 AppState 已本地化的 `UrlError`（#230）。
+    void ShowUrlError();
 
     rhythm::AppState* appState_ = nullptr;
 };

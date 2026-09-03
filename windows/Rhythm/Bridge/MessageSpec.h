@@ -65,4 +65,19 @@ inline std::vector<MessageSegment> PlaybackFailureSpec(const std::wstring& kind,
     return ParseMessageSpec(owned);
 }
 
+/// 取一条解析失败的消息规格。平台差异（yt-dlp 安装命令）由核心按构建
+/// 目标选键（#229），本端只解析出语言标识。
+inline std::vector<MessageSegment> ResolveFailureSpec(const std::wstring& kind,
+                                                      const std::wstring& detail,
+                                                      bool chinese) {
+    auto kindUtf8 = WideToUtf8(kind);
+    auto detailUtf8 = WideToUtf8(detail);
+    char* json = rhythm_message_resolve_failure(kindUtf8.c_str(), detailUtf8.c_str(),
+                                                chinese ? "zh" : "en");
+    if (!json) return {};
+    std::string owned(json);
+    rhythm_free_string(json);
+    return ParseMessageSpec(owned);
+}
+
 } // namespace rhythm
