@@ -2,6 +2,7 @@
 
 #include "pch.h"
 #include "Bridge/L10nKeys.h"
+#include "Bridge/MessageSpec.h"
 
 #include <cstring>
 
@@ -195,6 +196,28 @@ inline std::wstring Fill(const wchar_t* templateText,
     return result;
 }
 
+/// 渲染核心的消息规格：按键取模板、按参数填占位符，顺序拼接。
+/// 这是适配层剩下的全部职责（#228）。
+inline std::wstring RenderMessageSpec(const std::vector<MessageSegment>& segments) {
+    std::wstring out;
+    for (const auto& segment : segments) {
+        if (!segment.isKey) {
+            out += segment.text;
+            continue;
+        }
+        std::wstring text = Key(segment.key.c_str());
+        for (const auto& [name, value] : segment.params) {
+            std::wstring placeholder = L"{" + name + L"}";
+            size_t pos;
+            while ((pos = text.find(placeholder)) != std::wstring::npos) {
+                text.replace(pos, placeholder.size(), value);
+            }
+        }
+        out += text;
+    }
+    return out;
+}
+
 // ─── Tab / Sidebar ──────────────────────────────────────────────────
 
 inline std::wstring LibraryTab() { return Key("library_tab"); }
@@ -313,26 +336,15 @@ inline std::wstring UrlResolveError(const std::wstring& kind, const std::wstring
 
 // ─── Playback failure (#120 classification) ──────────────────────────
 
-/// Explain a playback failure (as opposed to a resolution failure). The
-/// core classifies HTTP failures: a genuinely expired link ("expired")
-/// keeps the "re-paste" advice; a CDN rejecting a still-valid URL
-/// ("cdn_rejected") gets the truthful "your network is being rejected"
-/// copy. `kind` is the core's own value (#226 — the UI no longer encodes
-/// a prefix, so there is nothing to strip; mirrors macOS `playbackFailed`).
+/// Explain a playback failure (as opposed to a resolution failure).
+///
+/// `kind` 是核心对 HTTP 失败的分类（#120）。分类到文案键的分派、中英拼装
+/// 形状都在核心（#227/#228），本层只填模板；核心不可用时退回引擎原文，
+/// 不再本地重写一套分派（mirrors macOS `playbackFailed`）。
 inline std::wstring PlaybackFailed(const std::wstring& kind, const std::wstring& detail) {
-    std::wstring headline;
-    if (kind == L"expired") {
-        headline = Key("playback_failed_expired");
-    } else if (kind == L"cdn_rejected") {
-        headline = Key("playback_failed_cdn_rejected");
-    } else {
-        headline = Key("playback_failed_headline");
-    }
-    return detail.empty()
-        ? headline
-        : IsChinese()
-            ? headline + L"\n\n" + Key("detail_prefix_zh") + L"\n" + detail
-            : headline + L"\n\n" + detail;
+    auto spec = PlaybackFailureSpec(kind, detail, IsChinese());
+    if (spec.empty()) return detail;
+    return RenderMessageSpec(spec);
 }
 
 /// Dispatch an OnUrlError (kind, message) pair to the matching localizer.

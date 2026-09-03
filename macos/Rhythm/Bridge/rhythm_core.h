@@ -121,6 +121,21 @@ char* rhythm_resolver_status(void);
 // {"ok":true,"path":"..."} or {"ok":false,"error_kind":"...",...}.
 char* rhythm_install_ytdlp(void);
 
+// ─── Message Spec API (#227/#228) ──────────────────────────────────
+
+// A localized message as {"segments":[...]}: each segment is either
+// {"segment":"key","key":"...","params":{...}} (a key-table template plus
+// its placeholder values) or {"segment":"literal","text":"..."}. The UI
+// looks each key up, fills the placeholders, and concatenates in order —
+// which key to pick is decided by the core.
+//
+// kind: the core's #120 classification ("expired" / "cdn_rejected" /
+// "other"; empty for a non-HTTP failure). language: the platform's resolved
+// language tag ("zh..." is Chinese, anything else English).
+// Free with rhythm_free_string.
+char* rhythm_message_playback_failure(const char* kind, const char* detail,
+                                      const char* language);
+
 // ─── M3U8 Import/Export ────────────────────────────────────────────
 
 int32_t rhythm_export_m3u8(const char* file_path, const char* tracks_json);

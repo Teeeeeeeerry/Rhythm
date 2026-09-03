@@ -221,6 +221,20 @@ final class RhythmCoreSwiftBehaviorTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "AppLanguage")
     }
 
+    // MARK: - LK-09 适配层模板填充（#228）
+
+    /// 分派已经在核心；适配层只剩两件事——按键取模板、按参数填占位符。
+    /// 固定 locale，不依赖运行环境语言（#142）。
+    func testLK09_AdapterFillsPlaceholdersAndFallsBackOnUnknownKey() {
+        UserDefaults.standard.set("zh", forKey: "AppLanguage")
+        defer { UserDefaults.standard.removeObject(forKey: "AppLanguage") }
+
+        XCTAssertEqual(L10n.importedTracks(2), "已导入 2 首歌曲")
+        XCTAssertEqual(L10n.importSomeFailed(3, 1), "已导入 3 首，1 个失败")
+        // 未知键回退键名（键表缺失由 L0 校验拦截，本层不猜文案）。
+        XCTAssertEqual(L10nKeys.value("no_such_key"), "no_such_key")
+    }
+
     // MARK: - SW-08 RhythmLibrary 打开失败
 
     func testSW08_LibraryOpenFailureReturnsNil() {

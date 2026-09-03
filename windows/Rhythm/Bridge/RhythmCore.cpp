@@ -17,7 +17,7 @@ std::wstring Utf8ToWide(const std::string& s) {
     return result;
 }
 
-static std::string WideToUtf8(const std::wstring& ws) {
+std::string WideToUtf8(const std::wstring& ws) {
     if (ws.empty()) return {};
     int len = WideCharToMultiByte(CP_UTF8, 0, ws.data(), (int)ws.size(), nullptr, 0, nullptr, nullptr);
     std::string result(len, '\0');

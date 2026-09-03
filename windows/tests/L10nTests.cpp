@@ -141,6 +141,29 @@ TEST_CASE("LK-05 L10n resolver provisioning status") {
     }
 }
 
+// ─── LK-09 适配层模板填充（#228）────────────────────────────────────
+
+TEST_CASE("LK-09 adapter fills placeholders and renders a core message spec") {
+    LanguageScope zh(L"zh");
+
+    // 按参数填占位符。
+    REQUIRE(L10n::Fill(L"a {x} b {x} c", {{L"x", L"1"}}) == L"a 1 b 1 c");
+    // 未知键回退空串（键表缺失由 L0 校验拦截，本层不猜文案）。
+    REQUIRE(std::wstring(L10n::Key("no_such_key")).empty());
+
+    // 按键取模板 + 字面量原样拼接：这是本层剩下的全部职责。
+    std::vector<rhythm::MessageSegment> spec;
+    rhythm::MessageSegment headline;
+    headline.isKey = true;
+    headline.key = "playback_failed_expired";
+    spec.push_back(headline);
+    rhythm::MessageSegment tail;
+    tail.text = L"|tail";
+    spec.push_back(tail);
+    REQUIRE(L10n::RenderMessageSpec(spec) ==
+            std::wstring(L10n::Key("playback_failed_expired")) + L"|tail");
+}
+
 // ─── WA-26 来源徽标与托盘 ───────────────────────────────────────────
 
 TEST_CASE("LK-06 L10n source tags and tray copy") {
