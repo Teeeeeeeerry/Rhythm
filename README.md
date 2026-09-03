@@ -24,7 +24,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-初步开发完成。当前版本 **v0.5.118 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
+初步开发完成。当前版本 **v0.5.119 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
 
 ### 实现状态
 
@@ -38,6 +38,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 | 专辑封面自动提取 | 完成 | — |
 | 系统媒体键 + 托盘模式 | 完成 | — |
 | 中英文界面 | 完成（macOS 手动切换 + Windows 注册表覆盖） | [#141](https://github.com/Teeeeeeeerry/Rhythm/issues/141)、[#145](https://github.com/Teeeeeeeerry/Rhythm/issues/145) |
+| 失败与状态文案（分类到文案的选择在核心，双端只填模板） | 完成（双端双语言一致） | [#216](https://github.com/Teeeeeeeerry/Rhythm/issues/216) |
 | URL 流式播放（YouTube/Bilibili/直链） | 完成 | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
 | URL 输入 UI | 完成 | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
 | URL 解析错误上报 + yt-dlp 自动安装 | 完成 | [#21](https://github.com/Teeeeeeeerry/Rhythm/issues/21) |

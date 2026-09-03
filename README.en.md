@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.118 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
+Initial development is complete. Current version: **v0.5.119 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
 
 ### Implementation Status
 
@@ -38,6 +38,7 @@ Initial development is complete. Current version: **v0.5.118 "Motif"** (kept in 
 | Album cover extraction | Done | — |
 | System media keys + tray mode | Done | — |
 | Chinese/English localization | Done (macOS manual override + Windows registry override) | [#141](https://github.com/Teeeeeeeerry/Rhythm/issues/141), [#145](https://github.com/Teeeeeeeerry/Rhythm/issues/145) |
+| Failure and status copy (the core picks which copy; both UIs only fill templates) | Done (identical on both platforms, in both languages) | [#216](https://github.com/Teeeeeeeerry/Rhythm/issues/216) |
 | URL streaming (YouTube/Bilibili/direct links) | Done | [#11](https://github.com/Teeeeeeeerry/Rhythm/issues/11) |
 | URL input UI | Done | [#12](https://github.com/Teeeeeeeerry/Rhythm/issues/12) |
 | Resolver error reporting + yt-dlp auto-install | Done | [#21](https://github.com/Teeeeeeeerry/Rhythm/issues/21) |

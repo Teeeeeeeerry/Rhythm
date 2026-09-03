@@ -27,6 +27,7 @@ rust-core/          Rust 共享核心（audio 引擎、library、queue、playlis
   src/coordinator/  播放协调器（#165 组）：起播/传输/自动切歌/队列同步/可用性的唯一出处，双端 UI 只是薄 adapter
   src/resolver/     解析（#168 组起按职责拆 cache/classify/stderr/install；播放期解析入口 resolve_for_playback 一次完成缓存命中/淘汰/重试/分类）
   src/playlist/     M3U8 解析与导出；#217 组起「解析并入库」入口 import_m3u8_into_library 一次完成解析与入库，入库判定/位置类型识别/标题回退的唯一出处
+  src/message/      文案规格（#216 组）：具名分类到「文案键 + 参数」的分派，中英拼装形状与进度换算的唯一出处
   src/library/      SQLite 曲库（CRUD/去重/播放列表/FTS）；#218 组起导入三条路径 import_directory / import_single_file / import_paths 共用具名结果 ImportOutcome，批量「部分成功」聚合在此
   src/ffi/mod.rs    C-ABI 导出层：结构化结果（成功载荷+分类错误一次返回）、事件回调、snake_case JSON；导出一律 unsafe extern "C"（#143）；契约单一声明见 contracts/ffi-contract.json（#180）
   tests/            行为测试（audio_engine / coordinator / library / metadata / ffi / playlist_m3u8 / resolver…）
@@ -52,6 +53,8 @@ scripts/            build-macos.sh / build-rust-macos.sh / build-windows.* / che
 - **M3U8 导入**：`PlaylistDetailView` 选文件 → `AppState.importM3U8` → `rhythm_import_m3u8_into_library`（FFI）→ 核心解析并入库，返回具名结果 `{imported, failed}`；双端只按结果选提示语并从数据库重载列表（#217）
 - **本地导入**：选目录/文件 → `AppState.importDirectory` / `importFile` / `importURLs`（Windows 为 `ImportDirectory` / `ImportFile` / `ImportPaths`）→ `rhythm_library_import_directory` / `_single_file` / `_paths`（FFI）→ 核心返回 `{imported, unsupported, failed}`；目录与文件的分派、「部分成功」的聚合都在核心，双端只选提示语（#218）
 - **播放**：双击曲目 → `playTrack` → 协调器 `start`（先停后播 → 按来源分派 → recordPlay → 队列定位）→ 引擎播放；进度/状态/播完/失败经协调器事件回流（#172）
+- **失败与状态文案**：核心分类（`HttpErrorKind` / `ResolveErrorKind` / `InstallStatus`）→ `rhythm_message_*`
+  返回消息规格 → 双端 `L10n` 按键取模板、填占位符、顺序拼接（#216 组）
 - **进度/音量**：`PlayerBarView` 的 Slider → `player.seek/setVolume`（FFI 直通）
 - **测试**：`macos/Tests/`（AppStateTests + RhythmThemeTests）。AppState 测试用真实临时数据库 + SpyCoordinator（编排规则在 rust-core `coordinator_behavior.rs`，无音频设备依赖）；
   Rust 侧 `cargo test -p rhythm-core`，Windows 侧 `windows/tests/`（Catch2，SpyCoordinator 同 macOS），主题色彩链路 `bash testing/run-all.sh`
@@ -70,6 +73,11 @@ scripts/            build-macos.sh / build-rust-macos.sh / build-windows.* / che
 - **L10n**：全部文案走 `L10n`（macOS `Models/L10n.swift` + `L10nKeys`、Windows `L10n.h` + `L10nKeys.h`，
   均由 `contracts/l10n-keys.json` 键表生成，#167 组）；视图里既不写死字符串也不就地写 inline 三元。
   新增文案只改键表再跑 `scripts/gen-l10n.py`；键表漂移由 L0 校验拦截（#185）
+- **文案分派归核心（#216 组）**：「具名分类 → 哪个文案键 + 哪些参数」这一跳只写在 `rust-core/src/message/`，
+  经 `rhythm_message_*` 导出为消息规格 JSON（按顺序拼接的键段与字面量段）。双端适配层只剩两件事——
+  按键取模板、按参数填占位符；中英拼装形状、平台差异选键（brew 与 winget）、字节到 MB 的换算都在核心。
+  新增一种分类只改核心与键表，双端零改动。语言解析（macOS Locale + AppLanguage、Windows 系统 UI 语言 +
+  注册表覆盖）保持平台特异，不下沉。跨接缝一律传核心原始分类值，UI 侧不发明前缀编码（#226）
 - **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `python3 scripts/check-no-emoji.py` 校验；发现即修，不得绕过。校验范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物，二进制按内容跳过），新增语言或文件类型自动纳入；已挂进 `testing/run-all.sh` 与 CI 静态分析作业（#224）
 - **品牌色**：只用 `RhythmTheme` 模块的 token（如 `.rhythmAccent`），不硬编码色值
 - **版本号单一出处**：版本号只改 `Cargo.toml` 的 `[workspace.package] version`；其余六处（依赖锁文件、两份 README 版本行、macOS `Info.plist`、
@@ -90,7 +98,7 @@ scripts/            build-macos.sh / build-rust-macos.sh / build-windows.* / che
 - **URL 曲目存页面 URL 不存 CDN 链接**：CDN 链接带过期 deadline，播放时从缓存重新解析
 - **刷新列表必须从 DB 重载**（`refreshLibrary`）：手动拼接 tracks 会导致 ForEach ID 碰撞（#66）和队列失同步（#69）
 - **播放新曲目前必须 `player.stop()`**：旧播放线程不终止会抢占输出设备（#51）
-- **YouTube 403 ≠ 链接过期**：googlevideo URL 有效期 ~6h（`expire`-`mt`），播放 403 时先解码 `expire` 判断；未过期却 403 是网络侧拒绝（常见于 ISP 托管的 Google Global Cache 节点 `cache.google.com` 故障、或出口 IP 被 YouTube 拉黑），换网络/VPN 才是出路（见 docs/issues/2026-08-18-youtube-403-misreported-as-expired.md）。#120 已修复：core 用 `RhythmError::Http` 分类（expired/cdn_rejected/other），UI 按分类给文案——仅真过期才建议重贴
+- **YouTube 403 ≠ 链接过期**：googlevideo URL 有效期 ~6h（`expire`-`mt`），播放 403 时先解码 `expire` 判断；未过期却 403 是网络侧拒绝（常见于 ISP 托管的 Google Global Cache 节点 `cache.google.com` 故障、或出口 IP 被 YouTube 拉黑），换网络/VPN 才是出路（见 docs/issues/2026-08-18-youtube-403-misreported-as-expired.md）。#120 已修复：core 用 `RhythmError::Http` 分类（expired/cdn_rejected/other），选哪条文案自 #216 组起也在核心，UI 只填模板——仅真过期才建议重贴
 - **解析缓存不淘汰失败条目**：`RESOLVED_CACHE`（1h TTL）命中即返回，播放 403 不会清条目——重贴同一链接在 TTL 内必然拿到同一个坏 CDN URL，用户建议"重新粘贴"结构性无效。#120 已修复：播放 403/过期时引擎淘汰条目并 `resolve_url_fresh` 绕过缓存重解析一次，仍败才报错
 - **Windows 来源徽标色双主题**：`Track::SourceColor(sourceType, isDarkTheme)` 对齐 macOS `Theme.swift` rhythmSource* 的 dark/light 双端值；
   #147 起前景色与胶囊底共用单一表映射 `Track::SourceColorRGB`（`SourceColor()` 与 `SourceBackgroundBrush()` 都从它派生，改色只改一处）；未知来源回退 teal 文字色（dark `#ABC8D4` / light `#0D464D`），绝不返回系统 Gray（F4）。theme 由 `IsDarkTheme()` 解析——应用从不 pin `Application.RequestedTheme`，UI 跟随系统，故用 `UISettings` 前景色判断。Windows 侧校验：`python3 testing/l0/check-color-parity.py` + `testing/l1/windows`（#122 解除桩）。#121 已修复
