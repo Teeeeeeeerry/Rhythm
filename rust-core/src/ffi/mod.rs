@@ -17,11 +17,12 @@ use crate::coordinator::{
     CoordinatorErrorKind, CoordinatorEvent, CoordinatorResult, PlaybackCoordinator,
 };
 use crate::library::Library;
+use crate::message::{self, MessageLanguage};
 use crate::metadata;
 use crate::playlist;
 use crate::queue::PlayMode;
 use crate::resolver;
-use crate::{PlayerState, TrackInfo};
+use crate::{HttpErrorKind, PlayerState, TrackInfo};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::path::Path;
@@ -521,6 +522,43 @@ pub extern "C" fn rhythm_install_ytdlp() -> *mut c_char {
         }),
     };
     str_to_c_string(&json.to_string())
+}
+
+// ─── Message Spec FFI (#227) ───────────────────────────────────────
+//
+// 分类到文案键的分派在核心（`crate::message`）：这些导出返回一条消息
+// 规格 JSON `{"segments":[{"segment":"key","key":"...","params":{...}}|
+// {"segment":"literal","text":"..."}]}`，双端适配层只按键取模板、按参数
+// 填占位符，再顺序拼接。
+
+/// 核心 #120 分类值到枚举；空串与未知值都表示「不是 HTTP 失败」。
+fn http_error_kind_from_code(code: &str) -> Option<HttpErrorKind> {
+    match code {
+        "expired" => Some(HttpErrorKind::Expired),
+        "cdn_rejected" => Some(HttpErrorKind::CdnRejected),
+        "other" => Some(HttpErrorKind::Other),
+        _ => None,
+    }
+}
+
+/// 播放失败的文案规格。`kind` 是核心的 #120 分类值（`expired` /
+/// `cdn_rejected` / `other`，非 HTTP 失败传空串），`detail` 是引擎原文，
+/// `language` 是适配层解析出的语言标识（`zh` 开头为中文，其余按英文）。
+/// Free with `rhythm_free_string`.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_message_playback_failure(
+    kind: *const c_char,
+    detail: *const c_char,
+    language: *const c_char,
+) -> *mut c_char {
+    let kind = http_error_kind_from_code(unsafe { c_str_to_str(kind) });
+    let detail = unsafe { c_str_to_str(detail) };
+    let language = MessageLanguage::from_code(unsafe { c_str_to_str(language) });
+    let spec = message::playback_failure(kind, detail, language);
+    str_to_c_string(&serde_json::to_string(&spec).unwrap_or_default())
 }
 
 // ─── Playback Coordinator FFI ─────────────────────────────────────

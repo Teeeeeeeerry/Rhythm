@@ -2,6 +2,7 @@ pub mod audio;
 pub mod coordinator;
 pub mod ffi;
 pub mod library;
+pub mod message;
 pub mod metadata;
 pub mod playlist;
 pub mod queue;

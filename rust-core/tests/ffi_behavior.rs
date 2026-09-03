@@ -418,3 +418,37 @@ fn ff22_remove_track_missing_id_returns_minus_one() {
     }
     unsafe { rhythm_library_close(lib) };
 }
+
+// ─── FF-25 消息规格导出（#227）──────────────────────────────────────
+
+#[test]
+fn ff25_playback_failure_message_spec_crosses_the_seam_as_key_plus_params() {
+    let spec: serde_json::Value = unsafe {
+        let json = take(rhythm_message_playback_failure(
+            c("cdn_rejected").as_ptr(),
+            c("HTTP 403").as_ptr(),
+            c("en").as_ptr(),
+        ));
+        serde_json::from_str(&json).unwrap()
+    };
+    let segments = spec["segments"].as_array().unwrap();
+    assert_eq!(segments[0]["segment"], "key");
+    assert_eq!(segments[0]["key"], "playback_failed_cdn_rejected");
+    assert_eq!(segments.last().unwrap()["text"], "HTTP 403");
+}
+
+#[test]
+fn ff25_message_spec_handles_null_and_unknown_inputs() {
+    let json = unsafe {
+        take(rhythm_message_playback_failure(
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+        ))
+    };
+    let spec: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let segments = spec["segments"].as_array().unwrap();
+    // 未知分类 + 空详情 → 只剩泛化标题一段。
+    assert_eq!(segments.len(), 1);
+    assert_eq!(segments[0]["key"], "playback_failed_headline");
+}
