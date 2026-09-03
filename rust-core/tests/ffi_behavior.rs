@@ -478,3 +478,45 @@ fn ff25_resolve_failure_message_spec_localizes_by_language() {
     assert_eq!(segments.len(), 1);
     assert_eq!(segments[0]["text"], "engine detail");
 }
+
+#[test]
+fn ff25_resolver_status_message_spec_carries_progress_parameters() {
+    let downloading: serde_json::Value = unsafe {
+        serde_json::from_str(&take(rhythm_message_resolver_status(
+            c("downloading").as_ptr(),
+            1_048_576,
+            2_097_152,
+        )))
+        .unwrap()
+    };
+    assert_eq!(downloading["segments"][0]["key"], "resolver_status_downloading");
+    assert_eq!(downloading["segments"][0]["params"]["received"], "1.0");
+    assert_eq!(downloading["segments"][0]["params"]["total"], "2.0");
+
+    // total 0 表示服务端未给出总量：换一个键，只报已收量。
+    let unknown: serde_json::Value = unsafe {
+        serde_json::from_str(&take(rhythm_message_resolver_status(
+            c("downloading").as_ptr(),
+            1_048_576,
+            0,
+        )))
+        .unwrap()
+    };
+    assert_eq!(
+        unknown["segments"][0]["key"],
+        "resolver_status_downloading_unknown_total"
+    );
+
+    // 静默阶段与未知阶段：空段列表。
+    for phase in ["idle", "ready", "nonsense"] {
+        let quiet: serde_json::Value = unsafe {
+            serde_json::from_str(&take(rhythm_message_resolver_status(
+                c(phase).as_ptr(),
+                0,
+                0,
+            )))
+            .unwrap()
+        };
+        assert!(quiet["segments"].as_array().unwrap().is_empty(), "{phase}");
+    }
+}

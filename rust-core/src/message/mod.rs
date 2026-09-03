@@ -13,6 +13,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::resolver::install::InstallStatus;
 use crate::resolver::ResolveErrorKind;
 use crate::HttpErrorKind;
 
@@ -220,6 +221,48 @@ pub fn resolve_failure(
         }
     };
     headline_with_detail(MessageSegment::key(key), detail, language)
+}
+
+/// 字节转 MB，保留一位小数。换算与保留位数由核心决定——两端过去各用
+/// 各自语言的浮点格式化实现了一遍。
+fn megabytes(bytes: u64) -> String {
+    format!("{:.1}", bytes as f64 / 1_048_576.0)
+}
+
+/// 解析器供给状态的文案规格。
+///
+/// 空闲与就绪没有值得告诉用户的事，产出空规格；下载阶段带进度参数——
+/// 服务端给出总量时是「已收 / 总量」两个数值，没给出时只有已收量，两种
+/// 形态各对应一个键。
+pub fn resolver_status(status: &InstallStatus) -> MessageSpec {
+    match status {
+        InstallStatus::Idle | InstallStatus::Ready => MessageSpec::silent(),
+        InstallStatus::Checking => {
+            MessageSpec::new(vec![MessageSegment::key("resolver_status_checking")])
+        }
+        InstallStatus::Verifying => {
+            MessageSpec::new(vec![MessageSegment::key("resolver_status_verifying")])
+        }
+        InstallStatus::Updating => {
+            MessageSpec::new(vec![MessageSegment::key("resolver_status_updating")])
+        }
+        InstallStatus::Failed { .. } => {
+            MessageSpec::new(vec![MessageSegment::key("resolver_status_failed")])
+        }
+        InstallStatus::Downloading { received, total } => {
+            let received = megabytes(*received);
+            match total.filter(|t| *t > 0) {
+                Some(total) => MessageSpec::new(vec![MessageSegment::key_with(
+                    "resolver_status_downloading",
+                    &[("received", &received), ("total", &megabytes(total))],
+                )]),
+                None => MessageSpec::new(vec![MessageSegment::key_with(
+                    "resolver_status_downloading_unknown_total",
+                    &[("received", &received)],
+                )]),
+            }
+        }
+    }
 }
 
 #[cfg(test)]
