@@ -649,7 +649,8 @@ TEST_CASE("WA-25 playback failure event surfaces classified copy (#120)") {
 
     REQUIRE_FALSE(app.state.IsPlaying);
     REQUIRE_FALSE(app.state.UrlError.empty());
-    REQUIRE(kind == L"playback_cdn_rejected");
+    // #226: the core's own classification value crosses the seam.
+    REQUIRE(kind == L"cdn_rejected");
     REQUIRE(message == L"GET x failed: HTTP 403");
 }
 
