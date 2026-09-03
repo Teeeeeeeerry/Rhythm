@@ -13,6 +13,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::resolver::ResolveErrorKind;
 use crate::HttpErrorKind;
 
 /// 渲染文案时的语言。核心据此决定拼装形状（中文多一段「详细信息：」前缀）。
@@ -31,6 +32,27 @@ impl MessageLanguage {
             Self::Chinese
         } else {
             Self::English
+        }
+    }
+}
+
+/// 平台差异标记：同一条文案在两个平台的安装命令不同（brew 与 winget），
+/// 键表用 platform 字段表达这一差异，规格据此选中对应的键——适配层不再
+/// 重新分叉。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MessagePlatform {
+    MacOs,
+    Windows,
+}
+
+impl MessagePlatform {
+    /// 编译目标所在的平台。核心随各端一起构建，调用方无从传错。
+    pub fn current() -> Self {
+        if cfg!(target_os = "windows") {
+            Self::Windows
+        } else {
+            Self::MacOs
         }
     }
 }
@@ -161,6 +183,43 @@ pub fn playback_failure(
         _ => MessageSegment::key("playback_failed_headline"),
     };
     headline_with_detail(headline, detail, language)
+}
+
+/// 解析失败的文案规格。
+///
+/// 中文用户拿到本地化的 headline 加引擎详情；英文用户拿引擎原文——键表
+/// 的英文栏对这些条目是空的，原文本身就是可行动的信息。未识别的分类
+/// （含 `Internal`）同样回退到引擎原文，不猜文案。
+///
+/// yt-dlp 的安装命令在两个平台不同，由 `platform` 选中键表里对应的条目
+/// （键表 platform 字段语义），适配层不再重新分叉。
+pub fn resolve_failure(
+    kind: Option<ResolveErrorKind>,
+    detail: &str,
+    language: MessageLanguage,
+    platform: MessagePlatform,
+) -> MessageSpec {
+    if language == MessageLanguage::English {
+        return MessageSpec::new(vec![MessageSegment::literal(detail)]);
+    }
+
+    let windows = platform == MessagePlatform::Windows;
+    let key = match kind {
+        Some(ResolveErrorKind::InvalidUrl) => "resolve_error_invalid_url",
+        Some(ResolveErrorKind::YtDlpMissing) if windows => "resolve_error_yt_dlp_missing_windows",
+        Some(ResolveErrorKind::YtDlpMissing) => "resolve_error_yt_dlp_missing",
+        Some(ResolveErrorKind::Timeout) => "resolve_error_timeout",
+        Some(ResolveErrorKind::Network) => "resolve_error_network",
+        Some(ResolveErrorKind::Unavailable) => "resolve_error_unavailable",
+        Some(ResolveErrorKind::NoAudioStream) => "resolve_error_no_audio_stream",
+        Some(ResolveErrorKind::YtDlpOutdated) if windows => "resolve_error_yt_dlp_outdated_windows",
+        Some(ResolveErrorKind::YtDlpOutdated) => "resolve_error_yt_dlp_outdated",
+        // Internal 与未识别分类：引擎原文就是全部已知信息。
+        Some(ResolveErrorKind::Internal) | None => {
+            return MessageSpec::new(vec![MessageSegment::literal(detail)])
+        }
+    };
+    headline_with_detail(MessageSegment::key(key), detail, language)
 }
 
 #[cfg(test)]

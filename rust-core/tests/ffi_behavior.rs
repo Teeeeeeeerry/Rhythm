@@ -452,3 +452,29 @@ fn ff25_message_spec_handles_null_and_unknown_inputs() {
     assert_eq!(segments.len(), 1);
     assert_eq!(segments[0]["key"], "playback_failed_headline");
 }
+
+#[test]
+fn ff25_resolve_failure_message_spec_localizes_by_language() {
+    // 中文：headline 键 + 引擎原文；英文：原文一段。
+    let zh: serde_json::Value = unsafe {
+        serde_json::from_str(&take(rhythm_message_resolve_failure(
+            c("timeout").as_ptr(),
+            c("engine detail").as_ptr(),
+            c("zh").as_ptr(),
+        )))
+        .unwrap()
+    };
+    assert_eq!(zh["segments"][0]["key"], "resolve_error_timeout");
+
+    let en: serde_json::Value = unsafe {
+        serde_json::from_str(&take(rhythm_message_resolve_failure(
+            c("timeout").as_ptr(),
+            c("engine detail").as_ptr(),
+            c("en").as_ptr(),
+        )))
+        .unwrap()
+    };
+    let segments = en["segments"].as_array().unwrap();
+    assert_eq!(segments.len(), 1);
+    assert_eq!(segments[0]["text"], "engine detail");
+}

@@ -17,11 +17,11 @@ use crate::coordinator::{
     CoordinatorErrorKind, CoordinatorEvent, CoordinatorResult, PlaybackCoordinator,
 };
 use crate::library::Library;
-use crate::message::{self, MessageLanguage};
+use crate::message::{self, MessageLanguage, MessagePlatform};
 use crate::metadata;
 use crate::playlist;
 use crate::queue::PlayMode;
-use crate::resolver;
+use crate::resolver::{self, ResolveErrorKind};
 use crate::{HttpErrorKind, PlayerState, TrackInfo};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
@@ -558,6 +558,41 @@ pub unsafe extern "C" fn rhythm_message_playback_failure(
     let detail = unsafe { c_str_to_str(detail) };
     let language = MessageLanguage::from_code(unsafe { c_str_to_str(language) });
     let spec = message::playback_failure(kind, detail, language);
+    str_to_c_string(&serde_json::to_string(&spec).unwrap_or_default())
+}
+
+/// 核心解析错误分类值到枚举；空串与未知值走回退分支（返回引擎原文）。
+fn resolve_error_kind_from_code(code: &str) -> Option<ResolveErrorKind> {
+    match code {
+        "invalid_url" => Some(ResolveErrorKind::InvalidUrl),
+        "yt_dlp_missing" => Some(ResolveErrorKind::YtDlpMissing),
+        "timeout" => Some(ResolveErrorKind::Timeout),
+        "network" => Some(ResolveErrorKind::Network),
+        "unavailable" => Some(ResolveErrorKind::Unavailable),
+        "no_audio_stream" => Some(ResolveErrorKind::NoAudioStream),
+        "yt_dlp_outdated" => Some(ResolveErrorKind::YtDlpOutdated),
+        "internal" => Some(ResolveErrorKind::Internal),
+        _ => None,
+    }
+}
+
+/// 解析失败的文案规格（#229）。`kind` 是核心的 `ResolveErrorKind` 值，
+/// `detail` 是引擎原文，`language` 是适配层解析出的语言标识。平台差异
+/// （yt-dlp 安装命令的 brew 与 winget 之分）由构建目标决定，调用方无从
+/// 传错。Free with `rhythm_free_string`.
+#[no_mangle]
+///
+/// # Safety
+/// See the module-level `# Safety` contract.
+pub unsafe extern "C" fn rhythm_message_resolve_failure(
+    kind: *const c_char,
+    detail: *const c_char,
+    language: *const c_char,
+) -> *mut c_char {
+    let kind = resolve_error_kind_from_code(unsafe { c_str_to_str(kind) });
+    let detail = unsafe { c_str_to_str(detail) };
+    let language = MessageLanguage::from_code(unsafe { c_str_to_str(language) });
+    let spec = message::resolve_failure(kind, detail, language, MessagePlatform::current());
     str_to_c_string(&serde_json::to_string(&spec).unwrap_or_default())
 }
 
