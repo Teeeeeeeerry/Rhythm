@@ -121,6 +121,25 @@ DEFAULT_EXCEPTIONS: list = [
     },
 ]
 
+# 半透明 token 的设计意图声明（#245）：基色 + 不透明度。
+# 八位十六进制是它的算出物，不是出处——两端各自手算过一次，同一个边框色因此
+# 差了一个数值（Windows 侧 0x4D vs macOS 侧 0x4C），只能靠 alphaTolerance 兜着。
+# 声明落地后具体数值可由生成器一次算出（#246 起）。
+DEFAULT_TRANSLUCENT: dict = {
+    "rhythmTextSecondary": {
+        "dark": {"base": "#ABC8D4", "opacity": 0.7},
+        "light": {"base": "#0D464D", "opacity": 0.6},
+    },
+    "rhythmTextTertiary": {
+        "dark": {"base": "#ABC8D4", "opacity": 0.55},
+        "light": {"base": "#0D464D", "opacity": 0.4},
+    },
+    "rhythmBorder": {
+        "dark": {"base": "#ABC8D4", "opacity": 0.15},
+        "light": {"base": "#ABC8D4", "opacity": 0.3},
+    },
+}
+
 DEFAULT_WHITELIST: dict = {
     "macos": [
         # 合法系统组件与功能性颜色（非品牌外观色）。
@@ -165,6 +184,7 @@ def merge_palette(source: dict, existing: dict | None) -> dict:
         "version": 1,
         "note": "Rhythm 品牌配色单一事实来源。tokens 由 sync-palette.py 从源码提取；"
                 "sources（来源徽标色，#184）以本文件为准，sync 时写回双端生成物；"
+                "translucent（半透明 token 的基色 + 不透明度声明，#245）与 "
                 "usage/backgrounds/exceptions/whitelist 为设计决策段（人工维护）。",
         "alphaTolerance": 2,  # alpha 通道比对容差 ±2/255（浮点舍入）
         **source,
@@ -182,6 +202,7 @@ def merge_palette(source: dict, existing: dict | None) -> dict:
         if source_key in base["sources"]:
             base["tokens"][token] = base["sources"][source_key]
     for key, default in (
+        ("translucent", DEFAULT_TRANSLUCENT),
         ("usage", DEFAULT_USAGE),
         ("backgrounds", DEFAULT_BACKGROUNDS),
         ("exceptions", DEFAULT_EXCEPTIONS),

@@ -9,6 +9,7 @@
 - 4 个 source 徽标色：macOS（Theme.swift rhythmSource*）必须与 Windows
   RhythmCore.h 的 dark 值一致；C++ 缺 light 变体（F1）按缺口报告。
 - C++ 徽标背景 alpha（A=38 ≈ 15 %）必须与 macOS `color.opacity(0.15)` 一致。
+- 半透明 token 的「基色 + 不透明度」声明（#245）算出的八位值必须等于 tokens 段记录值。
 
 用法：python3 testing/l0/check-color-parity.py [--root PATH] [--log PATH]
 """
@@ -97,12 +98,36 @@ def main() -> int:
                         f"{pl.to_hex(expected)} ≠ {pl.to_hex(actual)}"
                     )
 
+    # 5) 半透明声明与八位值并存校验（#245）：由「基色 + 不透明度」算出的值
+    #    必须等于 tokens 段记录的八位十六进制。过渡期两者并存，声明是设计意图，
+    #    八位值是算出物；对不上说明有人只改了一边。
+    translucent = palette.get("translucent", {})
+    for token, variants in sorted(translucent.items()):
+        recorded = palette.get("tokens", {}).get(token)
+        if recorded is None:
+            problems.append(f"translucent 段的 {token} 不在 tokens 段中")
+            continue
+        for appearance in ("dark", "light"):
+            decl = variants.get(appearance)
+            if not decl:
+                problems.append(f"translucent {token}.{appearance} 缺声明")
+                continue
+            computed = pl.from_base_opacity(decl["base"], decl["opacity"])
+            expected = pl.from_hex(recorded[appearance])
+            if computed != expected:
+                problems.append(
+                    f"translucent {token}.{appearance}: 声明算出 {pl.to_hex(computed)}"
+                    f"（{decl['base']} @ {decl['opacity']}）"
+                    f" != tokens 段 {pl.to_hex(expected)}"
+                )
+
     if problems:
         print("FAIL — 品牌色 parity 漂移：")
         print("\n".join(f"  {p}" for p in problems))
         return 1
     print(f"OK：{len(shared)} 个双端 token + 4 个 source 色全部一致"
-          f"（alpha 容差 ±{alpha_tol}/255）。")
+          f"（alpha 容差 ±{alpha_tol}/255）；"
+          f"{len(translucent)} 个半透明 token 的声明与八位值一致。")
     return 0
 
 

@@ -7,7 +7,7 @@
 
 | 层 | 目录 | 内容 | 运行时机 |
 |---|---|---|---|
-| 数据源 | `palette.json` | 单一事实来源（tokens/sources 由源码自动提取，决策段人工维护） | — |
+| 数据源 | `palette.json` | 单一事实来源（tokens/sources 由源码自动提取，translucent/决策段人工维护） | — |
 | 数据源 | `sync-palette.py` | 源码 ↔ palette.json 同步；`--check` CI 校验；`--emit-swift-seed` 生成 L1 种子 | 改色后 |
 | L0 静态 | `l0/` | 9 个零依赖 Python 脚本（parity/contrast/forbidden/coverage/doc-drift/ffi-contract/l10n-keys/version-drift/orchestration-dialects） | 每次 push/PR |
 | L0 静态 | `../scripts/check_no_emoji.py` | 零 emoji 硬性约定校验：范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物），二进制按内容探测跳过（#224/#257） | 提交前 / 每次 push/PR |
@@ -65,12 +65,12 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.129）
+## 当前状态（main，v0.5.130）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
 | `sync-palette.py --check` | PASS | palette.json 与源码一致（tokens/sources/usage 全覆盖） |
-| `check-color-parity.py` | PASS | 7 个双端 token + 4 个 source 色一致（F1 已修复：#121/#123） |
+| `check-color-parity.py` | PASS | 7 个双端 token + 4 个 source 色一致（F1 已修复：#121/#123）；3 个半透明 token 的「基色 + 不透明度」声明与八位值一致（#245） |
 | `check-contrast.py` | PASS | 36 组合全达标或已登记例外（F8 两项 + border 装饰线 + source 徽标 4.84 已登记） |
 | `check-forbidden-colors.py` | PASS | 9 个 Swift 视图 + 5 个 XAML 视图无裸色（F4 已修复：#125/#128） |
 | `check-token-coverage.py` | PASS | 7 个 macOS 视图 + 5 个 Windows 视图全部引用 token（F2 已修复：#124/#133） |
