@@ -189,3 +189,14 @@ def build_windows(argv: list[str] | None = None) -> int:
         return 1
     print(f"==> 可执行文件：{exe}")
     return 0
+
+
+# ---------------------------------------------------------------------------
+# 平台分派
+# ---------------------------------------------------------------------------
+
+def build_app(argv: list[str] | None = None) -> int:
+    """构建本平台应用。任务名两个平台相同，文档里的命令不必分平台写两遍。"""
+    if sys.platform == "win32":
+        return build_windows(argv)
+    return build_macos(argv)

@@ -1,8 +1,8 @@
-# L0 + L1 静态/单元测试（每次 push/PR，macOS runner）
+# L0 + L1 静态/单元测试（每次 push/PR）
 #
 # 部署：拷到 .github/workflows/ci.yml 使用。
-# 脚本路径按 testing 位置引用；如脚本移到仓库根 scripts/ 目录，
-# 同步改下面的路径前缀。
+# 每个作业调用的都是本地同名命令（python3 scripts/tasks.py ...），
+# 不再按平台复述一遍步骤——本地跑绿而 CI 跑红这类差异因此少一层来源（#221）。
 
 name: ci
 
@@ -11,42 +11,23 @@ on:
   pull_request:
 
 jobs:
-  l0-static:
-    name: L0 静态分析
+  macos:
+    name: macOS 全量测试（L0 + L1）
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: 校验 palette.json 与源码一致
-        run: python3 testing/sync-palette.py --check
-      - name: 双端品牌色 parity
-        run: python3 testing/l0/check-color-parity.py || echo "::warning::F1 未修复（预期失败，P0 完成后必须转绿）"
-      - name: WCAG 2.1 对比度矩阵
-        run: python3 testing/l0/check-contrast.py
-      - name: 禁止裸色
-        run: python3 testing/l0/check-forbidden-colors.py || echo "::warning::F4 未修复（预期失败，P0 完成后必须转绿）"
-      - name: 视图 token 覆盖率
-        run: python3 testing/l0/check-token-coverage.py || echo "::warning::F2 未修复（预期失败，P0 完成后必须转绿）"
-      - name: 文档色值漂移
-        run: python3 testing/l0/check-doc-drift.py
-      - name: 版本号漂移（版本号只改 Cargo.toml，其余六处是副本）
-        run: python3 testing/l0/check-version-drift.py
-      - name: 零 emoji（硬性约定，覆盖全部被跟踪文件）
-        run: python3 scripts/check_no_emoji.py
-      - name: L0 校验脚本自测
-        run: python3 -m unittest discover -s testing/l0/tests
-      - name: 编排层自测（退出码聚合与共享实现）
-        run: python3 -m unittest discover -s testing/tasks/tests
-      - name: 上传测试日志（每脚本默认写 testing/logs/<脚本名>.log）
+      - name: 全量测试
+        # 严格模式（#144）：任一步红即非零退出，容错需显式豁免
+        run: python3 scripts/tasks.py test
+      - name: 上传测试日志（统一落在 testing/logs/）
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: l0-static-logs
+          name: macos-logs
           path: testing/logs
           # 显式排除脚本文件（上传路径本就是纯日志目录，此为防手滑保险）
           exclude: |
             **/*.py
-            **/*.sh
-            **/*.ps1
 
   rust-core:
     name: Rust 核心
@@ -61,61 +42,18 @@ jobs:
           toolchain: stable
       - run: cargo test -p rhythm-core
 
-  macos-l1:
-    name: macOS L1 单元测试
-    runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: macos
-    steps:
-      - uses: actions/checkout@v4
-      - name: 生成测试种子（数据驱动）
-        run: python3 ../testing/sync-palette.py --emit-swift-seed
-      # P2 前置：Package.swift 拆 RhythmTheme target（macos-Package-patch.md）
-      - name: 拷贝 L1 测试进标准测试目录
-        run: |
-          mkdir -p Tests/RhythmThemeTests
-          cp ../testing/l1/macos/*.swift Tests/RhythmThemeTests/
-      - name: swift test
-        # 默认 shell 为 bash -eo pipefail：tee 不会吞掉 swift 失败退出码
-        run: |
-          mkdir -p ../testing/logs
-          swift test 2>&1 | tee ../testing/logs/l1-macos-swift-test.log
-      - name: 内存卫生
-        run: |
-          swift test --sanitize=address 2>&1 | tee ../testing/logs/l1-macos-asan.log
-      - name: 上传测试日志
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-l1-logs
-          path: testing/logs
-          exclude: |
-            **/*.py
-            **/*.sh
-            **/*.ps1
-
-  windows-l1:
-    name: Windows L1 单元测试
+  windows:
+    name: Windows 测试（L1 + L2）
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: 构建并跑颜色测试（F1 修复后启用）
-        shell: pwsh
-        run: |
-          cmake -S testing/l1/windows -B build
-          cmake --build build
-          New-Item -ItemType Directory -Force testing/logs | Out-Null
-          ctest --test-dir build --output-on-failure 2>&1 |
-            Tee-Object -FilePath testing/logs/l1-windows-ctest.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: 全量测试
+        run: python3 scripts/tasks.py test
       - name: 上传测试日志
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: windows-l1-logs
+          name: windows-logs
           path: testing/logs
           exclude: |
             **/*.py
-            **/*.sh
-            **/*.ps1

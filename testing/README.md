@@ -19,6 +19,7 @@
 | L3 UI | `l3/macos/` | XcodeGen project.yml + 4 组 XCUITest（外观切换/键盘/a11y/新建弹窗） | visual CI |
 | L3 UI | `l3/windows/` | WinAppDriver 兼容性验证 + 主题切换脚本（stdlib 直调 REST） | visual CI |
 | L4 手工 | `l4/` | 8 项主观烟测清单（唯一人工环节） | PR 合并前 |
+| 编排 | `tasks/tests/` | 任务入口与共享实现的行为测试（退出码聚合、开关语义、产物落点约定） | 每次 push/PR |
 | CI | `ci/` | ci.yml（L0+L1）、visual.yml（L2/L3/Nightly）模板 | 拷贝部署 |
 
 ## 快速开始（本地全量）
@@ -43,10 +44,12 @@ python3 testing/l0/check-version-drift.py
 python3 scripts/check_no_emoji.py
 # L0 校验脚本自身的测试：
 python3 -m unittest discover -s testing/l0/tests
+# 编排层自测：
+python3 -m unittest discover -s testing/tasks/tests
 # 或一键全量（含 sync 校验 + L1 swift test，日志统一落盘）：
-bash testing/run-all.sh
-# Windows 侧：
-powershell -File testing/run-windows.ps1 -Smoke
+python3 scripts/tasks.py test
+# Windows 侧（任务名相同）：
+python3 scripts/tasks.py test --smoke
 
 # 3. L1（P2 重构已完成：Theme.swift 拆为 RhythmTheme target）
 python3 testing/sync-palette.py --emit-swift-seed   # 刷新测试种子
@@ -61,7 +64,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.127）
+## 当前状态（main，v0.5.128）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
@@ -75,7 +78,7 @@ EOF
 | `check_no_emoji.py` | PASS | 203 个被跟踪文件零 emoji；范围由扩展名白名单翻转为排除清单，此前漏检的 43 个文件（Windows UI 实现层、L0 脚本、界面标记文件）自此纳入（#224/#257） |
 
 L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门槛见 deep-testing-plan.md §7；
-状态表随每次改色/改视图核对，方式是重跑 `bash testing/run-all.sh`（严格模式，任一红即非零退出，#144）。
+状态表随每次改色/改视图核对，方式是重跑 `python3 scripts/tasks.py test`（严格模式，任一红即非零退出，#144）。
 
 ## 关键约定
 
@@ -90,9 +93,29 @@ L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门�
    每项 ≤ 3 分钟。
 6. **日志留痕**：任何测试结束后必有日志 —— Python 脚本自动把完整输出双写
    终端与 `testing/logs/<脚本名>.log`（`--log` 可覆盖路径）；
-   `swift test` / `ctest` / `xcodebuild` 由 `run-all.sh` / `run-windows.ps1`
-   或 CI tee 落盘（xcodebuild 另有 `.xcresult` 结构化日志）。
+   `swift test` / `ctest` / `xcodebuild` 的输出由任务入口转存（xcodebuild 另有
+   `.xcresult` 结构化日志）。
    `testing/logs/` 已 gitignore，CI 每次运行作为 artifact 上传。
-7. **一键入口**：`bash testing/run-all.sh`（macOS）、
-   `powershell -File testing/run-windows.ps1 -Smoke`（Windows）
+7. **一键入口**：`python3 scripts/tasks.py test`。任务名两个平台相同，
    跑完本机支持的全部层级，日志齐后看 `testing/logs/`。
+
+## 任务入口（#221）
+
+编排层只有一种语言。构建与测试都走 `python3 scripts/tasks.py <任务>`，
+CI 配置调用的是同名命令。
+
+| 任务 | 内容 |
+|---|---|
+| `build` | 构建本平台应用（macOS `build/Rhythm.app`；Windows `build/windows/Release/Rhythm.exe`） |
+| `test` | 本平台全量测试（macOS L0 + L1；Windows L1 + L2，`--smoke` 追加 L3） |
+| `check-no-emoji` | 零 emoji 硬性约定校验 |
+| `compare-screenshots` | L2 截屏与 golden 的像素比对 |
+
+退出码：`0` 全绿 / `1` 有步骤失败 / `2` 用法错误（未知任务或未知参数）。
+
+开关（`test`）：`--l0-only` 只跑静态分析；`--allow-expected-failures` 与
+`ALLOW_EXPECTED_FAILURES=1` 显式豁免预期失败，默认严格模式不容错（#144）；
+`--smoke` 只在有冒烟段的平台上被接受。
+
+共享实现在 `scripts/tasklib.py`：仓库根定位、日志目录与输出转存、失败计数与
+退出码聚合、子进程调用与错误传播。日志一律落 `testing/logs/<名字>.log`。

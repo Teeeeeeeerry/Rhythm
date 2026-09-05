@@ -79,10 +79,9 @@ TASKS: list[Task] = [
     Task("test", "全量测试：macOS 为 L0 静态分析 + L1 单元测试，"
                  "Windows 为 L1 单元 + L2 截屏比对 + L3 冒烟（--smoke）",
          lambda argv: task_test.run_full_suite(argv)),
-    Task("build-macos", "构建 macOS 应用包（build/Rhythm.app）",
-         lambda argv: task_build.build_macos(argv), platform="macos"),
-    Task("build-windows", "构建 Windows 应用（build/windows/Release/Rhythm.exe）",
-         lambda argv: task_build.build_windows(argv), platform="windows"),
+    Task("build", "构建本平台应用：macOS 为 build/Rhythm.app，"
+                  "Windows 为 build/windows/Release/Rhythm.exe",
+         lambda argv: task_build.build_app(argv)),
     Task("check-no-emoji", "零 emoji 校验（硬性约定，覆盖被跟踪的全部文件）",
          lambda argv: _run_module("scripts/check_no_emoji.py", argv)),
     Task("compare-screenshots", "L2 截屏与 golden 的像素比对",

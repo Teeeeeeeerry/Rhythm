@@ -24,7 +24,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-初步开发完成。当前版本 **v0.5.127 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
+初步开发完成。当前版本 **v0.5.128 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
 
 ### 实现状态
 
@@ -78,53 +78,43 @@ export RHYTHM_YTDLP_PATH=/your/path/to/yt-dlp # 指定自己的二进制
 - **macOS**：Xcode 15+ 或 Command Line Tools + Swift 5.9+
 - **Windows**：Visual Studio 2022 + Windows App SDK + CMake 3.20+
 
+构建与测试都走同一个跨平台任务入口，任务名两个平台相同（#221）：
+
+```bash
+python3 scripts/tasks.py            # 列出全部任务
+python3 scripts/tasks.py build      # 构建本平台应用
+python3 scripts/tasks.py test       # 本平台全量测试
+```
+
+退出码：`0` 全绿 / `1` 有步骤失败 / `2` 用法错误。
+
 ### macOS
 
 ```bash
-# 1. 构建 Rust 核心库
-cargo build --release -p rhythm-core
-
-# 2. 构建 Swift UI
-cd macos && swift build -c release
-
-# 3. 打包 .app（在项目根目录 build/ 下）
-mkdir -p "$PROJECT_ROOT/build/Rhythm.app/Contents/"{MacOS,Resources,Frameworks}
-cp .build/release/Rhythm "$PROJECT_ROOT/build/Rhythm.app/Contents/MacOS/"
-cp ../target/release/librhythm_core.dylib "$PROJECT_ROOT/build/Rhythm.app/Contents/Frameworks/"
-cp Rhythm/Resources/Info.plist "$PROJECT_ROOT/build/Rhythm.app/Contents/"
-sed -i '' 's/\$(EXECUTABLE_NAME)/Rhythm/' "$PROJECT_ROOT/build/Rhythm.app/Contents/Info.plist"
-
-# 4. 签名
-codesign --force --deep --sign - "$PROJECT_ROOT/build/Rhythm.app"
+python3 scripts/tasks.py build
 ```
 
-或使用一键脚本：
-```bash
-bash scripts/build-macos.sh
-```
+依次构建 Rust 核心与 Swift 可执行文件，再组装 `build/Rhythm.app`：改写动态库引用
+指向包内副本、临时签名，并校验应用包不再引用构建树路径（否则它只在本机能跑）。
 
 ### Windows
 
-```bash
-# 1. 构建 Rust 核心 DLL（在 Windows 上或交叉编译）
-cargo build --release -p rhythm-core --target x86_64-pc-windows-msvc
-
-# 2. 构建 WinUI 3 应用
-cd windows && mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . --config Release
-```
-
-或使用一键脚本（在 Windows 上）：
 ```bat
-scripts\build-windows.bat
+python3 scripts\tasks.py build
 ```
+
+构建 Rust 核心与 WinUI 3 应用，产出 `build\windows\Release\Rhythm.exe`。
 
 ### 运行测试
 
 ```bash
-cargo test -p rhythm-core
+python3 scripts/tasks.py test     # macOS：L0 静态分析 + L1 单元测试
+                                  # Windows：L1 单元 + L2 截屏比对（--smoke 追加 L3 冒烟）
+cargo test -p rhythm-core         # Rust 核心行为测试
 ```
+
+只跑静态分析用 `--l0-only`；预期失败需显式豁免（`--allow-expected-failures`，
+或环境变量 `ALLOW_EXPECTED_FAILURES=1`），默认严格模式下任一步红即非零退出。
 
 ## 技术选型
 

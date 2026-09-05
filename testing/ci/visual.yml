@@ -53,7 +53,7 @@ jobs:
         if: failure()
         run: |
           # 对比失败时把 golden 与实际图作为 PR comment（gh pr comment --body-file）
-          python3 testing/l2/windows/compare_screenshots.py \
+          python3 scripts/tasks.py compare-screenshots \
             --actual build/snapshots --golden testing/l2/macos/golden || true
       - name: 上传测试日志（xcresult 含截图/失败 diff）
         if: always()
@@ -64,8 +64,6 @@ jobs:
           # 显式排除脚本文件（上传路径本就是纯日志目录，此为防手滑保险）
           exclude: |
             **/*.py
-            **/*.sh
-            **/*.ps1
 
   macos-ui:
     name: macOS UI 自动化（L3）
@@ -91,8 +89,6 @@ jobs:
           path: testing/logs
           exclude: |
             **/*.py
-            **/*.sh
-            **/*.ps1
 
   windows-visual:
     name: Windows 视觉（L2/L3）
@@ -101,15 +97,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: 构建截屏宿主
         run: |
-          cmake -S testing/l2/windows -B build-capture
-          cmake --build build-capture
+          cmake -S testing/l2/windows -B build/windows/l2
+          cmake --build build/windows/l2
       - name: 渲染 5 视图 × 2 主题
-        run: build-capture/Release/capture_views.exe build/artifacts
+        run: build/windows/l2/Release/capture_views.exe build/artifacts
       - name: golden 像素比对
-        run: python3 testing/l2/windows/compare_screenshots.py --actual build/artifacts --golden testing/l2/windows/golden
+        run: python3 scripts/tasks.py compare-screenshots --actual build/artifacts --golden testing/l2/windows/golden
       - name: WinAppDriver 冒烟（失败进入降级，见 l3/windows/winappdriver.md）
         run: |
-          python3 testing/l3/windows/theme_switch.py --smoke --app build/Release/Rhythm.exe || true
+          python3 testing/l3/windows/theme_switch.py --smoke --app build/windows/Release/Rhythm.exe || true
       - name: 上传测试日志
         if: always()
         uses: actions/upload-artifact@v4
@@ -118,8 +114,6 @@ jobs:
           path: testing/logs
           exclude: |
             **/*.py
-            **/*.sh
-            **/*.ps1
 
   nightly:
     name: Nightly 基线刷新

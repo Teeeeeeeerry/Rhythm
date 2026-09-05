@@ -42,9 +42,9 @@ windows/            WinUI 3 C++ 客户端，镜像 macos 的 AppState（AppState
   Rhythm/Bridge/RhythmCore.h        C++ 侧 FFI 封装 + IPlayer/ICoordinator 接缝 + Track/Playlist 模型（含来源徽标色表映射）
   Rhythm/L10n.h                     Windows 文案层（跟随系统语言 + 注册表覆盖，#141）
   tests/                            Catch2 行为测试（AppState / Bridge / L10n）
-testing/            主题色彩测试基础设施：palette.json 单一事实来源 + L0-L4 + run-all.sh
+testing/            主题色彩测试基础设施：palette.json 单一事实来源 + L0-L4；编排层自测在 tasks/tests/
 docs/               adr/（决策记录）、testing/behavior/（各模块行为清单）、issues/（已调查的 bug 报告）
-scripts/            tasks.py（任务入口）/ tasklib.py / task_build.py / task_test.py / check_no_emoji.py / gen-l10n.py / gen-ffi-bindings.py / build-macos.sh / build-windows.bat
+scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build.py / task_test.py；check_no_emoji.py / gen-l10n.py / gen-ffi-bindings.py
 ```
 
 ### 关键路径
@@ -57,7 +57,7 @@ scripts/            tasks.py（任务入口）/ tasklib.py / task_build.py / tas
   返回消息规格 → 双端 `L10n` 按键取模板、填占位符、顺序拼接（#216 组）
 - **进度/音量**：`PlayerBarView` 的 Slider → `player.seek/setVolume`（FFI 直通）
 - **测试**：`macos/Tests/`（AppStateTests + RhythmThemeTests）。AppState 测试用真实临时数据库 + SpyCoordinator（编排规则在 rust-core `coordinator_behavior.rs`，无音频设备依赖）；
-  Rust 侧 `cargo test -p rhythm-core`，Windows 侧 `windows/tests/`（Catch2，SpyCoordinator 同 macOS），主题色彩链路 `bash testing/run-all.sh`
+  Rust 侧 `cargo test -p rhythm-core`，Windows 侧 `windows/tests/`（Catch2，SpyCoordinator 同 macOS），主题色彩链路 `python3 scripts/tasks.py test`
 
 ### 新增引擎能力的三层套路（#70 的教训）
 
@@ -78,18 +78,24 @@ scripts/            tasks.py（任务入口）/ tasklib.py / task_build.py / tas
   按键取模板、按参数填占位符；中英拼装形状、平台差异选键（brew 与 winget）、字节到 MB 的换算都在核心。
   新增一种分类只改核心与键表，双端零改动。语言解析（macOS Locale + AppLanguage、Windows 系统 UI 语言 +
   注册表覆盖）保持平台特异，不下沉。跨接缝一律传核心原始分类值，UI 侧不发明前缀编码（#226）
-- **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `python3 scripts/tasks.py check-no-emoji` 校验；发现即修，不得绕过。校验范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物，二进制按内容跳过），新增语言或文件类型自动纳入；已挂进 `testing/run-all.sh` 与 CI 静态分析作业（#224）
+- **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `python3 scripts/tasks.py check-no-emoji` 校验；发现即修，不得绕过。校验范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物，二进制按内容跳过），新增语言或文件类型自动纳入；已挂进 `python3 scripts/tasks.py test` 与 CI（#224）
 - **品牌色**：只用 `RhythmTheme` 模块的 token（如 `.rhythmAccent`），不硬编码色值
 - **版本号单一出处**：版本号只改 `Cargo.toml` 的 `[workspace.package] version`；其余六处（依赖锁文件、两份 README 版本行、macOS `Info.plist`、
   `windows/CMakeLists.txt`、`testing/README.md` 状态表）是副本，随之同步。漂移由 `python3 testing/l0/check-version-drift.py` 拦截，
-  已挂进 `testing/run-all.sh` 的 L0 段与 CI 静态分析作业（#251/#252/#253）
+  已挂进 `python3 scripts/tasks.py test` 的 L0 段与 CI（#251/#252/#253）
 - **M3U8 入库策略单一出处**：位置类型识别、标题缺失回退、入库判定与计数只写在 `rust-core/src/playlist/mod.rs`；
   双端在这条路径上只允许三步——调核心入口、按具名结果选提示语、从数据库重载列表。历史上 #136 与 #173 是
   同一缺陷在两平台各修一次，#217 组把策略下沉后不再可能修两次
 - **导入结果具名不用魔数**：资料库导入不再有魔数返回码（#244 起）。三条路径共用 `ImportOutcome{imported, unsupported, failed}`，
   「格式不支持」与「读写失败」必须分开——合并会丢掉用户唯一能据以行动的信息。新增一条导入路径沿用同一形状，
   不发明新的返回约定；结果结构声明在 `contracts/ffi-contract.json`，双端绑定由生成器产出，少接一条路径会在生成物比对时暴露
-- **构建产物**：放 `build/` 目录（scripts/build-macos.sh 生成 Rhythm.app）
+- **构建产物**：放 `build/` 目录——macOS 为 `build/Rhythm.app`，Windows 为 `build/windows/Release/Rhythm.exe`，
+  截屏产物 `build/artifacts`；Rust 核心产物在工作区根 `target/release/`，取用点只有 `task_build.core_artifact_dir` 一处
+- **编排层只用 Python（#221 组）**：构建与测试的入口是 `python3 scripts/tasks.py <任务>`，任务名两个平台相同
+  （`build` / `test` / `check-no-emoji` / `compare-screenshots`），退出码 0 全绿 / 1 有步骤失败 / 2 用法错误。
+  路径解析、日志落盘、失败计数与退出码聚合、子进程调用四项只写在 `scripts/tasklib.py`；新增一个任务改
+  `scripts/tasks.py` 的注册表加一个实现模块，不再新增脚本方言。严格模式是默认（#144），容错只能显式开启。
+  CI 配置调用的就是本地同名命令
 
 ## 坑（非显而易见，踩过才写）
 
