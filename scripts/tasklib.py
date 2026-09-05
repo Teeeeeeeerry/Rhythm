@@ -19,7 +19,9 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 # ---------------------------------------------------------------------------
 # 1) 仓库根定位
@@ -29,6 +31,12 @@ from pathlib import Path
 REPO_MARKERS = ("Cargo.toml",)
 
 LOGS_REL = Path("testing") / "logs"
+
+# 环境变量开关的真值写法（与迁移前的 shell 判定一致）
+TRUTHY = ("1", "true", "yes", "on")
+
+# 用法错误的退出码（未知任务或未知参数），与迁移前的脚本一致
+USAGE_ERROR = 2
 
 
 def repo_root(start: Path | None = None) -> Path:
@@ -193,3 +201,75 @@ def run_checked(cmd: list[str], **kwargs) -> None:
     code = run(cmd, **kwargs)
     if code != 0:
         raise StepFailed([str(c) for c in cmd], code)
+
+
+# ---------------------------------------------------------------------------
+# 步骤与退出码聚合
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Step:
+    """一个可执行步骤。action 返回退出码（零为通过）。
+
+    static_analysis 标记该步是否属于静态分析段——只跑静态分析时保留的正是这些。
+    """
+
+    name: str
+    action: Callable[[], int]
+    static_analysis: bool = True
+
+
+def select_steps(steps: list[Step], *, l0_only: bool) -> list[Step]:
+    """只跑静态分析时过滤掉非静态分析步骤。"""
+    return [s for s in steps if s.static_analysis or not l0_only]
+
+
+def run_steps(steps: list[Step], *, l0_only: bool = False,
+              allow_expected: bool = False) -> int:
+    """按顺序跑步骤，聚合成整体退出码。
+
+    不因某步失败而提前中断——全部跑完才知道到底红了几处；但只要有红，
+    默认就以非零退出（#144：曾经绿着吞掉红灯）。
+    """
+    tally = Failures()
+    for step in select_steps(steps, l0_only=l0_only):
+        print(f"\n----- {step.name} -----")
+        tally.record_code(step.name, step.action())
+    print()
+    print(tally.summary())
+    code = tally.exit_code(allow_expected)
+    if tally.count and code == 0:
+        print("（失败已按 --allow-expected-failures / ALLOW_EXPECTED_FAILURES 显式豁免）")
+    elif code:
+        print("存在失败步骤，以非零退出码结束"
+              "（预期失败请用 --allow-expected-failures 或 "
+              "ALLOW_EXPECTED_FAILURES=1 显式豁免）", file=sys.stderr)
+    return code
+
+
+@dataclass
+class TestFlags:
+    l0_only: bool = False
+    allow_expected: bool = False
+
+
+def parse_test_flags(argv: list[str], env: dict[str, str] | None = None) -> TestFlags:
+    """解析全量测试入口的两个开关（命令行与环境变量两种形式）。
+
+    语义与迁移前的 run-all.sh 一致：ALLOW_EXPECTED_FAILURES=1 等价于
+    --allow-expected-failures；未知参数按用法错误处理。
+    """
+    env = os.environ if env is None else env
+    flags = TestFlags(
+        allow_expected=str(env.get("ALLOW_EXPECTED_FAILURES", "0")).lower() in TRUTHY
+    )
+    for arg in argv:
+        if arg == "--l0-only":
+            flags.l0_only = True
+        elif arg == "--allow-expected-failures":
+            flags.allow_expected = True
+        else:
+            print(f"未知参数: {arg}（支持 --l0-only / --allow-expected-failures）",
+                  file=sys.stderr)
+            raise SystemExit(USAGE_ERROR)
+    return flags

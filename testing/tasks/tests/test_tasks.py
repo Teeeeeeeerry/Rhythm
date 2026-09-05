@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import io
 import sys
 import unittest
@@ -15,19 +14,11 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "scripts"))
 
-
-def _load(name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    # 先登记再执行：dataclass 解析字符串注解时会回查 sys.modules
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-tasks = _load("tasks", ROOT / "scripts" / "tasks.py")
+import task_test  # noqa: E402
+import tasklib  # noqa: E402
+import tasks  # noqa: E402
 
 
 def green(name: str, static_analysis: bool = True) -> "tasks.Step":
@@ -111,6 +102,26 @@ class StaticAnalysisSwitchTest(unittest.TestCase):
     def test_flag_parsing_sets_the_switch(self):
         self.assertTrue(tasks.parse_test_flags(["--l0-only"], env={}).l0_only)
         self.assertFalse(tasks.parse_test_flags([], env={}).l0_only)
+
+
+class MacosStepTableTest(unittest.TestCase):
+    """迁移后的全量测试步骤集合（#262）：L1 段必须被 --l0-only 排除。"""
+
+    def setUp(self):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.steps = task_test.macos_steps(tasklib.repo_root())
+
+    def test_every_l0_check_script_is_a_step(self):
+        scripts = sorted((tasklib.repo_root() / "testing" / "l0").glob("check-*.py"))
+        listed = [s.name for s in self.steps]
+        for script in scripts:
+            self.assertTrue(any(script.name in name for name in listed), script.name)
+
+    def test_l0_only_drops_the_swift_test_steps(self):
+        picked = [s.name for s in tasks.select_steps(self.steps, l0_only=True)]
+        self.assertFalse([n for n in picked if "swift test" in n or "ASan" in n])
+        self.assertTrue([n for n in picked if "零 emoji" in n])
 
 
 class ExpectedFailureWaiverTest(unittest.TestCase):
