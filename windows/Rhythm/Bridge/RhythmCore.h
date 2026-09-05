@@ -87,13 +87,19 @@ struct Track {
         return std::nullopt;
     }
 
+    // BEGIN GENERATED SOURCE FALLBACK (#219) — 由 scripts/gen-palette.py 生成，勿手改
+    // 未知来源回退到正文色（rhythmTextPrimary），绝不返回系统 Gray（F4）
+    static constexpr const wchar_t* kUnknownSourceDark = L"#ABC8D4";
+    static constexpr const wchar_t* kUnknownSourceLight = L"#0D464D";
+    // END GENERATED SOURCE FALLBACK (#219)
+
     /// Badge foreground colour for a source type, theme-aware (F1, #121).
     /// Unknown sources fall back to the teal text colour — never system Gray (F4).
     std::wstring SourceColor(std::wstring_view sourceType, bool isDarkTheme) const {
         if (auto rgb = SourceColorRGB(sourceType, isDarkTheme)) {
             return std::format(L"#{:02X}{:02X}{:02X}", rgb->r, rgb->g, rgb->b);
         }
-        return isDarkTheme ? L"#ABC8D4" : L"#0D464D";  // teal textPrimary
+        return isDarkTheme ? kUnknownSourceDark : kUnknownSourceLight;
     }
 
     /// Binding surface: resolves the effective theme (see `IsDarkTheme`).

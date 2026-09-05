@@ -32,6 +32,7 @@ MINIMAL = {
     "sourceBadge": {"backgroundOpacity": 0.15},
     "tokens": {
         "rhythmAccent": {"dark": "#ABC8D4", "light": "#0D464D"},
+        "rhythmTextPrimary": {"dark": "#ABC8D4", "light": "#0D464D"},
         "rhythmBorder": {"dark": "#26ABC8D4", "light": "#4DABC8D4"},
     },
     "translucent": {
@@ -42,6 +43,7 @@ MINIMAL = {
     },
     "docs": {
         "rhythmAccent": {"group": "Accent", "lines": ["Accent.", "{values}"]},
+        "rhythmTextPrimary": {"lines": ["Body text.", "{values}"]},
         "rhythmBorder": {"lines": ["Stroke.", "{values}"]},
     },
     "sources": {
@@ -82,6 +84,9 @@ def make_tree(root: Path) -> None:
         f"{gen.CPP_BADGE_BEGIN}\n"
         "    // 旧内容\n"
         f"{gen.CPP_BADGE_END}\n"
+        f"{gen.CPP_FALLBACK_BEGIN}\n"
+        "    // 旧内容\n"
+        f"{gen.CPP_FALLBACK_END}\n"
         "};\n", encoding="utf-8")
 
 
@@ -204,6 +209,22 @@ class CppSourceTableTest(unittest.TestCase):
     def test_region_markers_wrap_the_output(self):
         self.assertTrue(self.text.startswith(gen.CPP_SOURCE_BEGIN))
         self.assertTrue(self.text.endswith(gen.CPP_SOURCE_END))
+
+
+class SourceFallbackTest(unittest.TestCase):
+    """未知来源的回退色也来自配色文件——三处产物里最后一处手写字面量（#219）。"""
+
+    def test_fallback_comes_from_the_body_text_token(self):
+        text = "\n".join(gen.cpp_fallback_lines(MINIMAL))
+        self.assertIn('kUnknownSourceDark = L"#ABC8D4";', text)
+        self.assertIn('kUnknownSourceLight = L"#0D464D";', text)
+
+    def test_fallback_tracks_the_declaration(self):
+        palette = dict(MINIMAL)
+        palette["tokens"] = dict(MINIMAL["tokens"])
+        palette["tokens"]["rhythmTextPrimary"] = {"dark": "#112233", "light": "#445566"}
+        text = "\n".join(gen.cpp_fallback_lines(palette))
+        self.assertIn('kUnknownSourceDark = L"#112233";', text)
 
 
 class BadgeBackgroundTest(unittest.TestCase):

@@ -38,6 +38,11 @@ CPP_SOURCE_BEGIN = "        // BEGIN GENERATED SOURCE TABLE (#184)"
 CPP_SOURCE_END = "        // END GENERATED SOURCE TABLE (#184)"
 CPP_BADGE_BEGIN = "    // BEGIN GENERATED BADGE BACKGROUND (#249)"
 CPP_BADGE_END = "    // END GENERATED BADGE BACKGROUND (#249)"
+CPP_FALLBACK_BEGIN = "    // BEGIN GENERATED SOURCE FALLBACK (#219)"
+CPP_FALLBACK_END = "    // END GENERATED SOURCE FALLBACK (#219)"
+
+# 未知来源徽标回退到正文色（绝不返回系统 Gray，F4/#121）
+FALLBACK_TOKEN = "rhythmTextPrimary"
 
 # Windows 主题字典：Default 即 dark，Light 即 light。两段各有自己的标记。
 XAML_DICTS = (("Default", "dark"), ("Light", "light"))
@@ -251,6 +256,23 @@ def cpp_badge_lines(palette: dict) -> list[str]:
     ]
 
 
+def cpp_fallback_lines(palette: dict) -> list[str]:
+    """未知来源徽标的回退色：取正文色，与 macOS 侧同一出处。
+
+    这是三处产物里最后一处手写的品牌色字面量（#219）；纳入生成后，
+    改它必须改配色文件，手改会被逐字节比对拦下。
+    """
+    dark = base_of(palette, FALLBACK_TOKEN, "dark").upper()
+    light = base_of(palette, FALLBACK_TOKEN, "light").upper()
+    return [
+        "    // BEGIN GENERATED SOURCE FALLBACK (#219) — 由 scripts/gen-palette.py 生成，勿手改",
+        f"    // 未知来源回退到正文色（{FALLBACK_TOKEN}），绝不返回系统 Gray（F4）",
+        f'    static constexpr const wchar_t* kUnknownSourceDark = L"{dark}";',
+        f'    static constexpr const wchar_t* kUnknownSourceLight = L"{light}";',
+        CPP_FALLBACK_END,
+    ]
+
+
 # ---------------------------------------------------------------------------
 # 产物
 # ---------------------------------------------------------------------------
@@ -284,8 +306,10 @@ def generate(palette: dict, root: str = ROOT) -> dict[str, str]:
         cpp = f.read()
     cpp = replace_region(
         cpp, CPP_SOURCE_BEGIN, CPP_SOURCE_END, cpp_source_lines(palette))
-    out[CPP_CORE] = replace_region(
+    cpp = replace_region(
         cpp, CPP_BADGE_BEGIN, CPP_BADGE_END, cpp_badge_lines(palette))
+    out[CPP_CORE] = replace_region(
+        cpp, CPP_FALLBACK_BEGIN, CPP_FALLBACK_END, cpp_fallback_lines(palette))
 
     return out
 

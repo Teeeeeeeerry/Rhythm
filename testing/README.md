@@ -8,7 +8,7 @@
 | 层 | 目录 | 内容 | 运行时机 |
 |---|---|---|---|
 | 数据源 | `palette.json` | 品牌配色的单一声明（人工维护）：tokens/sources 色值、translucent 基色 + 不透明度、docs token 文档块、sourceBadge 胶囊底不透明度、决策段 | — |
-| 生成器 | `../scripts/gen-palette.py` | 配色文件写回三处源码标记区间（macOS 主色 token #247、Windows 主题字典 #248、来源徽标色 #246）；`--emit-swift-seed` 顺带刷新 L1 种子；与文案、契约两个生成器同构 | 改色后 |
+| 生成器 | `../scripts/gen-palette.py` | 配色文件写回三处源码标记区间（macOS 主色 token #247、Windows 主题字典 #248、来源徽标色 #246、徽标胶囊底与未知来源回退 #249/#219）；`--emit-swift-seed` 顺带刷新 L1 种子；与文案、契约两个生成器同构 | 改色后 |
 | L0 静态 | `l0/` | 9 个零依赖 Python 脚本（palette/contrast/forbidden/coverage/doc-drift/ffi-contract/l10n-keys/version-drift/orchestration-dialects） | 每次 push/PR |
 | L0 静态 | `../scripts/check_no_emoji.py` | 零 emoji 硬性约定校验：范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物），二进制按内容探测跳过（#224/#257） | 提交前 / 每次 push/PR |
 | L0 自测 | `l0/tests/` | L0 校验脚本自身的行为测试（stdlib unittest，临时文件树夹具） | 每次 push/PR |
@@ -65,7 +65,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.136）
+## 当前状态（main，v0.5.137）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
@@ -92,6 +92,8 @@ L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门�
    `sourceBadge` 是徽标胶囊底的不透明度；`usage`/`backgrounds`/`exceptions`/`whitelist`
    是 L0 检查的"立法"：低对比度要么修复要么登记例外，两者都留痕。
    透明度容差字段已随 #250 移除——生成方向确立后，任何不一致都必须报红。
+   三个文件里的品牌色字面量一律落在生成标记区间内：区间外的手写副本不被逐字节比对覆盖，
+   等于重新开一条漂移通道（#219 收尾把最后一处——未知来源的回退色——收了进来）。
 3. **禁止裸色**是硬约束：视图代码只准出现 `.rhythm*` token；新视图必须有 token。
 4. **快照维护**：外观改动必附 golden 更新，review 看 diff；CI 快照红 = 真回归。
 5. **手工最小化**：合并前 L4 八项勾选（l4/manual-smoke-checklist.md），
