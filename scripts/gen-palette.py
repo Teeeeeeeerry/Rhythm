@@ -30,6 +30,8 @@ SWIFT_SOURCE_BEGIN = "    // BEGIN GENERATED SOURCE COLORS (#184)"
 SWIFT_SOURCE_END = "    // END GENERATED SOURCE COLORS (#184)"
 CPP_SOURCE_BEGIN = "        // BEGIN GENERATED SOURCE TABLE (#184)"
 CPP_SOURCE_END = "        // END GENERATED SOURCE TABLE (#184)"
+CPP_BADGE_BEGIN = "    // BEGIN GENERATED BADGE BACKGROUND (#249)"
+CPP_BADGE_END = "    // END GENERATED BADGE BACKGROUND (#249)"
 
 # Windows 主题字典：Default 即 dark，Light 即 light。两段各有自己的标记。
 XAML_DICTS = (("Default", "dark"), ("Light", "light"))
@@ -220,6 +222,19 @@ def cpp_source_lines(palette: dict) -> list[str]:
     return lines
 
 
+def cpp_badge_lines(palette: dict) -> list[str]:
+    """徽标胶囊底的 alpha：与 macOS `.background(color.opacity(...))` 同一声明。"""
+    opacity = float(palette.get("sourceBadge", {}).get("backgroundOpacity", 0.15))
+    alpha = round(opacity * 255)
+    return [
+        "    // BEGIN GENERATED BADGE BACKGROUND (#249) — 由 scripts/gen-palette.py 生成，勿手改",
+        f"    // 胶囊底 = 徽标前景色 @ {opacity:g}"
+        f"（与 macOS `.background(color.opacity({opacity:g}))` 同一声明）",
+        f"    static constexpr uint8_t kSourceBadgeBackgroundAlpha = {alpha};",
+        CPP_BADGE_END,
+    ]
+
+
 # ---------------------------------------------------------------------------
 # 产物
 # ---------------------------------------------------------------------------
@@ -251,8 +266,10 @@ def generate(palette: dict, root: str = ROOT) -> dict[str, str]:
     cpp_path = os.path.join(root, CPP_CORE)
     with open(cpp_path, encoding="utf-8") as f:
         cpp = f.read()
-    out[CPP_CORE] = replace_region(
+    cpp = replace_region(
         cpp, CPP_SOURCE_BEGIN, CPP_SOURCE_END, cpp_source_lines(palette))
+    out[CPP_CORE] = replace_region(
+        cpp, CPP_BADGE_BEGIN, CPP_BADGE_END, cpp_badge_lines(palette))
 
     return out
 

@@ -10,7 +10,7 @@
 | 数据源 | `palette.json` | 单一事实来源（tokens/sources 由源码自动提取，translucent/决策段人工维护） | — |
 | 数据源 | `sync-palette.py` | 源码 ↔ palette.json 同步；`--check` CI 校验；`--emit-swift-seed` 生成 L1 种子 | 改色后 |
 | 生成器 | `../scripts/gen-palette.py` | 配色文件写回三处源码标记区间（macOS 主色 token #247、Windows 主题字典 #248、来源徽标色 #246）；与文案、契约两个生成器同构 | 改色后 |
-| L0 静态 | `l0/` | 9 个零依赖 Python 脚本（parity/contrast/forbidden/coverage/doc-drift/ffi-contract/l10n-keys/version-drift/orchestration-dialects） | 每次 push/PR |
+| L0 静态 | `l0/` | 9 个零依赖 Python 脚本（palette/contrast/forbidden/coverage/doc-drift/ffi-contract/l10n-keys/version-drift/orchestration-dialects） | 每次 push/PR |
 | L0 静态 | `../scripts/check_no_emoji.py` | 零 emoji 硬性约定校验：范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物），二进制按内容探测跳过（#224/#257） | 提交前 / 每次 push/PR |
 | L0 自测 | `l0/tests/` | L0 校验脚本自身的行为测试（stdlib unittest，临时文件树夹具） | 每次 push/PR |
 | L1 单元 | `l1/macos/` | PaletteSeed + 五组 Swift 测试（isDark/RGB/对比度/语义/互异） | `swift test` |
@@ -34,7 +34,7 @@ python3 testing/sync-palette.py --emit-swift-seed  # 刷新 L1 测试种子
 
 # 2. L0 静态分析（现状全绿；F1/F2/F4 已分别由 #121/#124/#125 修复）
 #    每个脚本结束自动把完整输出写入 testing/logs/<脚本名>.log（--log 可覆盖）
-python3 testing/l0/check-color-parity.py
+python3 testing/l0/check-palette.py
 python3 testing/l0/check-contrast.py
 python3 testing/l0/check-forbidden-colors.py
 python3 testing/l0/check-token-coverage.py
@@ -66,12 +66,12 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.133）
+## 当前状态（main，v0.5.134）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
 | `sync-palette.py --check` | PASS | palette.json 与源码一致（tokens/sources/usage 全覆盖） |
-| `check-color-parity.py` | PASS | 7 个双端 token + 4 个 source 色一致（F1 已修复：#121/#123）；3 个半透明 token 的「基色 + 不透明度」声明与八位值一致（#245） |
+| `check-palette.py` | PASS | 三处配色生成物与 `palette.json` 逐字节一致（#249）；3 个半透明 token 的「基色 + 不透明度」声明与八位值一致（#245） |
 | `check-contrast.py` | PASS | 36 组合全达标或已登记例外（F8 两项 + border 装饰线 + source 徽标 4.84 已登记） |
 | `check-forbidden-colors.py` | PASS | 9 个 Swift 视图 + 5 个 XAML 视图无裸色（F4 已修复：#125/#128） |
 | `check-token-coverage.py` | PASS | 7 个 macOS 视图 + 5 个 Windows 视图全部引用 token（F2 已修复：#124/#133） |
@@ -85,8 +85,9 @@ L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门�
 
 ## 关键约定
 
-1. **改色流程**：改 `Theme.swift` / `Colors.xaml` / `RhythmCore.h` →
-   `sync-palette.py`（刷新 palette.json + 测试种子）→ L0 脚本 → `swift test`。
+1. **改色流程**：改 `palette.json` → `python3 scripts/gen-palette.py`（写回三处产物）
+   → `python3 testing/sync-palette.py --emit-swift-seed`（刷新测试种子）→ L0 脚本 → `swift test`。
+   源码的标记区间是生成物，不手改；漂移由 `check-palette.py` 逐字节比对拦截（#249）。
    任何一步红都要解释，禁止 `|| true` 静默吞掉。
 2. **palette.json 决策段**（usage/backgrounds/exceptions/whitelist）人工维护，
    是 L0 检查的"立法"：低对比度要么修复要么登记例外，两者都留痕。

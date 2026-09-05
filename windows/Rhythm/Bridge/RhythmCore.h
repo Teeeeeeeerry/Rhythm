@@ -101,13 +101,18 @@ struct Track {
         return SourceColor(sourceType, IsDarkTheme());
     }
 
-    /// Capsule badge background brush — foreground colour at 15 % opacity,
-    /// matching the macOS `.background(color.opacity(0.15))` treatment.
+    // BEGIN GENERATED BADGE BACKGROUND (#249) — 由 scripts/gen-palette.py 生成，勿手改
+    // 胶囊底 = 徽标前景色 @ 0.15（与 macOS `.background(color.opacity(0.15))` 同一声明）
+    static constexpr uint8_t kSourceBadgeBackgroundAlpha = 38;
+    // END GENERATED BADGE BACKGROUND (#249)
+
+    /// Capsule badge background brush — foreground colour at the declared
+    /// opacity, matching the macOS `.background(color.opacity(...))` treatment.
     winrt::Microsoft::UI::Xaml::Media::SolidColorBrush SourceBackgroundBrush() const {
         const SourceRGB fallback{0x80, 0x80, 0x80};  // unknown: grey
         auto rgb = SourceColorRGB(sourceType, IsDarkTheme()).value_or(fallback);
         return winrt::Microsoft::UI::Xaml::Media::SolidColorBrush(
-            winrt::Windows::UI::Color{38, rgb.r, rgb.g, rgb.b});  // A=38 ≈ 15 %
+            winrt::Windows::UI::Color{kSourceBadgeBackgroundAlpha, rgb.r, rgb.g, rgb.b});
     }
 };
 

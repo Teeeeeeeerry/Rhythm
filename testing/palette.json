@@ -66,6 +66,9 @@
       "light": "#8B4A28"
     }
   },
+  "sourceBadge": {
+    "backgroundOpacity": 0.15
+  },
   "translucent": {
     "rhythmTextSecondary": {
       "dark": {
@@ -118,7 +121,7 @@
         "Elevated surface (cards, artwork placeholders).",
         "{values}",
         "",
-        "In light mode this is intentionally the same as `rhythmSurface` \u2014",
+        "In light mode this is intentionally the same as `rhythmSurface` —",
         "the brand palette is dark-first and light-mode layering relies on",
         "shadows and borders rather than colour difference (see `rhythmBorder`)."
       ]
