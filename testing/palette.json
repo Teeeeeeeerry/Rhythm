@@ -1,7 +1,6 @@
 {
   "version": 1,
-  "note": "Rhythm 品牌配色单一事实来源。tokens 由 sync-palette.py 从源码提取；sources（来源徽标色，#184）以本文件为准，sync 时写回双端生成物；translucent（半透明 token 的基色 + 不透明度声明，#245）与 usage/backgrounds/exceptions/whitelist 为设计决策段（人工维护）。",
-  "alphaTolerance": 2,
+  "note": "Rhythm 品牌配色单一事实来源（人工维护）。tokens/sources 是色值声明，translucent 为半透明 token 的基色 + 不透明度（#245），docs 为 token 文档块（#247），sourceBadge 为徽标胶囊底不透明度；usage/backgrounds/exceptions/whitelist 为设计决策段。双端源码的标记区间由 scripts/gen-palette.py 生成，漂移由 testing/l0/check-palette.py 逐字节比对拦截（#219 组）。",
   "tokens": {
     "rhythmAccent": {
       "dark": "#ABC8D4",
@@ -9,7 +8,7 @@
     },
     "rhythmBorder": {
       "dark": "#26ABC8D4",
-      "light": "#4CABC8D4"
+      "light": "#4DABC8D4"
     },
     "rhythmElevated": {
       "dark": "#0D464D",
@@ -40,7 +39,7 @@
       "light": "#0D464D"
     },
     "rhythmTextSecondary": {
-      "dark": "#B2ABC8D4",
+      "dark": "#B3ABC8D4",
       "light": "#990D464D"
     },
     "rhythmTextTertiary": {

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Rhythm 品牌配色测试共享库（零依赖，仅 Python 3 stdlib）。
 
-职责（供 testing/l0/*.py 与 sync-palette.py 复用）：
-1. 定位仓库根目录、读取 palette.json（单一事实来源）。
-2. 解析双端源码中的品牌 token：
-   - macOS  `macos/RhythmTheme/Theme.swift`（dark/light 三元组 + alpha；P2 后独立 target）
-   - Windows `windows/Rhythm/Themes/Colors.xaml`（Default/Light 字典，#RRGGBB / #AARRGGBB）
-   - Windows `windows/Rhythm/Bridge/RhythmCore.h`（SourceColor / SourceBackgroundBrush）
-3. WCAG 2.1 相对亮度、对比度、alpha 合成计算。
+职责（供 testing/l0/*.py 复用）：
+1. 定位仓库根目录、日志双写、读取 palette.json（单一事实来源）。
+2. 色值表示与转换（hex、基色 + 不透明度、alpha 合成）。
+3. WCAG 2.1 相对亮度与对比度计算。
+4. 仓库文件遍历（跟踪文件减排除清单）与视图文件定位。
+
+配色管道是单向的：palette.json -> scripts/gen-palette.py -> 双端源码标记区间。
+本库不再从源码语法反解色值——三套语言正则解析器已随 #250 删除，
+校验改为「重新生成加逐字节比对」（testing/l0/check-palette.py）。
 
 色值内部一律以 (r, g, b, a) 0-255 元组表示；hex 序列化统一走 to_hex / from_hex。
 """
@@ -15,8 +17,6 @@
 from __future__ import annotations
 
 import json
-import math
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -109,22 +109,6 @@ def to_hex(c: Color) -> str:
     return f"#{r:02X}{g:02X}{b:02X}" if a == 255 else f"#{a:02X}{r:02X}{g:02X}{b:02X}"
 
 
-def alpha_from_opacity(opacity: float) -> int:
-    """不透明度（0-1）→ alpha 通道（0-255）。
-
-    就近取整，恰好 0.5 时取偶（Python 内置 round）。这条规则是按现有值定的：
-    0.30 与 0.70 落在 76.5 / 178.5 上，取偶得到的 0x4C / 0xB2 与 macOS 侧
-    现值一致；四舍五入会得到 0x4D / 0xB3，两端都对不上（#245）。
-    """
-    return round(opacity * 255)
-
-
-def from_base_opacity(base_hex: str, opacity: float) -> Color:
-    """「基色 + 不透明度」声明 → (r, g, b, a)。"""
-    r, g, b, _ = from_hex(base_hex)
-    return (r, g, b, alpha_from_opacity(opacity))
-
-
 def blend(fg: Color, bg: Color) -> Color:
     """把半透明 fg 合成到不透明 bg 上（背景按不透明处理）。"""
     fr, fg_r, fb, fa = fg
@@ -174,160 +158,6 @@ def load_palette(path: Path | None = None, repo_root: Path | None = None) -> dic
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
-
-def save_palette(data: dict, path: Path) -> None:
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-        f.write("\n")
-
-
-# ---------------------------------------------------------------------------
-# macOS Theme.swift 解析
-# ---------------------------------------------------------------------------
-
-_SWIFT_VAR = re.compile(r"static var (\w+): Color \{", re.S)
-_SWIFT_NSCOLOR = re.compile(
-    r"NSColor\(red:\s*(0x[0-9A-Fa-f]+)\s*/\s*255\.0,\s*"
-    r"green:\s*(0x[0-9A-Fa-f]+)\s*/\s*255\.0,\s*"
-    r"blue:\s*(0x[0-9A-Fa-f]+)\s*/\s*255\.0,\s*"
-    r"alpha:\s*([\d.]+)\s*\)"
-)
-_SWIFT_WHITE = re.compile(r"NSColor\.white")
-
-
-def _swift_ns_to_color(expr: str) -> Color | None:
-    m = _SWIFT_NSCOLOR.search(expr)
-    if m:
-        return (
-            int(m.group(1), 16), int(m.group(2), 16), int(m.group(3), 16),
-            round(float(m.group(4)) * 255),
-        )
-    if _SWIFT_WHITE.search(expr):
-        return (255, 255, 255, 255)
-    return None
-
-
-def _swift_colors_in_block(block: str) -> list[Color]:
-    """块内所有 NSColor 按源码出现顺序。"""
-    colors: list[Color] = []
-    for m in _SWIFT_NSCOLOR.finditer(block):
-        colors.append(
-            (
-                int(m.group(1), 16), int(m.group(2), 16), int(m.group(3), 16),
-                round(float(m.group(4)) * 255),
-            )
-        )
-    for m in _SWIFT_WHITE.finditer(block):
-        colors.append((255, 255, 255, 255))
-    return colors
-
-
-def parse_swift_theme(path: Path) -> dict[str, dict[str, Color]]:
-    """→ {token: {"dark": Color, "light": Color}}。
-
-    约定：每个 token 块内恰好两个 NSColor，按源码顺序为
-    `isDark(appearance) ? <dark> : <light>`（本仓库 Theme.swift 的固定结构）。
-    """
-    text = path.read_text(encoding="utf-8")
-    result: dict[str, dict[str, Color]] = {}
-    pos = 0
-    while True:
-        var = _SWIFT_VAR.search(text, pos)
-        if not var:
-            break
-        name, start = var.group(1), var.end()
-        nxt = _SWIFT_VAR.search(text, start)
-        block = text[start : nxt.start() if nxt else len(text)]
-        colors = _swift_colors_in_block(block)
-        if len(colors) == 2:
-            result[name] = {"dark": colors[0], "light": colors[1]}
-        pos = nxt.start() if nxt else len(text)
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Windows Colors.xaml 解析
-# ---------------------------------------------------------------------------
-
-_XAML_DICT_START = re.compile(r'ResourceDictionary x:Key="(\w+)"')
-_XAML_BRUSH = re.compile(
-    r'<SolidColorBrush x:Key="Rhythm(\w+)Brush" Color="#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})"'
-)
-
-
-def parse_xaml_colors(path: Path) -> dict[str, dict[str, Color]]:
-    """→ {token: {"dark": Color, "light": Color}}。Default 字典 = dark。"""
-    text = path.read_text(encoding="utf-8")
-    raw: dict[str, dict[str, Color]] = {}
-    m = _XAML_DICT_START.search(text)
-    while m:
-        dict_name = m.group(1)
-        nxt = _XAML_DICT_START.search(text, m.end())
-        section_end = nxt.start() if nxt else len(text)
-        section = text[m.end() : section_end]
-        for brush in _XAML_BRUSH.finditer(section):
-            token = "rhythm" + brush.group(1)
-            raw.setdefault(token, {})[dict_name] = from_hex("#" + brush.group(2))
-        m = nxt
-    # 统一键名：Default → dark，Light → light
-    return {
-        token: {"dark": variants["Default"], "light": variants["Light"]}
-        for token, variants in raw.items()
-        if "Default" in variants and "Light" in variants
-    }
-
-
-# ---------------------------------------------------------------------------
-# Windows RhythmCore.h 解析（source 徽标色）
-# ---------------------------------------------------------------------------
-
-# F1 修复后（#121）：theme 感知三元形式，一行带 dark + light 双端值
-_CPP_SOURCE_RET_THEMED = re.compile(
-    r'if \(sourceType == L"(\w+)"\)\s*return isDarkTheme \? '
-    r'L"#([0-9A-Fa-f]{6})" : L"#([0-9A-Fa-f]{6})";'
-)
-_CPP_SOURCE_RET = re.compile(r'if \(sourceType == L"(\w+)"\) return L"#([0-9A-Fa-f]{6})";')
-_CPP_SOURCE_RGB = re.compile(
-    r'if \(sourceType == L"(\w+)"\)\s*\{ r = (0x[0-9A-Fa-f]+); g = (0x[0-9A-Fa-f]+); b = (0x[0-9A-Fa-f]+); \}'
-)
-# #147 收敛后：单一表驱动映射 `{L"name", {dark RGB}, {light RGB}},`
-_CPP_SOURCE_TABLE = re.compile(
-    r'\{L"(\w+)",\s*\{0x([0-9A-Fa-f]{2}), 0x([0-9A-Fa-f]{2}), 0x([0-9A-Fa-f]{2})\},\s*'
-    r'\{0x([0-9A-Fa-f]{2}), 0x([0-9A-Fa-f]{2}), 0x([0-9A-Fa-f]{2})\}\}'
-)
-_CPP_SOURCE_ALPHA = re.compile(r"winrt::Windows::UI::Color\{(\d+),")
-_CPP_FALLBACK_GRAY = re.compile(r"return L\"Gray\";")
-
-
-def parse_cpp_sources(path: Path) -> dict:
-    """→ {"sources": {type: {"dark": Color, "light": Color|None}}, "alpha": int, "gray_fallback": bool}。
-
-    F1（#121）修复后 light 变体来自 theme 感知签名的三元表达式；旧式单值
-    行仍可解析（light=None），供回归对照。#147 收敛后的表驱动形式
-    `{L"name", {dark}, {light}}` 同样可解析。
-    """
-    text = path.read_text(encoding="utf-8")
-    sources: dict[str, dict] = {}
-    for m in _CPP_SOURCE_RET_THEMED.finditer(text):
-        sources[m.group(1)] = {
-            "dark": from_hex("#" + m.group(2)),
-            "light": from_hex("#" + m.group(3)),
-        }
-    for m in _CPP_SOURCE_RET.finditer(text):
-        sources.setdefault(m.group(1), {"dark": from_hex("#" + m.group(2)), "light": None})
-    for m in _CPP_SOURCE_TABLE.finditer(text):
-        dark = (int(m.group(2), 16), int(m.group(3), 16), int(m.group(4), 16), 255)
-        light = (int(m.group(5), 16), int(m.group(6), 16), int(m.group(7), 16), 255)
-        sources[m.group(1)] = {"dark": dark, "light": light}
-    alpha = 255
-    am = _CPP_SOURCE_ALPHA.search(text)
-    if am:
-        alpha = int(am.group(1))
-    return {
-        "sources": sources,
-        "alpha": alpha,
-        "gray_fallback": bool(_CPP_FALLBACK_GRAY.search(text)),
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -400,20 +230,3 @@ def swift_view_files(repo_root: Path) -> list[Path]:
 
 def xaml_view_files(repo_root: Path) -> list[Path]:
     return sorted((repo_root / "windows" / "Rhythm" / "Views").rglob("*.xaml"))
-
-
-if __name__ == "__main__":
-    root = find_repo_root()
-    print(f"repo root: {root}")
-    swift = parse_swift_theme(root / "macos" / "RhythmTheme" / "Theme.swift")
-    print(f"macOS tokens: {len(swift)}")
-    for name, v in sorted(swift.items()):
-        print(f"  {name}: dark={to_hex(v['dark'])} light={to_hex(v['light'])}")
-    xaml = parse_xaml_colors(root / "windows" / "Rhythm" / "Themes" / "Colors.xaml")
-    print(f"Windows tokens: {len(xaml)}")
-    for name, v in sorted(xaml.items()):
-        print(f"  {name}: dark={to_hex(v['dark'])} light={to_hex(v['light'])}")
-    cpp = parse_cpp_sources(root / "windows" / "Rhythm" / "Bridge" / "RhythmCore.h")
-    print(f"C++ sources: {len(cpp['sources'])} (alpha={cpp['alpha']}, gray_fallback={cpp['gray_fallback']})")
-    for name, v in sorted(cpp["sources"].items()):
-        print(f"  {name}: dark={to_hex(v['dark'])} light={v['light']}")

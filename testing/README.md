@@ -7,9 +7,8 @@
 
 | 层 | 目录 | 内容 | 运行时机 |
 |---|---|---|---|
-| 数据源 | `palette.json` | 单一事实来源（tokens/sources 由源码自动提取，translucent/决策段人工维护） | — |
-| 数据源 | `sync-palette.py` | 源码 ↔ palette.json 同步；`--check` CI 校验；`--emit-swift-seed` 生成 L1 种子 | 改色后 |
-| 生成器 | `../scripts/gen-palette.py` | 配色文件写回三处源码标记区间（macOS 主色 token #247、Windows 主题字典 #248、来源徽标色 #246）；与文案、契约两个生成器同构 | 改色后 |
+| 数据源 | `palette.json` | 品牌配色的单一声明（人工维护）：tokens/sources 色值、translucent 基色 + 不透明度、docs token 文档块、sourceBadge 胶囊底不透明度、决策段 | — |
+| 生成器 | `../scripts/gen-palette.py` | 配色文件写回三处源码标记区间（macOS 主色 token #247、Windows 主题字典 #248、来源徽标色 #246）；`--emit-swift-seed` 顺带刷新 L1 种子；与文案、契约两个生成器同构 | 改色后 |
 | L0 静态 | `l0/` | 9 个零依赖 Python 脚本（palette/contrast/forbidden/coverage/doc-drift/ffi-contract/l10n-keys/version-drift/orchestration-dialects） | 每次 push/PR |
 | L0 静态 | `../scripts/check_no_emoji.py` | 零 emoji 硬性约定校验：范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物），二进制按内容探测跳过（#224/#257） | 提交前 / 每次 push/PR |
 | L0 自测 | `l0/tests/` | L0 校验脚本自身的行为测试（stdlib unittest，临时文件树夹具） | 每次 push/PR |
@@ -28,9 +27,9 @@
 ```bash
 cd /Users/home-folder/GitHub/Rhythm
 
-# 1. 数据源同步与自检
-python3 testing/sync-palette.py --check        # palette.json 与源码一致？
-python3 testing/sync-palette.py --emit-swift-seed  # 刷新 L1 测试种子
+# 1. 数据源生成与自检
+python3 scripts/gen-palette.py --emit-swift-seed   # 从 palette.json 写回三处产物 + 刷新 L1 种子
+python3 testing/l0/check-palette.py                # 产物与 palette.json 逐字节一致？
 
 # 2. L0 静态分析（现状全绿；F1/F2/F4 已分别由 #121/#124/#125 修复）
 #    每个脚本结束自动把完整输出写入 testing/logs/<脚本名>.log（--log 可覆盖）
@@ -48,13 +47,13 @@ python3 scripts/check_no_emoji.py
 python3 -m unittest discover -s testing/l0/tests
 # 编排层自测：
 python3 -m unittest discover -s testing/tasks/tests
-# 或一键全量（含 sync 校验 + L1 swift test，日志统一落盘）：
+# 或一键全量（含 L0 全部校验 + L1 swift test，日志统一落盘）：
 python3 scripts/tasks.py test
 # Windows 侧（任务名相同）：
 python3 scripts/tasks.py test --smoke
 
 # 3. L1（P2 重构已完成：Theme.swift 拆为 RhythmTheme target）
-python3 testing/sync-palette.py --emit-swift-seed   # 刷新测试种子
+python3 scripts/gen-palette.py --emit-swift-seed    # 刷新测试种子
 cp testing/l1/macos/*.swift macos/Tests/RhythmThemeTests/  # 拷贝挂载（与 CI 一致）
 cd macos && swift build && swift test
 
@@ -66,11 +65,10 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.134）
+## 当前状态（main，v0.5.136）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
-| `sync-palette.py --check` | PASS | palette.json 与源码一致（tokens/sources/usage 全覆盖） |
 | `check-palette.py` | PASS | 三处配色生成物与 `palette.json` 逐字节一致（#249）；3 个半透明 token 的「基色 + 不透明度」声明与八位值一致（#245） |
 | `check-contrast.py` | PASS | 36 组合全达标或已登记例外（F8 两项 + border 装饰线 + source 徽标 4.84 已登记） |
 | `check-forbidden-colors.py` | PASS | 9 个 Swift 视图 + 5 个 XAML 视图无裸色（F4 已修复：#125/#128） |
@@ -85,12 +83,15 @@ L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门�
 
 ## 关键约定
 
-1. **改色流程**：改 `palette.json` → `python3 scripts/gen-palette.py`（写回三处产物）
-   → `python3 testing/sync-palette.py --emit-swift-seed`（刷新测试种子）→ L0 脚本 → `swift test`。
+1. **改色流程**：改 `palette.json` → `python3 scripts/gen-palette.py --emit-swift-seed`（写回三处产物）
+   （`--emit-swift-seed` 顺带刷新测试种子）→ L0 脚本 → `swift test`。
    源码的标记区间是生成物，不手改；漂移由 `check-palette.py` 逐字节比对拦截（#249）。
    任何一步红都要解释，禁止 `|| true` 静默吞掉。
-2. **palette.json 决策段**（usage/backgrounds/exceptions/whitelist）人工维护，
+2. **palette.json 字段**：`tokens`/`sources` 是色值声明，`translucent` 是半透明 token 的
+   「基色 + 不透明度」（八位值由生成器算出，不再手写），`docs` 是 token 文档块，
+   `sourceBadge` 是徽标胶囊底的不透明度；`usage`/`backgrounds`/`exceptions`/`whitelist`
    是 L0 检查的"立法"：低对比度要么修复要么登记例外，两者都留痕。
+   透明度容差字段已随 #250 移除——生成方向确立后，任何不一致都必须报红。
 3. **禁止裸色**是硬约束：视图代码只准出现 `.rhythm*` token；新视图必须有 token。
 4. **快照维护**：外观改动必附 golden 更新，review 看 diff；CI 快照红 = 真回归。
 5. **手工最小化**：合并前 L4 八项勾选（l4/manual-smoke-checklist.md），

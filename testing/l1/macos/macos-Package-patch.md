@@ -58,7 +58,7 @@ L1 测试当前在 `testing/l1/macos/`（PaletteSeed.swift + 五组测试）。�
 
 - **拷贝挂（推荐）**：把 `testing/l1/macos/` 下全部 `.swift` 拷贝到
   `macos/Tests/RhythmThemeTests/`（SwiftPM 测试目录约定），Package.swift 用默认
-  `path: "Tests/RhythmThemeTests"`。`sync-palette.py --emit-swift-seed` 重新生成后
+  `path: "Tests/RhythmThemeTests"`。`gen-palette.py --emit-swift-seed` 重新生成后
   覆盖拷贝即可。
 - **直接挂**：testTarget 的 `path` 指向 `../testing/l1/macos`，exclude 留空。
   缺点：SwiftPM 会在 `testing/` 下产生 `.build` 缓存目录，且该目录被包进构建扫描。
@@ -77,7 +77,7 @@ swift test                         # RhythmThemeTests 五组全绿
 加/改 token 后：
 
 ```bash
-python3 testing/sync-palette.py --emit-swift-seed   # 刷新 PaletteSeed.swift
+python3 scripts/gen-palette.py --emit-swift-seed   # 刷新 PaletteSeed.swift
 swift test                         # 新 token 自动获得 RGB/对比度/互异全套断言
 ```
 

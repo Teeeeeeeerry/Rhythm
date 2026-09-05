@@ -5,12 +5,11 @@ import XCTest
 
 /// L1: 每 token × 每外观，强制 NSAppearance 后 sRGB 解析逐通道断言。
 ///
-/// 期望值来自 PaletteSeed.swift（由 sync-palette.py --emit-swift-seed 从
+/// 期望值来自 PaletteSeed.swift（由 gen-palette.py --emit-swift-seed 从
 /// palette.json 生成）—— 新增 token 自动获得本组测试。
-/// alpha 容差 ±2/255（与 L0 palette.json alphaTolerance 一致）。
+/// alpha 逐字节相等：透明度由生成器一次算出并写入双端，容差随 #250 取消。
 final class ThemePaletteRGBTests: XCTestCase {
 
-    private let alphaTolerance = 2
 
     // token 名 → 访问器（数据驱动：循环 PaletteSeed.tokens 生成用例）
     private func color(for token: String) -> Color? {
@@ -70,8 +69,8 @@ final class ThemePaletteRGBTests: XCTestCase {
                                "\(token).\(appearanceName) G 通道")
                 XCTAssertEqual(actual.b, expected.b,
                                "\(token).\(appearanceName) B 通道")
-                XCTAssertLessThanOrEqual(abs(actual.a - expected.a), alphaTolerance,
-                                         "\(token).\(appearanceName) alpha 超容差 ±2/255")
+                XCTAssertEqual(actual.a, expected.a,
+                               "\(token).\(appearanceName) alpha 通道")
             }
         }
     }

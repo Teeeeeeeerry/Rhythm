@@ -72,7 +72,7 @@ palette.json 的 `usage` 段驱动，全矩阵（token × 背景 × 外观）自
 
 | 脚本 | 作用 | 失败条件 |
 |---|---|---|
-| `check-color-parity.py` | 解析生成的 Swift/XAML/C++ 源码，逐 token × 外观比对双端 RGB（alpha 容差 ±2/255） | 任一端漂移 |
+| `check-palette.py` | 以 `gen-palette.py` 重新生成三处产物，与提交内容逐字节比对（透明度容差已随 #250 取消） | 任一端漂移 |
 | `check-contrast.py` | WCAG 2.1 相对亮度 + alpha 合成，全矩阵（§2.3）；未达标项必须在 palette.json 例外段登记 | 新低对比度未登记 |
 | `check-forbidden-colors.py` | 扫描双端源码（排除生成文件/白名单）：非 token 颜色引用即失败 | 出现 `Color.blue`/hex/裸 Brush |
 | `check-token-coverage.py` | 每个受品牌化视图至少引用 1 个 token（视图级覆盖率，含 F2 缺口报警） | 新增视图无 token |
@@ -146,7 +146,7 @@ UI 自动化断言颜色：macOS 用 `XCUIElement` 的 `value` + 窗口截图像
 
 ```yaml
 # ci.yml — 每次 push/PR（macOS runner）
-#   python3 testing/sync-palette.py --check
+#   python3 testing/l0/check-palette.py
 #   python3 testing/l0/check-color-parity.py
 #   python3 testing/l0/check-contrast.py
 #   python3 testing/l0/check-forbidden-colors.py
@@ -204,7 +204,7 @@ P2–P5 作为紧接的自动化基建 PR 跟进（若分支已合入，F 项必
 | 阶段 | 现状 | 依据 |
 |---|---|---|
 | **P0** | 完成 | F1/F2/F4/F5 已修复（见 §6 状态列）；F3 转由 L3 跟进 |
-| **P1** | 完成（CI 未部署） | `testing/palette.json` + `sync-palette.py` + L0 五脚本全绿；`ci.yml` 仍是 `testing/ci/` 下模板 |
+| **P1** | 完成（CI 未部署） | `testing/palette.json` + `scripts/gen-palette.py` + L0 脚本全绿；`ci.yml` 仍是 `testing/ci/` 下模板 |
 | **P2** | 完成 | `RhythmTheme` target 已拆出，`macos/Tests/RhythmThemeTests` 五组数据驱动测试；F6 决策已落地、F8 登记例外 |
 | **P3** | 未完成 | `testing/l2/macos/ViewSnapshotTests.swift` 与 `testing/l2/windows/capture_views.cpp` 为模板，golden 未入库 |
 | **P4** | 未完成 | `testing/l3/macos` XcodeGen + 四组 XCUITest、`testing/l3/windows` 主题切换脚本已备，未接入 CI |

@@ -14,7 +14,7 @@
             <SolidColorBrush x:Key="RhythmElevatedBrush" Color="#0D464D" />
             <SolidColorBrush x:Key="RhythmTextPrimaryBrush" Color="#ABC8D4" />
             <!-- #ABC8D4 @ 0.7 for secondary / muted text -->
-            <SolidColorBrush x:Key="RhythmTextSecondaryBrush" Color="#B2ABC8D4" />
+            <SolidColorBrush x:Key="RhythmTextSecondaryBrush" Color="#B3ABC8D4" />
             <!-- #ABC8D4 @ 0.55 for tertiary / hint text -->
             <SolidColorBrush x:Key="RhythmTextTertiaryBrush" Color="#8CABC8D4" />
             <!-- #ABC8D4 @ 0.15 for panel-separating stroke -->
@@ -34,7 +34,7 @@
             <!-- #0D464D @ 0.4 for tertiary / hint text -->
             <SolidColorBrush x:Key="RhythmTextTertiaryBrush" Color="#660D464D" />
             <!-- #ABC8D4 @ 0.3 for panel-separating stroke -->
-            <SolidColorBrush x:Key="RhythmBorderBrush" Color="#4CABC8D4" />
+            <SolidColorBrush x:Key="RhythmBorderBrush" Color="#4DABC8D4" />
             <!-- END GENERATED BRUSHES: Light (#248) -->
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>

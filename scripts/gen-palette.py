@@ -8,18 +8,24 @@
 接管的产物：macOS 主题模块的主色 token 定义与来源徽标色（#246/#247），
 Windows 主题字典的画刷定义（#248）。
 
-Run: python3 scripts/gen-palette.py
+Run: python3 scripts/gen-palette.py [--emit-swift-seed]
+
+--emit-swift-seed 顺带刷新 L1 数据驱动测试的种子。生成顺序在此固定：
+先写三处源码产物，再出种子，种子因此不会基于旧产物（#219）。
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
+from decimal import Decimal
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PALETTE = os.path.join(ROOT, "testing", "palette.json")
 
+SWIFT_SEED = "testing/l1/macos/PaletteSeed.swift"
 SWIFT_THEME = "macos/RhythmTheme/Theme.swift"
 XAML_COLORS = "windows/Rhythm/Themes/Colors.xaml"
 CPP_CORE = "windows/Rhythm/Bridge/RhythmCore.h"
@@ -56,6 +62,16 @@ SOURCE_SWIFT_NAMES = {
 def load(path: str = PALETTE) -> dict:
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+def alpha_from_opacity(opacity: float) -> int:
+    """不透明度（0-1）-> alpha 通道（0-255）。恰好 .5 时进位。
+
+    这条规则是按平台实测定的：AppKit 把 0.7 量化成 179、0.30 量化成 77
+    （L1 取值测试逐字节断言的就是这个值）。用二进制浮点乘会因 0.7 不可精确
+    表示而少算一位，所以走 Decimal 按十进制字面量算（#250）。
+    """
+    return int(Decimal(str(opacity)) * 255 + Decimal("0.5"))
 
 
 def rgb(hex_value: str) -> tuple[int, int, int]:
@@ -159,7 +175,7 @@ def xaml_color(palette: dict, token: str, appearance: str) -> str:
     opacity = opacity_of(palette, token, appearance)
     if opacity >= 1.0:
         return f"#{r:02X}{g:02X}{b:02X}"
-    return f"#{round(opacity * 255):02X}{r:02X}{g:02X}{b:02X}"
+    return f"#{alpha_from_opacity(opacity):02X}{r:02X}{g:02X}{b:02X}"
 
 
 def xaml_brush_lines(palette: dict, dict_name: str, appearance: str) -> list[str]:
@@ -225,7 +241,7 @@ def cpp_source_lines(palette: dict) -> list[str]:
 def cpp_badge_lines(palette: dict) -> list[str]:
     """徽标胶囊底的 alpha：与 macOS `.background(color.opacity(...))` 同一声明。"""
     opacity = float(palette.get("sourceBadge", {}).get("backgroundOpacity", 0.15))
-    alpha = round(opacity * 255)
+    alpha = alpha_from_opacity(opacity)
     return [
         "    // BEGIN GENERATED BADGE BACKGROUND (#249) — 由 scripts/gen-palette.py 生成，勿手改",
         f"    // 胶囊底 = 徽标前景色 @ {opacity:g}"
@@ -274,13 +290,68 @@ def generate(palette: dict, root: str = ROOT) -> dict[str, str]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# L1 测试种子
+# ---------------------------------------------------------------------------
+
+def swift_seed(palette: dict) -> str:
+    """L1 数据驱动测试的种子（paletteRGB / contrast / sourceDistinct 共用）。"""
+    lines = [
+        "// 自动生成 — 由 scripts/gen-palette.py --emit-swift-seed 生成，勿手改。",
+        "// 修改配色后重新生成：python3 scripts/gen-palette.py --emit-swift-seed",
+        "import Foundation",
+        "",
+        "/// palette.json 的 Swift 种子：L1 测试断言的实际期望值。",
+        "enum PaletteSeed {",
+        "    struct RGB { let r, g, b, a: Int }",
+        "",
+        "    static let tokens: [String: [String: RGB]] = [",
+    ]
+    for name, v in sorted(palette["tokens"].items()):
+        parts = []
+        for appearance in ("dark", "light"):
+            r, g, b = rgb(v[appearance])
+            a = alpha_from_opacity(opacity_of(palette, name, appearance))
+            parts.append(f'"{appearance}": RGB(r: {r}, g: {g}, b: {b}, a: {a})')
+        lines.append(f'        "{name}": [{" , ".join(parts)}],')
+    lines += [
+        "    ]",
+        "",
+        "    static let sources: [String: [String: RGB]] = [",
+    ]
+    for name, v in sorted(palette["sources"].items()):
+        parts = []
+        for appearance in ("dark", "light"):
+            if not v.get(appearance):
+                continue
+            r, g, b = rgb(v[appearance])
+            parts.append(f'"{appearance}": RGB(r: {r}, g: {g}, b: {b}, a: 255)')
+        lines.append(f'        "{name}": [{" , ".join(parts)}],')
+    lines += [
+        "    ]",
+        "}",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def main() -> int:
+    ap = argparse.ArgumentParser(description="从 testing/palette.json 生成双端配色定义")
+    ap.add_argument("--emit-swift-seed", action="store_true",
+                    help="顺带刷新 L1 测试种子（在三处产物之后生成）")
+    args = ap.parse_args()
+
     palette = load()
     for rel, text in generate(palette).items():
         path = os.path.join(ROOT, rel)
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)
         print(f"wrote {rel}")
+    if args.emit_swift_seed:
+        path = os.path.join(ROOT, SWIFT_SEED)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(swift_seed(palette))
+        print(f"wrote {SWIFT_SEED}")
     return 0
 
 
