@@ -38,7 +38,7 @@ def _load_generator():
     return module
 
 
-def check_translucent(palette: dict) -> list[str]:
+def check_translucent(palette: dict, gen) -> list[str]:
     """半透明声明与八位值并存校验（#245）。"""
     problems: list[str] = []
     for token, variants in sorted(palette.get("translucent", {}).items()):
@@ -51,7 +51,8 @@ def check_translucent(palette: dict) -> list[str]:
             if not decl:
                 problems.append(f"translucent {token}.{appearance} 缺声明")
                 continue
-            computed = pl.from_base_opacity(decl["base"], decl["opacity"])
+            r, g, b = gen.rgb(decl["base"])
+            computed = (r, g, b, gen.alpha_from_opacity(decl["opacity"]))
             expected = pl.from_hex(recorded[appearance])
             if computed != expected:
                 problems.append(
@@ -80,7 +81,7 @@ def main() -> int:
     for rel, expected in generated.items():
         if (root / rel).read_text(encoding="utf-8") != expected:
             problems.append(f"{rel} 与 palette.json 漂移——运行 python3 scripts/gen-palette.py")
-    problems += check_translucent(palette)
+    problems += check_translucent(palette, gen)
 
     if problems:
         print("FAIL — 配色生成物校验失败：")

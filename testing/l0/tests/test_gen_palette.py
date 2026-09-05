@@ -32,7 +32,7 @@ MINIMAL = {
     "sourceBadge": {"backgroundOpacity": 0.15},
     "tokens": {
         "rhythmAccent": {"dark": "#ABC8D4", "light": "#0D464D"},
-        "rhythmBorder": {"dark": "#26ABC8D4", "light": "#4CABC8D4"},
+        "rhythmBorder": {"dark": "#26ABC8D4", "light": "#4DABC8D4"},
     },
     "translucent": {
         "rhythmBorder": {
@@ -119,6 +119,35 @@ class AlphaComputationTest(unittest.TestCase):
         self.assertEqual(gen.swift_alpha(0.3), "0.3")
         self.assertEqual(gen.swift_alpha(0.55), "0.55")
 
+    def test_half_values_round_up_like_the_platform_does(self):
+        # AppKit 把 0.7 量化成 179、0.30 量化成 77（L1 取值测试逐字节断言的就是它）
+        self.assertEqual(gen.alpha_from_opacity(0.7), 179)
+        self.assertEqual(gen.alpha_from_opacity(0.3), 77)
+
+    def test_non_half_values_round_to_nearest(self):
+        self.assertEqual(gen.alpha_from_opacity(0.15), 38)
+        self.assertEqual(gen.alpha_from_opacity(0.55), 140)
+        self.assertEqual(gen.alpha_from_opacity(0.6), 153)
+        self.assertEqual(gen.alpha_from_opacity(0.4), 102)
+        self.assertEqual(gen.alpha_from_opacity(1.0), 255)
+
+
+class SingleRoundingRuleTest(unittest.TestCase):
+    """三处产物必须用同一条换算规则——生成器内部各写一遍就是新的漂移通道。"""
+
+    def setUp(self):
+        import json
+        self.palette = json.loads(
+            (REPO_ROOT / "testing" / "palette.json").read_text(encoding="utf-8"))
+
+    def test_xaml_alpha_matches_the_recorded_eight_digit_value(self):
+        for token, variants in self.palette["translucent"].items():
+            for appearance in ("dark", "light"):
+                with self.subTest(token=token, appearance=appearance):
+                    self.assertEqual(
+                        gen.xaml_color(self.palette, token, appearance).upper(),
+                        self.palette["tokens"][token][appearance].upper())
+
 
 class XamlBrushTest(unittest.TestCase):
     """Windows 主题字典：深浅两套画刷，半透明的八位值由不透明度算出（#248）。"""
@@ -135,9 +164,9 @@ class XamlBrushTest(unittest.TestCase):
         self.assertIn('x:Key="RhythmAccentBrush" Color="#0D464D"', self.light)
 
     def test_translucent_brush_alpha_is_computed_from_the_opacity(self):
-        # 0.15 * 255 = 38.25 -> 0x26；0.30 * 255 = 76.5 -> 就近取偶 0x4C
+        # 0.15 * 255 = 38.25 -> 0x26；0.30 * 255 = 76.5 -> 恰好 .5 进位 0x4D
         self.assertIn('x:Key="RhythmBorderBrush" Color="#26ABC8D4"', self.dark)
-        self.assertIn('x:Key="RhythmBorderBrush" Color="#4CABC8D4"', self.light)
+        self.assertIn('x:Key="RhythmBorderBrush" Color="#4DABC8D4"', self.light)
 
     def test_translucent_brush_carries_a_provenance_comment(self):
         self.assertIn("<!-- #ABC8D4 @ 0.3 for stroke -->", self.light)
@@ -199,7 +228,7 @@ class GenerateTest(unittest.TestCase):
             xaml = out[gen.XAML_COLORS]
             self.assertNotIn("旧内容", xaml)
             self.assertIn('x:Key="RhythmBorderBrush" Color="#26ABC8D4"', xaml)
-            self.assertIn('x:Key="RhythmBorderBrush" Color="#4CABC8D4"', xaml)
+            self.assertIn('x:Key="RhythmBorderBrush" Color="#4DABC8D4"', xaml)
 
     def test_missing_marker_is_an_error(self):
         with tempfile.TemporaryDirectory() as tmp:

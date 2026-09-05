@@ -76,10 +76,8 @@ def copy_l1_sources(root: Path) -> int:
 def macos_steps(root: Path) -> list[tasklib.Step]:
     """全量测试的步骤表（顺序与迁移前的 run-all.sh 一致）。"""
     env = developer_dir_override()
-    steps: list[tasklib.Step] = [
-        _script_step("L0-0 sync-palette --check（palette.json 与源码一致性）",
-                     ["testing/sync-palette.py", "--check"], root),
-    ]
+    # 配色一致性由 L0 的 check-palette.py 覆盖（重新生成加逐字节比对，#249）
+    steps: list[tasklib.Step] = []
     # 含版本号漂移校验 check-version-drift.py（#253）：版本号只改 Cargo.toml，
     # 其余六处副本漂移在此报红，不必等到发布后才发现。
     for script in sorted((root / "testing" / "l0").glob("check-*.py")):
