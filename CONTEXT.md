@@ -44,7 +44,7 @@ windows/            WinUI 3 C++ 客户端，镜像 macos 的 AppState（AppState
   tests/                            Catch2 行为测试（AppState / Bridge / L10n）
 testing/            主题色彩测试基础设施：palette.json 单一事实来源 + L0-L4 + run-all.sh
 docs/               adr/（决策记录）、testing/behavior/（各模块行为清单）、issues/（已调查的 bug 报告）
-scripts/            build-macos.sh / build-rust-macos.sh / build-windows.* / check-no-emoji.py
+scripts/            build-macos.sh / build-windows.bat / check-no-emoji.py / gen-l10n.py / gen-ffi-bindings.py
 ```
 
 ### 关键路径
