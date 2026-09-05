@@ -9,6 +9,7 @@
 |---|---|---|---|
 | 数据源 | `palette.json` | 单一事实来源（tokens/sources 由源码自动提取，translucent/决策段人工维护） | — |
 | 数据源 | `sync-palette.py` | 源码 ↔ palette.json 同步；`--check` CI 校验；`--emit-swift-seed` 生成 L1 种子 | 改色后 |
+| 生成器 | `../scripts/gen-palette.py` | 配色文件写回双端源码标记区间（来源徽标色，#246）；与文案、契约两个生成器同构 | 改色后 |
 | L0 静态 | `l0/` | 9 个零依赖 Python 脚本（parity/contrast/forbidden/coverage/doc-drift/ffi-contract/l10n-keys/version-drift/orchestration-dialects） | 每次 push/PR |
 | L0 静态 | `../scripts/check_no_emoji.py` | 零 emoji 硬性约定校验：范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物），二进制按内容探测跳过（#224/#257） | 提交前 / 每次 push/PR |
 | L0 自测 | `l0/tests/` | L0 校验脚本自身的行为测试（stdlib unittest，临时文件树夹具） | 每次 push/PR |
@@ -65,7 +66,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.130）
+## 当前状态（main，v0.5.131）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|

@@ -9,18 +9,31 @@
 
 palette.json 的 usage / backgrounds / exceptions / whitelist 段为手写决策段。
 tokens 由源码解析刷新；sources（来源徽标色，#184）以 palette.json 为单一事实来源，
-sync 时写回 macOS Theme.swift 的 rhythmSource* 与 Windows RhythmCore.h 的 kTable
-（标记区间内生成，改色只改 palette.json）。
+写回双端生成物由 scripts/gen-palette.py 负责（#246），本脚本按顺序调用它——
+配色生成先于测试种子生成，否则种子会基于旧产物。
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
 from pathlib import Path
 
 import palette_lib as pl
+
+_SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
+
+
+def _load_generator():
+    """配色生成器（scripts/gen-palette.py）：连字符文件名走 importlib 加载，
+    与 check-l10n-keys.py 对文案生成器的用法一致。"""
+    spec = importlib.util.spec_from_file_location("gen_palette", _SCRIPTS / "gen-palette.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 SWIFT_THEME = "macos/RhythmTheme/Theme.swift"  # P2 重构后独立 target 目录
 XAML_COLORS = "windows/Rhythm/Themes/Colors.xaml"
@@ -289,90 +302,6 @@ def emit_swift_seed(root: Path, palette: dict) -> None:
 
 
 
-# ─── 来源徽标色写回双端生成物（#184）────────────────────────────────
-
-SWIFT_SOURCE_MARK_BEGIN = "    // BEGIN GENERATED SOURCE COLORS (#184)"
-SWIFT_SOURCE_MARK_END = "    // END GENERATED SOURCE COLORS (#184)"
-CPP_SOURCE_MARK_BEGIN = "        // BEGIN GENERATED SOURCE TABLE (#184)"
-CPP_SOURCE_MARK_END = "        // END GENERATED SOURCE TABLE (#184)"
-
-SOURCE_SWIFT_NAMES = {
-    "local": "rhythmSourceLocal",
-    "youtube": "rhythmSourceYoutube",
-    "bilibili": "rhythmSourceBilibili",
-    "direct_url": "rhythmSourceUrl",
-}
-
-def emit_source_colors(root: Path, palette: dict) -> None:
-    """把 palette.json 的 sources 写回双端生成物（改色只改 palette.json）。
-
-    - macos/RhythmTheme/Theme.swift：rhythmSource* 属性（标记区间）
-    - windows/Rhythm/Bridge/RhythmCore.h：SourceColorRGB kTable（标记区间）
-    """
-    sources = palette.get("sources", {})
-    if not sources:
-        return
-
-    swift_path = root / SWIFT_THEME
-    swift = swift_path.read_text(encoding="utf-8")
-    swift_lines = [
-        "    // BEGIN GENERATED SOURCE COLORS (#184) — 由 testing/sync-palette.py 生成，勿手改",
-    ]
-    for name in sources:
-        v = sources[name]
-        prop = SOURCE_SWIFT_NAMES[name]
-        dark = pl.from_hex(v["dark"])
-        light = pl.from_hex(v["light"])
-        swift_lines += [
-            f"    /// 来源徽标色（生成自 testing/palette.json，#184）。",
-            f"    /// Dark: {v['dark'].upper()}   Light: {v['light'].upper()}",
-            f"    public static var {prop}: Color {{",
-            "        Color(nsColor: NSColor(name: nil) { appearance in",
-            "            isDark(appearance)",
-            f"                ? NSColor(red: 0x{dark[0]:02X} / 255.0, green: 0x{dark[1]:02X} / 255.0, blue: 0x{dark[2]:02X} / 255.0, alpha: 1.0)",
-            f"                : NSColor(red: 0x{light[0]:02X} / 255.0, green: 0x{light[1]:02X} / 255.0, blue: 0x{light[2]:02X} / 255.0, alpha: 1.0)",
-            "        })",
-            "    }",
-        ]
-    swift_lines.append("    // END GENERATED SOURCE COLORS (#184)")
-    swift = replace_region(swift, SWIFT_SOURCE_MARK_BEGIN, SWIFT_SOURCE_MARK_END, swift_lines)
-    swift_path.write_text(swift, encoding="utf-8")
-
-    cpp_path = root / CPP_CORE
-    cpp = cpp_path.read_text(encoding="utf-8")
-    cpp_lines = [
-        "        // BEGIN GENERATED SOURCE TABLE (#184) — 由 testing/sync-palette.py 生成，勿手改",
-        "        static constexpr Entry kTable[] = {",
-    ]
-    for name in sources:
-        v = sources[name]
-        dark = pl.from_hex(v["dark"])
-        light = pl.from_hex(v["light"])
-        dark_hex = f"0x{dark[0]:02X}, 0x{dark[1]:02X}, 0x{dark[2]:02X}"
-        light_hex = f"0x{light[0]:02X}, 0x{light[1]:02X}, 0x{light[2]:02X}"
-        cpp_lines.append(f'            {{L"{name}", {{{dark_hex}}}, {{{light_hex}}}}},')
-    cpp_lines += [
-        "        };",
-        "        // END GENERATED SOURCE TABLE (#184)",
-    ]
-    cpp = replace_region(cpp, CPP_SOURCE_MARK_BEGIN, CPP_SOURCE_MARK_END, cpp_lines)
-    cpp_path.write_text(cpp, encoding="utf-8")
-
-    print(f"已写回来源徽标色：{swift_path.relative_to(root)} + {cpp_path.relative_to(root)}"
-          f"（{len(sources)} 个来源）")
-
-
-def replace_region(text: str, begin_mark: str, end_mark: str, new_lines: list[str]) -> str:
-    """替换 begin_mark..end_mark 之间的内容（含标记行本身）。"""
-    lines = text.splitlines(keepends=True)
-    begin = next((i for i, l in enumerate(lines) if begin_mark in l), None)
-    end = next((i for i, l in enumerate(lines) if end_mark in l), None)
-    if begin is None or end is None or end <= begin:
-        raise SystemExit(f"生成标记缺失：{begin_mark} .. {end_mark}")
-    body = "\n".join(new_lines) + "\n"
-    return "".join(lines[:begin]) + body + "".join(lines[end + 1:])
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description="同步 palette.json 与双端源码")
     ap.add_argument("--root", type=Path, default=None, help="仓库根（默认自动探测）")
@@ -406,7 +335,13 @@ def main() -> int:
     print(f"已同步 {ppath.relative_to(root)}")
 
     # #184: sources 以 palette.json 为单一事实来源，写回双端生成物。
-    emit_source_colors(root, merged)
+    # 生成由 scripts/gen-palette.py 负责（#246）；此处只按顺序调用——
+    # 配色生成必须先于测试种子生成，否则种子会基于旧产物。
+    generated = _load_generator().generate(merged, str(root))
+    for rel, text in generated.items():
+        (root / rel).write_text(text, encoding="utf-8")
+    print(f"已写回来源徽标色：{' + '.join(generated)}"
+          f"（{len(merged.get('sources', {}))} 个来源）")
 
     if args.emit_swift_seed:
         emit_swift_seed(root, merged)
