@@ -53,7 +53,7 @@ jobs:
         if: failure()
         run: |
           # 对比失败时把 golden 与实际图作为 PR comment（gh pr comment --body-file）
-          python3 testing/l2/windows/compare-screenshots.py \
+          python3 testing/l2/windows/compare_screenshots.py \
             --actual build/snapshots --golden testing/l2/macos/golden || true
       - name: 上传测试日志（xcresult 含截图/失败 diff）
         if: always()
@@ -106,7 +106,7 @@ jobs:
       - name: 渲染 5 视图 × 2 主题
         run: build-capture/Release/capture_views.exe build/artifacts
       - name: golden 像素比对
-        run: python3 testing/l2/windows/compare-screenshots.py --actual build/artifacts --golden testing/l2/windows/golden
+        run: python3 testing/l2/windows/compare_screenshots.py --actual build/artifacts --golden testing/l2/windows/golden
       - name: WinAppDriver 冒烟（失败进入降级，见 l3/windows/winappdriver.md）
         run: |
           python3 testing/l3/windows/theme_switch.py --smoke --app build/Release/Rhythm.exe || true

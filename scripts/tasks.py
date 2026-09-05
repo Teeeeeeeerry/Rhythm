@@ -57,15 +57,22 @@ class Task:
     platform: str = "all"
 
 
-def pending(ticket: str, legacy: str) -> Callable[[list[str]], int]:
-    """尚未迁移的任务：明说去向，不假装能跑（退出码 2 = 用法错误）。"""
+def _run_module(rel: str, argv: list[str]) -> int:
+    """按路径加载一个校验模块并跑它的 main（模块名可导入，不再需要命令行外壳）。"""
+    import importlib.util
 
-    def handler(_argv: list[str]) -> int:
-        print(f"该任务尚未迁移到任务入口（{ticket}）；当前仍用 {legacy}",
-              file=sys.stderr)
-        return USAGE_ERROR
-
-    return handler
+    path = tasklib.repo_root() / rel
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[path.stem] = module
+    sys.path.insert(0, str(path.parent))
+    spec.loader.exec_module(module)
+    saved, sys.argv = sys.argv, [str(path), *argv]
+    try:
+        return module.main()
+    finally:
+        sys.argv = saved
 
 
 TASKS: list[Task] = [
@@ -77,9 +84,9 @@ TASKS: list[Task] = [
     Task("build-windows", "构建 Windows 应用（build/windows/Release/Rhythm.exe）",
          lambda argv: task_build.build_windows(argv), platform="windows"),
     Task("check-no-emoji", "零 emoji 校验（硬性约定，覆盖被跟踪的全部文件）",
-         pending("#265", "python3 scripts/check-no-emoji.py")),
+         lambda argv: _run_module("scripts/check_no_emoji.py", argv)),
     Task("compare-screenshots", "L2 截屏与 golden 的像素比对",
-         pending("#265", "python3 testing/l2/windows/compare-screenshots.py")),
+         lambda argv: _run_module("testing/l2/windows/compare_screenshots.py", argv)),
 ]
 
 

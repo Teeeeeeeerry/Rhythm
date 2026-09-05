@@ -7,7 +7,7 @@
 - 输出差异热图（可选，--heatmap 写出差异像素红点图，便于 review）
 
 用法：
-    python3 testing/l2/windows/compare-screenshots.py \
+    python3 testing/l2/windows/compare_screenshots.py \
         --actual build/artifacts --golden testing/l2/windows/golden \
         [--threshold 0.001] [--heatmap build/heatmap] [--log PATH]
 

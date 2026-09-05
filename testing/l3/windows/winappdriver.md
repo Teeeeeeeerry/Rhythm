@@ -44,12 +44,12 @@ theme_switch.py 已封装（`--dark / --light` 两模式 + 截图 + 像素断言
 | 键盘 Tab 顺序 | Tab 循环 | 焦点元素序列 = 预期顺序（F2 修复后含 Sidebar） |
 
 断言颜色：WinAppDriver 截图（base64 PNG）→ 复用
-`testing/l2/windows/compare-screenshots.py` 的 PNG 解码器做区域抽样。
+`testing/l2/windows/compare_screenshots.py` 的 PNG 解码器做区域抽样。
 
 ## 4. 降级路径（WinAppDriver 不可行时 —— 必须执行，不是放弃）
 
 1. **像素 golden 兜底**（主）：L2 capture_views.cpp 渲染 5 视图 × 2 主题，
-   与 golden diff（compare-screenshots.py）。颜色回归 100% 覆盖。
+   与 golden diff（compare_screenshots.py）。颜色回归 100% 覆盖。
 2. **MsixTest + 截图比对**：用 Windows App SDK 的 MsixTest（UITest 框架）
    做进程级冒烟（启动/退出/主题切换重启），交互断言降级为截图像素断言。
 3. 键盘顺序降级：L1 层断言 XAML 逻辑树中的 TabIndex 序（静态检查脚本，

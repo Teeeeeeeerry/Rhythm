@@ -87,7 +87,7 @@ def macos_steps(root: Path) -> list[tasklib.Step]:
         steps.append(_script_step(f"L0 静态分析 {rel}", [rel], root))
     steps += [
         _script_step("L0 零 emoji（硬性约定，覆盖 git 跟踪的全部文件减排除清单）",
-                     ["scripts/check-no-emoji.py"], root),
+                     ["scripts/check_no_emoji.py"], root),
         _unittest_step("L0 校验脚本自测（testing/l0/tests/）",
                        "testing/l0/tests", "l0-script-tests", root),
         _unittest_step("编排层自测（testing/tasks/tests/：退出码聚合与共享实现，#259/#260）",
@@ -193,7 +193,7 @@ def windows_steps(root: Path, smoke: bool = False) -> list[tasklib.Step]:
         tasklib.Step(
             "L2 golden 像素比对",
             lambda: tasklib.run(
-                [PYTHON, "testing/l2/windows/compare-screenshots.py",
+                [PYTHON, "testing/l2/windows/compare_screenshots.py",
                  "--actual", WINDOWS_ARTIFACTS, "--golden", WINDOWS_GOLDEN],
                 cwd=root, log=tasklib.log_path("l2-windows-compare", root)),
             static_analysis=False),

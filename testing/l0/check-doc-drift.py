@@ -19,16 +19,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import palette_lib as pl
 
 HEX_RE = re.compile(r"#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})\b")
-DOC_PATTERNS = ("*.md",)
+DOC_SUFFIXES = (".md",)
 
 
 def collect_docs(root: Path) -> list[Path]:
-    docs = list((root / "docs").glob("*.md")) + list((root / "testing").glob("**/*.md"))
-    for fname in ("README.md", "README.en.md", "问题报告.md"):
-        p = root / fname
-        if p.exists():
-            docs.append(p)
-    return sorted(set(docs))
+    """被跟踪的全部 Markdown 文档。
+
+    与零 emoji 校验共用 palette_lib 的仓库文件遍历（#265）：新增一处文档目录
+    自动纳入，不必回来补 glob 清单。
+    """
+    return [root / rel for rel in pl.tracked_files(root, DOC_SUFFIXES)]
 
 
 def known_colors(palette: dict) -> set[str]:

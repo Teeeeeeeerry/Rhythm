@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""check-no-emoji.py 自身的测试（零依赖，stdlib unittest）。
+"""check_no_emoji.py 自身的测试（零依赖，stdlib unittest）。
 
 只断言外部行为：给定一棵被 git 跟踪的文件树，校验通过还是失败、失败时报出哪些位置。
 不断言内部遍历顺序。夹具里的 emoji 一律用转义写法，避免测试源码自身违反零 emoji 约定。
@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPT = REPO_ROOT / "scripts" / "check-no-emoji.py"
+SCRIPT = REPO_ROOT / "scripts" / "check_no_emoji.py"
 
 GRINNING = "\U0001F600"  # 属于 pictographs 段，判定为 emoji
 ARROWS = "-> <- => |-- --|"  # 普通符号，不算 emoji

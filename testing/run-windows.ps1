@@ -46,7 +46,7 @@ if (Test-Path $CaptureExe) {
 } else {
     Write-Host "! 未找到 capture_views.exe，跳过截屏"
 }
-python3 testing/l2/windows/compare-screenshots.py `
+python3 testing/l2/windows/compare_screenshots.py `
     --actual build/artifacts --golden testing/l2/windows/golden 2>&1 `
     | Tee-Object -FilePath (Join-Path $LogDir "l2-windows-compare.log")
 if ($LASTEXITCODE -ne 0) { Write-Host "! 像素比对失败（$LASTEXITCODE），详情见日志" }

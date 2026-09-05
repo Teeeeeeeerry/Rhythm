@@ -31,7 +31,7 @@ jobs:
       - name: 版本号漂移（版本号只改 Cargo.toml，其余六处是副本）
         run: python3 testing/l0/check-version-drift.py
       - name: 零 emoji（硬性约定，覆盖全部被跟踪文件）
-        run: python3 scripts/check-no-emoji.py
+        run: python3 scripts/check_no_emoji.py
       - name: L0 校验脚本自测
         run: python3 -m unittest discover -s testing/l0/tests
       - name: 编排层自测（退出码聚合与共享实现）
