@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import math
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -311,6 +312,62 @@ def parse_cpp_sources(path: Path) -> dict:
         "alpha": alpha,
         "gray_fallback": bool(_CPP_FALLBACK_GRAY.search(text)),
     }
+
+
+# ---------------------------------------------------------------------------
+# 仓库文件遍历（零 emoji 校验与 L0 脚本共用，#265）
+# ---------------------------------------------------------------------------
+
+# 排除清单：这些地方不受仓库文本约定管辖，一眼可读。
+# 目录前缀（含结尾斜杠）与完整路径分开列，改动时只动这一处。
+EXCLUDED_PREFIXES = (
+    "windows/tests/vendor/",  # 第三方单头测试框架（Catch2 amalgamated），非本仓库文本
+    "build/",                 # 构建产物
+    "target/",                # Rust 构建产物
+)
+EXCLUDED_PATHS = (
+    "Cargo.lock",             # 依赖锁文件，由包管理器生成
+)
+# 二进制资源的扩展名兜底（内容探测之外的快速跳过）。
+EXCLUDED_SUFFIXES = (
+    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".icns", ".webp", ".pdf",
+    ".zip", ".gz", ".tar", ".xz", ".ttf", ".otf", ".woff", ".woff2",
+    ".mp3", ".mp4", ".wav", ".flac", ".car", ".pyc",
+)
+
+BINARY_PROBE_BYTES = 8192
+
+
+def is_excluded(rel: str) -> bool:
+    """是否在排除清单内（有意声明的豁免，不受仓库文本约定管辖）。"""
+    return (rel in EXCLUDED_PATHS
+            or rel.startswith(EXCLUDED_PREFIXES)
+            or rel.endswith(EXCLUDED_SUFFIXES))
+
+
+def is_binary(path: Path) -> bool:
+    """按内容探测二进制：前 8KB 出现 NUL 字节即判定为二进制。"""
+    try:
+        with open(path, "rb") as fh:
+            return b"\x00" in fh.read(BINARY_PROBE_BYTES)
+    except OSError:
+        return True
+
+
+def tracked_files(root: Path, suffixes: tuple[str, ...] | None = None) -> list[str]:
+    """git 跟踪的全部文件减去排除清单（可再按扩展名收窄）。
+
+    只有一处遍历实现：扩展名清单不会再漏掉一整类文件（#224/#257 的教训——
+    此前零 emoji 校验按扩展名白名单收集，43 个文件从未被检查过）。
+    用 -z 取原始路径：默认输出会对非 ASCII 路径加引号转义，那样的路径既匹配
+    不上排除清单也打不开。
+    """
+    out = subprocess.check_output(["git", "ls-files", "-z"], cwd=root)
+    rels = [f for f in out.decode("utf-8").split("\0") if f]
+    picked = (f for f in rels if not is_excluded(f))
+    if suffixes:
+        picked = (f for f in picked if f.endswith(suffixes))
+    return sorted(picked)
 
 
 # ---------------------------------------------------------------------------

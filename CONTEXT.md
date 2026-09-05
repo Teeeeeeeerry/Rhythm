@@ -44,7 +44,7 @@ windows/            WinUI 3 C++ 客户端，镜像 macos 的 AppState（AppState
   tests/                            Catch2 行为测试（AppState / Bridge / L10n）
 testing/            主题色彩测试基础设施：palette.json 单一事实来源 + L0-L4 + run-all.sh
 docs/               adr/（决策记录）、testing/behavior/（各模块行为清单）、issues/（已调查的 bug 报告）
-scripts/            build-macos.sh / build-windows.bat / check-no-emoji.py / gen-l10n.py / gen-ffi-bindings.py
+scripts/            tasks.py（任务入口）/ tasklib.py / task_build.py / task_test.py / check_no_emoji.py / gen-l10n.py / gen-ffi-bindings.py / build-macos.sh / build-windows.bat
 ```
 
 ### 关键路径
@@ -78,7 +78,7 @@ scripts/            build-macos.sh / build-windows.bat / check-no-emoji.py / gen
   按键取模板、按参数填占位符；中英拼装形状、平台差异选键（brew 与 winget）、字节到 MB 的换算都在核心。
   新增一种分类只改核心与键表，双端零改动。语言解析（macOS Locale + AppLanguage、Windows 系统 UI 语言 +
   注册表覆盖）保持平台特异，不下沉。跨接缝一律传核心原始分类值，UI 侧不发明前缀编码（#226）
-- **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `python3 scripts/check-no-emoji.py` 校验；发现即修，不得绕过。校验范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物，二进制按内容跳过），新增语言或文件类型自动纳入；已挂进 `testing/run-all.sh` 与 CI 静态分析作业（#224）
+- **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `python3 scripts/tasks.py check-no-emoji` 校验；发现即修，不得绕过。校验范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物，二进制按内容跳过），新增语言或文件类型自动纳入；已挂进 `testing/run-all.sh` 与 CI 静态分析作业（#224）
 - **品牌色**：只用 `RhythmTheme` 模块的 token（如 `.rhythmAccent`），不硬编码色值
 - **版本号单一出处**：版本号只改 `Cargo.toml` 的 `[workspace.package] version`；其余六处（依赖锁文件、两份 README 版本行、macOS `Info.plist`、
   `windows/CMakeLists.txt`、`testing/README.md` 状态表）是副本，随之同步。漂移由 `python3 testing/l0/check-version-drift.py` 拦截，

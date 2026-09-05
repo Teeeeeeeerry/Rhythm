@@ -2,7 +2,7 @@
 //
 // 这是挂接骨架：WinUI 3 的 RenderTargetBitmap 需在 app 上下文（DispatcherQueue）
 // 内执行，因此编译为独立的测试 host 可执行文件（或测试工程内的静态方法），
-// 由 compare-screenshots.py 驱动并做像素比对。
+// 由 compare_screenshots.py 驱动并做像素比对。
 //
 // 集成步骤（P3）：
 //   1. 新建测试 host：Console 应用，引用 Microsoft.WindowsAppSDK，
@@ -59,7 +59,7 @@ int wmain(int argc, wchar_t** argv) {
     }
     std::wstring outDir = argv[1];
     // P3：加载 5 个视图 × 2 主题，循环调用 render_view_to_png。
-    // 输出命名约定（compare-screenshots.py 依赖）：
+    // 输出命名约定（compare_screenshots.py 依赖）：
     //   <ViewName>_<Default|Light>.png
     return 0;
 }

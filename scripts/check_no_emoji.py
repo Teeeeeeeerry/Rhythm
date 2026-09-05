@@ -6,14 +6,14 @@
 跳过两类：EXCLUDED 列出的路径（有意声明的豁免）与内容探测判定的二进制文件。
 发现 emoji 即报错退出（exit 1）。
 
-用法：python3 scripts/check-no-emoji.py [--root PATH] [--log PATH]
+用法：python3 scripts/tasks.py check-no-emoji
+     python3 scripts/check_no_emoji.py [--root PATH] [--log PATH]
 """
 
 from __future__ import annotations
 
 import argparse
 import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -29,53 +29,6 @@ EMOJI_RE = re.compile(
     "\u2721\u3030\u303D\u3297\u3299]"
 )
 
-# 排除清单：这条硬性约定不管辖的地方，一眼可读。
-# 目录前缀（含结尾斜杠）与完整路径分开列，改动时只动这一处。
-EXCLUDED_PREFIXES = (
-    "windows/tests/vendor/",  # 第三方单头测试框架（Catch2 amalgamated），非本仓库文本
-    "build/",                 # 构建产物
-    "target/",                # Rust 构建产物
-)
-EXCLUDED_PATHS = (
-    "Cargo.lock",             # 依赖锁文件，由包管理器生成
-)
-# 二进制资源的扩展名兜底（内容探测之外的快速跳过）。
-EXCLUDED_SUFFIXES = (
-    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".icns", ".webp", ".pdf",
-    ".zip", ".gz", ".tar", ".xz", ".ttf", ".otf", ".woff", ".woff2",
-    ".mp3", ".mp4", ".wav", ".flac", ".car", ".pyc",
-)
-
-BINARY_PROBE_BYTES = 8192
-
-
-def is_excluded(rel: str) -> bool:
-    """是否在排除清单内（有意声明的豁免，不受这条约定管辖）。"""
-    return (rel in EXCLUDED_PATHS
-            or rel.startswith(EXCLUDED_PREFIXES)
-            or rel.endswith(EXCLUDED_SUFFIXES))
-
-
-def is_binary(path: Path) -> bool:
-    """按内容探测二进制：前 8KB 出现 NUL 字节即判定为二进制。"""
-    try:
-        with open(path, "rb") as fh:
-            return b"\x00" in fh.read(BINARY_PROBE_BYTES)
-    except OSError:
-        return True
-
-
-def tracked_files(root: Path) -> list[str]:
-    """git 跟踪的全部文件减去排除清单。
-
-    用 -z 取原始路径：默认输出会对非 ASCII 路径加引号转义，
-    那样的路径既匹配不上排除清单也打不开（此前 docs/adr 下的中文文件名即因此漏检）。
-    """
-    out = subprocess.check_output(["git", "ls-files", "-z"], cwd=root)
-    rels = [f for f in out.decode("utf-8").split("\0") if f]
-    return sorted(f for f in rels if not is_excluded(f))
-
-
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", type=Path, default=None)
@@ -88,9 +41,9 @@ def main() -> int:
 
     bad = 0
     scanned = 0
-    for f in tracked_files(root):
+    for f in pl.tracked_files(root):
         path = root / f
-        if is_binary(path):
+        if pl.is_binary(path):
             continue
         try:
             with open(path, encoding="utf-8", errors="strict") as fh:
