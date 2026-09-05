@@ -124,6 +124,30 @@ class MacosStepTableTest(unittest.TestCase):
         self.assertTrue([n for n in picked if "零 emoji" in n])
 
 
+class WindowsStepTableTest(unittest.TestCase):
+    """Windows 测试步骤表（#264）：三段齐备，冒烟段是可选开关。"""
+
+    def setUp(self):
+        self.root = tasklib.repo_root()
+
+    def test_l1_l2_segments_are_present(self):
+        names = " | ".join(s.name for s in task_test.windows_steps(self.root))
+        for segment in ("L1 颜色测试", "L1b 应用工程测试", "L2 截屏", "L2 golden 像素比对"):
+            self.assertIn(segment, names)
+
+    def test_smoke_segment_is_opt_in(self):
+        without = task_test.windows_steps(self.root, smoke=False)
+        with_smoke = task_test.windows_steps(self.root, smoke=True)
+        self.assertEqual(len(with_smoke), len(without) + 1)
+        self.assertFalse([s for s in without if "冒烟" in s.name])
+        self.assertTrue([s for s in with_smoke if "冒烟" in s.name])
+
+    def test_smoke_flag_is_rejected_where_there_is_no_smoke_segment(self):
+        self.assertTrue(tasks.parse_test_flags(["--smoke"], env={}, allow_smoke=True).smoke)
+        with self.assertRaises(SystemExit):
+            tasks.parse_test_flags(["--smoke"], env={}, allow_smoke=False)
+
+
 class ExpectedFailureWaiverTest(unittest.TestCase):
     """显式豁免开关（命令行与环境变量两种形式）生效时才容错，默认不容错。"""
 

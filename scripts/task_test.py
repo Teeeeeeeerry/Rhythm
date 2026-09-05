@@ -17,6 +17,7 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
+import task_build  # noqa: E402
 import tasklib  # noqa: E402
 
 PYTHON = sys.executable or "python3"
@@ -108,13 +109,125 @@ def macos_steps(root: Path) -> list[tasklib.Step]:
     return steps
 
 
+# ---------------------------------------------------------------------------
+# Windows 测试（#264）
+# ---------------------------------------------------------------------------
+
+# CMake 构建目录随应用产物一起收进仓库根 build/（#263 的单一约定）；
+# 截屏产物目录与日志文件名沿用迁移前的约定，CI 收集路径不变。
+WINDOWS_ARTIFACTS = "build/artifacts"
+WINDOWS_GOLDEN = "testing/l2/windows/golden"
+
+
+def _cmake_step(name: str, args: list[str], root: Path, log_name: str) -> tasklib.Step:
+    return tasklib.Step(
+        name,
+        lambda: tasklib.run(["cmake", *args], cwd=root,
+                            log=tasklib.log_path(log_name, root)),
+        static_analysis=False,
+    )
+
+
+def capture_executable(root: Path) -> Path | None:
+    """截屏宿主可执行文件（Release 优先，回退 Debug），缺失时返回 None。"""
+    base = root / "build" / "windows" / "l2"
+    for config in ("Release", "Debug"):
+        exe = base / config / "capture_views.exe"
+        if exe.exists():
+            return exe
+    return None
+
+
+def _capture_step(root: Path) -> tasklib.Step:
+    def action() -> int:
+        exe = capture_executable(root)
+        if exe is None:
+            print("! 未找到 capture_views.exe，跳过截屏")
+            return 0
+        return tasklib.run([str(exe), WINDOWS_ARTIFACTS], cwd=root,
+                           log=tasklib.log_path("l2-windows-capture", root))
+
+    return tasklib.Step("L2 截屏", action, static_analysis=False)
+
+
+def windows_steps(root: Path, smoke: bool = False) -> list[tasklib.Step]:
+    """Windows 测试的步骤表（L1 单元 + L2 截屏比对 + L3 冒烟）。
+
+    每段的调用与日志文件名沿用迁移前的 PowerShell 入口；失败处理改为统一的
+    退出码聚合——旧入口对 ctest 与像素比对只打印警告后继续，红灯会被吞掉。
+    """
+    l1_dir = root / "build" / "windows" / "l1"
+    app_dir = task_build.windows_build_dir(root)
+    l2_dir = root / "build" / "windows" / "l2"
+    steps = [
+        _cmake_step("L1 颜色测试 cmake 配置",
+                    ["-S", "testing/l1/windows", "-B", str(l1_dir)],
+                    root, "l1-windows-cmake"),
+        _cmake_step("L1 颜色测试 cmake 构建", ["--build", str(l1_dir)],
+                    root, "l1-windows-cmake"),
+        tasklib.Step(
+            "L1 颜色测试 ctest",
+            lambda: tasklib.run(["ctest", "--test-dir", str(l1_dir),
+                                 "--output-on-failure"], cwd=root,
+                                log=tasklib.log_path("l1-windows-ctest", root)),
+            static_analysis=False),
+        _cmake_step("L1b 应用工程测试 cmake 配置",
+                    ["-S", "windows", "-B", str(app_dir)],
+                    root, "l1-windows-rhythmtests"),
+        _cmake_step("L1b 应用工程测试 cmake 构建",
+                    ["--build", str(app_dir), "--target", "RhythmTests",
+                     "--config", task_build.WINDOWS_CONFIG],
+                    root, "l1-windows-rhythmtests"),
+        tasklib.Step(
+            "L1b 应用工程测试 ctest",
+            lambda: tasklib.run(["ctest", "--test-dir", str(app_dir),
+                                 "--output-on-failure"], cwd=root,
+                                log=tasklib.log_path("l1-windows-rhythmtests", root)),
+            static_analysis=False),
+        _cmake_step("L2 截屏宿主 cmake 配置",
+                    ["-S", "testing/l2/windows", "-B", str(l2_dir)],
+                    root, "l2-windows-capture"),
+        _cmake_step("L2 截屏宿主 cmake 构建", ["--build", str(l2_dir)],
+                    root, "l2-windows-capture"),
+        _capture_step(root),
+        tasklib.Step(
+            "L2 golden 像素比对",
+            lambda: tasklib.run(
+                [PYTHON, "testing/l2/windows/compare-screenshots.py",
+                 "--actual", WINDOWS_ARTIFACTS, "--golden", WINDOWS_GOLDEN],
+                cwd=root, log=tasklib.log_path("l2-windows-compare", root)),
+            static_analysis=False),
+    ]
+    if smoke:
+        steps.append(tasklib.Step(
+            "L3 WinAppDriver 冒烟",
+            lambda: tasklib.run(
+                [PYTHON, "testing/l3/windows/theme_switch.py", "--smoke",
+                 "--app", str(task_build.windows_app_exe(root))], cwd=root,
+                log=tasklib.log_path("l3-windows-smoke", root)),
+            static_analysis=False))
+    return steps
+
+
+# ---------------------------------------------------------------------------
+# 平台分派
+# ---------------------------------------------------------------------------
+
+def is_windows() -> bool:
+    return sys.platform == "win32"
+
+
 def run_full_suite(argv: list[str] | None = None) -> int:
-    """全量测试入口（L0 + L1）。"""
-    flags = tasklib.parse_test_flags(list(argv or []))
+    """全量测试入口。任务名两个平台相同，步骤集合按平台分派。"""
+    windows = is_windows()
+    flags = tasklib.parse_test_flags(list(argv or []), allow_smoke=windows)
     root = tasklib.repo_root()
     log_dir = tasklib.logs_dir(root)
-    print(f"===== Rhythm 全量测试 {_now()} =====")
-    code = tasklib.run_steps(macos_steps(root), l0_only=flags.l0_only,
+    label = "Windows 测试" if windows else "全量测试"
+    print(f"===== Rhythm {label} {_now()} =====")
+    steps = (windows_steps(root, smoke=flags.smoke) if windows
+             else macos_steps(root))
+    code = tasklib.run_steps(steps, l0_only=flags.l0_only,
                              allow_expected=flags.allow_expected)
     print(f"全部日志见 {log_dir}/")
     for name in sorted(p.name for p in log_dir.glob("*.log")):
