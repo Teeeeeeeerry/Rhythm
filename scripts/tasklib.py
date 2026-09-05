@@ -251,25 +251,32 @@ def run_steps(steps: list[Step], *, l0_only: bool = False,
 class TestFlags:
     l0_only: bool = False
     allow_expected: bool = False
+    smoke: bool = False
 
 
-def parse_test_flags(argv: list[str], env: dict[str, str] | None = None) -> TestFlags:
-    """解析全量测试入口的两个开关（命令行与环境变量两种形式）。
+def parse_test_flags(argv: list[str], env: dict[str, str] | None = None,
+                     allow_smoke: bool = False) -> TestFlags:
+    """解析测试入口的开关（命令行与环境变量两种形式）。
 
-    语义与迁移前的 run-all.sh 一致：ALLOW_EXPECTED_FAILURES=1 等价于
-    --allow-expected-failures；未知参数按用法错误处理。
+    语义与迁移前的脚本一致：ALLOW_EXPECTED_FAILURES=1 等价于
+    --allow-expected-failures；--smoke 只在有冒烟段的平台上可用；
+    未知参数按用法错误处理。
     """
     env = os.environ if env is None else env
     flags = TestFlags(
         allow_expected=str(env.get("ALLOW_EXPECTED_FAILURES", "0")).lower() in TRUTHY
     )
+    supported = ["--l0-only", "--allow-expected-failures"]
+    if allow_smoke:
+        supported.append("--smoke")
     for arg in argv:
         if arg == "--l0-only":
             flags.l0_only = True
         elif arg == "--allow-expected-failures":
             flags.allow_expected = True
+        elif arg == "--smoke" and allow_smoke:
+            flags.smoke = True
         else:
-            print(f"未知参数: {arg}（支持 --l0-only / --allow-expected-failures）",
-                  file=sys.stderr)
+            print(f"未知参数: {arg}（支持 {' / '.join(supported)}）", file=sys.stderr)
             raise SystemExit(USAGE_ERROR)
     return flags
