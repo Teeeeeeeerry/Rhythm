@@ -215,6 +215,7 @@ def merge_palette(source: dict, existing: dict | None) -> dict:
         if source_key in base["sources"]:
             base["tokens"][token] = base["sources"][source_key]
     for key, default in (
+        ("sourceBadge", {"backgroundOpacity": 0.15}),
         ("translucent", DEFAULT_TRANSLUCENT),
         ("docs", (existing or {}).get("docs") or {}),
         ("usage", DEFAULT_USAGE),

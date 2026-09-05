@@ -29,6 +29,7 @@ def _load_generator():
 gen = _load_generator()
 
 MINIMAL = {
+    "sourceBadge": {"backgroundOpacity": 0.15},
     "tokens": {
         "rhythmAccent": {"dark": "#ABC8D4", "light": "#0D464D"},
         "rhythmBorder": {"dark": "#26ABC8D4", "light": "#4CABC8D4"},
@@ -78,6 +79,9 @@ def make_tree(root: Path) -> None:
         f"{gen.CPP_SOURCE_BEGIN}\n"
         "        // 旧内容\n"
         f"{gen.CPP_SOURCE_END}\n"
+        f"{gen.CPP_BADGE_BEGIN}\n"
+        "    // 旧内容\n"
+        f"{gen.CPP_BADGE_END}\n"
         "};\n", encoding="utf-8")
 
 
@@ -171,6 +175,13 @@ class CppSourceTableTest(unittest.TestCase):
     def test_region_markers_wrap_the_output(self):
         self.assertTrue(self.text.startswith(gen.CPP_SOURCE_BEGIN))
         self.assertTrue(self.text.endswith(gen.CPP_SOURCE_END))
+
+
+class BadgeBackgroundTest(unittest.TestCase):
+    def test_alpha_is_computed_from_the_declared_opacity(self):
+        text = "\n".join(gen.cpp_badge_lines(MINIMAL))
+        # 0.15 * 255 = 38.25 -> 38
+        self.assertIn("static constexpr uint8_t kSourceBadgeBackgroundAlpha = 38;", text)
 
 
 class GenerateTest(unittest.TestCase):
