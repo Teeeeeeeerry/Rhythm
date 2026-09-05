@@ -25,6 +25,11 @@ import tasklib  # noqa: E402
 CORE_PACKAGE = "rhythm-core"
 BUILD_DIR = "build"
 
+# 核心一律原生构建（不带目标三元组），两个平台同构：产物落在 target/release/，
+# 取用点只有 core_artifact_dir 一处。迁移前 Windows 侧带 --target 构建，产物落进
+# 三元组子目录，而应用构建配置从 target/release/ 取——即便路径写对也串不起来（#223）。
+CORE_PROFILE = "release"
+
 
 def core_artifact_dir(root: Path, *, target: str | None = None,
                       profile: str = "release") -> Path:
@@ -134,4 +139,53 @@ def build_macos(argv: list[str] | None = None) -> int:
         return 1
     print(f"==> 应用包：{bundle}")
     print(f"    运行：open {bundle}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Windows 应用（#263）
+# ---------------------------------------------------------------------------
+
+WINDOWS_EXECUTABLE = "Rhythm.exe"
+WINDOWS_CONFIG = "Release"
+
+
+def windows_build_dir(root: Path) -> Path:
+    """Windows 应用的构建目录（与 macOS 同一约定：产物在仓库根 build/ 下）。"""
+    return root / BUILD_DIR / "windows"
+
+
+def windows_app_exe(root: Path) -> Path:
+    return windows_build_dir(root) / WINDOWS_CONFIG / WINDOWS_EXECUTABLE
+
+
+def build_windows(argv: list[str] | None = None) -> int:
+    """构建 Windows 应用。任一步失败即非零退出。
+
+    批处理版没有失败即停的语义，核心构建失败后会继续执行并打印完成信息；
+    这里每一步都走 run_checked，失败立刻传播（#221 用户故事 4）。
+    """
+    if argv:
+        print(f"未知参数: {' '.join(argv)}（build-windows 不接受参数）", file=sys.stderr)
+        return 2
+    root = tasklib.repo_root()
+    build_dir = windows_build_dir(root)
+    try:
+        print("==> 构建 Rust 核心")
+        build_core(root)
+        print("==> 配置 Windows 应用")
+        tasklib.run_checked(
+            ["cmake", "-S", str(root / "windows"), "-B", str(build_dir),
+             f"-DCMAKE_BUILD_TYPE={WINDOWS_CONFIG}"], cwd=root)
+        print("==> 构建 Windows 应用")
+        tasklib.run_checked(
+            ["cmake", "--build", str(build_dir), "--config", WINDOWS_CONFIG], cwd=root)
+    except tasklib.StepFailed as exc:
+        print(f"构建失败：{exc}", file=sys.stderr)
+        return 1
+    exe = windows_app_exe(root)
+    if not exe.exists():
+        print(f"构建失败：未产出可执行文件 {exe}", file=sys.stderr)
+        return 1
+    print(f"==> 可执行文件：{exe}")
     return 0
