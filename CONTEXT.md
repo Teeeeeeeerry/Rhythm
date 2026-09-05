@@ -79,9 +79,13 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   新增一种分类只改核心与键表，双端零改动。语言解析（macOS Locale + AppLanguage、Windows 系统 UI 语言 +
   注册表覆盖）保持平台特异，不下沉。跨接缝一律传核心原始分类值，UI 侧不发明前缀编码（#226）
 - **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `python3 scripts/tasks.py check-no-emoji` 校验；发现即修，不得绕过。校验范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物，二进制按内容跳过），新增语言或文件类型自动纳入；已挂进 `python3 scripts/tasks.py test` 与 CI（#224）
-- **品牌色**：只用 `RhythmTheme` 模块的 token（如 `.rhythmAccent`），不硬编码色值。
-  配色的单一出处是 `testing/palette.json`；双端源码的标记区间是生成物，由 `python3 scripts/gen-palette.py`
-  写入（#246 起，与文案、契约两个生成器同构）。改色只改配色文件再重新生成，不手改标记区间内的代码
+- **品牌色单一出处（#219 组）**：视图只用 `RhythmTheme` 的 token（如 `.rhythmAccent`），不硬编码色值。
+  配色的唯一声明是 `testing/palette.json`——色值、半透明的「基色 + 不透明度」、token 文档块都在里面；
+  三处产物（macOS `Theme.swift`、Windows `Colors.xaml`、Windows `RhythmCore.h`）的标记区间由
+  `python3 scripts/gen-palette.py --emit-swift-seed` 写入，与文案、契约两个生成器同构。
+  改色只改配色文件再重新生成；标记区间内的代码不手改，漂移由 `testing/l0/check-palette.py`
+  逐字节比对拦截。这三个文件里的品牌色字面量一律落在标记区间内——区间外的手写副本不被比对覆盖，
+  等于重新开一条漂移通道。透明度不再手算：换算规则只在生成器里一处，恰好 .5 时进位（与平台量化一致）
 - **版本号单一出处**：版本号只改 `Cargo.toml` 的 `[workspace.package] version`；其余六处（依赖锁文件、两份 README 版本行、macOS `Info.plist`、
   `windows/CMakeLists.txt`、`testing/README.md` 状态表）是副本，随之同步。漂移由 `python3 testing/l0/check-version-drift.py` 拦截，
   已挂进 `python3 scripts/tasks.py test` 的 L0 段与 CI（#251/#252/#253）
