@@ -109,6 +109,22 @@ def to_hex(c: Color) -> str:
     return f"#{r:02X}{g:02X}{b:02X}" if a == 255 else f"#{a:02X}{r:02X}{g:02X}{b:02X}"
 
 
+def alpha_from_opacity(opacity: float) -> int:
+    """不透明度（0-1）→ alpha 通道（0-255）。
+
+    就近取整，恰好 0.5 时取偶（Python 内置 round）。这条规则是按现有值定的：
+    0.30 与 0.70 落在 76.5 / 178.5 上，取偶得到的 0x4C / 0xB2 与 macOS 侧
+    现值一致；四舍五入会得到 0x4D / 0xB3，两端都对不上（#245）。
+    """
+    return round(opacity * 255)
+
+
+def from_base_opacity(base_hex: str, opacity: float) -> Color:
+    """「基色 + 不透明度」声明 → (r, g, b, a)。"""
+    r, g, b, _ = from_hex(base_hex)
+    return (r, g, b, alpha_from_opacity(opacity))
+
+
 def blend(fg: Color, bg: Color) -> Color:
     """把半透明 fg 合成到不透明 bg 上（背景按不透明处理）。"""
     fr, fg_r, fb, fa = fg
