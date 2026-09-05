@@ -24,6 +24,8 @@ func isDark(_ appearance: NSAppearance) -> Bool {
 /// 引发 type-check 超时与泛型推断连锁失败。
 extension ShapeStyle where Self == Color {
 
+    // BEGIN GENERATED TOKENS (#247) — 由 scripts/gen-palette.py 生成，勿手改
+
     // MARK: Accent
 
     /// Accent / interactive elements.
@@ -39,17 +41,17 @@ extension ShapeStyle where Self == Color {
     // MARK: Surfaces
 
     /// Deepest background.
-    /// Dark: #011F26   Light: white
+    /// Dark: #011F26   Light: #FFFFFF
     public static var rhythmSurface: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0x01 / 255.0, green: 0x1F / 255.0, blue: 0x26 / 255.0, alpha: 1.0)
-                : NSColor.white
+                : NSColor(red: 0xFF / 255.0, green: 0xFF / 255.0, blue: 0xFF / 255.0, alpha: 1.0)
         })
     }
 
     /// Elevated surface (cards, artwork placeholders).
-    /// Dark: #0D464D   Light: white
+    /// Dark: #0D464D   Light: #FFFFFF
     ///
     /// In light mode this is intentionally the same as `rhythmSurface` —
     /// the brand palette is dark-first and light-mode layering relies on
@@ -58,7 +60,7 @@ extension ShapeStyle where Self == Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0x0D / 255.0, green: 0x46 / 255.0, blue: 0x4D / 255.0, alpha: 1.0)
-                : NSColor.white
+                : NSColor(red: 0xFF / 255.0, green: 0xFF / 255.0, blue: 0xFF / 255.0, alpha: 1.0)
         })
     }
 
@@ -100,14 +102,16 @@ extension ShapeStyle where Self == Color {
     ///
     /// #0D464D / #011F26 is only 1.63:1, so adjacent panels need a border
     /// to stay legible.
-    /// Dark: #ABC8D4 @ 0.15   Light: #ABC8D4 @ 0.30
+    /// Dark: #ABC8D4 @ 0.15   Light: #ABC8D4 @ 0.3
     public static var rhythmBorder: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
                 ? NSColor(red: 0xAB / 255.0, green: 0xC8 / 255.0, blue: 0xD4 / 255.0, alpha: 0.15)
-                : NSColor(red: 0xAB / 255.0, green: 0xC8 / 255.0, blue: 0xD4 / 255.0, alpha: 0.30)
+                : NSColor(red: 0xAB / 255.0, green: 0xC8 / 255.0, blue: 0xD4 / 255.0, alpha: 0.3)
         })
     }
+
+    // END GENERATED TOKENS (#247)
 
     // MARK: Source badge accents
 

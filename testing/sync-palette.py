@@ -197,7 +197,7 @@ def merge_palette(source: dict, existing: dict | None) -> dict:
         "version": 1,
         "note": "Rhythm 品牌配色单一事实来源。tokens 由 sync-palette.py 从源码提取；"
                 "sources（来源徽标色，#184）以本文件为准，sync 时写回双端生成物；"
-                "translucent（半透明 token 的基色 + 不透明度声明，#245）与 "
+                "translucent（半透明 token 的基色 + 不透明度声明，#245）、docs（token 文档块，#247）与 "
                 "usage/backgrounds/exceptions/whitelist 为设计决策段（人工维护）。",
         "alphaTolerance": 2,  # alpha 通道比对容差 ±2/255（浮点舍入）
         **source,
@@ -216,6 +216,7 @@ def merge_palette(source: dict, existing: dict | None) -> dict:
             base["tokens"][token] = base["sources"][source_key]
     for key, default in (
         ("translucent", DEFAULT_TRANSLUCENT),
+        ("docs", (existing or {}).get("docs") or {}),
         ("usage", DEFAULT_USAGE),
         ("backgrounds", DEFAULT_BACKGROUNDS),
         ("exceptions", DEFAULT_EXCEPTIONS),

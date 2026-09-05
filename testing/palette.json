@@ -98,6 +98,61 @@
       }
     }
   },
+  "docs": {
+    "rhythmAccent": {
+      "group": "Accent",
+      "lines": [
+        "Accent / interactive elements.",
+        "{values} (10.50:1 on white)"
+      ]
+    },
+    "rhythmSurface": {
+      "group": "Surfaces",
+      "lines": [
+        "Deepest background.",
+        "{values}"
+      ]
+    },
+    "rhythmElevated": {
+      "lines": [
+        "Elevated surface (cards, artwork placeholders).",
+        "{values}",
+        "",
+        "In light mode this is intentionally the same as `rhythmSurface` \u2014",
+        "the brand palette is dark-first and light-mode layering relies on",
+        "shadows and borders rather than colour difference (see `rhythmBorder`)."
+      ]
+    },
+    "rhythmTextPrimary": {
+      "group": "Text",
+      "lines": [
+        "Primary text.",
+        "{values}"
+      ]
+    },
+    "rhythmTextSecondary": {
+      "lines": [
+        "Secondary / muted text.",
+        "{values}"
+      ]
+    },
+    "rhythmTextTertiary": {
+      "lines": [
+        "Tertiary / hint text.",
+        "{values}"
+      ]
+    },
+    "rhythmBorder": {
+      "group": "Strokes",
+      "lines": [
+        "Panel-separating stroke.",
+        "",
+        "#0D464D / #011F26 is only 1.63:1, so adjacent panels need a border",
+        "to stay legible.",
+        "{values}"
+      ]
+    }
+  },
   "usage": {
     "rhythmAccent": {
       "background": "window",
