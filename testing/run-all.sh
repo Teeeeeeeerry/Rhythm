@@ -64,6 +64,11 @@ python3 -m unittest discover -s testing/l0/tests 2>&1 | tee "$LOG_DIR/l0-script-
 rc=${PIPESTATUS[0]}
 [[ $rc -eq 0 ]] || FAILED=$((FAILED + 1))
 
+step "编排层自测（testing/tasks/tests/：退出码聚合与共享实现，#259/#260）"
+python3 -m unittest discover -s testing/tasks/tests 2>&1 | tee "$LOG_DIR/tasks-tests.log"
+rc=${PIPESTATUS[0]}
+[[ $rc -eq 0 ]] || FAILED=$((FAILED + 1))
+
 if [[ $L0_ONLY -eq 0 ]]; then
   step "拷贝 L1 测试到 SwiftPM 目录（与 CI 一致，保证种子最新）"
   mkdir -p macos/Tests/RhythmThemeTests

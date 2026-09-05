@@ -34,6 +34,8 @@ jobs:
         run: python3 scripts/check-no-emoji.py
       - name: L0 校验脚本自测
         run: python3 -m unittest discover -s testing/l0/tests
+      - name: 编排层自测（退出码聚合与共享实现）
+        run: python3 -m unittest discover -s testing/tasks/tests
       - name: 上传测试日志（每脚本默认写 testing/logs/<脚本名>.log）
         if: always()
         uses: actions/upload-artifact@v4
