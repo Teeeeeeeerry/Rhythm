@@ -19,7 +19,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import os
 import sys
 from dataclasses import dataclass
@@ -27,19 +26,11 @@ from pathlib import Path
 from typing import Callable
 
 _HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
-
-def _load_tasklib():
-    spec = importlib.util.spec_from_file_location("tasklib", _HERE / "tasklib.py")
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    # 先登记再执行：dataclass 解析字符串注解时会回查 sys.modules
-    sys.modules.setdefault("tasklib", module)
-    spec.loader.exec_module(module)
-    return module
-
-
-tasklib = _load_tasklib()
+import task_build  # noqa: E402
+import tasklib  # noqa: E402
 
 USAGE_ERROR = 2
 
@@ -157,7 +148,7 @@ TASKS: list[Task] = [
     Task("test", "全量测试：L0 静态分析 + L1 单元测试"
                  "（--l0-only / --allow-expected-failures）", task_test),
     Task("build-macos", "构建 macOS 应用包（build/Rhythm.app）",
-         pending("#261", "bash scripts/build-macos.sh"), platform="macos"),
+         lambda argv: task_build.build_macos(argv), platform="macos"),
     Task("build-windows", "构建 Windows 应用",
          pending("#263", "scripts/build-windows.bat"), platform="windows"),
     Task("test-windows", "Windows 测试：L1 单元 + L2 截屏比对 + L3 冒烟",
