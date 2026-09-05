@@ -95,7 +95,8 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   （`build` / `test` / `check-no-emoji` / `compare-screenshots`），退出码 0 全绿 / 1 有步骤失败 / 2 用法错误。
   路径解析、日志落盘、失败计数与退出码聚合、子进程调用四项只写在 `scripts/tasklib.py`；新增一个任务改
   `scripts/tasks.py` 的注册表加一个实现模块，不再新增脚本方言。严格模式是默认（#144），容错只能显式开启。
-  CI 配置调用的就是本地同名命令
+  CI 配置调用的就是本地同名命令。新增 .sh / .bat / .ps1 由 `python3 testing/l0/check-orchestration-dialects.py`
+  拦截，确有必要的例外写进该脚本的 ALLOWED 并附理由
 
 ## 坑（非显而易见，踩过才写）
 
