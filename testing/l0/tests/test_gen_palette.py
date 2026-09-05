@@ -29,6 +29,20 @@ def _load_generator():
 gen = _load_generator()
 
 MINIMAL = {
+    "tokens": {
+        "rhythmAccent": {"dark": "#ABC8D4", "light": "#0D464D"},
+        "rhythmBorder": {"dark": "#26ABC8D4", "light": "#4CABC8D4"},
+    },
+    "translucent": {
+        "rhythmBorder": {
+            "dark": {"base": "#ABC8D4", "opacity": 0.15},
+            "light": {"base": "#ABC8D4", "opacity": 0.3},
+        },
+    },
+    "docs": {
+        "rhythmAccent": {"group": "Accent", "lines": ["Accent.", "{values}"]},
+        "rhythmBorder": {"lines": ["Stroke.", "{values}"]},
+    },
     "sources": {
         "local": {"dark": "#8ABCD0", "light": "#3A7A8C"},
     },
@@ -40,6 +54,9 @@ def make_tree(root: Path) -> None:
     swift.parent.mkdir(parents=True, exist_ok=True)
     swift.write_text(
         "extension ShapeStyle {\n"
+        f"{gen.SWIFT_TOKENS_BEGIN}\n"
+        "    // 旧内容\n"
+        f"{gen.SWIFT_TOKENS_END}\n"
         f"{gen.SWIFT_SOURCE_BEGIN}\n"
         "    // 旧内容\n"
         f"{gen.SWIFT_SOURCE_END}\n"
@@ -52,6 +69,41 @@ def make_tree(root: Path) -> None:
         "        // 旧内容\n"
         f"{gen.CPP_SOURCE_END}\n"
         "};\n", encoding="utf-8")
+
+
+class SwiftTokenTest(unittest.TestCase):
+    def setUp(self):
+        self.text = "\n".join(gen.swift_token_lines(MINIMAL))
+
+    def test_opaque_token_is_emitted_with_full_alpha(self):
+        self.assertIn("public static var rhythmAccent: Color {", self.text)
+        self.assertIn("NSColor(red: 0xAB / 255.0, green: 0xC8 / 255.0, blue: 0xD4 / 255.0, alpha: 1.0)",
+                      self.text)
+
+    def test_translucent_token_alpha_comes_from_the_opacity_declaration(self):
+        # 八位值不再手写：alpha 由 translucent 段的不透明度算出（#245/#247）
+        self.assertIn("blue: 0xD4 / 255.0, alpha: 0.15)", self.text)
+        self.assertIn("blue: 0xD4 / 255.0, alpha: 0.3)", self.text)
+
+    def test_values_line_shows_base_and_opacity_for_translucent_tokens(self):
+        self.assertIn("/// Dark: #ABC8D4 @ 0.15   Light: #ABC8D4 @ 0.3", self.text)
+
+    def test_values_line_shows_plain_colours_for_opaque_tokens(self):
+        self.assertIn("/// Dark: #ABC8D4   Light: #0D464D", self.text)
+
+    def test_group_heading_is_emitted_when_declared(self):
+        self.assertIn("    // MARK: Accent", self.text)
+
+    def test_region_markers_wrap_the_output(self):
+        self.assertTrue(self.text.startswith(gen.SWIFT_TOKENS_BEGIN))
+        self.assertTrue(self.text.endswith(gen.SWIFT_TOKENS_END))
+
+
+class AlphaComputationTest(unittest.TestCase):
+    def test_swift_alpha_keeps_one_decimal_for_whole_numbers(self):
+        self.assertEqual(gen.swift_alpha(1.0), "1.0")
+        self.assertEqual(gen.swift_alpha(0.3), "0.3")
+        self.assertEqual(gen.swift_alpha(0.55), "0.55")
 
 
 class SwiftSourceColoursTest(unittest.TestCase):
@@ -95,6 +147,7 @@ class GenerateTest(unittest.TestCase):
             self.assertTrue(swift.endswith("}\n"))
             self.assertNotIn("旧内容", swift)
             self.assertIn("rhythmSourceLocal", swift)
+            self.assertIn("rhythmAccent", swift)
 
     def test_missing_marker_is_an_error(self):
         with tempfile.TemporaryDirectory() as tmp:
