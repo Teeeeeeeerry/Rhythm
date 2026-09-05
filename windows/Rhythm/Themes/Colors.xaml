@@ -8,26 +8,34 @@
     <ResourceDictionary.ThemeDictionaries>
         <!-- Dark mode: base #011F26, elevated #0D464D, accent/text #ABC8D4 -->
         <ResourceDictionary x:Key="Default">
+            <!-- BEGIN GENERATED BRUSHES: Default (#248) -->
             <SolidColorBrush x:Key="RhythmAccentBrush" Color="#ABC8D4" />
             <SolidColorBrush x:Key="RhythmSurfaceBrush" Color="#011F26" />
             <SolidColorBrush x:Key="RhythmElevatedBrush" Color="#0D464D" />
             <SolidColorBrush x:Key="RhythmTextPrimaryBrush" Color="#ABC8D4" />
+            <!-- #ABC8D4 @ 0.7 for secondary / muted text -->
             <SolidColorBrush x:Key="RhythmTextSecondaryBrush" Color="#B2ABC8D4" />
+            <!-- #ABC8D4 @ 0.55 for tertiary / hint text -->
             <SolidColorBrush x:Key="RhythmTextTertiaryBrush" Color="#8CABC8D4" />
             <!-- #ABC8D4 @ 0.15 for panel-separating stroke -->
             <SolidColorBrush x:Key="RhythmBorderBrush" Color="#26ABC8D4" />
+            <!-- END GENERATED BRUSHES: Default (#248) -->
         </ResourceDictionary>
 
         <!-- Light mode: accent/text #0D464D (10.50:1 on white), #ABC8D4 for borders only -->
         <ResourceDictionary x:Key="Light">
+            <!-- BEGIN GENERATED BRUSHES: Light (#248) -->
             <SolidColorBrush x:Key="RhythmAccentBrush" Color="#0D464D" />
             <SolidColorBrush x:Key="RhythmSurfaceBrush" Color="#FFFFFF" />
             <SolidColorBrush x:Key="RhythmElevatedBrush" Color="#FFFFFF" />
             <SolidColorBrush x:Key="RhythmTextPrimaryBrush" Color="#0D464D" />
+            <!-- #0D464D @ 0.6 for secondary / muted text -->
             <SolidColorBrush x:Key="RhythmTextSecondaryBrush" Color="#990D464D" />
+            <!-- #0D464D @ 0.4 for tertiary / hint text -->
             <SolidColorBrush x:Key="RhythmTextTertiaryBrush" Color="#660D464D" />
-            <!-- #ABC8D4 @ 0.30 for panel-separating stroke -->
-            <SolidColorBrush x:Key="RhythmBorderBrush" Color="#4DABC8D4" />
+            <!-- #ABC8D4 @ 0.3 for panel-separating stroke -->
+            <SolidColorBrush x:Key="RhythmBorderBrush" Color="#4CABC8D4" />
+            <!-- END GENERATED BRUSHES: Light (#248) -->
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

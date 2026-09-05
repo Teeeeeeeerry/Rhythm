@@ -61,6 +61,16 @@ def make_tree(root: Path) -> None:
         "    // 旧内容\n"
         f"{gen.SWIFT_SOURCE_END}\n"
         "}\n", encoding="utf-8")
+    xaml = root / gen.XAML_COLORS
+    xaml.parent.mkdir(parents=True, exist_ok=True)
+    xaml.write_text(
+        "<ResourceDictionary>\n"
+        + "".join(
+            f'  <ResourceDictionary x:Key="{name}">\n'
+            f"{gen.xaml_begin(name)}\n    <!-- 旧内容 -->\n{gen.xaml_end(name)}\n"
+            "  </ResourceDictionary>\n"
+            for name, _ in gen.XAML_DICTS)
+        + "</ResourceDictionary>\n", encoding="utf-8")
     cpp = root / gen.CPP_CORE
     cpp.parent.mkdir(parents=True, exist_ok=True)
     cpp.write_text(
@@ -106,6 +116,33 @@ class AlphaComputationTest(unittest.TestCase):
         self.assertEqual(gen.swift_alpha(0.55), "0.55")
 
 
+class XamlBrushTest(unittest.TestCase):
+    """Windows 主题字典：深浅两套画刷，半透明的八位值由不透明度算出（#248）。"""
+
+    def setUp(self):
+        self.dark = "\n".join(gen.xaml_brush_lines(MINIMAL, "Default", "dark"))
+        self.light = "\n".join(gen.xaml_brush_lines(MINIMAL, "Light", "light"))
+
+    def test_brush_name_derives_from_the_token_name(self):
+        self.assertIn('x:Key="RhythmAccentBrush"', self.dark)
+
+    def test_opaque_brush_is_six_digit_hex(self):
+        self.assertIn('x:Key="RhythmAccentBrush" Color="#ABC8D4"', self.dark)
+        self.assertIn('x:Key="RhythmAccentBrush" Color="#0D464D"', self.light)
+
+    def test_translucent_brush_alpha_is_computed_from_the_opacity(self):
+        # 0.15 * 255 = 38.25 -> 0x26；0.30 * 255 = 76.5 -> 就近取偶 0x4C
+        self.assertIn('x:Key="RhythmBorderBrush" Color="#26ABC8D4"', self.dark)
+        self.assertIn('x:Key="RhythmBorderBrush" Color="#4CABC8D4"', self.light)
+
+    def test_translucent_brush_carries_a_provenance_comment(self):
+        self.assertIn("<!-- #ABC8D4 @ 0.3 for stroke -->", self.light)
+
+    def test_region_markers_wrap_each_dictionary(self):
+        self.assertTrue(self.dark.startswith(gen.xaml_begin("Default")))
+        self.assertTrue(self.light.endswith(gen.xaml_end("Light")))
+
+
 class SwiftSourceColoursTest(unittest.TestCase):
     def setUp(self):
         self.text = "\n".join(gen.swift_source_lines(MINIMAL))
@@ -148,6 +185,10 @@ class GenerateTest(unittest.TestCase):
             self.assertNotIn("旧内容", swift)
             self.assertIn("rhythmSourceLocal", swift)
             self.assertIn("rhythmAccent", swift)
+            xaml = out[gen.XAML_COLORS]
+            self.assertNotIn("旧内容", xaml)
+            self.assertIn('x:Key="RhythmBorderBrush" Color="#26ABC8D4"', xaml)
+            self.assertIn('x:Key="RhythmBorderBrush" Color="#4CABC8D4"', xaml)
 
     def test_missing_marker_is_an_error(self):
         with tempfile.TemporaryDirectory() as tmp:

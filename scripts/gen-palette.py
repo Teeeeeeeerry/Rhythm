@@ -21,6 +21,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PALETTE = os.path.join(ROOT, "testing", "palette.json")
 
 SWIFT_THEME = "macos/RhythmTheme/Theme.swift"
+XAML_COLORS = "windows/Rhythm/Themes/Colors.xaml"
 CPP_CORE = "windows/Rhythm/Bridge/RhythmCore.h"
 
 SWIFT_TOKENS_BEGIN = "    // BEGIN GENERATED TOKENS (#247)"
@@ -29,6 +30,17 @@ SWIFT_SOURCE_BEGIN = "    // BEGIN GENERATED SOURCE COLORS (#184)"
 SWIFT_SOURCE_END = "    // END GENERATED SOURCE COLORS (#184)"
 CPP_SOURCE_BEGIN = "        // BEGIN GENERATED SOURCE TABLE (#184)"
 CPP_SOURCE_END = "        // END GENERATED SOURCE TABLE (#184)"
+
+# Windows 主题字典：Default 即 dark，Light 即 light。两段各有自己的标记。
+XAML_DICTS = (("Default", "dark"), ("Light", "light"))
+
+
+def xaml_begin(dict_name: str) -> str:
+    return f"            <!-- BEGIN GENERATED BRUSHES: {dict_name} (#248) -->"
+
+
+def xaml_end(dict_name: str) -> str:
+    return f"            <!-- END GENERATED BRUSHES: {dict_name} (#248) -->"
 
 # 来源类型 -> macOS 主题属性名
 SOURCE_SWIFT_NAMES = {
@@ -131,6 +143,41 @@ def swift_token_lines(palette: dict) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Windows 主题字典（#248）
+# ---------------------------------------------------------------------------
+
+def brush_name(token: str) -> str:
+    """token 名 -> 画刷资源名（rhythmTextPrimary -> RhythmTextPrimaryBrush）。"""
+    return "Rhythm" + token[len("rhythm"):] + "Brush"
+
+
+def xaml_color(palette: dict, token: str, appearance: str) -> str:
+    """画刷色值：不透明写 #RRGGBB，半透明写 #AARRGGBB（alpha 由不透明度算出）。"""
+    r, g, b = rgb(base_of(palette, token, appearance))
+    opacity = opacity_of(palette, token, appearance)
+    if opacity >= 1.0:
+        return f"#{r:02X}{g:02X}{b:02X}"
+    return f"#{round(opacity * 255):02X}{r:02X}{g:02X}{b:02X}"
+
+
+def xaml_brush_lines(palette: dict, dict_name: str, appearance: str) -> list[str]:
+    lines = [xaml_begin(dict_name)]
+    for token, doc in palette.get("docs", {}).items():
+        opacity = opacity_of(palette, token, appearance)
+        if opacity < 1.0:
+            # 半透明画刷的八位值是算出物，注明它由什么算来，别人才不会去手改
+            purpose = doc["lines"][0].rstrip(".")
+            purpose = purpose[:1].lower() + purpose[1:]
+            base = base_of(palette, token, appearance).upper()
+            lines.append(f"            <!-- {base} @ {opacity:g} for {purpose} -->")
+        lines.append(
+            f'            <SolidColorBrush x:Key="{brush_name(token)}" '
+            f'Color="{xaml_color(palette, token, appearance)}" />')
+    lines.append(xaml_end(dict_name))
+    return lines
+
+
+# ---------------------------------------------------------------------------
 # 来源徽标色（#184）
 # ---------------------------------------------------------------------------
 
@@ -192,6 +239,14 @@ def generate(palette: dict, root: str = ROOT) -> dict[str, str]:
         swift, SWIFT_TOKENS_BEGIN, SWIFT_TOKENS_END, swift_token_lines(palette))
     out[SWIFT_THEME] = replace_region(
         swift, SWIFT_SOURCE_BEGIN, SWIFT_SOURCE_END, swift_source_lines(palette))
+
+    xaml_path = os.path.join(root, XAML_COLORS)
+    with open(xaml_path, encoding="utf-8") as f:
+        xaml = f.read()
+    for dict_name, appearance in XAML_DICTS:
+        xaml = replace_region(xaml, xaml_begin(dict_name), xaml_end(dict_name),
+                              xaml_brush_lines(palette, dict_name, appearance))
+    out[XAML_COLORS] = xaml
 
     cpp_path = os.path.join(root, CPP_CORE)
     with open(cpp_path, encoding="utf-8") as f:
