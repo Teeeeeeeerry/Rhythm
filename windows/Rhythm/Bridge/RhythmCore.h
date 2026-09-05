@@ -71,7 +71,7 @@ struct Track {
             std::wstring_view name;
             SourceRGB dark, light;
         };
-        // BEGIN GENERATED SOURCE TABLE (#184) — 由 testing/sync-palette.py 生成，勿手改
+        // BEGIN GENERATED SOURCE TABLE (#184) — 由 scripts/gen-palette.py 生成，勿手改
         static constexpr Entry kTable[] = {
             {L"bilibili", {0xC8, 0x8D, 0xA8}, {0x8C, 0x4D, 0x68}},
             {L"direct_url", {0x8C, 0xB8, 0x9A}, {0x4C, 0x78, 0x5A}},

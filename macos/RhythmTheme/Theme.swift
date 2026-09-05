@@ -118,7 +118,7 @@ extension ShapeStyle where Self == Color {
     /// Dark mode  — foreground ~L* 75 (matches `#ABC8D4`)
     /// Light mode — foreground ~L* 16-20 (matches `#0D464D`, ≥4.5:1 on white)
 
-    // BEGIN GENERATED SOURCE COLORS (#184) — 由 testing/sync-palette.py 生成，勿手改
+    // BEGIN GENERATED SOURCE COLORS (#184) — 由 scripts/gen-palette.py 生成，勿手改
     /// 来源徽标色（生成自 testing/palette.json，#184）。
     /// Dark: #C88DA8   Light: #8C4D68
     public static var rhythmSourceBilibili: Color {

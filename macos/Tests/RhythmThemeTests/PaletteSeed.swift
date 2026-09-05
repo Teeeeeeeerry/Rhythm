@@ -21,9 +21,9 @@ enum PaletteSeed {
     ]
 
     static let sources: [String: [String: RGB]] = [
-        "bilibili": ["dark": RGB(r: 200, g: 141, b: 168, a: 255)],
-        "direct_url": ["dark": RGB(r: 140, g: 184, b: 154, a: 255)],
-        "local": ["dark": RGB(r: 138, g: 188, b: 208, a: 255)],
-        "youtube": ["dark": RGB(r: 212, g: 149, b: 115, a: 255)],
+        "bilibili": ["dark": RGB(r: 200, g: 141, b: 168, a: 255) , "light": RGB(r: 140, g: 77, b: 104, a: 255)],
+        "direct_url": ["dark": RGB(r: 140, g: 184, b: 154, a: 255) , "light": RGB(r: 76, g: 120, b: 90, a: 255)],
+        "local": ["dark": RGB(r: 138, g: 188, b: 208, a: 255) , "light": RGB(r: 58, g: 122, b: 140, a: 255)],
+        "youtube": ["dark": RGB(r: 212, g: 149, b: 115, a: 255) , "light": RGB(r: 139, g: 74, b: 40, a: 255)],
     ]
 }
