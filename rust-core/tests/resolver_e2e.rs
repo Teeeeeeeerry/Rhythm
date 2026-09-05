@@ -1,6 +1,6 @@
 //! RS-01–23：Resolver 端到端行为清单（manifest: docs/testing/behavior/resolver.md）。
 //!
-//! 零网络：stub 可执行脚本（tests/fixtures/fake_ytdlp.sh）经
+//! 零网络：stub 可执行脚本（tests/fixtures/fake_ytdlp.py）经
 //! `RHYTHM_YTDLP_PATH` 注入，按 URL 子串吐出预置 JSON/错误，测试覆盖
 //! 进程调用→输出解析→缓存→失败落地全链路。所有测试持一把进程级锁
 //! 串行执行：环境变量（RHYTHM_YTDLP_PATH / HOME / PATH）、yt-dlp 路径
@@ -14,7 +14,7 @@ use std::sync::Mutex;
 
 static RESOLVER_E2E_LOCK: Mutex<()> = Mutex::new(());
 
-const FAKE_YTDLP: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/fake_ytdlp.sh");
+const FAKE_YTDLP: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/fake_ytdlp.py");
 const CALL_LOG_ENV: &str = "FAKE_YTDLP_CALL_LOG";
 
 /// Point the resolver at the fake yt-dlp and a fresh call log.

@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.127 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
+Initial development is complete. Current version: **v0.5.128 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
 
 ### Implementation Status
 
@@ -78,53 +78,47 @@ When resolution fails, the app says why — network error, timeout, video unavai
 - **macOS**: Xcode 15+ or Command Line Tools + Swift 5.9+
 - **Windows**: Visual Studio 2022 + Windows App SDK + CMake 3.20+
 
+Building and testing both go through one cross-platform task entry; the task
+names are the same on both platforms (#221):
+
+```bash
+python3 scripts/tasks.py            # list every task
+python3 scripts/tasks.py build      # build the app for this platform
+python3 scripts/tasks.py test       # full test suite for this platform
+```
+
+Exit codes: `0` all green / `1` a step failed / `2` usage error.
+
 ### macOS
 
 ```bash
-# 1. Build Rust core library
-cargo build --release -p rhythm-core
-
-# 2. Build Swift UI
-cd macos && swift build -c release
-
-# 3. Create .app bundle (output: $PROJECT_ROOT/build/)
-mkdir -p "$PROJECT_ROOT/build/Rhythm.app/Contents/"{MacOS,Resources,Frameworks}
-cp .build/release/Rhythm "$PROJECT_ROOT/build/Rhythm.app/Contents/MacOS/"
-cp ../target/release/librhythm_core.dylib "$PROJECT_ROOT/build/Rhythm.app/Contents/Frameworks/"
-cp Rhythm/Resources/Info.plist "$PROJECT_ROOT/build/Rhythm.app/Contents/"
-sed -i '' 's/\$(EXECUTABLE_NAME)/Rhythm/' "$PROJECT_ROOT/build/Rhythm.app/Contents/Info.plist"
-
-# 4. Sign
-codesign --force --deep --sign - "$PROJECT_ROOT/build/Rhythm.app"
+python3 scripts/tasks.py build
 ```
 
-Or use the one-shot script:
-```bash
-bash scripts/build-macos.sh
-```
+Builds the Rust core and the Swift executable, then assembles `build/Rhythm.app`:
+rewrites the dynamic library reference to the bundled copy, ad-hoc signs it, and
+asserts the bundle no longer references the build tree (otherwise it only runs on
+this machine).
 
 ### Windows
 
-```bash
-# 1. Build Rust core DLL (on Windows, or cross-compile)
-cargo build --release -p rhythm-core --target x86_64-pc-windows-msvc
-
-# 2. Build WinUI 3 app
-cd windows && mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . --config Release
-```
-
-Or use the one-shot script (on Windows):
 ```bat
-scripts\build-windows.bat
+python3 scripts\tasks.py build
 ```
+
+Builds the Rust core and the WinUI 3 app, producing `build\windows\Release\Rhythm.exe`.
 
 ### Run Tests
 
 ```bash
-cargo test -p rhythm-core
+python3 scripts/tasks.py test     # macOS: L0 static analysis + L1 unit tests
+                                  # Windows: L1 unit + L2 screenshot diff (--smoke adds L3)
+cargo test -p rhythm-core         # Rust core behaviour tests
 ```
+
+Use `--l0-only` for static analysis alone. Expected failures must be waived
+explicitly (`--allow-expected-failures`, or `ALLOW_EXPECTED_FAILURES=1`); the
+default strict mode exits non-zero as soon as any step goes red.
 
 ## Tech Stack
 

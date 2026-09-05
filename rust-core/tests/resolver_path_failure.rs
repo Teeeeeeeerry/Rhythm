@@ -12,7 +12,7 @@ mod common;
 
 static PATH_FAILURE_LOCK: Mutex<()> = Mutex::new(());
 
-const FAKE_YTDLP: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/fake_ytdlp.sh");
+const FAKE_YTDLP: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/fake_ytdlp.py");
 
 fn unique(url_tag: &str) -> String {
     format!("https://e2e.example.com/watch?v={url_tag}")
@@ -27,7 +27,7 @@ fn rs14_spawn_failure_reports_missing_and_rechecks() {
 
     // A private copy of the stub so we can delete it behind the resolver's
     // back after the path has been cached.
-    let copy = dir.path().join("fake_ytdlp_copy.sh");
+    let copy = dir.path().join("fake_ytdlp_copy.py");
     std::fs::copy(FAKE_YTDLP, &copy).unwrap();
     #[cfg(unix)]
     {
