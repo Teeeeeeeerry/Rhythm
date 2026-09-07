@@ -65,7 +65,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.138）
+## 当前状态（main，v0.5.139）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
@@ -74,7 +74,7 @@ EOF
 | `check-forbidden-colors.py` | PASS | 9 个 Swift 视图 + 5 个 XAML 视图无裸色（F4 已修复：#125/#128） |
 | `check-token-coverage.py` | PASS | 7 个 macOS 视图 + 5 个 Windows 视图全部引用 token（F2 已修复：#124/#133） |
 | `check-doc-drift.py` | PASS | 文档色值全部收录于 palette.json |
-| `check-version-drift.py` | PASS | 五处人工版本副本与 `Cargo.toml` 一致；macOS 应用包版本改构建期写入，源文件写死版本即报红（版本号只改 `Cargo.toml`，#251/#252/#253/#254） |
+| `check-version-drift.py` | PASS | 四处人工版本副本与 `Cargo.toml` 一致；macOS 应用包版本与 Windows 项目版本改构建期派生，源文件写死版本即报红（版本号只改 `Cargo.toml`，#251/#252/#253/#254/#255） |
 | `check-orchestration-dialects.py` | PASS | 被跟踪文件中无 bash / 批处理 / PowerShell 脚本（编排层只用 Python，#221） |
 | `check_no_emoji.py` | PASS | 203 个被跟踪文件零 emoji；范围由扩展名白名单翻转为排除清单，此前漏检的 43 个文件（Windows UI 实现层、L0 脚本、界面标记文件）自此纳入（#224/#257） |
 

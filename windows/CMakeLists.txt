@@ -1,5 +1,21 @@
 cmake_minimum_required(VERSION 3.20)
-project(Rhythm VERSION 0.5.138 LANGUAGES CXX)
+
+# Version comes from the workspace manifest, not from a copy kept here (#255).
+# Cargo.toml's [workspace.package] version is the single source; this file used
+# to hold a hand-maintained duplicate that had drifted 39 patch releases behind.
+# Configure fails loudly if the version cannot be read - a silent fallback would
+# ship an app whose reported version is wrong, which is the bug being fixed.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../Cargo.toml" RHYTHM_WORKSPACE_MANIFEST)
+string(REGEX MATCH
+    "\\[workspace\\.package\\][^[]*version[ \t]*=[ \t]*\"([0-9]+\\.[0-9]+\\.[0-9]+)\""
+    RHYTHM_VERSION_MATCH "${RHYTHM_WORKSPACE_MANIFEST}")
+if(NOT CMAKE_MATCH_1)
+    message(FATAL_ERROR
+        "cannot read [workspace.package] version from ../Cargo.toml")
+endif()
+set(RHYTHM_VERSION "${CMAKE_MATCH_1}")
+
+project(Rhythm VERSION ${RHYTHM_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

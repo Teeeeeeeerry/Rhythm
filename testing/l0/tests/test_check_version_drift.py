@@ -19,7 +19,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "testing" / "l0" / "check-version-drift.py"
 
 # 夹具：各处版本位置的最小可识别形状（内容与仓库真实文件一致的片段）。
-# macOS 应用包的版本字段自 #254 起是构建期占位符，夹具里也写占位符。
+# macOS 应用包的版本字段（#254）与 Windows 构建配置的项目版本（#255）是构建期
+# 写入/派生的位置，夹具里写占位符与派生写法，不写版本值。
 FIXTURE = {
     "Cargo.toml": '[workspace]\nmembers = ["rust-core"]\n\n'
                   '[workspace.package]\nversion = "{v}"\nedition = "2021"\n',
@@ -35,7 +36,8 @@ FIXTURE = {
         '    <key>CFBundleVersion</key>\n    <string>45</string>\n</dict>\n</plist>\n',
     "windows/CMakeLists.txt":
         'cmake_minimum_required(VERSION 3.20)\n'
-        'project(Rhythm VERSION {v} LANGUAGES CXX)\n',
+        'file(READ "${{CMAKE_CURRENT_SOURCE_DIR}}/../Cargo.toml" MANIFEST)\n'
+        'project(Rhythm VERSION ${{RHYTHM_VERSION}} LANGUAGES CXX)\n',
     "testing/README.md": '# 测试套件\n\n## 当前状态（main，v{v}）\n\n| 检查 | 现状 |\n',
 }
 
@@ -71,21 +73,21 @@ class CheckVersionDriftTests(unittest.TestCase):
     def test_single_drift_returns_nonzero_and_names_both_values(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            build_tree(root, versions={"windows/CMakeLists.txt": "1.2.0"})
+            build_tree(root, versions={"README.md": "1.2.0"})
             result = self.run_check(root)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("windows/CMakeLists.txt", result.stdout)
+            self.assertIn("README.md", result.stdout)
             self.assertIn("1.2.0", result.stdout)
             self.assertIn("1.2.3", result.stdout)
 
     def test_multiple_drifts_all_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            build_tree(root, versions={"windows/CMakeLists.txt": "1.2.0",
+            build_tree(root, versions={"README.md": "1.2.0",
                                        "testing/README.md": "1.1.9"})
             result = self.run_check(root)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("windows/CMakeLists.txt", result.stdout)
+            self.assertIn("README.md", result.stdout)
             self.assertIn("testing/README.md", result.stdout)
 
     def test_missing_copy_returns_nonzero(self) -> None:
@@ -104,7 +106,7 @@ class CheckVersionDriftTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("testing/README.md", result.stdout)
 
-    def test_hardcoded_version_in_generated_file_returns_nonzero(self) -> None:
+    def test_hardcoded_version_in_bundle_plist_returns_nonzero(self) -> None:
         # 构建期写入的位置在源文件里写死版本值，等于重新开一条漂移通道
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -119,13 +121,28 @@ class CheckVersionDriftTests(unittest.TestCase):
             self.assertIn("Info.plist", result.stdout)
             self.assertIn("1.2.3", result.stdout)
 
-    def test_missing_generated_file_returns_nonzero(self) -> None:
+    def test_hardcoded_version_in_cmake_config_returns_nonzero(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            build_tree(root, drop=("macos/Rhythm/Resources/Info.plist",))
+            build_tree(root)
+            cmake = root / "windows/CMakeLists.txt"
+            cmake.write_text(
+                cmake.read_text(encoding="utf-8").replace(
+                    "${RHYTHM_VERSION}", "1.2.3"),
+                encoding="utf-8")
             result = self.run_check(root)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("Info.plist", result.stdout)
+            self.assertIn("windows/CMakeLists.txt", result.stdout)
+            self.assertIn("1.2.3", result.stdout)
+
+    def test_missing_generated_file_returns_nonzero(self) -> None:
+        for rel in ("macos/Rhythm/Resources/Info.plist", "windows/CMakeLists.txt"):
+            with self.subTest(rel=rel), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                build_tree(root, drop=(rel,))
+                result = self.run_check(root)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(rel, result.stdout)
 
     def test_malformed_source_version_returns_nonzero(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
