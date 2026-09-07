@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""构建任务的落点约定与失败传播（#261/#263）。
+"""构建任务的落点约定、应用包版本写入与失败传播（#261/#263/#254）。
 
-只锁两条：核心产物的落点与取用点必须是同一处（迁移前四个脚本四种约定，
-其中两处即便修好路径也串不起来，#222/#223），以及构建失败必须非零退出
-（批处理版「失败还报成功」的形状）。构建本身不在自动化测试范围内。
+只锁三条：核心产物的落点与取用点必须是同一处（迁移前四个脚本四种约定，
+其中两处即便修好路径也串不起来，#222/#223），应用包的版本字段来自工作区清单
+（#164 的漂移不得复发），以及构建失败必须非零退出（批处理版「失败还报成功」的
+形状）。构建本身不在自动化测试范围内。
 """
 
 from __future__ import annotations
@@ -40,6 +41,30 @@ class ArtifactLayoutTest(unittest.TestCase):
         self.assertEqual(task_build.windows_build_dir(ROOT), ROOT / "build" / "windows")
         self.assertEqual(task_build.windows_app_exe(ROOT).parent.parent,
                          ROOT / "build" / "windows")
+
+
+class BundleVersionTest(unittest.TestCase):
+    """应用包的版本字段由工作区清单写入，模板里不留人工副本。"""
+
+    def test_placeholders_are_replaced_with_the_workspace_version(self):
+        filled = task_build.fill_bundle_plist(
+            "<string>$(EXECUTABLE_NAME)</string>"
+            "<string>$(MARKETING_VERSION)</string>", "9.8.7")
+        self.assertIn("<string>Rhythm</string>", filled)
+        self.assertIn("<string>9.8.7</string>", filled)
+        self.assertNotIn("$(", filled)
+
+    def test_missing_version_placeholder_fails(self):
+        with self.assertRaises(tasklib.StepFailed):
+            task_build.fill_bundle_plist(
+                "<string>$(EXECUTABLE_NAME)</string><string>1.2.3</string>", "9.8.7")
+
+    def test_repo_template_carries_the_version_placeholder(self):
+        template = (ROOT / "macos" / "Rhythm" / "Resources" / "Info.plist").read_text(
+            encoding="utf-8")
+        filled = task_build.fill_bundle_plist(template,
+                                              tasklib.workspace_version(ROOT))
+        self.assertIn(f"<string>{tasklib.workspace_version(ROOT)}</string>", filled)
 
 
 class BuildFailurePropagationTest(unittest.TestCase):

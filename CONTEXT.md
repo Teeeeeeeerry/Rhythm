@@ -86,9 +86,11 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   改色只改配色文件再重新生成；标记区间内的代码不手改，漂移由 `testing/l0/check-palette.py`
   逐字节比对拦截。这三个文件里的品牌色字面量一律落在标记区间内——区间外的手写副本不被比对覆盖，
   等于重新开一条漂移通道。透明度不再手算：换算规则只在生成器里一处，恰好 .5 时进位（与平台量化一致）
-- **版本号单一出处**：版本号只改 `Cargo.toml` 的 `[workspace.package] version`；其余六处（依赖锁文件、两份 README 版本行、macOS `Info.plist`、
-  `windows/CMakeLists.txt`、`testing/README.md` 状态表）是副本，随之同步。漂移由 `python3 testing/l0/check-version-drift.py` 拦截，
-  已挂进 `python3 scripts/tasks.py test` 的 L0 段与 CI（#251/#252/#253）
+- **版本号单一出处**：版本号只改 `Cargo.toml` 的 `[workspace.package] version`；其余五处（依赖锁文件、两份 README 版本行、
+  `windows/CMakeLists.txt`、`testing/README.md` 状态表）是人工副本，随之同步。macOS 应用包的版本字段改为构建期从工作区清单写入，
+  `Info.plist` 里只留 `$(MARKETING_VERSION)` 占位符，发布时不再手改应用包配置（#254）。漂移由
+  `python3 testing/l0/check-version-drift.py` 拦截——人工副本比对值，构建期写入的位置反向校验源文件不得写死版本；
+  已挂进 `python3 scripts/tasks.py test` 的 L0 段与 CI（#251/#252/#253/#254）
 - **M3U8 入库策略单一出处**：位置类型识别、标题缺失回退、入库判定与计数只写在 `rust-core/src/playlist/mod.rs`；
   双端在这条路径上只允许三步——调核心入口、按具名结果选提示语、从数据库重载列表。历史上 #136 与 #173 是
   同一缺陷在两平台各修一次，#217 组把策略下沉后不再可能修两次
