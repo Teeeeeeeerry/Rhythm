@@ -9,6 +9,7 @@ bash、批处理、PowerShell 三种脚本方言各自实现过同一组编排�
 2. 日志目录与输出转存  Tee / open_log / run 的 log 参数
 3. 失败计数与退出码聚合 Failures
 4. 子进程调用与错误传播 run / run_checked / StepFailed
+5. 工作区版本号读取      workspace_version
 
 日志文件名与落点沿用迁移前的约定：testing/logs/<名字>.log，每次运行覆盖。
 CI 收集产物的路径因此不随迁移变化。
@@ -17,6 +18,7 @@ CI 收集产物的路径因此不随迁移变化。
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -280,3 +282,28 @@ def parse_test_flags(argv: list[str], env: dict[str, str] | None = None,
             print(f"未知参数: {arg}（支持 {' / '.join(supported)}）", file=sys.stderr)
             raise SystemExit(USAGE_ERROR)
     return flags
+
+
+# ---------------------------------------------------------------------------
+# 5) 工作区版本号
+# ---------------------------------------------------------------------------
+
+# 版本号的唯一出处是工作区清单的 [workspace.package] version（#220 组）。
+# 编排层要写版本的地方都从这里取，取用点只有一处；漂移由
+# testing/l0/check-version-drift.py 拦截。
+WORKSPACE_VERSION_RE = re.compile(
+    r"^\[workspace\.package\]$.*?^version\s*=\s*\"([^\"]+)\"",
+    re.MULTILINE | re.DOTALL,
+)
+
+
+def workspace_version(root: Path | None = None) -> str:
+    """工作区清单声明的版本号。读不到即抛 StepFailed（构建不得写出空版本）。"""
+    manifest = (root or repo_root()) / "Cargo.toml"
+    if not manifest.exists():
+        raise StepFailed([str(manifest)], 1, f"工作区清单缺失: {manifest}")
+    m = WORKSPACE_VERSION_RE.search(manifest.read_text(encoding="utf-8"))
+    if not m:
+        raise StepFailed([str(manifest)], 1,
+                         "工作区清单里没有 [workspace.package] version")
+    return m.group(1).strip()

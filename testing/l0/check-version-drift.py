@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """L0: 版本号漂移检查。
 
-工作区清单 Cargo.toml 的 [workspace.package] version 是版本号的唯一出处；
-仓库里另有六处副本（依赖锁文件、两份 README 的版本行、macOS 应用包版本字段、
-Windows 构建配置的项目版本、测试基础设施说明的状态表）。任一处与出处不一致即失败，
-输出指出位置与两个值。
+工作区清单 Cargo.toml 的 [workspace.package] version 是版本号的唯一出处。
+
+仓库里另有五处副本（依赖锁文件、两份 README 的版本行、Windows 构建配置的项目版本、
+测试基础设施说明的状态表）：任一处与出处不一致即失败，输出指出位置与两个值。
+
+macOS 应用包的版本字段自 #254 起由构建期从工作区清单写入，源文件只留占位符，
+不再是人工副本。这类位置改为反向校验：源文件里再出现写死的版本值即失败。
 
 用法：python3 testing/l0/check-version-drift.py [--root PATH] [--log PATH]
 """
@@ -28,7 +31,7 @@ SOURCE_RE = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 
-# 六处副本：(相对路径, 说明, 提取正则)。正则第一组即该处的版本值。
+# 人工维护的副本：(相对路径, 说明, 提取正则)。正则第一组即该处的版本值。
 COPIES: list[tuple[str, str, re.Pattern[str]]] = [
     ("Cargo.lock", "依赖锁文件 rhythm-core 版本",
      re.compile(r"^name\s*=\s*\"rhythm-core\"$\s*^version\s*=\s*\"([^\"]+)\"",
@@ -37,12 +40,20 @@ COPIES: list[tuple[str, str, re.Pattern[str]]] = [
      re.compile(r"当前版本\s*\*\*v([0-9][^\s\"]*)")),
     ("README.en.md", "英文 README 版本行",
      re.compile(r"Current version:\s*\*\*v([0-9][^\s\"]*)")),
-    ("macos/Rhythm/Resources/Info.plist", "macOS 应用包 CFBundleShortVersionString",
-     re.compile(r"<key>CFBundleShortVersionString</key>\s*<string>([^<]+)</string>")),
     ("windows/CMakeLists.txt", "Windows 构建配置 project VERSION",
      re.compile(r"^project\s*\([^)]*?\bVERSION\s+(\S+)", re.MULTILINE)),
     ("testing/README.md", "测试基础设施说明状态表版本",
      re.compile(r"^##\s*当前状态（main，v(\S+?)）", re.MULTILINE)),
+]
+
+
+# 构建期写入的位置：(相对路径, 说明, 写死值的正则)。命中即失败——这些位置
+# 的版本由构建流程从唯一出处写入，源文件里再写一份就是重新开一条漂移通道。
+GENERATED: list[tuple[str, str, re.Pattern[str]]] = [
+    ("macos/Rhythm/Resources/Info.plist",
+     "macOS 应用包 CFBundleShortVersionString（构建期写入，#254）",
+     re.compile(r"<key>CFBundleShortVersionString</key>\s*"
+                r"<string>(\d+\.\d+\.\d+)</string>")),
 ]
 
 
@@ -86,12 +97,23 @@ def main() -> int:
             problems.append(f"  {rel}（{label}）：{value} != {source}"
                             f"（出处 {SOURCE_FILE}）")
 
+    for rel, label, pattern in GENERATED:
+        path = root / rel
+        if not path.exists():
+            problems.append(f"  {rel}（{label}）：文件缺失")
+            continue
+        m = pattern.search(path.read_text(encoding="utf-8"))
+        if m:
+            problems.append(f"  {rel}（{label}）：源文件写死了版本值 {m.group(1)}，"
+                            f"该处应由构建流程从 {SOURCE_FILE} 写入")
+
     if problems:
         print(f"FAIL — 版本号与唯一出处漂移（{SOURCE_FILE} = {source}）：")
         print("\n".join(problems))
         print(f"请把上列位置同步到 {source}（版本号只改 {SOURCE_FILE}，其余是副本）。")
         return 1
-    print(f"OK：{checked} 处版本副本与 {SOURCE_FILE} 一致（{source}）。")
+    print(f"OK：{checked} 处版本副本与 {SOURCE_FILE} 一致（{source}）；"
+          f"{len(GENERATED)} 处由构建期写入，源文件无写死值。")
     return 0
 
 

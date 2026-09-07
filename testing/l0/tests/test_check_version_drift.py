@@ -18,7 +18,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "testing" / "l0" / "check-version-drift.py"
 
-# 夹具：七处版本副本的最小可识别形状（内容与仓库真实文件一致的片段）。
+# 夹具：各处版本位置的最小可识别形状（内容与仓库真实文件一致的片段）。
+# macOS 应用包的版本字段自 #254 起是构建期占位符，夹具里也写占位符。
 FIXTURE = {
     "Cargo.toml": '[workspace]\nmembers = ["rust-core"]\n\n'
                   '[workspace.package]\nversion = "{v}"\nedition = "2021"\n',
@@ -29,7 +30,8 @@ FIXTURE = {
                     'Initial development is complete. Current version: **v{v} "Motif"**.\n',
     "macos/Rhythm/Resources/Info.plist":
         '<plist version="1.0">\n<dict>\n'
-        '    <key>CFBundleShortVersionString</key>\n    <string>{v}</string>\n'
+        '    <key>CFBundleShortVersionString</key>\n'
+        '    <string>$(MARKETING_VERSION)</string>\n'
         '    <key>CFBundleVersion</key>\n    <string>45</string>\n</dict>\n</plist>\n',
     "windows/CMakeLists.txt":
         'cmake_minimum_required(VERSION 3.20)\n'
@@ -101,6 +103,29 @@ class CheckVersionDriftTests(unittest.TestCase):
             result = self.run_check(root)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("testing/README.md", result.stdout)
+
+    def test_hardcoded_version_in_generated_file_returns_nonzero(self) -> None:
+        # 构建期写入的位置在源文件里写死版本值，等于重新开一条漂移通道
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            plist = root / "macos/Rhythm/Resources/Info.plist"
+            plist.write_text(
+                plist.read_text(encoding="utf-8").replace(
+                    "$(MARKETING_VERSION)", "1.2.3"),
+                encoding="utf-8")
+            result = self.run_check(root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Info.plist", result.stdout)
+            self.assertIn("1.2.3", result.stdout)
+
+    def test_missing_generated_file_returns_nonzero(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root, drop=("macos/Rhythm/Resources/Info.plist",))
+            result = self.run_check(root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Info.plist", result.stdout)
 
     def test_malformed_source_version_returns_nonzero(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

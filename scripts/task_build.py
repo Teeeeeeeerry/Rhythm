@@ -56,6 +56,10 @@ def build_core(root: Path, *, target: str | None = None) -> None:
 
 MACOS_EXECUTABLE = "Rhythm"
 MACOS_BUNDLE = "Rhythm.app"
+# Info.plist 模板里的构建期占位符。可执行文件名与版本号都不写死在模板里：
+# 前者是 SwiftPM 下不会被展开的 Xcode 变量，后者的唯一出处是工作区清单（#254）。
+EXECUTABLE_PLACEHOLDER = "$(EXECUTABLE_NAME)"
+VERSION_PLACEHOLDER = "$(MARKETING_VERSION)"
 CORE_DYLIB = "librhythm_core.dylib"
 BUNDLED_DYLIB_REF = f"@executable_path/../Frameworks/{CORE_DYLIB}"
 
@@ -70,9 +74,26 @@ def _capture(cmd: list[str], cwd: Path | None = None) -> str:
     ).stdout
 
 
+def fill_bundle_plist(template: str, version: str) -> str:
+    """把 Info.plist 模板里的构建期占位符换成真实值。
+
+    Xcode 构建变量在 SwiftPM 下不会被展开，两个占位符都必须在这里替换掉。
+    占位符缺失即失败：模板里写死版本号正是 #164 修过一次的漂移，
+    静默放过等于应用包的「关于」又和实际发布版本对不上。
+    """
+    for placeholder in (EXECUTABLE_PLACEHOLDER, VERSION_PLACEHOLDER):
+        if placeholder not in template:
+            raise tasklib.StepFailed(
+                ["Info.plist"], 1,
+                f"应用包 Info.plist 模板缺少占位符 {placeholder}")
+    return (template.replace(EXECUTABLE_PLACEHOLDER, MACOS_EXECUTABLE)
+                    .replace(VERSION_PLACEHOLDER, version))
+
+
 def assemble_macos_bundle(root: Path) -> Path:
     """组装 build/Rhythm.app，返回应用包路径。
 
+    版本号从工作区清单写入（#254），应用包里不再有人工维护的副本。
     动态库引用改写与临时签名都保留：Swift 可执行文件按构建树里的绝对路径链接
     dylib，不改写的话包里的那份从未被用到，target/ 一清应用就打不开；
     install_name_tool 会让既有签名失效，所以临时签名必须排在它之后。
@@ -88,8 +109,7 @@ def assemble_macos_bundle(root: Path) -> Path:
     plist = contents / "Info.plist"
     template = (root / "macos" / "Rhythm" / "Resources" / "Info.plist").read_text(
         encoding="utf-8")
-    # Xcode 构建变量占位符在 SwiftPM 下不会被展开，直接写成真实可执行文件名
-    plist.write_text(template.replace("$(EXECUTABLE_NAME)", MACOS_EXECUTABLE),
+    plist.write_text(fill_bundle_plist(template, tasklib.workspace_version(root)),
                      encoding="utf-8")
 
     bundled_dylib = contents / "Frameworks" / CORE_DYLIB
