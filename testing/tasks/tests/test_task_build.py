@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""构建任务的落点约定、应用包版本写入与失败传播（#261/#263/#254）。
+"""构建任务的落点约定、版本写入与失败传播（#261/#263/#254/#255）。
 
 只锁三条：核心产物的落点与取用点必须是同一处（迁移前四个脚本四种约定，
-其中两处即便修好路径也串不起来，#222/#223），应用包的版本字段来自工作区清单
+其中两处即便修好路径也串不起来，#222/#223），两个平台的版本字段都来自工作区清单
 （#164 的漂移不得复发），以及构建失败必须非零退出（批处理版「失败还报成功」的
 形状）。构建本身不在自动化测试范围内。
+
+Windows 侧的派生发生在 cmake 配置期，本机没有 cmake 时只能锁住写法；
+实际产出的版本值由 CI 的 windows runner 验收。
 """
 
 from __future__ import annotations
@@ -58,6 +61,13 @@ class BundleVersionTest(unittest.TestCase):
         with self.assertRaises(tasklib.StepFailed):
             task_build.fill_bundle_plist(
                 "<string>$(EXECUTABLE_NAME)</string><string>1.2.3</string>", "9.8.7")
+
+    def test_windows_config_derives_the_version_from_the_manifest(self):
+        text = WINDOWS_CMAKE.read_text(encoding="utf-8")
+        self.assertIn("../Cargo.toml", text,
+                      "Windows 构建配置必须从工作区清单读版本")
+        self.assertRegex(text, r"project\s*\([^)]*VERSION\s+\$\{RHYTHM_VERSION\}",
+                         "project() 的版本必须用派生出来的变量，不写字面量")
 
     def test_repo_template_carries_the_version_placeholder(self):
         template = (ROOT / "macos" / "Rhythm" / "Resources" / "Info.plist").read_text(
