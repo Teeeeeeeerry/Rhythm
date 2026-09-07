@@ -30,6 +30,7 @@ if str(_HERE) not in sys.path:
 
 import task_build  # noqa: E402
 import task_test  # noqa: E402
+import task_version  # noqa: E402
 import tasklib  # noqa: E402
 
 USAGE_ERROR = tasklib.USAGE_ERROR
@@ -82,6 +83,8 @@ TASKS: list[Task] = [
     Task("build", "构建本平台应用：macOS 为 build/Rhythm.app，"
                   "Windows 为 build/windows/Release/Rhythm.exe",
          lambda argv: task_build.build_app(argv)),
+    Task("bump-version", "提升版本号（不带参数末位加一），同步三处文档副本与依赖锁文件",
+         lambda argv: task_version.bump_version(argv)),
     Task("check-no-emoji", "零 emoji 校验（硬性约定，覆盖被跟踪的全部文件）",
          lambda argv: _run_module("scripts/check_no_emoji.py", argv)),
     Task("compare-screenshots", "L2 截屏与 golden 的像素比对",
