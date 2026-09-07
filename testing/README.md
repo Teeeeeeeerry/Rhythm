@@ -65,7 +65,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.139）
+## 当前状态（main，v0.5.140）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
@@ -105,6 +105,11 @@ L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门�
    `testing/logs/` 已 gitignore，CI 每次运行作为 artifact 上传。
 7. **一键入口**：`python3 scripts/tasks.py test`。任务名两个平台相同，
    跑完本机支持的全部层级，日志齐后看 `testing/logs/`。
+8. **改版本流程**：版本号只改 `Cargo.toml` 的 `[workspace.package] version`，
+   发布时跑 `python3 scripts/tasks.py bump-version`（不带参数末位加一，也可指定版本），
+   它把出处与三处文档副本一起推到新值、同步依赖锁文件，再跑一次 `check-version-drift.py` 自校验。
+   两处构建配置不参与——macOS 应用包版本在组装时写入、Windows 项目版本在 cmake 配置期派生（#254/#255），
+   源文件里再写死版本值即报红。写的位置取自校验的副本清单，两边不可能各漂一次（#220 收尾）。
 
 ## 任务入口（#221）
 
@@ -115,6 +120,7 @@ CI 配置调用的是同名命令。
 |---|---|
 | `build` | 构建本平台应用（macOS `build/Rhythm.app`；Windows `build/windows/Release/Rhythm.exe`） |
 | `test` | 本平台全量测试（macOS L0 + L1；Windows L1 + L2，`--smoke` 追加 L3） |
+| `bump-version` | 提升版本号（不带参数末位加一），同步三处文档副本与依赖锁文件后自校验 |
 | `check-no-emoji` | 零 emoji 硬性约定校验 |
 | `compare-screenshots` | L2 截屏与 golden 的像素比对 |
 

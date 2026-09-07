@@ -91,7 +91,9 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   macOS 应用包的版本字段由组装应用包时写入（`Info.plist` 只留 `$(MARKETING_VERSION)` 占位符，#254），
   Windows 构建配置的项目版本由 cmake 配置期从工作区清单派生（`project()` 用 `${RHYTHM_VERSION}`，#255）。
   漂移由 `python3 testing/l0/check-version-drift.py` 拦截——人工副本比对值，构建期派生的两处反向校验源文件不得写死版本；
-  已挂进 `python3 scripts/tasks.py test` 的 L0 段与 CI（#251/#252/#253/#254/#255）
+  已挂进 `python3 scripts/tasks.py test` 的 L0 段与 CI。发布时不逐个文件手改：`python3 scripts/tasks.py bump-version`
+  （不带参数末位加一）把出处与三处文档副本一起推到新值再自校验，写的位置直接取校验的清单，两边不会各漂一次
+  （#251/#252/#253/#254/#255/#220）
 - **M3U8 入库策略单一出处**：位置类型识别、标题缺失回退、入库判定与计数只写在 `rust-core/src/playlist/mod.rs`；
   双端在这条路径上只允许三步——调核心入口、按具名结果选提示语、从数据库重载列表。历史上 #136 与 #173 是
   同一缺陷在两平台各修一次，#217 组把策略下沉后不再可能修两次
