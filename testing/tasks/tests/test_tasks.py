@@ -101,6 +101,22 @@ class StaticAnalysisSwitchTest(unittest.TestCase):
         self.assertEqual(code, 1)
 
 
+class SharedStaticAnalysisPrefixTest(unittest.TestCase):
+    """新增一个校验脚本，两个平台自动纳入（#344）。"""
+
+    def test_new_check_script_joins_both_platforms(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "testing" / "l0").mkdir(parents=True)
+            (root / "testing" / "l0" / "check-brand-new.py").write_text("", encoding="utf-8")
+            out = io.StringIO()
+            with redirect_stdout(out):
+                macos = [s.name for s in task_test.macos_steps(root)]
+            windows = [s.name for s in task_test.windows_steps(root)]
+        for platform, names in (("macos", macos), ("windows", windows)):
+            self.assertTrue([n for n in names if "check-brand-new.py" in n], platform)
+
+
 class EmptyStepSetTest(unittest.TestCase):
     """零步集合不得判为通过（#343）：一步没跑是最危险的绿。"""
 
@@ -151,6 +167,14 @@ class MacosStepTableTest(unittest.TestCase):
         for script in scripts:
             self.assertTrue(any(script.name in name for name in listed), script.name)
 
+    def test_step_order_is_unchanged(self):
+        # 共享前缀提取后 macOS 的集合与顺序不变（#344）：先 L0 脚本（按名排序），紧接零 emoji。
+        scripts = sorted((tasklib.repo_root() / "testing" / "l0").glob("check-*.py"))
+        names = [s.name for s in self.steps]
+        for i, script in enumerate(scripts):
+            self.assertIn(script.name, names[i])
+        self.assertIn("零 emoji", names[len(scripts)])
+
     def test_l0_only_drops_the_swift_test_steps(self):
         picked = [s.name for s in tasks.select_steps(self.steps, l0_only=True)]
         self.assertFalse([n for n in picked if "swift test" in n or "ASan" in n])
@@ -163,6 +187,18 @@ class WindowsStepTableTest(unittest.TestCase):
 
     def setUp(self):
         self.root = tasklib.repo_root()
+
+    def test_every_l0_check_script_is_a_step(self):
+        # 共享静态分析前缀（#344）：Windows 与 macOS 跑同一组校验脚本。
+        scripts = sorted((self.root / "testing" / "l0").glob("check-*.py"))
+        listed = [s.name for s in task_test.windows_steps(self.root)]
+        for script in scripts:
+            self.assertTrue(any(script.name in name for name in listed), script.name)
+
+    def test_l0_only_runs_the_static_analysis_steps(self):
+        picked = tasks.select_steps(task_test.windows_steps(self.root), l0_only=True)
+        scripts = list((self.root / "testing" / "l0").glob("check-*.py"))
+        self.assertGreaterEqual(len(picked), len(scripts))
 
     def test_l1_segments_are_present(self):
         names = " | ".join(s.name for s in task_test.windows_steps(self.root))
