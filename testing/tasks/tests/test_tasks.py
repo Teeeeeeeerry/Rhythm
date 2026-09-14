@@ -104,6 +104,17 @@ class StaticAnalysisSwitchTest(unittest.TestCase):
 class SharedStaticAnalysisPrefixTest(unittest.TestCase):
     """新增一个校验脚本，两个平台自动纳入（#344）。"""
 
+    def test_static_analysis_prefix_is_non_empty_and_identical_on_both_platforms(self):
+        # #318 收尾的不变量：两个平台的静态分析段非空且是同一组步骤，
+        # 「零步全绿」与「只有一个平台跑 L0」都不会被后续重构重新引入。
+        root = tasklib.repo_root()
+        out = io.StringIO()
+        with redirect_stdout(out):
+            macos = [s.name for s in tasks.select_steps(task_test.macos_steps(root), l0_only=True)]
+        windows = [s.name for s in tasks.select_steps(task_test.windows_steps(root), l0_only=True)]
+        self.assertTrue(macos)
+        self.assertEqual(macos, windows)
+
     def test_new_check_script_joins_both_platforms(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
