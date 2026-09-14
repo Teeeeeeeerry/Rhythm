@@ -11,6 +11,8 @@ struct PlayerBarView : winrt::Microsoft::UI::Xaml::Controls::UserControlT<Player
 
     void OnPlayPauseClick(winrt::Windows::Foundation::IInspectable const&,
                           winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
+    void OnPlayModeClick(winrt::Windows::Foundation::IInspectable const&,
+                         winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
     void OnVolumeChanged(winrt::Windows::Foundation::IInspectable const&,
                          winrt::Microsoft::UI::Xaml::Controls::Primitives::RangeBaseValueChangedEventArgs const& args);
     void OnUrlPlayClick(winrt::Windows::Foundation::IInspectable const&,

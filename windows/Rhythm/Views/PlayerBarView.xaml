@@ -53,6 +53,13 @@
                 <Button Width="32" Height="32" Style="{StaticResource Button}">
                     <SymbolIcon Symbol="Next" />
                 </Button>
+                <!-- #373: play mode control; tooltip text comes from the key
+                     table (play_mode_tooltip), icon follows AppState.CurrentMode. -->
+                <Button x:Name="btnPlayMode" Width="32" Height="32"
+                        Style="{StaticResource Button}"
+                        Click="OnPlayModeClick">
+                    <SymbolIcon x:Name="playModeIcon" Symbol="List" />
+                </Button>
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
