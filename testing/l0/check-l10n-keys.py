@@ -26,7 +26,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import sys
 from pathlib import Path
@@ -164,7 +163,8 @@ def main() -> int:
     root = (args.root or Path(__file__).resolve().parent.parent.parent).resolve()
     problems: list[str] = []
 
-    table = json.loads((root / SCHEMA).read_text(encoding="utf-8"))
+    # 与生成器共用同一个键表解析入口（#319）。
+    table = gen_l10n.load(root / SCHEMA)
 
     # 1) 键表结构
     for key, entry in table["keys"].items():
