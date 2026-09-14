@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "MainWindow.xaml.h"
-#include "Views/SidebarView.xaml.h"
 #include "Views/LibraryView.xaml.h"
 #include "Views/PlaylistListView.xaml.h"
 #include "Views/PlayerBarView.xaml.h"

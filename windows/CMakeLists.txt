@@ -47,9 +47,6 @@ set(SOURCES
     Rhythm/Bridge/RhythmCore.cpp
     Rhythm/Models/Track.h
     Rhythm/Models/Track.cpp
-    Rhythm/Views/SidebarView.xaml
-    Rhythm/Views/SidebarView.xaml.cpp
-    Rhythm/Views/SidebarView.xaml.h
     Rhythm/Views/LibraryView.xaml
     Rhythm/Views/LibraryView.xaml.cpp
     Rhythm/Views/LibraryView.xaml.h
