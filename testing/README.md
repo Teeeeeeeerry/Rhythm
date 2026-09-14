@@ -9,9 +9,9 @@
 |---|---|---|---|
 | 数据源 | `palette.json` | 品牌配色的单一声明（人工维护）：tokens/sources 色值、translucent 基色 + 不透明度、docs token 文档块、sourceBadge 胶囊底不透明度、决策段 | — |
 | 生成器 | `../scripts/gen-palette.py` | 配色文件写回三处源码标记区间（macOS 主色 token #247、Windows 主题字典 #248、来源徽标色 #246、徽标胶囊底与未知来源回退 #249/#219）；`--emit-swift-seed` 顺带刷新 L1 种子；与文案、契约两个生成器同构 | 改色后 |
-| L0 静态 | `l0/` | 9 个零依赖 Python 脚本（palette/contrast/forbidden/coverage/doc-drift/ffi-contract/l10n-keys/version-drift/orchestration-dialects） | 每次 push/PR |
-| L0 静态 | `../scripts/check_no_emoji.py` | 零 emoji 硬性约定校验：范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物），二进制按内容探测跳过（#224/#257） | 提交前 / 每次 push/PR |
-| L0 自测 | `l0/tests/` | L0 校验脚本自身的行为测试（stdlib unittest，临时文件树夹具） | 每次 push/PR |
+| L0 静态 | `l0/` | 9 个零依赖 Python 脚本（palette/contrast/forbidden/coverage/doc-drift/ffi-contract/l10n-keys/version-drift/orchestration-dialects） | `tasks.py test` 双端共享前缀 |
+| L0 静态 | `../scripts/check_no_emoji.py` | 零 emoji 硬性约定校验：范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物），二进制按内容探测跳过（#224/#257） | 提交前 / `tasks.py test` 双端共享前缀 |
+| L0 自测 | `l0/tests/` | L0 校验脚本自身的行为测试（stdlib unittest，临时文件树夹具） | `tasks.py test` 双端共享前缀 |
 | L1 单元 | `l1/macos/` | PaletteSeed + 五组 Swift 测试（isDark/RGB/对比度/语义/互异） | `swift test` |
 | L1 单元 | `l1/windows/` | 来源徽标色 assert 测试 exe（直测 `RhythmCore.h`，#121/#122） | ctest |
 | L2 快照 | `l2/macos/` | swift-snapshot-testing 模板（8 视图 × 状态 × 外观 × 语言） | visual CI |
@@ -19,8 +19,8 @@
 | L3 UI | `l3/macos/` | XcodeGen project.yml + 4 组 XCUITest（外观切换/键盘/a11y/新建弹窗） | visual CI |
 | L3 UI | `l3/windows/` | WinAppDriver 兼容性验证 + 主题切换脚本（stdlib 直调 REST） | visual CI |
 | L4 手工 | `l4/` | 8 项主观烟测清单（唯一人工环节） | PR 合并前 |
-| 编排 | `tasks/tests/` | 任务入口与共享实现的行为测试（退出码聚合、开关语义、产物落点约定） | 每次 push/PR |
-| CI | `ci/` | ci.yml（L0+L1）、visual.yml（L2/L3/Nightly）模板 | 拷贝部署 |
+| 编排 | `tasks/tests/` | 任务入口与共享实现的行为测试（退出码聚合、开关语义、产物落点约定） | `tasks.py test` 双端共享前缀 |
+| CI | `ci/` | ci.yml（L0+L1）、visual.yml（L2/L3/Nightly）**未部署的模板**：仓库没有 `.github/workflows/`，表中各项目前只在本地执行（#346） | 拷贝部署后 |
 
 ## 快速开始（本地全量）
 
@@ -47,9 +47,10 @@ python3 scripts/check_no_emoji.py
 python3 -m unittest discover -s testing/l0/tests
 # 编排层自测：
 python3 -m unittest discover -s testing/tasks/tests
-# 或一键全量（含 L0 全部校验 + L1 swift test，日志统一落盘）：
+# 或一键全量（日志统一落盘）。两个平台先跑同一组静态分析前缀（L0 九项 + 零 emoji + 两组自测），
+# 再跑平台段：macOS 为 L1 swift test + ASan，Windows 为 L1 ctest（L2 未实现，#387）
 python3 scripts/tasks.py test
-# Windows 侧（任务名相同）：
+# Windows 侧（任务名相同，--smoke 追加 L3 冒烟）：
 python3 scripts/tasks.py test --smoke
 
 # 3. L1（P2 重构已完成：Theme.swift 拆为 RhythmTheme target）
@@ -65,7 +66,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.146）
+## 当前状态（main，v0.5.147）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
@@ -102,9 +103,9 @@ L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门�
    终端与 `testing/logs/<脚本名>.log`（`--log` 可覆盖路径）；
    `swift test` / `ctest` / `xcodebuild` 的输出由任务入口转存（xcodebuild 另有
    `.xcresult` 结构化日志）。
-   `testing/logs/` 已 gitignore，CI 每次运行作为 artifact 上传。
-7. **一键入口**：`python3 scripts/tasks.py test`。任务名两个平台相同，
-   跑完本机支持的全部层级，日志齐后看 `testing/logs/`。
+   `testing/logs/` 已 gitignore；CI 模板部署后每次运行作为 artifact 上传（模板目前未部署，#346）。
+7. **一键入口**：`python3 scripts/tasks.py test`。任务名两个平台相同；静态分析前缀两个平台一致，
+   平台段各跑本机支持的层级（两者并不等价，见下文任务表），日志齐后看 `testing/logs/`。
 8. **改版本流程**：版本号只改 `Cargo.toml` 的 `[workspace.package] version`，
    发布时跑 `python3 scripts/tasks.py bump-version`（不带参数末位加一，也可指定版本），
    它把出处与三处文档副本一起推到新值、同步依赖锁文件，再跑一次 `check-version-drift.py` 自校验。
@@ -129,12 +130,12 @@ Windows 端**没有视图外观回归防线**。测试入口曾登记三段 L2 �
 ## 任务入口（#221）
 
 编排层只有一种语言。构建与测试都走 `python3 scripts/tasks.py <任务>`，
-CI 配置调用的是同名命令。
+CI 模板调用的是同名命令（模板在 `testing/ci/`，尚未部署到 `.github/workflows/`，#346）。
 
 | 任务 | 内容 |
 |---|---|
 | `build` | 构建本平台应用（macOS `build/Rhythm.app`；Windows `build/windows/Release/Rhythm.exe`） |
-| `test` | 本平台全量测试（macOS L0 + L1；Windows L1，`--smoke` 追加 L3；Windows L2 未实现，#387） |
+| `test` | 本平台全量测试：双端共享静态分析前缀（L0 九项 + 零 emoji + 两组自测，#344/#345），再接平台段——macOS L1（swift test + ASan）；Windows L1（ctest），`--smoke` 追加 L3；Windows L2 未实现（#387） |
 | `bump-version` | 提升版本号（不带参数末位加一），同步三处文档副本与依赖锁文件后自校验 |
 | `check-no-emoji` | 零 emoji 硬性约定校验 |
 | `compare-screenshots` | L2 截屏与 golden 的像素比对 |

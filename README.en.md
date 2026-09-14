@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.146 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
+Initial development is complete. Current version: **v0.5.147 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
 
 ### Implementation Status
 
@@ -115,10 +115,14 @@ Builds the Rust core and the WinUI 3 app, producing `build\windows\Release\Rhyth
 ### Run Tests
 
 ```bash
-python3 scripts/tasks.py test     # macOS: L0 static analysis + L1 unit tests
-                                  # Windows: L1 unit (--smoke adds L3; L2 screenshot diff not implemented yet, #387)
+python3 scripts/tasks.py test     # both platforms first run the same static analysis: nine L0 checks + zero-emoji + two self-test suites
+                                  # macOS then runs L1 unit tests (swift test + ASan)
+                                  # Windows then runs L1 unit (--smoke adds L3; L2 screenshot diff not implemented yet, #387)
 cargo test -p rhythm-core         # Rust core behaviour tests
 ```
+
+The CI workflows (`testing/ci/ci.yml`, `visual.yml`) are **undeployed templates**: the repository has no
+`.github/workflows/`, so the checks above only run locally; once deployed, CI calls the same commands (#346).
 
 Use `--l0-only` for static analysis alone. Expected failures must be waived
 explicitly (`--allow-expected-failures`, or `ALLOW_EXPECTED_FAILURES=1`); the

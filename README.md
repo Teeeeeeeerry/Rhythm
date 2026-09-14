@@ -24,7 +24,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-初步开发完成。当前版本 **v0.5.146 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
+初步开发完成。当前版本 **v0.5.147 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
 
 ### 实现状态
 
@@ -110,10 +110,14 @@ python3 scripts\tasks.py build
 ### 运行测试
 
 ```bash
-python3 scripts/tasks.py test     # macOS：L0 静态分析 + L1 单元测试
-                                  # Windows：L1 单元（--smoke 追加 L3 冒烟；L2 截屏比对尚未实现，#387）
+python3 scripts/tasks.py test     # 两个平台先跑同一组静态分析：L0 九项校验 + 零 emoji + 两组自测
+                                  # macOS 再跑 L1 单元测试（swift test + ASan）
+                                  # Windows 再跑 L1 单元（--smoke 追加 L3 冒烟；L2 截屏比对尚未实现，#387）
 cargo test -p rhythm-core         # Rust 核心行为测试
 ```
+
+CI 工作流（`testing/ci/ci.yml`、`visual.yml`）目前是**未部署的模板**：仓库里没有 `.github/workflows/`，
+上面这些校验只在本地执行，部署后 CI 调用的是同名命令（#346）。
 
 只跑静态分析用 `--l0-only`；预期失败需显式豁免（`--allow-expected-failures`，
 或环境变量 `ALLOW_EXPECTED_FAILURES=1`），默认严格模式下任一步红即非零退出。
