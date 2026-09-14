@@ -15,6 +15,11 @@
    b) 每个 windows 键都必须至少被一个访问器取用——有文案无访问器的键
       到不了界面，同样报红。
 
+5. 平台差异键分端（#372）：两端的期望键集按 platform 字段分别计算，并直接从提交的
+   生成物里读出实际键集比对——macOS 专用键不得出现在 Windows 的取值与访问器里，
+   反之亦然。逐字节比对只能证明「生成物等于生成器的产出」，生成器自己漏筛时两边
+   一起错；这一项不经过生成器，独立兜底。
+
 用法：python3 testing/l0/check-l10n-keys.py [--root PATH]
 """
 
@@ -117,6 +122,40 @@ def accessor_problems(root: Path, expected_keys: set[str]) -> list[str]:
     return problems
 
 
+SWIFT_KEY_RE = re.compile(r'^\s+"([a-z0-9_]+)": \(zh:', re.M)
+CPP_VALUE_KEY_RE = re.compile(r"\bL10nKeys_zh_([a-z0-9_]+)\(")
+
+
+def platform_key_problems(root: Path, table: dict) -> list[str]:
+    """两端生成物里的实际键集与各自期望键集比对（#372）。"""
+    expected = {p: set(gen_l10n.entries_for(table, p)) for p in ("macos", "windows")}
+    other = {"macos": "windows", "windows": "macos"}
+    label = {"macos": "macOS", "windows": "Windows"}
+
+    def read(rel: str) -> str:
+        path = root / rel
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+    actual = {
+        (SWIFT_OUT, "macos"): set(SWIFT_KEY_RE.findall(read(SWIFT_OUT))),
+        (CPP_OUT, "windows"): set(CPP_VALUE_KEY_RE.findall(read(CPP_OUT))),
+        (ACCESSORS_OUT, "windows"): set(KEY_LITERAL_RE.findall(read(ACCESSORS_OUT))),
+    }
+    problems: list[str] = []
+    for (rel, platform), keys in actual.items():
+        foreign = sorted(keys & (expected[other[platform]] - expected[platform]))
+        if foreign:
+            problems.append(f"{rel} 含 {label[other[platform]]} 专用键（只应出现在"
+                            f" {label[other[platform]]} 生成物）: " + ", ".join(foreign))
+        missing = sorted(expected[platform] - keys)
+        if missing:
+            problems.append(f"{rel} 缺 {label[platform]} 键: " + ", ".join(missing))
+        unknown = sorted(keys - expected["macos"] - expected["windows"])
+        if unknown:
+            problems.append(f"{rel} 含键表里不存在的键: " + ", ".join(unknown))
+    return problems
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", type=Path, default=None)
@@ -158,6 +197,9 @@ def main() -> int:
 
     # 4) 访问器与调用面、键表对应（#370）
     problems += accessor_problems(root, expected)
+
+    # 5) 平台差异键分端（#372）
+    problems += platform_key_problems(root, table)
 
     if problems:
         print("L10n 键表校验失败：")

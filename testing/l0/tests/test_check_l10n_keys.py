@@ -52,12 +52,12 @@ inline const wchar_t* Key(const char* key) {
 
 
 def build_tree(root: Path, table: dict, *, accessors: str | None = None,
-               caller: str = "") -> None:
-    """写出最小可识别的仓库树。accessors 缺省为生成器对 table 的产出。"""
+               swift: str | None = None, caller: str = "") -> None:
+    """写出最小可识别的仓库树。accessors / swift 缺省为生成器对 table 的产出。"""
     windows_keys = sorted(gen_l10n.entries_for(table, "windows"))
     files = {
         "contracts/l10n-keys.json": json.dumps(table, ensure_ascii=False),
-        "macos/Rhythm/Models/L10nKeys.swift": gen_l10n.gen_swift(table),
+        "macos/Rhythm/Models/L10nKeys.swift": gen_l10n.gen_swift(table) if swift is None else swift,
         "windows/Rhythm/Bridge/L10nKeys.h": gen_l10n.gen_cpp(table),
         "windows/Rhythm/L10nAccessors.h":
             gen_l10n.gen_cpp_accessors(table) if accessors is None else accessors,
@@ -113,6 +113,66 @@ class CheckL10nAccessorTests(unittest.TestCase):
             result = self.run_check(Path(tmp))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("tray_quit", result.stdout)
+
+
+PLATFORM_TABLE = {
+    "keys": {
+        **TABLE["keys"],
+        "yt_dlp_install_command": {"zh": "brew install yt-dlp", "en": "brew install yt-dlp",
+                                   "platform": "macos"},
+        "yt_dlp_install_command_windows": {"zh": "winget install yt-dlp",
+                                           "en": "winget install yt-dlp", "platform": "windows"},
+    }
+}
+
+
+class PlatformSplitTests(unittest.TestCase):
+    """平台差异键只进对应平台生成物，校验器对两端分别计算（#372）。"""
+
+    def run_check(self, root: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), "--root", str(root)],
+            capture_output=True, text=True, encoding="utf-8",
+        )
+
+    def test_generated_outputs_keep_platform_keys_apart(self):
+        accessors = gen_l10n.gen_cpp_accessors(PLATFORM_TABLE)
+        values = gen_l10n.gen_cpp(PLATFORM_TABLE)
+        swift = gen_l10n.gen_swift(PLATFORM_TABLE)
+        self.assertIn('Key("yt_dlp_install_command_windows")', accessors)
+        self.assertNotIn('Key("yt_dlp_install_command")', accessors)
+        self.assertNotIn("L10nKeys_zh_yt_dlp_install_command()", values)
+        self.assertIn('"yt_dlp_install_command":', swift)
+        self.assertNotIn('"yt_dlp_install_command_windows":', swift)
+
+    def test_split_tree_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            build_tree(Path(tmp), PLATFORM_TABLE)
+            result = self.run_check(Path(tmp))
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_macos_key_leaking_into_windows_accessors_fails(self):
+        leaked = gen_l10n.gen_cpp_accessors(PLATFORM_TABLE).replace(
+            "} // namespace L10n",
+            'inline std::wstring YtDlpInstallCommand() { return Key("yt_dlp_install_command"); }\n'
+            "} // namespace L10n")
+        with tempfile.TemporaryDirectory() as tmp:
+            build_tree(Path(tmp), PLATFORM_TABLE, accessors=leaked)
+            result = self.run_check(Path(tmp))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("macOS 专用键", result.stdout)
+        self.assertIn("yt_dlp_install_command", result.stdout)
+
+    def test_windows_key_leaking_into_swift_table_fails(self):
+        leaked = gen_l10n.gen_swift(PLATFORM_TABLE).replace(
+            "    ]\n",
+            '        "yt_dlp_install_command_windows": (zh: "winget", en: "winget"),\n    ]\n', 1)
+        with tempfile.TemporaryDirectory() as tmp:
+            build_tree(Path(tmp), PLATFORM_TABLE, swift=leaked)
+            result = self.run_check(Path(tmp))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Windows 专用键", result.stdout)
+        self.assertIn("yt_dlp_install_command_windows", result.stdout)
 
 
 class AccessorNamingTests(unittest.TestCase):
