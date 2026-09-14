@@ -23,10 +23,12 @@
       "en": "Paste a YouTube / Bilibili URL to play"
     },
     "url_play": {
+      "accessor": "PlayUrl",
       "zh": "播放链接",
       "en": "Play URL"
     },
     "url_resolving": {
+      "accessor": "Resolving",
       "zh": "解析中…",
       "en": "Resolving…"
     },
@@ -177,10 +179,12 @@
       "en": "Import"
     },
     "import_dir_empty": {
+      "accessor": "ImportNoFiles",
       "zh": "该目录中未找到支持的音频文件",
       "en": "No supported audio files found in this directory."
     },
     "import_dir_failed": {
+      "accessor": "ImportFailed",
       "zh": "导入失败，请检查目录是否可访问",
       "en": "Import failed. Please check that the directory is accessible."
     },
@@ -213,6 +217,7 @@
       "en": "New Playlist"
     },
     "playlist_name": {
+      "accessor": "PlaylistNamePlaceholder",
       "zh": "播放列表名称",
       "en": "Playlist Name"
     },
@@ -225,14 +230,17 @@
       "en": "Cancel"
     },
     "import_m3u8": {
+      "accessor": "ImportM3U8",
       "zh": "导入 M3U8",
       "en": "Import M3U8"
     },
     "export_m3u8": {
+      "accessor": "ExportM3U8",
       "zh": "导出 M3U8",
       "en": "Export M3U8"
     },
     "no_playlists": {
+      "accessor": "PlaylistEmpty",
       "zh": "暂无播放列表",
       "en": "No playlists yet"
     },
@@ -253,6 +261,7 @@
       "en": "Back"
     },
     "playlist_empty": {
+      "accessor": "PlaylistDetailEmpty",
       "zh": "列表为空",
       "en": "Playlist is empty"
     },
@@ -309,6 +318,7 @@
       "en": "Previous Track"
     },
     "tray_show": {
+      "accessor": "TrayShowWindow",
       "zh": "显示主窗口",
       "en": "Show Window"
     },

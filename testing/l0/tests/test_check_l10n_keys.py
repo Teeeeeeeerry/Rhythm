@@ -2,7 +2,8 @@
 """check-l10n-keys.py 自身的测试（零依赖，stdlib unittest）。
 
 只断言外部行为：给定一棵文件树，校验返回零还是非零、失败时报出哪个键或哪个访问器。
-夹具里的生成物由真实生成器产出，保证比对的是「键表 -> 生成物」这条链路本身。
+夹具里的生成物（含 #371 的访问器）由真实生成器产出，保证比对的是
+「键表 -> 生成物」这条链路本身。
 
 用法：python3 -m unittest discover -s testing/l0/tests
 """
@@ -32,7 +33,7 @@ TABLE = {
     }
 }
 
-L10N_H_HEAD = """#pragma once
+L10N_H = """#pragma once
 namespace rhythm {
 namespace L10n {
 inline bool IsChinese() { return true; }
@@ -44,35 +45,30 @@ inline const wchar_t* Key(const char* key) {
     };
     return L"";
 }
-"""
-
-L10N_H_TAIL = """
 } // namespace L10n
 } // namespace rhythm
+#include "L10nAccessors.h"
 """
 
 
-def build_tree(root: Path, table: dict, accessors: str, caller: str = "") -> None:
-    """写出最小可识别的仓库树：键表、双端生成物、L10n.h（访问器）与一个调用方。"""
+def build_tree(root: Path, table: dict, *, accessors: str | None = None,
+               caller: str = "") -> None:
+    """写出最小可识别的仓库树。accessors 缺省为生成器对 table 的产出。"""
+    windows_keys = sorted(gen_l10n.entries_for(table, "windows"))
     files = {
         "contracts/l10n-keys.json": json.dumps(table, ensure_ascii=False),
         "macos/Rhythm/Models/L10nKeys.swift": gen_l10n.gen_swift(table),
         "windows/Rhythm/Bridge/L10nKeys.h": gen_l10n.gen_cpp(table),
-        "windows/Rhythm/L10n.h": L10N_H_HEAD % "\n".join(
-            f"        L10N_ENTRY({k})" for k in sorted(gen_l10n.entries_for(table, "windows")))
-            + accessors + L10N_H_TAIL,
+        "windows/Rhythm/L10nAccessors.h":
+            gen_l10n.gen_cpp_accessors(table) if accessors is None else accessors,
+        "windows/Rhythm/L10n.h": L10N_H % "\n".join(
+            f"        L10N_ENTRY({k})" for k in windows_keys),
         "windows/Rhythm/Views/Caller.cpp": caller,
     }
     for rel, text in files.items():
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
-
-
-COMPLETE_ACCESSORS = """
-inline std::wstring LibraryTab() { return Key("library_tab"); }
-inline std::wstring TrayQuit() { return Key("tray_quit"); }
-"""
 
 
 class CheckL10nAccessorTests(unittest.TestCase):
@@ -82,42 +78,64 @@ class CheckL10nAccessorTests(unittest.TestCase):
             capture_output=True, text=True, encoding="utf-8",
         )
 
-    def test_every_key_has_an_accessor_and_every_call_is_defined(self):
+    def test_generated_accessors_cover_the_key_table_and_every_call(self):
         with tempfile.TemporaryDirectory() as tmp:
-            build_tree(Path(tmp), TABLE, COMPLETE_ACCESSORS,
-                       caller="auto a = rhythm::L10n::TrayQuit();\n")
+            build_tree(Path(tmp), TABLE, caller="auto a = rhythm::L10n::TrayQuit();\n")
             result = self.run_check(Path(tmp))
         self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_called_accessor_without_definition_fails(self):
-        # TrayQuit 被托盘与测试引用，却在 L10n.h 里不存在（#370 的现状）。
-        accessors = '\ninline std::wstring LibraryTab() { return Key("library_tab"); }\n' \
-                    'inline std::wstring QuitLabel() { return Key("tray_quit"); }\n'
         with tempfile.TemporaryDirectory() as tmp:
-            build_tree(Path(tmp), TABLE, accessors,
-                       caller="auto a = rhythm::L10n::TrayQuit();\n")
+            build_tree(Path(tmp), TABLE, caller="auto a = rhythm::L10n::QuitNow();\n")
             result = self.run_check(Path(tmp))
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("TrayQuit", result.stdout)
+        self.assertIn("QuitNow", result.stdout)
         self.assertIn("Caller.cpp", result.stdout)
 
-    def test_new_key_without_accessor_fails(self):
+    def test_new_key_without_regenerating_accessors_fails(self):
+        # 键表加了一条，访问器却还是旧的生成物：漂移与无访问器都报出。
         table = {"keys": {**TABLE["keys"],
                           "play_mode_tooltip": {"zh": "播放模式", "en": "Play Mode"}}}
         with tempfile.TemporaryDirectory() as tmp:
-            build_tree(Path(tmp), table, COMPLETE_ACCESSORS)
+            build_tree(Path(tmp), table, accessors=gen_l10n.gen_cpp_accessors(TABLE))
             result = self.run_check(Path(tmp))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("play_mode_tooltip", result.stdout)
+        self.assertIn("L10nAccessors.h", result.stdout)
 
     def test_key_read_only_by_the_lookup_table_is_not_an_accessor(self):
-        # Key() 的函数体列着全部键；只出现在那里的键仍算没有访问器。
-        accessors = '\ninline std::wstring LibraryTab() { return Key("library_tab"); }\n'
+        # Key() 的函数体列着全部键；手删掉一个访问器后，只出现在那里的键仍算没有访问器。
+        generated = gen_l10n.gen_cpp_accessors(TABLE)
+        edited = "\n".join(line for line in generated.splitlines()
+                           if 'Key("tray_quit")' not in line) + "\n"
         with tempfile.TemporaryDirectory() as tmp:
-            build_tree(Path(tmp), TABLE, accessors)
+            build_tree(Path(tmp), TABLE, accessors=edited)
             result = self.run_check(Path(tmp))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("tray_quit", result.stdout)
+
+
+class AccessorNamingTests(unittest.TestCase):
+    """生成器的访问器命名规则（#371）。"""
+
+    def test_pascal_case_template_suffix_and_pinned_name(self):
+        entries = gen_l10n.entries_for({"keys": {
+            "tray_quit": {"zh": "退出", "en": "Quit"},
+            "imported_tracks": {"zh": "已导入 {count} 首", "en": "Imported {count}"},
+            "url_play": {"zh": "播放链接", "en": "Play URL", "accessor": "PlayUrl"},
+        }}, "windows")
+        self.assertEqual(gen_l10n.accessor_name("tray_quit", entries["tray_quit"]), "TrayQuit")
+        self.assertEqual(gen_l10n.accessor_name("imported_tracks", entries["imported_tracks"]),
+                         "ImportedTracksTemplate")
+        self.assertEqual(gen_l10n.accessor_name("url_play", entries["url_play"]), "PlayUrl")
+
+    def test_duplicate_accessor_names_are_rejected(self):
+        table = {"keys": {
+            "no_playlists": {"zh": "a", "en": "a", "accessor": "PlaylistEmpty"},
+            "playlist_empty": {"zh": "b", "en": "b"},
+        }}
+        with self.assertRaises(ValueError):
+            gen_l10n.gen_cpp_accessors(table)
 
 
 if __name__ == "__main__":

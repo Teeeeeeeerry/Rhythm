@@ -219,65 +219,40 @@ inline std::wstring RenderMessageSpec(const std::vector<MessageSegment>& segment
     return out;
 }
 
-// ─── Tab / Sidebar ──────────────────────────────────────────────────
+} // namespace L10n
+} // namespace rhythm
 
-inline std::wstring LibraryTab() { return Key("library_tab"); }
-inline std::wstring PlaylistsTab() { return Key("playlists_tab"); }
+// ─── Named accessors (generated, #371) ───────────────────────────────
+//
+// One accessor per windows key, generated from contracts/l10n-keys.json by
+// scripts/gen-l10n.py - the module's call surface is the generated set, so a
+// referenced-but-missing accessor (TrayQuit, once) cannot happen again, and
+// check-l10n-keys.py compares exactly this surface with the key table.
+// Only functions that fill parameters or dispatch on a kind stay hand-written
+// below; they build on the generated accessors.
+#include "L10nAccessors.h"
 
-// ─── Main window ────────────────────────────────────────────────────
-
-inline std::wstring ImportFolderTooltip() { return Key("import_folder_tooltip"); }
-inline std::wstring ImportTooltip() { return Key("import_tooltip"); }
-inline std::wstring SearchPlaceholder() { return Key("search_placeholder"); }
-inline std::wstring ByArtistAlbum() { return Key("by_artist_album"); }
-inline std::wstring ByLetter() { return Key("by_letter"); }
-inline std::wstring LibraryEmpty() { return Key("library_empty"); }
-inline std::wstring ImportHint() { return Key("import_hint"); }
-
-// ─── Playlist ───────────────────────────────────────────────────────
-
-inline std::wstring NewPlaylist() { return Key("new_playlist"); }
-inline std::wstring PlaylistEmpty() { return Key("no_playlists"); }
-inline std::wstring PlaylistNamePlaceholder() { return Key("playlist_name"); }
-inline std::wstring Create() { return Key("create"); }
-inline std::wstring Cancel() { return Key("cancel"); }
-inline std::wstring ImportM3U8() { return Key("import_m3u8"); }
-inline std::wstring ExportM3U8() { return Key("export_m3u8"); }
-
-// ─── Player bar ─────────────────────────────────────────────────────
-
-inline std::wstring NotPlaying() { return Key("not_playing"); }
-inline std::wstring UrlPlaceholder() { return Key("url_placeholder"); }
-inline std::wstring PlayUrl() { return Key("url_play"); }
-inline std::wstring Resolving() { return Key("url_resolving"); }
-inline std::wstring Buffering() { return Key("buffering"); }
-inline std::wstring UrlErrorTitle() { return Key("url_error_title"); }
-inline std::wstring Ok() { return Key("ok"); }
+namespace rhythm {
+namespace L10n {
 
 // ─── Import feedback (WA-23, mirrors the macOS import alert) ─────────
 
 inline std::wstring ImportedTracks(int32_t count) {
-    return Fill(Key("imported_tracks"),
+    return Fill(ImportedTracksTemplate().c_str(),
                 {{L"count", std::to_wstring(count)}, {L"s", count == 1 ? L"" : L"s"}});
 }
-inline std::wstring ImportNoFiles() { return Key("import_dir_empty"); }
-inline std::wstring ImportFailed() { return Key("import_dir_failed"); }
-inline std::wstring ImportFileUnsupported() { return Key("import_file_unsupported"); }
-inline std::wstring ImportFileFailed() { return Key("import_file_failed"); }
-inline std::wstring ImportAllFailed() { return Key("import_all_failed"); }
-inline std::wstring ImportNoneFound() { return Key("import_none_found"); }
 inline std::wstring ImportSomeFailed(int32_t imported, int32_t failed) {
-    return Fill(Key("import_some_failed"),
+    return Fill(ImportSomeFailedTemplate().c_str(),
                 {{L"imported", std::to_wstring(imported)}, {L"failed", std::to_wstring(failed)}});
 }
 
 // ─── Source tags ────────────────────────────────────────────────────
 
 inline std::wstring SourceTag(const std::wstring& sourceType) {
-    if (sourceType == L"local")      return Key("tag_local");
-    if (sourceType == L"youtube")    return Key("tag_youtube");
-    if (sourceType == L"bilibili")   return Key("tag_bilibili");
-    if (sourceType == L"direct_url") return Key("tag_link");
+    if (sourceType == L"local")      return TagLocal();
+    if (sourceType == L"youtube")    return TagYoutube();
+    if (sourceType == L"bilibili")   return TagBilibili();
+    if (sourceType == L"direct_url") return TagLink();
     return L"";
 }
 
@@ -314,11 +289,6 @@ inline std::wstring PlaybackFailed(const std::wstring& kind, const std::wstring&
     if (spec.empty()) return detail;
     return RenderMessageSpec(spec);
 }
-
-// ─── Tray ───────────────────────────────────────────────────────────
-
-inline std::wstring TrayPlayPause() { return Key("tray_play_pause"); }
-inline std::wstring TrayShowWindow() { return Key("tray_show"); }
 
 } // namespace L10n
 } // namespace rhythm
