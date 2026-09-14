@@ -21,8 +21,10 @@ CPP_OUT = os.path.join(ROOT, "windows", "Rhythm", "Bridge", "L10nKeys.h")
 ACCESSORS_OUT = os.path.join(ROOT, "windows", "Rhythm", "L10nAccessors.h")
 
 
-def load() -> dict:
-    with open(SCHEMA, encoding="utf-8") as f:
+def load(path=None) -> dict:
+    """Parse the key table - the single parser shared by the generator and
+    check-l10n-keys.py (#319), so the two cannot read the table differently."""
+    with open(path or SCHEMA, encoding="utf-8") as f:
         return json.load(f)
 
 

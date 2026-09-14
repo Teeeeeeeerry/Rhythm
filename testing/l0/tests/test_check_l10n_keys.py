@@ -189,6 +189,18 @@ class AccessorNamingTests(unittest.TestCase):
                          "ImportedTracksTemplate")
         self.assertEqual(gen_l10n.accessor_name("url_play", entries["url_play"]), "PlayUrl")
 
+    def test_generator_and_checker_share_one_table_parser(self):
+        # 校验器经 gen_l10n.load 读 --root 下的键表（#319）：夹具表与仓库表不同，
+        # 两者若各自解析，夹具树上的校验会读错表。
+        with tempfile.TemporaryDirectory() as tmp:
+            build_tree(Path(tmp), TABLE)
+            self.assertEqual(gen_l10n.load(Path(tmp) / "contracts" / "l10n-keys.json"), TABLE)
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "--root", tmp],
+                capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("2 键", result.stdout)
+
     def test_duplicate_accessor_names_are_rejected(self):
         table = {"keys": {
             "no_playlists": {"zh": "a", "en": "a", "accessor": "PlaylistEmpty"},
