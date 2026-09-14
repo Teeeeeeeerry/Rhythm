@@ -78,7 +78,7 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   按键取模板、按参数填占位符；中英拼装形状、平台差异选键（brew 与 winget）、字节到 MB 的换算都在核心。
   新增一种分类只改核心与键表，双端零改动。语言解析（macOS Locale + AppLanguage、Windows 系统 UI 语言 +
   注册表覆盖）保持平台特异，不下沉。跨接缝一律传核心原始分类值，UI 侧不发明前缀编码（#226）
-- **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `python3 scripts/tasks.py check-no-emoji` 校验；发现即修，不得绕过。校验范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物，二进制按内容跳过），新增语言或文件类型自动纳入；已挂进 `python3 scripts/tasks.py test` 与 CI（#224）
+- **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `python3 scripts/tasks.py check-no-emoji` 校验；发现即修，不得绕过。校验范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物，二进制按内容跳过），新增语言或文件类型自动纳入；已挂进两个平台 `python3 scripts/tasks.py test` 的共享静态分析前缀（#224/#345）。CI 工作流仍是 `testing/ci/` 下未部署的模板，不在 CI 生效（#346）
 - **品牌色单一出处（#219 组）**：视图只用 `RhythmTheme` 的 token（如 `.rhythmAccent`），不硬编码色值。
   配色的唯一声明是 `testing/palette.json`——色值、半透明的「基色 + 不透明度」、token 文档块都在里面；
   三处产物（macOS `Theme.swift`、Windows `Colors.xaml`、Windows `RhythmCore.h`）的标记区间由
@@ -91,7 +91,7 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   macOS 应用包的版本字段由组装应用包时写入（`Info.plist` 只留 `$(MARKETING_VERSION)` 占位符，#254），
   Windows 构建配置的项目版本由 cmake 配置期从工作区清单派生（`project()` 用 `${RHYTHM_VERSION}`，#255）。
   漂移由 `python3 testing/l0/check-version-drift.py` 拦截——人工副本比对值，构建期派生的两处反向校验源文件不得写死版本；
-  已挂进 `python3 scripts/tasks.py test` 的 L0 段与 CI。发布时不逐个文件手改：`python3 scripts/tasks.py bump-version`
+  已挂进两个平台 `python3 scripts/tasks.py test` 的共享静态分析前缀（CI 模板未部署，#346）。发布时不逐个文件手改：`python3 scripts/tasks.py bump-version`
   （不带参数末位加一）把出处与三处文档副本一起推到新值再自校验，写的位置直接取校验的清单，两边不会各漂一次
   （#251/#252/#253/#254/#255/#220）
 - **M3U8 入库策略单一出处**：位置类型识别、标题缺失回退、入库判定与计数只写在 `rust-core/src/playlist/mod.rs`；
@@ -111,7 +111,9 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   （`build` / `test` / `check-no-emoji` / `compare-screenshots`），退出码 0 全绿 / 1 有步骤失败（筛选后零步也算，#343）/ 2 用法错误。
   路径解析、日志落盘、失败计数与退出码聚合、子进程调用四项只写在 `scripts/tasklib.py`；新增一个任务改
   `scripts/tasks.py` 的注册表加一个实现模块，不再新增脚本方言。严格模式是默认（#144），容错只能显式开启。
-  CI 配置调用的就是本地同名命令。新增 .sh / .bat / .ps1 由 `python3 testing/l0/check-orchestration-dialects.py`
+  全量测试的步骤表 = 双端共享的静态分析前缀（`task_test.static_analysis_steps`：按名排序的 L0 校验脚本 + 零 emoji +
+  两组自测，#344/#345）+ 平台段（只有构建与运行）；筛选后零步以 1 退出（#343）。
+  CI 模板（`testing/ci/`，尚未部署到 `.github/workflows/`，#346）调用的就是本地同名命令。新增 .sh / .bat / .ps1 由 `python3 testing/l0/check-orchestration-dialects.py`
   拦截，确有必要的例外写进该脚本的 ALLOWED 并附理由
 
 ## 坑（非显而易见，踩过才写）
