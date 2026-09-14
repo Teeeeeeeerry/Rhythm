@@ -102,6 +102,11 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   不发明新的返回约定；结果结构声明在 `contracts/ffi-contract.json`，双端绑定由生成器产出，少接一条路径会在生成物比对时暴露
 - **构建产物**：放 `build/` 目录——macOS 为 `build/Rhythm.app`，Windows 为 `build/windows/Release/Rhythm.exe`，
   截屏产物 `build/artifacts`；Rust 核心产物在工作区根 `target/release/`，取用点只有 `task_build.core_artifact_dir` 一处
+- **Windows 依赖在仓库里声明（#386）**：Windows App SDK 上游只给 MSBuild 的 props/targets，没有 CMake 包，
+  `find_package` 在任何机器上都找不到。依赖改由 `windows/cmake/RhythmWindowsDeps.cmake` 一处负责：按固定版本 +
+  SHA-256 下载 NuGet 包与 json 头、跑固定版本的 cppwinrt 生成投影头、以原有目标名 `Microsoft.WindowsAppSDK` /
+  `nlohmann_json::nlohmann_json` 导出，缓存在 `build/windows-deps/`。应用与测试宿主都 `include` 这一个模块，
+  升级依赖只改模块里的版本与哈希。XAML 标记编译仍是 MSBuild 专属，不在该模块范围内（见 `docs/adr/0003-Windows-App-SDK-接入方式.md`）
 - **编排层只用 Python（#221 组）**：构建与测试的入口是 `python3 scripts/tasks.py <任务>`，任务名两个平台相同
   （`build` / `test` / `check-no-emoji` / `compare-screenshots`），退出码 0 全绿 / 1 有步骤失败 / 2 用法错误。
   路径解析、日志落盘、失败计数与退出码聚合、子进程调用四项只写在 `scripts/tasklib.py`；新增一个任务改
