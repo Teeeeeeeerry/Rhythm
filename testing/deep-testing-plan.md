@@ -56,7 +56,7 @@
 - `PlaylistDetailView.xaml`：2 → textPrimary、textSecondary
 - `PlaylistListView.xaml`：1 → textSecondary
 - `PlayerBarView.xaml`：5 → surface、border、accent（ProgressBar）、elevated、textSecondary
-- `SidebarView.xaml`：4 → accent、elevated、surface、textPrimary（#124 补齐，F2 覆盖率缺口清零）
+- ~~`SidebarView.xaml`~~：已删除（#383，无调用方；侧栏由 `MainWindow` 的 `NavigationView` 提供）
 
 ### 2.3 对比度背景映射（L0 脚本内置，按实际渲染背景）
 
@@ -75,7 +75,7 @@ palette.json 的 `usage` 段驱动，全矩阵（token × 背景 × 外观）自
 | `check-palette.py` | 以 `gen-palette.py` 重新生成三处产物，与提交内容逐字节比对（透明度容差已随 #250 取消） | 任一端漂移 |
 | `check-contrast.py` | WCAG 2.1 相对亮度 + alpha 合成，全矩阵（§2.3）；未达标项必须在 palette.json 例外段登记 | 新低对比度未登记 |
 | `check-forbidden-colors.py` | 扫描双端源码（排除生成文件/白名单）：非 token 颜色引用即失败 | 出现 `Color.blue`/hex/裸 Brush |
-| `check-token-coverage.py` | 每个受品牌化视图至少引用 1 个 token（视图级覆盖率，含 F2 缺口报警） | 新增视图无 token |
+| `check-token-coverage.py` | 每个受品牌化视图至少引用 1 个 token（视图级覆盖率，无按文件名的例外，#384） | 新增视图无 token |
 | `check-doc-drift.py` | 文档（本文件、README、PR 模板）中出现的色值与 palette.json 比对 | 文档与 token 漂移 |
 
 ### L1 单元测试（数据驱动，分钟级）
@@ -172,7 +172,7 @@ UI 自动化断言颜色：macOS 用 `XCUIElement` 的 `value` + 窗口截图像
 | # | 问题 | 位置 | 阻断谁 | 处置 | 状态（v0.5.64） |
 |---|---|---|---|---|---|
 | **F1** | Windows Source 色仅 dark 变体，Light 徽标对比度 ~3:1 | `RhythmCore.h` | parity/contrast/L1/L3 全链 | 补 light 变体 + theme 感知签名 | 已修复 #121（#122 解除测试桩、#123 palette sources light 实值、#147 收敛为单一表映射） |
-| **F2** | Windows Sidebar 零品牌化（覆盖率为 0） | `SidebarView.xaml` | token-coverage | 品牌化 + 键盘/Tab 语义 | 已修复 #124（合入 #133）：4 个 token 接入；键盘/Tab 语义仍随 L3 跟进 |
+| **F2** | Windows Sidebar 零品牌化（覆盖率为 0） | `SidebarView.xaml` | token-coverage | 品牌化 + 键盘/Tab 语义 | 已修复 #124（合入 #133）：4 个 token 接入；**随 #383 删除关闭**——该控件从未被渲染（无调用方），校验器例外分支同步移除（#384），键盘/Tab 语义由 `NavigationView` 提供 |
 | **F3** | macOS Sidebar 移除 `List(selection:)` 失键盘导航/VoiceOver | `SidebarView.swift` | L3 a11y 用例 | 恢复语义（`.accessibilityAddTraits(.isSelected)` 或回归 selection 绑定+自定义 tint） | **未处置**：现状仍为 `ForEach` + `onTapGesture` 手动选中态，无选中语义 |
 | **F4** | `SourceTagView` 未知类型回退 `.gray` | `ArtistAlbumView.swift` | forbidden-color 扫描 | 回退改 `.rhythmTextTertiary` | 已修复 #125（合入 #128）；Windows 侧回退 teal 文字色，非系统 Gray |
 | **F5** | `Track.swift` 遗留 `sourceColor` 死代码 | `Track.swift` | 文档漂移 | 删除 | 已修复 #147：`sourceColor`/`sourceTag` 一并删除 |

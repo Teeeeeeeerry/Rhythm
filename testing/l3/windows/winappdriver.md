@@ -41,7 +41,7 @@ theme_switch.py 已封装（`--dark / --light` 两模式 + 截图 + 像素断言
 |---|---|---|
 | 主题切换 | `theme_switch.py --dark` 截图 vs `--light` 截图 | 窗口背景 ≈ #011F26 / #FFFFFF（中心像素抽样） |
 | 徽标双外观 | 导入 4 来源曲目，dark/light 各截图 | 徽标区前景色与 palette.json sources 双端一致（区域抽样） |
-| 键盘 Tab 顺序 | Tab 循环 | 焦点元素序列 = 预期顺序（F2 修复后含 Sidebar） |
+| 键盘 Tab 顺序 | Tab 循环 | 焦点元素序列 = 预期顺序（含 `NavigationView` 侧栏项；自定义 SidebarView 已随 #383 删除） |
 
 断言颜色：WinAppDriver 截图（base64 PNG）→ 复用
 `testing/l2/windows/compare_screenshots.py` 的 PNG 解码器做区域抽样。

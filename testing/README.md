@@ -66,14 +66,14 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.157）
+## 当前状态（main，v0.5.158）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
 | `check-palette.py` | PASS | 三处配色生成物与 `palette.json` 逐字节一致（#249）；3 个半透明 token 的「基色 + 不透明度」声明与八位值一致（#245） |
 | `check-contrast.py` | PASS | 36 组合全达标或已登记例外（F8 两项 + border 装饰线 + source 徽标 4.84 已登记） |
-| `check-forbidden-colors.py` | PASS | 9 个 Swift 视图 + 5 个 XAML 视图无裸色（F4 已修复：#125/#128） |
-| `check-token-coverage.py` | PASS | 7 个 macOS 视图 + 5 个 Windows 视图全部引用 token（F2 已修复：#124/#133） |
+| `check-forbidden-colors.py` | PASS | 9 个 Swift 视图 + 4 个 XAML 视图无裸色（F4 已修复：#125/#128） |
+| `check-token-coverage.py` | PASS | 7 个 macOS 视图 + 4 个 Windows 视图全部引用 token，校验器无按文件名的例外分支（F2 随 #383 删除无人可达的 SidebarView 关闭，#384） |
 | `check-doc-drift.py` | PASS | 文档色值全部收录于 palette.json |
 | `check-version-drift.py` | PASS | 四处人工版本副本与 `Cargo.toml` 一致；macOS 应用包版本与 Windows 项目版本改构建期派生，源文件写死版本即报红（版本号只改 `Cargo.toml`，#251/#252/#253/#254/#255） |
 | `check-orchestration-dialects.py` | PASS | 被跟踪文件中无 bash / 批处理 / PowerShell 脚本（编排层只用 Python，#221） |

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """L0: 视图级 token 覆盖率检查。
 
-每个受品牌化视图至少引用 1 个品牌 token；新增视图无 token 即失败。
-已知缺口报警：
-- F2: Windows SidebarView.xaml 零品牌化（当前视为缺口列出，修复后自动消失）。
+每个受品牌化视图至少引用 1 个品牌 token；新增视图无 token 即失败。所有视图同一条规则，
+没有按文件名写死的例外（曾经为 Windows SidebarView.xaml 保留的 F2 缺口分支随 #383 删除
+该控件一起移除，#384）。
 
 另输出逐视图使用点统计（替代 §2.2 手工维护清单，由扫描器生成）。
 
@@ -60,10 +60,7 @@ def main() -> int:
         tokens = count_tokens(p)
         rel = p.relative_to(root)
         if not tokens:
-            if p.name == "SidebarView.xaml":
-                failures.append(f"{rel}: 0 个 token（F2 — 覆盖率缺口，待品牌化）")
-            else:
-                failures.append(f"{rel}: 0 个 token（新增视图必须引用品牌色）")
+            failures.append(f"{rel}: 0 个 token（新增视图必须引用品牌色）")
         else:
             print(f"  {rel}: {len(tokens)} 个 → {', '.join(tokens)}")
 

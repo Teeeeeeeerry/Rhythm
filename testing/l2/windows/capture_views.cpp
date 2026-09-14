@@ -7,8 +7,8 @@
 // 集成步骤（P3）：
 //   1. 新建测试 host：Console 应用，引用 Microsoft.WindowsAppSDK，
 //      初始化 WinRT（RoInitialize）与 DispatcherQueueController。
-//   2. 依次加载 5 个视图（LibraryView / PlaylistListView / PlaylistDetailView /
-//      PlayerBarView / SidebarView），每个视图 × {Default, Light} 主题字典各截一张。
+//   2. 依次加载 4 个视图（LibraryView / PlaylistListView / PlaylistDetailView /
+//      PlayerBarView；SidebarView 已随 #383 删除），每个视图 × {Default, Light} 主题字典各截一张。
 //   3. 导出 PNG 到 build/artifacts/<view>_<theme>.png（输出路径由 argv[1] 指定）。
 //   4. 调用处（示例）：
 //        render_view(L"LibraryView", L"Default", outDir);
@@ -58,7 +58,7 @@ int wmain(int argc, wchar_t** argv) {
         return 1;
     }
     std::wstring outDir = argv[1];
-    // P3：加载 5 个视图 × 2 主题，循环调用 render_view_to_png。
+    // P3：加载 4 个视图 × 2 主题，循环调用 render_view_to_png。
     // 输出命名约定（compare_screenshots.py 依赖）：
     //   <ViewName>_<Default|Light>.png
     return 0;
