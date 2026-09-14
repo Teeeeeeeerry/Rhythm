@@ -16,6 +16,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCHEMA = os.path.join(ROOT, "contracts", "l10n-keys.json")
 SWIFT_OUT = os.path.join(ROOT, "macos", "Rhythm", "Models", "L10nKeys.swift")
 CPP_OUT = os.path.join(ROOT, "windows", "Rhythm", "Bridge", "L10nKeys.h")
+# Windows named accessors (#371): the module's call surface, generated from the
+# same key table so the checked surface and the called surface are one set.
+ACCESSORS_OUT = os.path.join(ROOT, "windows", "Rhythm", "L10nAccessors.h")
 
 
 def load() -> dict:
@@ -30,7 +33,25 @@ def entries_for(table: dict, platform: str) -> dict:
         if tag is not None and tag != platform:
             continue
         out[key] = {"zh": entry["zh"], "en": entry["en"]}
+        if "accessor" in entry:
+            out[key]["accessor"] = entry["accessor"]
     return out
+
+
+def accessor_name(key: str, entry: dict) -> str:
+    """Windows accessor name for a key (#371).
+
+    Rule: PascalCase of the key. A template (text with `{placeholders}`) gets a
+    `Template` suffix - the adapter layer fills it in a hand-written function
+    that keeps the plain name (e.g. ImportedTracks(count)). The optional
+    `accessor` field in the key table pins a legacy name so call sites stay
+    untouched.
+    """
+    if entry.get("accessor"):
+        return entry["accessor"]
+    base = "".join(part[:1].upper() + part[1:] for part in key.split("_"))
+    is_template = "{" in entry["zh"] or "{" in entry["en"]
+    return base + "Template" if is_template else base
 
 
 def swift_escape(s: str) -> str:
@@ -105,14 +126,54 @@ def gen_cpp(table: dict) -> str:
     return "\n".join(lines)
 
 
+def gen_cpp_accessors(table: dict) -> str:
+    """Named accessors for every windows key (#371); names must be unique."""
+    entries = entries_for(table, "windows")
+    names: dict[str, str] = {}
+    for key in sorted(entries):
+        name = accessor_name(key, entries[key])
+        if name in names:
+            raise ValueError(f"accessor name {name} used by both {names[name]} and {key}; "
+                             f"pin one with an \"accessor\" field in the key table")
+        names[name] = key
+    lines = [
+        "// 本文件由 scripts/gen-l10n.py 从 contracts/l10n-keys.json 生成（#371）。",
+        "// 请勿手改——新增文案只改键表，再重新生成。",
+        "//",
+        "// Windows L10n 模块的具名访问器：每个 windows 键一个，调用面与检验面是同一份生成物。",
+        "// 命名规则：键名转 PascalCase；带 {占位符} 的模板加 Template 后缀（由 L10n.h 的",
+        "// 手写函数填充）；键表的 accessor 字段可固定历史名称。",
+        "// 只由 L10n.h 在 Key() 定义之后包含。",
+        "#pragma once",
+        "",
+        "#include <string>",
+        "",
+        "namespace rhythm {",
+        "namespace L10n {",
+        "",
+    ]
+    for name in sorted(names, key=lambda n: names[n]):
+        lines.append(f'inline std::wstring {name}() {{ return Key("{names[name]}"); }}')
+    lines += [
+        "",
+        "} // namespace L10n",
+        "} // namespace rhythm",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def main() -> int:
     table = load()
     with open(SWIFT_OUT, "w", encoding="utf-8") as f:
         f.write(gen_swift(table))
     with open(CPP_OUT, "w", encoding="utf-8") as f:
         f.write(gen_cpp(table))
+    with open(ACCESSORS_OUT, "w", encoding="utf-8", newline="\n") as f:
+        f.write(gen_cpp_accessors(table))
     print(f"wrote {SWIFT_OUT}")
     print(f"wrote {CPP_OUT}")
+    print(f"wrote {ACCESSORS_OUT}")
     return 0
 
 

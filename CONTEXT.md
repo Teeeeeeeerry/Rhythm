@@ -72,7 +72,10 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
 - **TDD seams**：测试写在公开行为层（AppState 的方法），不测私有实现；每个 seam 一组测试
 - **L10n**：全部文案走 `L10n`（macOS `Models/L10n.swift` + `L10nKeys`、Windows `L10n.h` + `L10nKeys.h`，
   均由 `contracts/l10n-keys.json` 键表生成，#167 组）；视图里既不写死字符串也不就地写 inline 三元。
-  新增文案只改键表再跑 `scripts/gen-l10n.py`；键表漂移由 L0 校验拦截（#185）
+  新增文案只改键表再跑 `scripts/gen-l10n.py`；键表漂移由 L0 校验拦截（#185）。
+  Windows 的具名访问器也由键表生成（`windows/Rhythm/L10nAccessors.h`，#371）：键名转 PascalCase，带占位符的模板加
+  `Template` 后缀，历史名称用键表的 `accessor` 字段固定；`L10n.h` 只手写带参数填充或按分类分派的函数。
+  校验器比对的是访问器集合与调用面，不只是键名表（#370）
 - **文案分派归核心（#216 组）**：「具名分类 → 哪个文案键 + 哪些参数」这一跳只写在 `rust-core/src/message/`，
   经 `rhythm_message_*` 导出为消息规格 JSON（按顺序拼接的键段与字面量段）。双端适配层只剩两件事——
   按键取模板、按参数填占位符；中英拼装形状、平台差异选键（brew 与 winget）、字节到 MB 的换算都在核心。

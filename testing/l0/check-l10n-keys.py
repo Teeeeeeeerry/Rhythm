@@ -9,6 +9,7 @@
 3. Windows L10n.h 的 Key() 映射表（L10N_ENTRY 列表）必须恰好覆盖
    windows 平台键集——漏键即红。
 4. 访问器与调用面（#370）：调用方依赖的是具名访问器，而不是键名表。
+   #371 起访问器由键表生成（windows/Rhythm/L10nAccessors.h），与重新生成的结果逐字节比对；
    a) Windows 代码与测试里调用的每个 `L10n::X(...)` 都必须有定义——
       被引用却不存在的访问器（如曾被删掉的 TrayQuit）在此报红，不必等编译器；
    b) 每个 windows 键都必须至少被一个访问器取用——有文案无访问器的键
@@ -44,6 +45,7 @@ SCHEMA = "contracts/l10n-keys.json"
 SWIFT_OUT = "macos/Rhythm/Models/L10nKeys.swift"
 CPP_OUT = "windows/Rhythm/Bridge/L10nKeys.h"
 WINDOWS_L10N_H = "windows/Rhythm/L10n.h"
+ACCESSORS_OUT = "windows/Rhythm/L10nAccessors.h"
 
 # Windows 侧的访问器定义与调用都在这两处（第三方 vendor 目录除外）。
 WINDOWS_SOURCE_DIRS = ("windows/Rhythm", "windows/tests")
@@ -86,7 +88,11 @@ def accessor_bodies(header: str) -> dict[str, str]:
 def accessor_problems(root: Path, expected_keys: set[str]) -> list[str]:
     """访问器集合与调用面、键表的差额（#370）。"""
     problems: list[str] = []
+    # 访问器定义在两处：生成的 L10nAccessors.h（#371）与 L10n.h 里带参数的手写函数。
     header = (root / WINDOWS_L10N_H).read_text(encoding="utf-8")
+    accessors = root / ACCESSORS_OUT
+    if accessors.is_file():
+        header += "\n" + accessors.read_text(encoding="utf-8")
 
     defined: set[str] = set()
     called: dict[str, str] = {}
@@ -134,6 +140,10 @@ def main() -> int:
         problems.append("L10nKeys.swift 与键表漂移——运行 python3 scripts/gen-l10n.py")
     if (root / CPP_OUT).read_text(encoding="utf-8") != cpp:
         problems.append("L10nKeys.h 与键表漂移——运行 python3 scripts/gen-l10n.py")
+    accessors_path = root / ACCESSORS_OUT
+    if (not accessors_path.is_file()
+            or accessors_path.read_text(encoding="utf-8") != gen_l10n.gen_cpp_accessors(table)):
+        problems.append("L10nAccessors.h 与键表漂移——运行 python3 scripts/gen-l10n.py")
 
     # 3) Windows L10n.h 的 Key() 映射覆盖 windows 平台键
     l10n_h = (root / WINDOWS_L10N_H).read_text(encoding="utf-8")
