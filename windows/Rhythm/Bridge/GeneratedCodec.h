@@ -2,6 +2,10 @@
 // 请勿手改——改契约后重新生成。
 #pragma once
 
+#include <cstdint>
+#include <optional>
+#include <string>
+
 #include <nlohmann/json.hpp>
 
 namespace rhythm::generated {

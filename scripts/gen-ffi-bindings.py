@@ -164,7 +164,7 @@ CPP_HEADER = """// 本文件由 scripts/gen-ffi-bindings.py 从 contracts/ffi-co
 // 请勿手改——改契约后重新生成。
 #pragma once
 
-#include <nlohmann/json.hpp>
+{includes}
 
 namespace rhythm::generated {
 
@@ -275,14 +275,39 @@ def cpp_encode_object(name: str, fields: dict, model: str) -> str:
     return "\n".join(lines)
 
 
-def gen_cpp(schema: dict) -> str:
-    out = [CPP_HEADER]
-    for name, fields in (
+def cpp_objects(schema: dict) -> list[tuple[str, dict]]:
+    """The contract objects the C++ codec emits, in output order."""
+    return [
         ("Track", schema["track"]),
         ("M3u8Entry", schema["m3u8_entry"]),
         ("M3u8ImportOutcome", schema["m3u8_import_outcome"]),
         ("ImportOutcome", schema["import_outcome"]),
-    ):
+    ]
+
+
+def cpp_includes(objects: list[tuple[str, dict]]) -> list[str]:
+    """Headers the generated code itself needs (#361).
+
+    The output declares its own includes instead of relying on a caller's
+    precompiled header: fixed-width integer casts and std::string are always
+    used; std::optional access only when an optional field is emitted; a map
+    field needs <map>. nlohmann/json is the codec's JSON type.
+    """
+    types = {t for _, fields in objects for t in fields.values()}
+    includes = ["<cstdint>"]
+    if "map" in types:
+        includes.append("<map>")
+    if any(t.endswith("?") for t in types):
+        includes.append("<optional>")
+    includes += ["<string>", "", "<nlohmann/json.hpp>"]
+    return [f"#include {h}" if h else "" for h in includes]
+
+
+def gen_cpp(schema: dict) -> str:
+    objects = cpp_objects(schema)
+    # The template contains literal braces, so substitute rather than format.
+    out = [CPP_HEADER.replace("{includes}", "\n".join(cpp_includes(objects)))]
+    for name, fields in objects:
         out.append(cpp_decode_object(name, fields, name))
         out.append("")
         out.append(cpp_encode_object(name, fields, name))

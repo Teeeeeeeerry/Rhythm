@@ -79,5 +79,37 @@ class CppEncoderShapeTests(unittest.TestCase):
                 self.assertNotIn(f'j["{key}"] = WideToUtf8(', encoder, key)
 
 
+class CppIncludesTests(unittest.TestCase):
+    """#361：生成物自带它使用的头文件包含，不依赖调用方的预编译头。"""
+
+    def include_block(self, text: str) -> list[str]:
+        return [line for line in text.splitlines() if line.startswith("#include")]
+
+    def test_real_contract_output_declares_what_it_uses(self):
+        cpp = gen.gen_cpp(gen.load_schema())
+        includes = self.include_block(cpp)
+        for header in ("<cstdint>", "<optional>", "<string>", "<nlohmann/json.hpp>"):
+            self.assertIn(f"#include {header}", includes)
+
+    def test_map_field_brings_its_own_include(self):
+        includes = gen.cpp_includes([("Sample", {"headers": "map", "name": "string"})])
+        self.assertIn("#include <map>", includes)
+        self.assertNotIn("#include <optional>", includes)
+
+    def test_no_map_include_without_a_map_field(self):
+        includes = gen.cpp_includes([("Sample", {"count": "i32?"})])
+        self.assertNotIn("#include <map>", includes)
+        self.assertIn("#include <optional>", includes)
+
+    def test_only_the_include_block_depends_on_types(self):
+        # 生成物的其它内容不变：去掉包含行后，与不同包含组合下的主体逐字一致。
+        schema = gen.load_schema()
+        body = [line for line in gen.gen_cpp(schema).splitlines()
+                if not line.startswith("#include")]
+        self.assertIn("namespace rhythm::generated {", body)
+        self.assertIn("inline Track TrackFromJson(const json& j) {", body)
+        self.assertEqual(sum(1 for line in body if line.startswith("inline ")), 8)
+
+
 if __name__ == "__main__":
     unittest.main()
