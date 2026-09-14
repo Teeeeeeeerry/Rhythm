@@ -74,7 +74,8 @@ def copy_l1_sources(root: Path) -> int:
 
 
 def static_analysis_steps(root: Path) -> list[tasklib.Step]:
-    """两个平台共享的静态分析前缀（#344）：按名字排序的全部 testing/l0/check-*.py。
+    """两个平台共享的静态分析前缀：按名字排序的全部 testing/l0/check-*.py（#344），
+    接零 emoji 校验、L0 校验脚本自测、编排层自测（#345）。
 
     清单只在这里维护一处——新增一个校验脚本，两个平台自动纳入，不必改两张步骤表。
     配色一致性由 check-palette.py 覆盖（重新生成加逐字节比对，#249）；版本号漂移由
@@ -84,6 +85,14 @@ def static_analysis_steps(root: Path) -> list[tasklib.Step]:
     for script in sorted((root / "testing" / "l0").glob("check-*.py")):
         rel = script.relative_to(root).as_posix()
         steps.append(_script_step(f"L0 静态分析 {rel}", [rel], root))
+    steps += [
+        _script_step("L0 零 emoji（硬性约定，覆盖 git 跟踪的全部文件减排除清单）",
+                     ["scripts/check_no_emoji.py"], root),
+        _unittest_step("L0 校验脚本自测（testing/l0/tests/）",
+                       "testing/l0/tests", "l0-script-tests", root),
+        _unittest_step("编排层自测（testing/tasks/tests/：退出码聚合与共享实现，#259/#260）",
+                       "testing/tasks/tests", "tasks-tests", root),
+    ]
     return steps
 
 
@@ -92,12 +101,6 @@ def macos_steps(root: Path) -> list[tasklib.Step]:
     env = developer_dir_override()
     steps = static_analysis_steps(root)
     steps += [
-        _script_step("L0 零 emoji（硬性约定，覆盖 git 跟踪的全部文件减排除清单）",
-                     ["scripts/check_no_emoji.py"], root),
-        _unittest_step("L0 校验脚本自测（testing/l0/tests/）",
-                       "testing/l0/tests", "l0-script-tests", root),
-        _unittest_step("编排层自测（testing/tasks/tests/：退出码聚合与共享实现，#259/#260）",
-                       "testing/tasks/tests", "tasks-tests", root),
         tasklib.Step("拷贝 L1 测试到 SwiftPM 目录（与 CI 一致，保证种子最新）",
                      lambda: copy_l1_sources(root), static_analysis=False),
         tasklib.Step(

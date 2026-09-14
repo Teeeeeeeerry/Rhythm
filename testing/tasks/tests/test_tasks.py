@@ -174,6 +174,9 @@ class MacosStepTableTest(unittest.TestCase):
         for i, script in enumerate(scripts):
             self.assertIn(script.name, names[i])
         self.assertIn("零 emoji", names[len(scripts)])
+        self.assertIn("L0 校验脚本自测", names[len(scripts) + 1])
+        self.assertIn("编排层自测", names[len(scripts) + 2])
+        self.assertIn("拷贝 L1", names[len(scripts) + 3])
 
     def test_l0_only_drops_the_swift_test_steps(self):
         picked = [s.name for s in tasks.select_steps(self.steps, l0_only=True)]
@@ -194,6 +197,15 @@ class WindowsStepTableTest(unittest.TestCase):
         listed = [s.name for s in task_test.windows_steps(self.root)]
         for script in scripts:
             self.assertTrue(any(script.name in name for name in listed), script.name)
+
+    def test_emoji_and_self_tests_run_on_windows(self):
+        # 零 emoji 与两组自测并入共享前缀，Windows 上也执行（#345）。
+        names = " | ".join(s.name for s in task_test.windows_steps(self.root))
+        for segment in ("零 emoji", "L0 校验脚本自测", "编排层自测"):
+            self.assertIn(segment, names)
+
+    def test_full_windows_entry_runs_at_least_twelve_steps(self):
+        self.assertGreaterEqual(len(task_test.windows_steps(self.root)), 12)
 
     def test_l0_only_runs_the_static_analysis_steps(self):
         picked = tasks.select_steps(task_test.windows_steps(self.root), l0_only=True)
