@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -125,15 +126,34 @@ class MacosStepTableTest(unittest.TestCase):
 
 
 class WindowsStepTableTest(unittest.TestCase):
-    """Windows 测试步骤表（#264）：三段齐备，冒烟段是可选开关。"""
+    """Windows 测试步骤表（#264）：L1 齐备，冒烟段是可选开关；
+    未实现的 L2 不得占着步骤（#387）。"""
 
     def setUp(self):
         self.root = tasklib.repo_root()
 
-    def test_l1_l2_segments_are_present(self):
+    def test_l1_segments_are_present(self):
         names = " | ".join(s.name for s in task_test.windows_steps(self.root))
-        for segment in ("L1 颜色测试", "L1b 应用工程测试", "L2 截屏", "L2 golden 像素比对"):
+        for segment in ("L1 颜色测试", "L1b 应用工程测试"):
             self.assertIn(segment, names)
+
+    def test_unimplemented_l2_is_not_a_step(self):
+        # 截屏宿主没有工程文件、golden 目录不存在：这类步骤注定失败（#387）。
+        names = [s.name for s in task_test.windows_steps(self.root, smoke=True)]
+        self.assertFalse([n for n in names if n.startswith("L2")], names)
+
+    def test_configure_step_names_the_missing_project_file(self):
+        # 源目录里没有工程文件时，失败信息指出缺的是哪个文件，而不是 cmake 的笼统报错。
+        with tempfile.TemporaryDirectory() as tmp:
+            steps = task_test.windows_steps(Path(tmp))
+            configure = [s for s in steps if "cmake 配置" in s.name]
+            self.assertTrue(configure)
+            for step in configure:
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    code = step.action()
+                self.assertEqual(code, 1, step.name)
+                self.assertIn("CMakeLists.txt", out.getvalue(), step.name)
 
     def test_smoke_segment_is_opt_in(self):
         without = task_test.windows_steps(self.root, smoke=False)

@@ -15,7 +15,7 @@
 | L1 单元 | `l1/macos/` | PaletteSeed + 五组 Swift 测试（isDark/RGB/对比度/语义/互异） | `swift test` |
 | L1 单元 | `l1/windows/` | 来源徽标色 assert 测试 exe（直测 `RhythmCore.h`，#121/#122） | ctest |
 | L2 快照 | `l2/macos/` | swift-snapshot-testing 模板（8 视图 × 状态 × 外观 × 语言） | visual CI |
-| L2 快照 | `l2/windows/` | WinUI 3 离屏截屏（capture_views.cpp）+ 零依赖像素 diff | visual CI |
+| L2 快照 | `l2/windows/` | **缺口，未实现**：`capture_views.cpp` 是骨架、没有 CMake 工程、没有 golden；已从测试入口移除（#387，见下文「Windows L2 缺口」）。像素比对工具 `compare_screenshots.py` 本身可用 | — |
 | L3 UI | `l3/macos/` | XcodeGen project.yml + 4 组 XCUITest（外观切换/键盘/a11y/新建弹窗） | visual CI |
 | L3 UI | `l3/windows/` | WinAppDriver 兼容性验证 + 主题切换脚本（stdlib 直调 REST） | visual CI |
 | L4 手工 | `l4/` | 8 项主观烟测清单（唯一人工环节） | PR 合并前 |
@@ -65,7 +65,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.142）
+## 当前状态（main，v0.5.143）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
@@ -111,6 +111,21 @@ L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门�
    两处构建配置不参与——macOS 应用包版本在组装时写入、Windows 项目版本在 cmake 配置期派生（#254/#255），
    源文件里再写死版本值即报红。写的位置取自校验的副本清单，两边不可能各漂一次（#220 收尾）。
 
+## Windows L2 缺口（#387）
+
+Windows 端**没有视图外观回归防线**。测试入口曾登记三段 L2 步骤（截屏宿主 cmake 配置与构建、截屏、golden 像素比对），
+但它们指向的东西从未提交：`testing/l2/windows/` 下没有 CMake 工程文件，`golden/` 目录不存在，`capture_views.cpp`
+只是注释写着「P3」的骨架。这三步在 Windows 上注定失败，却让文档与 CI 模板以为防线存在，因此已从入口移除。
+
+重启这项工作时需要补齐的产物（缺一不可，补齐后再把步骤加回 `scripts/task_test.py` 的 `windows_steps`）：
+
+1. `testing/l2/windows/CMakeLists.txt`：截屏宿主工程，依赖走 `windows/cmake/RhythmWindowsDeps.cmake`（与应用一致，#386）
+2. `capture_views.cpp` 实现骨架里的集成步骤：初始化 WinRT 与 DispatcherQueue，各受管视图 x {Default, Light} 渲染，
+   输出 `<视图名>_<Default|Light>.png`（比对工具依赖此命名）
+3. `testing/l2/windows/golden/`：首批基准由人工确认截图后提交。`compare_screenshots.py` 在 golden 为空时直接失败，
+   新增截图缺基准也失败，所以首次建立基准不会被误判为通过
+4. 验收：改一个受管视图的配色后比对非零退出；比对失败时用 `--heatmap` 输出差异热图
+
 ## 任务入口（#221）
 
 编排层只有一种语言。构建与测试都走 `python3 scripts/tasks.py <任务>`，
@@ -119,7 +134,7 @@ CI 配置调用的是同名命令。
 | 任务 | 内容 |
 |---|---|
 | `build` | 构建本平台应用（macOS `build/Rhythm.app`；Windows `build/windows/Release/Rhythm.exe`） |
-| `test` | 本平台全量测试（macOS L0 + L1；Windows L1 + L2，`--smoke` 追加 L3） |
+| `test` | 本平台全量测试（macOS L0 + L1；Windows L1，`--smoke` 追加 L3；Windows L2 未实现，#387） |
 | `bump-version` | 提升版本号（不带参数末位加一），同步三处文档副本与依赖锁文件后自校验 |
 | `check-no-emoji` | 零 emoji 硬性约定校验 |
 | `compare-screenshots` | L2 截屏与 golden 的像素比对 |

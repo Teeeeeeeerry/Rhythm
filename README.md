@@ -24,7 +24,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-初步开发完成。当前版本 **v0.5.142 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
+初步开发完成。当前版本 **v0.5.143 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
 
 ### 实现状态
 
@@ -111,7 +111,7 @@ python3 scripts\tasks.py build
 
 ```bash
 python3 scripts/tasks.py test     # macOS：L0 静态分析 + L1 单元测试
-                                  # Windows：L1 单元 + L2 截屏比对（--smoke 追加 L3 冒烟）
+                                  # Windows：L1 单元（--smoke 追加 L3 冒烟；L2 截屏比对尚未实现，#387）
 cargo test -p rhythm-core         # Rust 核心行为测试
 ```
 

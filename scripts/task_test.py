@@ -112,9 +112,11 @@ def macos_steps(root: Path) -> list[tasklib.Step]:
 # ---------------------------------------------------------------------------
 
 # CMake 构建目录随应用产物一起收进仓库根 build/（#263 的单一约定）；
-# 截屏产物目录与日志文件名沿用迁移前的约定，CI 收集路径不变。
-WINDOWS_ARTIFACTS = "build/artifacts"
-WINDOWS_GOLDEN = "testing/l2/windows/golden"
+# 日志文件名沿用迁移前的约定，CI 收集路径不变。
+#
+# L2（截屏宿主构建、截屏、golden 像素比对）已移除（#387）：截屏宿主没有工程文件、
+# golden 目录不存在，三步注定失败却让人以为外观回归有防线。重启所需的产物清单见
+# testing/README.md「Windows L2 缺口」，补齐后再把步骤加回这里。
 
 
 def _cmake_step(name: str, args: list[str], root: Path, log_name: str) -> tasklib.Step:
@@ -126,41 +128,34 @@ def _cmake_step(name: str, args: list[str], root: Path, log_name: str) -> taskli
     )
 
 
-def capture_executable(root: Path) -> Path | None:
-    """截屏宿主可执行文件（Release 优先，回退 Debug），缺失时返回 None。"""
-    base = root / "build" / "windows" / "l2"
-    for config in ("Release", "Debug"):
-        exe = base / config / "capture_views.exe"
-        if exe.exists():
-            return exe
-    return None
+def _cmake_configure_step(name: str, source: str, build_dir: Path, root: Path,
+                          log_name: str) -> tasklib.Step:
+    """cmake 配置步骤；源目录里没有工程文件时直接指出缺的是哪个文件（#387）。
 
-
-def _capture_step(root: Path) -> tasklib.Step:
+    否则失败信息是构建工具的一句笼统报错，看不出步骤指向了空目录。
+    """
     def action() -> int:
-        exe = capture_executable(root)
-        if exe is None:
-            print("! 未找到 capture_views.exe，跳过截屏")
-            return 0
-        return tasklib.run([str(exe), WINDOWS_ARTIFACTS], cwd=root,
-                           log=tasklib.log_path("l2-windows-capture", root))
+        project = root / source / "CMakeLists.txt"
+        if not project.is_file():
+            print(f"! 缺工程文件：{source}/CMakeLists.txt（「{name}」指向的目录里没有 CMake 工程）")
+            return 1
+        return tasklib.run(["cmake", "-S", source, "-B", str(build_dir)], cwd=root,
+                           log=tasklib.log_path(log_name, root))
 
-    return tasklib.Step("L2 截屏", action, static_analysis=False)
+    return tasklib.Step(name, action, static_analysis=False)
 
 
 def windows_steps(root: Path, smoke: bool = False) -> list[tasklib.Step]:
-    """Windows 测试的步骤表（L1 单元 + L2 截屏比对 + L3 冒烟）。
+    """Windows 测试的步骤表（L1 单元 + L3 冒烟；L2 未实现，#387）。
 
     每段的调用与日志文件名沿用迁移前的 PowerShell 入口；失败处理改为统一的
-    退出码聚合——旧入口对 ctest 与像素比对只打印警告后继续，红灯会被吞掉。
+    退出码聚合——旧入口对 ctest 只打印警告后继续，红灯会被吞掉。
     """
     l1_dir = root / "build" / "windows" / "l1"
     app_dir = task_build.windows_build_dir(root)
-    l2_dir = root / "build" / "windows" / "l2"
     steps = [
-        _cmake_step("L1 颜色测试 cmake 配置",
-                    ["-S", "testing/l1/windows", "-B", str(l1_dir)],
-                    root, "l1-windows-cmake"),
+        _cmake_configure_step("L1 颜色测试 cmake 配置", "testing/l1/windows", l1_dir,
+                              root, "l1-windows-cmake"),
         _cmake_step("L1 颜色测试 cmake 构建", ["--build", str(l1_dir)],
                     root, "l1-windows-cmake"),
         tasklib.Step(
@@ -169,9 +164,8 @@ def windows_steps(root: Path, smoke: bool = False) -> list[tasklib.Step]:
                                  "--output-on-failure"], cwd=root,
                                 log=tasklib.log_path("l1-windows-ctest", root)),
             static_analysis=False),
-        _cmake_step("L1b 应用工程测试 cmake 配置",
-                    ["-S", "windows", "-B", str(app_dir)],
-                    root, "l1-windows-rhythmtests"),
+        _cmake_configure_step("L1b 应用工程测试 cmake 配置", "windows", app_dir,
+                              root, "l1-windows-rhythmtests"),
         _cmake_step("L1b 应用工程测试 cmake 构建",
                     ["--build", str(app_dir), "--target", "RhythmTests",
                      "--config", task_build.WINDOWS_CONFIG],
@@ -181,19 +175,6 @@ def windows_steps(root: Path, smoke: bool = False) -> list[tasklib.Step]:
             lambda: tasklib.run(["ctest", "--test-dir", str(app_dir),
                                  "--output-on-failure"], cwd=root,
                                 log=tasklib.log_path("l1-windows-rhythmtests", root)),
-            static_analysis=False),
-        _cmake_step("L2 截屏宿主 cmake 配置",
-                    ["-S", "testing/l2/windows", "-B", str(l2_dir)],
-                    root, "l2-windows-capture"),
-        _cmake_step("L2 截屏宿主 cmake 构建", ["--build", str(l2_dir)],
-                    root, "l2-windows-capture"),
-        _capture_step(root),
-        tasklib.Step(
-            "L2 golden 像素比对",
-            lambda: tasklib.run(
-                [PYTHON, "testing/l2/windows/compare_screenshots.py",
-                 "--actual", WINDOWS_ARTIFACTS, "--golden", WINDOWS_GOLDEN],
-                cwd=root, log=tasklib.log_path("l2-windows-compare", root)),
             static_analysis=False),
     ]
     if smoke:
