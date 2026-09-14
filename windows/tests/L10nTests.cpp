@@ -177,6 +177,25 @@ TEST_CASE("LK-10 play mode tooltip comes from the key table in both languages") 
     }
 }
 
+// ─── LK-11 链接解析失败兜底文案（#374）──────────────────────────────
+
+TEST_CASE("LK-11 url resolve failure falls back to the key table copy") {
+    {
+        LanguageScope zh(L"zh");
+        REQUIRE(L10n::UrlResolveFailed() == L"链接解析失败，请检查链接是否有效");
+        // Nothing to show (no kind, no detail): the dialog is never blank.
+        REQUIRE(L10n::UrlResolveError(L"", L"") == L10n::UrlResolveFailed());
+        REQUIRE(L10n::UrlResolveError(L"internal", L"") == L10n::UrlResolveFailed());
+    }
+    {
+        LanguageScope en(L"en");
+        REQUIRE(L10n::UrlResolveFailed() == L"Failed to resolve the URL. Please check it is valid.");
+        REQUIRE(L10n::UrlResolveError(L"", L"") == L10n::UrlResolveFailed());
+        // A detail from the engine still wins over the fallback.
+        REQUIRE(L10n::UrlResolveError(L"timeout", L"engine detail") == L"engine detail");
+    }
+}
+
 // ─── WA-26 来源徽标与托盘 ───────────────────────────────────────────
 
 TEST_CASE("LK-06 L10n source tags and tray copy") {

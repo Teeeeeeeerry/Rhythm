@@ -44,6 +44,7 @@
 | LK-07 | 平台差异字段 | yt-dlp 安装命令（macOS brew / Windows winget）只出现在对应平台生成物中——含 Windows 访问器（#372）；校验器按 platform 字段对两端期望键集分别计算，并直接从提交的 Swift 取值表、Windows 取值与访问器生成物读出实际键集比对，不经过生成器；选键由核心按构建目标决定（MS-05） | L0 生成物比对 + 核心表驱动 |
 | LK-08 | 语言检测差异（适配层） | macOS 跟随系统 Locale + AppLanguage；Windows 系统 UI 语言 + 注册表覆盖——检测机制不入键表 | 双端固定 locale |
 | LK-10 | 播放模式提示接线（#373） | Windows 播放栏新增播放模式控件（点击循环 `CyclePlayMode`，图标随当前模式），提示文案取键表 `play_mode_tooltip`（生成访问器 `PlayModeTooltip()`）；中英两语言均能取到 | Windows 固定 locale（`L10nTests.cpp`） |
+| LK-11 | 链接解析失败兜底文案（#374） | 解析失败却没有可显示内容（核心无返回、无分类无详情、`internal` 无详情）时显示键表 `url_resolve_failed`（生成访问器 `UrlResolveFailed()`），不弹空白对话框；有引擎详情时仍显示详情；Windows 解析桥接的无返回分支不再写死英文 | Windows 固定 locale（`L10nTests.cpp`） |
 | LK-09 | 适配层模板填充（#228） | 按键取模板、按参数填 `{占位符}`、按顺序拼接核心规格的各段；未知键回退（macOS 回退键名、Windows 回退空串） | 双端固定 locale |
 
 ## 红测登记
