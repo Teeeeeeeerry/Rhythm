@@ -24,7 +24,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-初步开发完成。当前版本 **v0.5.141 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
+初步开发完成。当前版本 **v0.5.142 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
 
 ### 实现状态
 
@@ -76,7 +76,9 @@ export RHYTHM_YTDLP_PATH=/your/path/to/yt-dlp # 指定自己的二进制
 - **Rust** 1.70+（[rustup.rs](https://rustup.rs)）
 - yt-dlp 无需预先安装：首次播放在线链接时由应用自动获取
 - **macOS**：Xcode 15+ 或 Command Line Tools + Swift 5.9+
-- **Windows**：Visual Studio 2022 + Windows App SDK + CMake 3.20+
+- **Windows**：Visual Studio 2022（或 Build Tools，需勾选 MSVC 与 Windows 10/11 SDK 组件）+ CMake 3.20+ + Python 3。
+  Windows App SDK、C++/WinRT 与 nlohmann/json **不需要手工安装**：首次配置时由 `windows/cmake/RhythmWindowsDeps.cmake`
+  按固定版本从 NuGet / GitHub 下载并校验 SHA-256，生成投影头，缓存在 `build/windows-deps/`（首次配置需要联网，#386）
 
 构建与测试都走同一个跨平台任务入口，任务名两个平台相同（#221）：
 

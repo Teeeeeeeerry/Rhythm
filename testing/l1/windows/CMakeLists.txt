@@ -5,9 +5,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # L1 Windows 测试：独立测试 exe，直接编译真实 RhythmCore.h（#122 解除桩）。
-# RhythmCore.h 引入 pch.h（WinUI 头），故需与主工程相同的 WindowsAppSDK。
+# RhythmCore.h 引入 pch.h（WinUI 头），故需与主工程相同的 WindowsAppSDK：
+# 与主工程共用同一个依赖模块（固定版本下载 + 生成投影头，#386），不各有一套前提。
 
-find_package(Microsoft.WindowsAppSDK REQUIRED)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../windows/cmake/RhythmWindowsDeps.cmake)
 
 add_executable(rhythm_color_tests source_color_test.cpp)
 

@@ -23,12 +23,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Windows SDK
 set(CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION "10.0")
 
-# Find WinUI 3 via NuGet or vcpkg
-find_package(Microsoft.WindowsAppSDK REQUIRED)
-
-# L10n.h now includes Bridge/MessageSpec.h, which parses the core's message
-# spec JSON — the header-only json dependency is declared for both targets.
-find_package(nlohmann_json CONFIG REQUIRED)
+# Windows App SDK (C++/WinRT projection + import libs) and nlohmann_json are
+# fetched at pinned versions and exposed as imported targets by one module
+# (#386): upstream ships no CMake package for the SDK, so find_package could
+# never succeed on a clean machine. The test hosts include the same module.
+# L10n.h includes Bridge/MessageSpec.h, which parses the core's message spec
+# JSON - the header-only json dependency is linked by both targets.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/RhythmWindowsDeps.cmake)
 
 # Source files
 set(SOURCES
