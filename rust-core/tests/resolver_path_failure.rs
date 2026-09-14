@@ -12,23 +12,33 @@ mod common;
 
 static PATH_FAILURE_LOCK: Mutex<()> = Mutex::new(());
 
-const FAKE_YTDLP: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/fake_ytdlp.py");
-
 fn unique(url_tag: &str) -> String {
     format!("https://e2e.example.com/watch?v={url_tag}")
 }
 
 /// RS-14: a cached binary that stops being spawnable is forgotten and
 /// re-discovered; the user gets `YtDlpMissing`, not a crash.
+///
+/// Windows: the stub runs through a `.cmd` launcher, and a deleted launcher
+/// still starts `cmd.exe` successfully (it only prints "not recognized"), so
+/// the spawn-failure scenario cannot be staged there. Disabled on that
+/// platform and registered in the manifest (#388).
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "#388: a deleted .cmd launcher does not fail to spawn on Windows"
+)]
 fn rs14_spawn_failure_reports_missing_and_rechecks() {
     let _guard = PATH_FAILURE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = tempfile::tempdir().unwrap();
 
     // A private copy of the stub so we can delete it behind the resolver's
-    // back after the path has been cached.
-    let copy = dir.path().join("fake_ytdlp_copy.py");
-    std::fs::copy(FAKE_YTDLP, &copy).unwrap();
+    // back after the path has been cached. The copy keeps the platform's
+    // executable form (a launcher on Windows, the script elsewhere, #388).
+    let stub = common::fake_ytdlp_executable();
+    let ext = stub.extension().and_then(|e| e.to_str()).unwrap_or("py");
+    let copy = dir.path().join(format!("fake_ytdlp_copy.{ext}"));
+    std::fs::copy(&stub, &copy).unwrap();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
