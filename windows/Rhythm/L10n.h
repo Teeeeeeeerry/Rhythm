@@ -271,10 +271,14 @@ inline std::wstring ResolverStatusText(const std::wstring& phase, int64_t receiv
 ///
 /// 分类到文案键的分派、中英拼装形状、平台差异选键（winget 而非 brew）
 /// 都在核心（#229/#230），本层只填模板；核心不可用时退回引擎原文。
+///
+/// #374: a failure that carries nothing to show (no payload from the core,
+/// or no detail and no localized headline) falls back to the key table's
+/// `url_resolve_failed` instead of an empty dialog (macOS `ResolveError.unknown`).
 inline std::wstring UrlResolveError(const std::wstring& kind, const std::wstring& detail) {
     auto spec = ResolveFailureSpec(kind, detail, IsChinese());
-    if (spec.empty()) return detail;
-    return RenderMessageSpec(spec);
+    auto text = spec.empty() ? detail : RenderMessageSpec(spec);
+    return text.empty() ? UrlResolveFailed() : text;
 }
 
 // ─── Playback failure (#120 classification) ──────────────────────────
