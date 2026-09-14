@@ -57,7 +57,7 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   返回消息规格 → 双端 `L10n` 按键取模板、填占位符、顺序拼接（#216 组）
 - **进度/音量**：`PlayerBarView` 的 Slider → `player.seek/setVolume`（FFI 直通）
 - **测试**：`macos/Tests/`（AppStateTests + RhythmThemeTests）。AppState 测试用真实临时数据库 + SpyCoordinator（编排规则在 rust-core `coordinator_behavior.rs`，无音频设备依赖）；
-  Rust 侧 `cargo test -p rhythm-core`，Windows 侧 `windows/tests/`（Catch2，SpyCoordinator 同 macOS），主题色彩链路 `python3 scripts/tasks.py test`
+  Rust 侧 `cargo test -p rhythm-core`（两个平台都全绿；Windows 上解析器端到端用例需要 PATH 上有 `python` 或设 `RHYTHM_TEST_PYTHON`，#388），Windows 侧 `windows/tests/`（Catch2，SpyCoordinator 同 macOS），主题色彩链路 `python3 scripts/tasks.py test`
 
 ### 新增引擎能力的三层套路（#70 的教训）
 
@@ -116,6 +116,7 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
 - **URL 曲目存页面 URL 不存 CDN 链接**：CDN 链接带过期 deadline，播放时从缓存重新解析
 - **刷新列表必须从 DB 重载**（`refreshLibrary`）：手动拼接 tracks 会导致 ForEach ID 碰撞（#66）和队列失同步（#69）
 - **播放新曲目前必须 `player.stop()`**：旧播放线程不终止会抢占输出设备（#51）
+- **测试桩不要把 .py 路径直接交给解析器**：Windows 不能直接执行脚本。桩路径一律取 `rust-core/tests/common` 的 `fake_ytdlp_executable()`，它在 Windows 上写启动器（见 `docs/adr/0002-测试桩按平台可执行形式调用.md`，#388）
 - **YouTube 403 ≠ 链接过期**：googlevideo URL 有效期 ~6h（`expire`-`mt`），播放 403 时先解码 `expire` 判断；未过期却 403 是网络侧拒绝（常见于 ISP 托管的 Google Global Cache 节点 `cache.google.com` 故障、或出口 IP 被 YouTube 拉黑），换网络/VPN 才是出路（见 docs/issues/2026-08-18-youtube-403-misreported-as-expired.md）。#120 已修复：core 用 `RhythmError::Http` 分类（expired/cdn_rejected/other），选哪条文案自 #216 组起也在核心，UI 只填模板——仅真过期才建议重贴
 - **解析缓存不淘汰失败条目**：`RESOLVED_CACHE`（1h TTL）命中即返回，播放 403 不会清条目——重贴同一链接在 TTL 内必然拿到同一个坏 CDN URL，用户建议"重新粘贴"结构性无效。#120 已修复：播放 403/过期时引擎淘汰条目并 `resolve_url_fresh` 绕过缓存重解析一次，仍败才报错
 - **Windows 来源徽标色双主题**：`Track::SourceColor(sourceType, isDarkTheme)` 对齐 macOS `Theme.swift` rhythmSource* 的 dark/light 双端值；

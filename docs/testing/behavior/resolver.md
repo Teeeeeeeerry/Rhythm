@@ -4,7 +4,7 @@
 - 历史回归：`#19`、`#22`（自动安装）、`#26`（解析成功却播不出）、`#23`（m4s 误交 yt-dlp）
 - 测试途径（R3-Q2=A 已定）：
   1. 纯函数直测（已有 28 单测的扩展）：`classify_url`、`parse_hh_mm_ss`、`extract_stream`、`classify_ytdlp_stderr`、`summarize_stderr`、`prune_cache`、`format_utc` 等。
-  2. **stub 可执行脚本**（假 yt-dlp）：fixtures 目录放一个脚本，解析参数、按 URL 吐出预置 JSON 或按场景报错/超时；测试设 `RHYTHM_YTDLP_PATH` 指向它，测 `resolve_url` 的"进程调用→输出解析→缓存→失败落地"全链路，不碰网络。
+  2. **stub 可执行脚本**（假 yt-dlp）：fixtures 目录放一个脚本，解析参数、按 URL 吐出预置 JSON 或按场景报错/超时；测试设 `RHYTHM_YTDLP_PATH` 指向它，测 `resolve_url` 的"进程调用→输出解析→缓存→失败落地"全链路，不碰网络。**平台适用范围：macOS / Linux / Windows 全部适用**（#388）——桩的可执行路径一律取 `tests/common` 的 `fake_ytdlp_executable()`：类 Unix 直接执行脚本，Windows 由它写一个转交解释器的 `.cmd` 启动器（解释器取 PATH 上 `python` 的绝对路径，可用 `RHYTHM_TEST_PYTHON` 指定）；桩起不来时断言报「stub not runnable」，与解析错误区分。新增端到端用例不要直接把 `.py` 路径交给解析器。
   3. 缓存为全局 `LazyLock`——测试间用不同 URL 前缀隔离（`unique()` 生成每测试唯一 URL）；`YTDLP_PATH` 路径缓存同样全局，路径失效类场景（RS-14/RS-21）放在独立测试二进制 `resolver_path_failure.rs`（独立进程、缓存从空开始）。
   4. `run_with_timeout` 用短超时直测（已有先例）。
 
@@ -58,6 +58,8 @@
 | 编号 | 缺陷 | issue | 状态 |
 |---|---|---|---|
 | RS-23 | 直链标题不解码百分号编码（`urlencoding_if_needed` 为 no-op） | [#80](https://github.com/Teeeeeeerry/Rhythm/issues/80) | 已修复（红测解禁转绿） |
+| RS-07/08/09/10/12/13(x2)/18/19/20 | Windows 上 10 项端到端用例未禁用也未登记地红着：桩以 `.py` 路径交给进程启动接口，该平台无法直接执行；RS-13 另写死了 macOS 日志路径 | [#388](https://github.com/Teeeeeeeerry/Rhythm/issues/388) | 已修复（测试装配经启动器调用桩、日志路径按平台取，产品代码未改，无禁用） |
+| RS-14 | 平台处置（非产品缺陷）：Windows 上桩经 `.cmd` 启动器调用，删掉启动器后 `cmd.exe` 仍能启动，「spawn 失败」场景无法构造 | [#388](https://github.com/Teeeeeeeerry/Rhythm/issues/388) | Windows 上 `#[ignore]` 禁用；macOS / Linux 照常运行 |
 
 ## 已有测试行为对照（完整性要求：每条已有测试的行为均列入清单）
 

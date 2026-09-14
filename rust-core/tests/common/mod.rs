@@ -296,6 +296,55 @@ pub fn test_url_track(
 
 // ─── Environment guard ───────────────────────────────────────────────
 
+/// The fake yt-dlp fixture script (tests/fixtures/fake_ytdlp.py).
+pub const FAKE_YTDLP_SCRIPT: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/fake_ytdlp.py");
+
+/// A path to the fake yt-dlp that the process-launch API can execute (#388).
+///
+/// Unix runs the script directly through its shebang. Windows cannot execute a
+/// `.py` file, so a `.cmd` launcher that hands the script to the interpreter is
+/// written under cargo's per-target temp dir; the resolver still sees "one
+/// executable path", product code stays untouched. The launcher path must be
+/// stable for the whole process: the resolver caches the yt-dlp path globally,
+/// so a launcher inside a per-test temp dir would go stale once that test
+/// ends. It is never tracked. The launcher names the interpreter by absolute
+/// path (asked once from `python` on PATH, or pinned with `RHYTHM_TEST_PYTHON`):
+/// the Windows `python` alias resolves through LOCALAPPDATA, which the log
+/// tests redirect.
+///
+/// Panics with a "stub not runnable" message when the result does not answer
+/// `--version`, so a broken harness is never mistaken for a resolver bug.
+pub fn fake_ytdlp_executable() -> std::path::PathBuf {
+    #[cfg(windows)]
+    let exe = {
+        static PYTHON: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+        let python = PYTHON.get_or_init(|| {
+            std::env::var("RHYTHM_TEST_PYTHON").unwrap_or_else(|_| {
+                let out = std::process::Command::new("python")
+                    .args(["-c", "import sys; print(sys.executable)"])
+                    .output()
+                    .expect("stub not runnable: no python on PATH (set RHYTHM_TEST_PYTHON)");
+                String::from_utf8_lossy(&out.stdout).trim().to_string()
+            })
+        });
+        let launcher = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("fake_ytdlp.cmd");
+        let script = FAKE_YTDLP_SCRIPT.replace('/', "\\");
+        std::fs::write(&launcher, format!("@\"{python}\" \"{script}\" %*\r\n")).unwrap();
+        launcher
+    };
+    #[cfg(not(windows))]
+    let exe = std::path::PathBuf::from(FAKE_YTDLP_SCRIPT);
+
+    assert!(
+        rhythm_core::resolver::probe_ytdlp(&exe),
+        "stub not runnable: fake yt-dlp at {} does not answer --version \
+         (harness problem, not a resolver bug)",
+        exe.display()
+    );
+    exe
+}
+
 /// Set an environment variable for the test's duration and restore the
 /// previous value (or unset it) on drop — panic-safe where manual
 /// save/restore pairs would leak on early unwinds.

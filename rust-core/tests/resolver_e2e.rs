@@ -5,6 +5,10 @@
 //! 进程调用→输出解析→缓存→失败落地全链路。所有测试持一把进程级锁
 //! 串行执行：环境变量（RHYTHM_YTDLP_PATH / HOME / PATH）、yt-dlp 路径
 //! 缓存与解析缓存均为进程全局。
+//!
+//! 桩一律经 `common::fake_ytdlp_executable` 取得（#388）：Windows 不能直接
+//! 执行 .py，由它在 cargo 的测试临时目录写一个转交解释器的启动器，两个平台
+//! 都真的跑子进程。日志位置按平台约定取 `log_file_path()`，不写死 macOS 路径。
 
 mod common;
 
@@ -14,15 +18,24 @@ use std::sync::Mutex;
 
 static RESOLVER_E2E_LOCK: Mutex<()> = Mutex::new(());
 
-const FAKE_YTDLP: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/fake_ytdlp.py");
 const CALL_LOG_ENV: &str = "FAKE_YTDLP_CALL_LOG";
 
 /// Point the resolver at the fake yt-dlp and a fresh call log.
 fn setup_stub(dir: &Path) {
-    std::env::set_var(YTDLP_ENV_OVERRIDE, FAKE_YTDLP);
+    std::env::set_var(YTDLP_ENV_OVERRIDE, common::fake_ytdlp_executable());
     std::env::set_var(CALL_LOG_ENV, dir.join("calls.log"));
     // Never provision a real yt-dlp copy during tests.
     std::env::set_var("RHYTHM_NO_AUTO_INSTALL", "1");
+}
+
+/// Redirect the resolver log root on every platform: macOS reads HOME,
+/// Windows LOCALAPPDATA, other Unix XDG_STATE_HOME (#388).
+fn log_root_guards(root: &Path) -> [common::EnvGuard; 3] {
+    [
+        common::EnvGuard::set("HOME", root),
+        common::EnvGuard::set("LOCALAPPDATA", root),
+        common::EnvGuard::set("XDG_STATE_HOME", root),
+    ]
 }
 
 fn call_count(dir: &Path) -> usize {
@@ -253,16 +266,18 @@ fn rs13_failure_appends_to_log_and_rotates() {
     let dir = tempfile::tempdir().unwrap();
     setup_stub(dir.path());
 
-    // Point HOME at the temp dir so resolver.log lands there.
+    // Point every platform's log root at the temp dir so resolver.log lands
+    // there; the exact location is the platform convention (#388).
     let home = dir.path().join("home");
     std::fs::create_dir_all(&home).unwrap();
-    let _home_guard = common::EnvGuard::set("HOME", &home);
+    let _guards = log_root_guards(&home);
 
     let url = unique("fail-unavailable");
     let err = rhythm_core::resolver::resolve_url(&url).unwrap_err();
     assert_eq!(err.kind, ResolveErrorKind::Unavailable);
 
-    let log = home.join("Library/Logs/Rhythm/resolver.log");
+    let log = rhythm_core::resolver::log_file_path().expect("log path under the temp root");
+    assert!(log.starts_with(&home), "log must land under the temp root: {}", log.display());
     let content = std::fs::read_to_string(&log).expect("resolver.log must exist");
     assert!(content.contains(&url), "log entry must carry the url");
     assert!(content.contains("Unavailable"), "log entry must carry the kind");
@@ -284,8 +299,8 @@ fn rs13_log_io_failure_does_not_affect_result() {
     // A file where the log directory must be created → create_dir_all fails
     // → logging is skipped, resolution still reports its failure.
     let blocker = dir.path().join("home");
-    std::fs::write(&blocker, b"x").unwrap(); // blocks Library/Logs/Rhythm mkdir
-    let _home_guard = common::EnvGuard::set("HOME", &blocker);
+    std::fs::write(&blocker, b"x").unwrap(); // blocks the log directory mkdir
+    let _guards = log_root_guards(&blocker);
 
     let err = rhythm_core::resolver::resolve_url(&unique("fail-unavailable")).unwrap_err();
     assert_eq!(err.kind, ResolveErrorKind::Unavailable);
