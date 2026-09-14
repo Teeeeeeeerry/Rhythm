@@ -88,7 +88,9 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   `python3 scripts/gen-palette.py --emit-swift-seed` 写入，与文案、契约两个生成器同构。
   改色只改配色文件再重新生成；标记区间内的代码不手改，漂移由 `testing/l0/check-palette.py`
   逐字节比对拦截。这三个文件里的品牌色字面量一律落在标记区间内——区间外的手写副本不被比对覆盖，
-  等于重新开一条漂移通道。透明度不再手算：换算规则只在生成器里一处，恰好 .5 时进位（与平台量化一致）
+  等于重新开一条漂移通道。透明度不再手算：换算规则只在生成器里一处，恰好 .5 时进位（与平台量化一致）。
+  视图级校验不设按文件名的例外：一个视图若无人可达，就删掉它，而不是在校验器里给它排永久的缺口分支
+  （#322：Windows SidebarView 从未被渲染，却在待办里挂了多个版本；自测 `test_check_token_coverage.py` 锁定）
 - **版本号单一出处**：版本号只改 `Cargo.toml` 的 `[workspace.package] version`。依赖锁文件由包管理器同步；
   两份 README 的版本行与 `testing/README.md` 状态表是人工副本，随之同步。两处构建配置不再有人工副本：
   macOS 应用包的版本字段由组装应用包时写入（`Info.plist` 只留 `$(MARKETING_VERSION)` 占位符，#254），
