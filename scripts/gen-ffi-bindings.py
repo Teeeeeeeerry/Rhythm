@@ -243,7 +243,17 @@ def cpp_encode_object(name: str, fields: dict, model: str) -> str:
     for key, t in fields.items():
         prop = camel(key)
         if t.endswith("?"):
-            lines.append(f"    if (t.{prop}) j[\"{key}\"] = WideToUtf8(*t.{prop});")
+            # #360: dispatch on the declared type. Only strings are converted;
+            # numbers and booleans are assigned as-is (they used to be handed to
+            # WideToUtf8, which only accepts std::wstring, so the output did
+            # not compile).
+            base = t[:-1]
+            if base == "string":
+                lines.append(f"    if (t.{prop}) j[\"{key}\"] = WideToUtf8(*t.{prop});")
+            elif base in ("i32", "i64", "f64", "bool"):
+                lines.append(f"    if (t.{prop}) j[\"{key}\"] = *t.{prop};")
+            else:
+                raise SystemExit(f"unsupported cpp optional type {t} for {key}")
         elif t in ("string", "source_type"):
             lines.append(f"    j[\"{key}\"] = WideToUtf8(t.{prop});")
         elif t == "i64":
