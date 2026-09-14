@@ -73,16 +73,24 @@ def copy_l1_sources(root: Path) -> int:
     return 0
 
 
-def macos_steps(root: Path) -> list[tasklib.Step]:
-    """全量测试的步骤表（顺序与迁移前的 run-all.sh 一致）。"""
-    env = developer_dir_override()
-    # 配色一致性由 L0 的 check-palette.py 覆盖（重新生成加逐字节比对，#249）
+def static_analysis_steps(root: Path) -> list[tasklib.Step]:
+    """两个平台共享的静态分析前缀（#344）：按名字排序的全部 testing/l0/check-*.py。
+
+    清单只在这里维护一处——新增一个校验脚本，两个平台自动纳入，不必改两张步骤表。
+    配色一致性由 check-palette.py 覆盖（重新生成加逐字节比对，#249）；版本号漂移由
+    check-version-drift.py 拦截（#253）。
+    """
     steps: list[tasklib.Step] = []
-    # 含版本号漂移校验 check-version-drift.py（#253）：版本号只改 Cargo.toml，
-    # 其余六处副本漂移在此报红，不必等到发布后才发现。
     for script in sorted((root / "testing" / "l0").glob("check-*.py")):
         rel = script.relative_to(root).as_posix()
         steps.append(_script_step(f"L0 静态分析 {rel}", [rel], root))
+    return steps
+
+
+def macos_steps(root: Path) -> list[tasklib.Step]:
+    """全量测试的步骤表（顺序与迁移前的 run-all.sh 一致）：共享前缀 + macOS 段。"""
+    env = developer_dir_override()
+    steps = static_analysis_steps(root)
     steps += [
         _script_step("L0 零 emoji（硬性约定，覆盖 git 跟踪的全部文件减排除清单）",
                      ["scripts/check_no_emoji.py"], root),
@@ -146,14 +154,14 @@ def _cmake_configure_step(name: str, source: str, build_dir: Path, root: Path,
 
 
 def windows_steps(root: Path, smoke: bool = False) -> list[tasklib.Step]:
-    """Windows 测试的步骤表（L1 单元 + L3 冒烟；L2 未实现，#387）。
+    """Windows 测试的步骤表：共享静态分析前缀（#344）+ L1 单元 + L3 冒烟（L2 未实现，#387）。
 
-    每段的调用与日志文件名沿用迁移前的 PowerShell 入口；失败处理改为统一的
-    退出码聚合——旧入口对 ctest 只打印警告后继续，红灯会被吞掉。
+    平台段只有构建与运行。每段的调用与日志文件名沿用迁移前的 PowerShell 入口；
+    失败处理改为统一的退出码聚合——旧入口对 ctest 只打印警告后继续，红灯会被吞掉。
     """
     l1_dir = root / "build" / "windows" / "l1"
     app_dir = task_build.windows_build_dir(root)
-    steps = [
+    steps = static_analysis_steps(root) + [
         _cmake_configure_step("L1 颜色测试 cmake 配置", "testing/l1/windows", l1_dir,
                               root, "l1-windows-cmake"),
         _cmake_step("L1 颜色测试 cmake 构建", ["--build", str(l1_dir)],
