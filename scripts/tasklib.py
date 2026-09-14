@@ -232,9 +232,18 @@ def run_steps(steps: list[Step], *, l0_only: bool = False,
 
     不因某步失败而提前中断——全部跑完才知道到底红了几处；但只要有红，
     默认就以非零退出（#144：曾经绿着吞掉红灯）。
+
+    筛选后一步都没有也是失败（#343）：「全部通过（0 步）」是最危险的绿。
+    显式豁免只作用于有失败步骤的情形，救不回零步。
     """
+    selected = select_steps(steps, l0_only=l0_only)
+    if not selected:
+        print("===== 没有步骤被执行 =====")
+        print("筛选结果为空（没有任何步骤符合筛选条件），不视为通过，以非零退出码结束",
+              file=sys.stderr)
+        return 1
     tally = Failures()
-    for step in select_steps(steps, l0_only=l0_only):
+    for step in selected:
         print(f"\n----- {step.name} -----")
         tally.record_code(step.name, step.action())
     print()

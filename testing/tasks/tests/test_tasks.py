@@ -11,7 +11,7 @@ import io
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -99,6 +99,38 @@ class StaticAnalysisSwitchTest(unittest.TestCase):
         with redirect_stdout(out):
             code = tasks.run_steps(steps, l0_only=True)
         self.assertEqual(code, 1)
+
+
+class EmptyStepSetTest(unittest.TestCase):
+    """零步集合不得判为通过（#343）：一步没跑是最危险的绿。"""
+
+    def run_quietly(self, steps, **kwargs):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = tasks.run_steps(steps, **kwargs)
+        return code, out.getvalue() + err.getvalue()
+
+    def test_empty_step_list_exits_non_zero_and_says_nothing_ran(self):
+        code, output = self.run_quietly([])
+        self.assertNotEqual(code, 0)
+        self.assertIn("没有步骤被执行", output)
+        self.assertNotIn("全部通过", output)
+
+    def test_filter_that_selects_nothing_exits_non_zero(self):
+        steps = [green("L1 swift test", static_analysis=False)]
+        code, output = self.run_quietly(steps, l0_only=True)
+        self.assertNotEqual(code, 0)
+        self.assertIn("没有步骤被执行", output)
+
+    def test_waiver_does_not_rescue_an_empty_set(self):
+        # 显式豁免只作用于「有失败步骤」的情形，不把零步变成通过。
+        code, _ = self.run_quietly([], allow_expected=True)
+        self.assertNotEqual(code, 0)
+
+    def test_non_empty_semantics_are_unchanged(self):
+        self.assertEqual(self.run_quietly([green("a")])[0], 0)
+        self.assertEqual(self.run_quietly([red("a")])[0], 1)
+        self.assertEqual(self.run_quietly([red("a")], allow_expected=True)[0], 0)
 
     def test_flag_parsing_sets_the_switch(self):
         self.assertTrue(tasks.parse_test_flags(["--l0-only"], env={}).l0_only)

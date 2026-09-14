@@ -108,7 +108,7 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   `nlohmann_json::nlohmann_json` 导出，缓存在 `build/windows-deps/`。应用与测试宿主都 `include` 这一个模块，
   升级依赖只改模块里的版本与哈希。XAML 标记编译仍是 MSBuild 专属，不在该模块范围内（见 `docs/adr/0003-Windows-App-SDK-接入方式.md`）
 - **编排层只用 Python（#221 组）**：构建与测试的入口是 `python3 scripts/tasks.py <任务>`，任务名两个平台相同
-  （`build` / `test` / `check-no-emoji` / `compare-screenshots`），退出码 0 全绿 / 1 有步骤失败 / 2 用法错误。
+  （`build` / `test` / `check-no-emoji` / `compare-screenshots`），退出码 0 全绿 / 1 有步骤失败（筛选后零步也算，#343）/ 2 用法错误。
   路径解析、日志落盘、失败计数与退出码聚合、子进程调用四项只写在 `scripts/tasklib.py`；新增一个任务改
   `scripts/tasks.py` 的注册表加一个实现模块，不再新增脚本方言。严格模式是默认（#144），容错只能显式开启。
   CI 配置调用的就是本地同名命令。新增 .sh / .bat / .ps1 由 `python3 testing/l0/check-orchestration-dialects.py`
