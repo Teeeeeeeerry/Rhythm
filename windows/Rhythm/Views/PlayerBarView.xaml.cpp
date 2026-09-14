@@ -10,6 +10,9 @@ PlayerBarView::PlayerBarView() {
     trackTitle().Text(rhythm::L10n::NotPlaying());
     urlBox().PlaceholderText(rhythm::L10n::UrlPlaceholder());
     btnUrlPlay().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::PlayUrl() }));
+    // #373: the play mode control's tooltip, taken from the key table.
+    ToolTipService::SetToolTip(btnPlayMode(),
+                               winrt::box_value(winrt::hstring{ rhythm::L10n::PlayModeTooltip() }));
 }
 
 void PlayerBarView::BindState(rhythm::AppState* state) {
@@ -47,6 +50,13 @@ void PlayerBarView::Update() {
     playIcon().Symbol(
         appState_->IsPlaying ? Symbol::Pause : Symbol::Play);
 
+    switch (appState_->CurrentMode) {
+        case rhythm::PlayMode::Sequential: playModeIcon().Symbol(Symbol::List); break;
+        case rhythm::PlayMode::Shuffle:    playModeIcon().Symbol(Symbol::Shuffle); break;
+        case rhythm::PlayMode::SingleLoop: playModeIcon().Symbol(Symbol::RepeatOne); break;
+        case rhythm::PlayMode::ListLoop:   playModeIcon().Symbol(Symbol::RepeatAll); break;
+    }
+
     if (appState_->Duration > 0) {
         progressBar().Value(appState_->Position / appState_->Duration * 100.0);
     }
@@ -79,6 +89,11 @@ void PlayerBarView::Update() {
 
 void PlayerBarView::OnPlayPauseClick(IInspectable const&, RoutedEventArgs const&) {
     if (appState_) appState_->TogglePlayPause();
+    Update();
+}
+
+void PlayerBarView::OnPlayModeClick(IInspectable const&, RoutedEventArgs const&) {
+    if (appState_) appState_->CyclePlayMode();
     Update();
 }
 

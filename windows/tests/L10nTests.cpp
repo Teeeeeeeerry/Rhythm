@@ -164,6 +164,19 @@ TEST_CASE("LK-09 adapter fills placeholders and renders a core message spec") {
             std::wstring(L10n::Key("playback_failed_expired")) + L"|tail");
 }
 
+// ─── LK-10 播放模式提示（#373）────────────────────────────────────────
+
+TEST_CASE("LK-10 play mode tooltip comes from the key table in both languages") {
+    {
+        LanguageScope zh(L"zh");
+        REQUIRE(L10n::PlayModeTooltip() == L"播放模式");
+    }
+    {
+        LanguageScope en(L"en");
+        REQUIRE(L10n::PlayModeTooltip() == L"Play Mode");
+    }
+}
+
 // ─── WA-26 来源徽标与托盘 ───────────────────────────────────────────
 
 TEST_CASE("LK-06 L10n source tags and tray copy") {
