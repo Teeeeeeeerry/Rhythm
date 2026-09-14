@@ -90,19 +90,14 @@ jobs:
           exclude: |
             **/*.py
 
+  # Windows L2（截屏宿主 + golden 比对）尚未实现，步骤已移除（#387）：截屏宿主没有工程文件、
+  # golden 目录不存在。重启时补齐的产物见 testing/README.md「Windows L2 缺口」，再在此恢复
+  # 「构建截屏宿主 / 渲染视图 / compare-screenshots」三步。
   windows-visual:
-    name: Windows 视觉（L2/L3）
+    name: Windows 视觉（L3）
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: 构建截屏宿主
-        run: |
-          cmake -S testing/l2/windows -B build/windows/l2
-          cmake --build build/windows/l2
-      - name: 渲染 5 视图 × 2 主题
-        run: build/windows/l2/Release/capture_views.exe build/artifacts
-      - name: golden 像素比对
-        run: python3 scripts/tasks.py compare-screenshots --actual build/artifacts --golden testing/l2/windows/golden
       - name: WinAppDriver 冒烟（失败进入降级，见 l3/windows/winappdriver.md）
         run: |
           python3 testing/l3/windows/theme_switch.py --smoke --app build/windows/Release/Rhythm.exe || true

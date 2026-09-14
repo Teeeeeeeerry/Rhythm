@@ -206,7 +206,7 @@ P2–P5 作为紧接的自动化基建 PR 跟进（若分支已合入，F 项必
 | **P0** | 完成 | F1/F2/F4/F5 已修复（见 §6 状态列）；F3 转由 L3 跟进 |
 | **P1** | 完成（CI 未部署） | `testing/palette.json` + `scripts/gen-palette.py` + L0 脚本全绿；`ci.yml` 仍是 `testing/ci/` 下模板 |
 | **P2** | 完成 | `RhythmTheme` target 已拆出，`macos/Tests/RhythmThemeTests` 五组数据驱动测试；F6 决策已落地、F8 登记例外 |
-| **P3** | 未完成 | `testing/l2/macos/ViewSnapshotTests.swift` 与 `testing/l2/windows/capture_views.cpp` 为模板，golden 未入库 |
+| **P3** | 未完成 | `testing/l2/macos/ViewSnapshotTests.swift` 与 `testing/l2/windows/capture_views.cpp` 为模板，golden 未入库；Windows 截屏宿主无工程文件，L2 步骤已从测试入口移除并登记为缺口（#387，重启步骤见 `testing/README.md`「Windows L2 缺口」） |
 | **P4** | 未完成 | `testing/l3/macos` XcodeGen + 四组 XCUITest、`testing/l3/windows` 主题切换脚本已备，未接入 CI |
 | **P5** | 部分 | L4 八项清单已文档化（`testing/l4/manual-smoke-checklist.md`）；DEBUG 自检页与 Nightly 未实现 |
 

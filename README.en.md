@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.142 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
+Initial development is complete. Current version: **v0.5.143 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
 
 ### Implementation Status
 
@@ -116,7 +116,7 @@ Builds the Rust core and the WinUI 3 app, producing `build\windows\Release\Rhyth
 
 ```bash
 python3 scripts/tasks.py test     # macOS: L0 static analysis + L1 unit tests
-                                  # Windows: L1 unit + L2 screenshot diff (--smoke adds L3)
+                                  # Windows: L1 unit (--smoke adds L3; L2 screenshot diff not implemented yet, #387)
 cargo test -p rhythm-core         # Rust core behaviour tests
 ```
 

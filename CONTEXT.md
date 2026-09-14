@@ -101,7 +101,7 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   「格式不支持」与「读写失败」必须分开——合并会丢掉用户唯一能据以行动的信息。新增一条导入路径沿用同一形状，
   不发明新的返回约定；结果结构声明在 `contracts/ffi-contract.json`，双端绑定由生成器产出，少接一条路径会在生成物比对时暴露
 - **构建产物**：放 `build/` 目录——macOS 为 `build/Rhythm.app`，Windows 为 `build/windows/Release/Rhythm.exe`，
-  截屏产物 `build/artifacts`；Rust 核心产物在工作区根 `target/release/`，取用点只有 `task_build.core_artifact_dir` 一处
+  截屏产物 `build/artifacts`（Windows L2 截屏尚未实现、已从测试入口移除，#387）；Rust 核心产物在工作区根 `target/release/`，取用点只有 `task_build.core_artifact_dir` 一处
 - **Windows 依赖在仓库里声明（#386）**：Windows App SDK 上游只给 MSBuild 的 props/targets，没有 CMake 包，
   `find_package` 在任何机器上都找不到。依赖改由 `windows/cmake/RhythmWindowsDeps.cmake` 一处负责：按固定版本 +
   SHA-256 下载 NuGet 包与 json 头、跑固定版本的 cppwinrt 生成投影头、以原有目标名 `Microsoft.WindowsAppSDK` /
