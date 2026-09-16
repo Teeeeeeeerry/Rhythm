@@ -59,7 +59,7 @@
 |---|---|---|---|
 | RS-23 | 直链标题不解码百分号编码（`urlencoding_if_needed` 为 no-op） | [#80](https://github.com/Teeeeeeerry/Rhythm/issues/80) | 已修复（红测解禁转绿） |
 | RS-07/08/09/10/12/13(x2)/18/19/20 | Windows 上 10 项端到端用例未禁用也未登记地红着：桩以 `.py` 路径交给进程启动接口，该平台无法直接执行；RS-13 另写死了 macOS 日志路径 | [#388](https://github.com/Teeeeeeeerry/Rhythm/issues/388) | 已修复（测试装配经启动器调用桩、日志路径按平台取，产品代码未改，无禁用） |
-| RS-14 | 平台处置（非产品缺陷）：Windows 上桩经 `.cmd` 启动器调用，删掉启动器后 `cmd.exe` 仍能启动，「spawn 失败」场景无法构造 | [#388](https://github.com/Teeeeeeeerry/Rhythm/issues/388) | Windows 上 `#[ignore]` 禁用；macOS / Linux 照常运行 |
+| RS-14 | 平台处置（非产品缺陷）：Windows 上桩经 `.cmd` 启动器调用，删掉启动器后 `cmd.exe` 仍能启动，「spawn 失败」场景无法构造 | [#409](https://github.com/Teeeeeeeerry/Rhythm/issues/409) | 已解禁：Windows 上改用 `rustc` 现编的真实 `.exe` 桩（删掉即 spawn 失败），两个平台照常运行 |
 
 ## 已有测试行为对照（完整性要求：每条已有测试的行为均列入清单）
 

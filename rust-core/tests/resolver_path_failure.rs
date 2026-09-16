@@ -16,29 +16,58 @@ fn unique(url_tag: &str) -> String {
     format!("https://e2e.example.com/watch?v={url_tag}")
 }
 
+/// Windows: a real `.exe` that forwards to the `.cmd` stub launcher (#409).
+/// Deleting a `.cmd` does not make the spawn fail (`cmd.exe` still starts and
+/// only prints "not recognized"); deleting an `.exe` does. Built with the
+/// toolchain's `rustc` into the test's temp dir.
+#[cfg(windows)]
+fn real_exe_stub(dir: &Path) -> std::path::PathBuf {
+    let launcher = common::fake_ytdlp_executable();
+    let source = dir.join("fake_ytdlp_exe.rs");
+    std::fs::write(
+        &source,
+        format!(
+            "fn main() {{\n\
+             let status = std::process::Command::new(\"cmd\").arg(\"/C\").arg({launcher:?})\n\
+             .args(std::env::args_os().skip(1)).status().expect(\"launcher\");\n\
+             std::process::exit(status.code().unwrap_or(1));\n}}\n"
+        ),
+    )
+    .unwrap();
+    let exe = dir.join("fake_ytdlp_copy.exe");
+    let rustc = std::env::var("RUSTC").unwrap_or_else(|_| "rustc".to_string());
+    let status = std::process::Command::new(rustc)
+        .arg(&source)
+        .arg("-o")
+        .arg(&exe)
+        .status()
+        .expect("stub not runnable: rustc unavailable");
+    assert!(status.success(), "stub not runnable: building the .exe stub failed");
+    assert!(
+        rhythm_core::resolver::probe_ytdlp(&exe),
+        "stub not runnable: .exe stub does not answer --version"
+    );
+    exe
+}
+
 /// RS-14: a cached binary that stops being spawnable is forgotten and
 /// re-discovered; the user gets `YtDlpMissing`, not a crash.
-///
-/// Windows: the stub runs through a `.cmd` launcher, and a deleted launcher
-/// still starts `cmd.exe` successfully (it only prints "not recognized"), so
-/// the spawn-failure scenario cannot be staged there. Disabled on that
-/// platform and registered in the manifest (#388).
 #[test]
-#[cfg_attr(
-    windows,
-    ignore = "#388: a deleted .cmd launcher does not fail to spawn on Windows"
-)]
 fn rs14_spawn_failure_reports_missing_and_rechecks() {
     let _guard = PATH_FAILURE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = tempfile::tempdir().unwrap();
 
     // A private copy of the stub so we can delete it behind the resolver's
-    // back after the path has been cached. The copy keeps the platform's
-    // executable form (a launcher on Windows, the script elsewhere, #388).
-    let stub = common::fake_ytdlp_executable();
-    let ext = stub.extension().and_then(|e| e.to_str()).unwrap_or("py");
-    let copy = dir.path().join(format!("fake_ytdlp_copy.{ext}"));
-    std::fs::copy(&stub, &copy).unwrap();
+    // back after the path has been cached. On Windows the copy is a real
+    // `.exe` so that deleting it makes the spawn fail (#409).
+    #[cfg(windows)]
+    let copy = real_exe_stub(dir.path());
+    #[cfg(not(windows))]
+    let copy = {
+        let copy = dir.path().join("fake_ytdlp_copy.py");
+        std::fs::copy(common::fake_ytdlp_executable(), &copy).unwrap();
+        copy
+    };
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

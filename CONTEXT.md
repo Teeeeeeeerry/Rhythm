@@ -57,7 +57,7 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   返回消息规格 → 双端 `L10n` 按键取模板、填占位符、顺序拼接（#216 组）
 - **进度/音量**：`PlayerBarView` 的 Slider → `player.seek/setVolume`（FFI 直通）
 - **测试**：`macos/Tests/`（AppStateTests + RhythmThemeTests）。AppState 测试用真实临时数据库 + SpyCoordinator（编排规则在 rust-core `coordinator_behavior.rs`，无音频设备依赖）；
-  Rust 侧 `cargo test -p rhythm-core`（两个平台都全绿；Windows 上解析器端到端用例需要 PATH 上有 `python` 或设 `RHYTHM_TEST_PYTHON`，#388），Windows 侧 `windows/tests/`（Catch2，SpyCoordinator 同 macOS），主题色彩链路 `python3 scripts/tasks.py test`
+  Rust 侧 `cargo test -p rhythm-core`（两个平台都全绿；Windows 上解析器端到端用例需要 PATH 上有 `python` 或设 `RHYTHM_TEST_PYTHON`，#388；RS-14 在 Windows 上另需 `rustc` 现编 `.exe` 桩，无禁用，#409），Windows 侧 `windows/tests/`（Catch2，SpyCoordinator 同 macOS），主题色彩链路 `python3 scripts/tasks.py test`
 
 ### 新增引擎能力的三层套路（#70 的教训）
 
