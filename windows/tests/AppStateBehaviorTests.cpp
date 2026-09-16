@@ -511,6 +511,17 @@ TEST_CASE("WA-21 CyclePlayMode cycles and syncs the queue") {
     REQUIRE(app.spy->setPlayModeCalls.size() == 4);
 }
 
+TEST_CASE("LK-10 clicking the play mode control cycles the mode and its icon (#411)") {
+    using winrt::Microsoft::UI::Xaml::Controls::Symbol;
+    SpyApp app;
+    // The control's click handler calls CyclePlayMode, then renders PlayModeIcon.
+    const Symbol expected[] = { Symbol::Shuffle, Symbol::RepeatOne, Symbol::RepeatAll, Symbol::List };
+    for (auto symbol : expected) {
+        app.state.CyclePlayMode();
+        REQUIRE(PlayModeIcon(app.state.CurrentMode) == symbol);
+    }
+}
+
 TEST_CASE("WA-21 SingleLoop keeps next on the current track") {
     SpyApp app;
     app.state.OpenDatabase(app.dir.dbPath());

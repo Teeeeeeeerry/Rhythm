@@ -18,6 +18,19 @@ static_assert(static_cast<int32_t>(PlayMode::Shuffle) == 1);
 static_assert(static_cast<int32_t>(PlayMode::SingleLoop) == 2);
 static_assert(static_cast<int32_t>(PlayMode::ListLoop) == 3);
 
+/// The play mode control's icon (#411) -- the mapping lives beside the type,
+/// like macOS `PlayMode.icon`; the view only reads it.
+inline winrt::Microsoft::UI::Xaml::Controls::Symbol PlayModeIcon(PlayMode mode) {
+    using winrt::Microsoft::UI::Xaml::Controls::Symbol;
+    switch (mode) {
+        case PlayMode::Shuffle:    return Symbol::Shuffle;
+        case PlayMode::SingleLoop: return Symbol::RepeatOne;
+        case PlayMode::ListLoop:   return Symbol::RepeatAll;
+        case PlayMode::Sequential:
+        default:                   return Symbol::List;
+    }
+}
+
 class AppState : public winrt::implements<AppState, winrt::Windows::Foundation::IInspectable> {
 public:
     AppState();

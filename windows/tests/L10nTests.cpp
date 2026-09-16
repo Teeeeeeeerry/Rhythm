@@ -6,6 +6,7 @@
 
 #include "pch.h"
 #include "L10n.h"
+#include "AppState.h"
 
 #include <catch_amalgamated.hpp>
 
@@ -175,6 +176,14 @@ TEST_CASE("LK-10 play mode tooltip comes from the key table in both languages") 
         LanguageScope en(L"en");
         REQUIRE(L10n::PlayModeTooltip() == L"Play Mode");
     }
+}
+
+TEST_CASE("LK-10 play mode icon follows the current mode (#411)") {
+    using winrt::Microsoft::UI::Xaml::Controls::Symbol;
+    REQUIRE(PlayModeIcon(PlayMode::Sequential) == Symbol::List);
+    REQUIRE(PlayModeIcon(PlayMode::Shuffle) == Symbol::Shuffle);
+    REQUIRE(PlayModeIcon(PlayMode::SingleLoop) == Symbol::RepeatOne);
+    REQUIRE(PlayModeIcon(PlayMode::ListLoop) == Symbol::RepeatAll);
 }
 
 // ─── LK-11 链接解析失败兜底文案（#374）──────────────────────────────

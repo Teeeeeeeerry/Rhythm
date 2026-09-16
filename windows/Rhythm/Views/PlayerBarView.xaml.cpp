@@ -50,12 +50,7 @@ void PlayerBarView::Update() {
     playIcon().Symbol(
         appState_->IsPlaying ? Symbol::Pause : Symbol::Play);
 
-    switch (appState_->CurrentMode) {
-        case rhythm::PlayMode::Sequential: playModeIcon().Symbol(Symbol::List); break;
-        case rhythm::PlayMode::Shuffle:    playModeIcon().Symbol(Symbol::Shuffle); break;
-        case rhythm::PlayMode::SingleLoop: playModeIcon().Symbol(Symbol::RepeatOne); break;
-        case rhythm::PlayMode::ListLoop:   playModeIcon().Symbol(Symbol::RepeatAll); break;
-    }
+    playModeIcon().Symbol(rhythm::PlayModeIcon(appState_->CurrentMode));
 
     if (appState_->Duration > 0) {
         progressBar().Value(appState_->Position / appState_->Duration * 100.0);
