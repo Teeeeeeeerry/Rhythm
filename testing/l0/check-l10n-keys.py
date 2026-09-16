@@ -11,9 +11,12 @@
 4. 访问器与调用面（#370）：调用方依赖的是具名访问器，而不是键名表。
    #371 起访问器由键表生成（windows/Rhythm/L10nAccessors.h），与重新生成的结果逐字节比对；
    a) Windows 代码与测试里调用的每个 `L10n::X(...)` 都必须有定义——
-      被引用却不存在的访问器（如曾被删掉的 TrayQuit）在此报红，不必等编译器；
-   b) 每个 windows 键都必须至少被一个访问器取用——有文案无访问器的键
-      到不了界面，同样报红。
+      被引用却不存在的访问器（如曾被删掉的 TrayQuit）在此报红，不必等编译器。
+      「有定义」只认 L10n.h 与 L10nAccessors.h 的 `namespace L10n` 内的 inline 函数，
+      别处的同名函数不能冒充访问器（#410）；
+   b) 每个 windows 键都必须出现在至少一个访问器的函数体里——有文案却没有任何
+      访问器取值的键在此报红。它不检查访问器是否被调用：无人调用的访问器照样通过
+      （#410）。
 
 5. 平台差异键分端（#372）：两端的期望键集按 platform 字段分别计算，并直接从提交的
    生成物里读出实际键集比对——macOS 专用键不得出现在 Windows 的取值与访问器里，
@@ -45,11 +48,12 @@ def _load_script(name: str):
 
 gen_l10n = _load_script("gen-l10n")
 
-SCHEMA = "contracts/l10n-keys.json"
-SWIFT_OUT = "macos/Rhythm/Models/L10nKeys.swift"
-CPP_OUT = "windows/Rhythm/Bridge/L10nKeys.h"
+# 生成物路径只在生成器声明（#410）。
+SCHEMA = gen_l10n.SCHEMA_REL
+SWIFT_OUT = gen_l10n.SWIFT_OUT_REL
+CPP_OUT = gen_l10n.CPP_OUT_REL
+ACCESSORS_OUT = gen_l10n.ACCESSORS_OUT_REL
 WINDOWS_L10N_H = "windows/Rhythm/L10n.h"
-ACCESSORS_OUT = "windows/Rhythm/L10nAccessors.h"
 
 # Windows 侧的访问器定义与调用都在这两处（第三方 vendor 目录除外）。
 WINDOWS_SOURCE_DIRS = ("windows/Rhythm", "windows/tests")
@@ -79,6 +83,14 @@ def windows_sources(root: Path) -> list[Path]:
     return files
 
 
+L10N_NAMESPACE_RE = re.compile(r"^namespace L10n \{$(.*?)^\} // namespace L10n$", re.M | re.S)
+
+
+def l10n_namespace_text(header: str) -> str:
+    """头文件里全部 `namespace L10n { ... }` 块的正文（#410）。"""
+    return "\n".join(L10N_NAMESPACE_RE.findall(header))
+
+
 def accessor_bodies(header: str) -> dict[str, str]:
     """L10n.h 里每个 inline 函数名 -> 它的定义文本（到下一个 inline 定义为止）。"""
     matches = list(DEFINITION_RE.finditer(header))
@@ -98,11 +110,12 @@ def accessor_problems(root: Path, expected_keys: set[str]) -> list[str]:
     if accessors.is_file():
         header += "\n" + accessors.read_text(encoding="utf-8")
 
-    defined: set[str] = set()
+    # 定义只认两份头文件的 namespace L10n 内（#410）：别处的同名 inline 函数
+    # 不能掩盖缺失的访问器。
+    defined = set(DEFINITION_RE.findall(l10n_namespace_text(header)))
     called: dict[str, str] = {}
     for path in windows_sources(root):
         text = path.read_text(encoding="utf-8", errors="replace")
-        defined.update(DEFINITION_RE.findall(text))
         rel = path.relative_to(root).as_posix()
         for name in CALL_RE.findall(text):
             called.setdefault(name, rel)

@@ -71,26 +71,37 @@ def build_tree(root: Path, table: dict, *, accessors: str | None = None,
         path.write_text(text, encoding="utf-8")
 
 
-class CheckL10nAccessorTests(unittest.TestCase):
-    def run_check(self, root: Path) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [sys.executable, str(SCRIPT), "--root", str(root)],
-            capture_output=True, text=True, encoding="utf-8",
-        )
+def run_check(root: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), "--root", str(root)],
+        capture_output=True, text=True, encoding="utf-8",
+    )
 
+
+class CheckL10nAccessorTests(unittest.TestCase):
     def test_generated_accessors_cover_the_key_table_and_every_call(self):
         with tempfile.TemporaryDirectory() as tmp:
             build_tree(Path(tmp), TABLE, caller="auto a = rhythm::L10n::TrayQuit();\n")
-            result = self.run_check(Path(tmp))
+            result = run_check(Path(tmp))
         self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_called_accessor_without_definition_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             build_tree(Path(tmp), TABLE, caller="auto a = rhythm::L10n::QuitNow();\n")
-            result = self.run_check(Path(tmp))
+            result = run_check(Path(tmp))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("QuitNow", result.stdout)
         self.assertIn("Caller.cpp", result.stdout)
+
+    def test_same_named_function_elsewhere_does_not_pass_as_an_accessor(self):
+        # #410：只有 L10n.h / L10nAccessors.h 的 namespace L10n 里的定义才算访问器。
+        with tempfile.TemporaryDirectory() as tmp:
+            build_tree(Path(tmp), TABLE, caller="auto a = rhythm::L10n::QuitNow();\n")
+            other = Path(tmp) / "windows" / "Rhythm" / "Views" / "Other.h"
+            other.write_text("inline std::wstring QuitNow() { return L\"\"; }\n", encoding="utf-8")
+            result = run_check(Path(tmp))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("QuitNow", result.stdout)
 
     def test_new_key_without_regenerating_accessors_fails(self):
         # 键表加了一条，访问器却还是旧的生成物：漂移与无访问器都报出。
@@ -98,7 +109,7 @@ class CheckL10nAccessorTests(unittest.TestCase):
                           "play_mode_tooltip": {"zh": "播放模式", "en": "Play Mode"}}}
         with tempfile.TemporaryDirectory() as tmp:
             build_tree(Path(tmp), table, accessors=gen_l10n.gen_cpp_accessors(TABLE))
-            result = self.run_check(Path(tmp))
+            result = run_check(Path(tmp))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("play_mode_tooltip", result.stdout)
         self.assertIn("L10nAccessors.h", result.stdout)
@@ -110,7 +121,7 @@ class CheckL10nAccessorTests(unittest.TestCase):
                            if 'Key("tray_quit")' not in line) + "\n"
         with tempfile.TemporaryDirectory() as tmp:
             build_tree(Path(tmp), TABLE, accessors=edited)
-            result = self.run_check(Path(tmp))
+            result = run_check(Path(tmp))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("tray_quit", result.stdout)
 
@@ -129,12 +140,6 @@ PLATFORM_TABLE = {
 class PlatformSplitTests(unittest.TestCase):
     """平台差异键只进对应平台生成物，校验器对两端分别计算（#372）。"""
 
-    def run_check(self, root: Path) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [sys.executable, str(SCRIPT), "--root", str(root)],
-            capture_output=True, text=True, encoding="utf-8",
-        )
-
     def test_generated_outputs_keep_platform_keys_apart(self):
         accessors = gen_l10n.gen_cpp_accessors(PLATFORM_TABLE)
         values = gen_l10n.gen_cpp(PLATFORM_TABLE)
@@ -148,7 +153,7 @@ class PlatformSplitTests(unittest.TestCase):
     def test_split_tree_passes(self):
         with tempfile.TemporaryDirectory() as tmp:
             build_tree(Path(tmp), PLATFORM_TABLE)
-            result = self.run_check(Path(tmp))
+            result = run_check(Path(tmp))
         self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_macos_key_leaking_into_windows_accessors_fails(self):
@@ -158,7 +163,7 @@ class PlatformSplitTests(unittest.TestCase):
             "} // namespace L10n")
         with tempfile.TemporaryDirectory() as tmp:
             build_tree(Path(tmp), PLATFORM_TABLE, accessors=leaked)
-            result = self.run_check(Path(tmp))
+            result = run_check(Path(tmp))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("macOS 专用键", result.stdout)
         self.assertIn("yt_dlp_install_command", result.stdout)
@@ -169,7 +174,7 @@ class PlatformSplitTests(unittest.TestCase):
             '        "yt_dlp_install_command_windows": (zh: "winget", en: "winget"),\n    ]\n', 1)
         with tempfile.TemporaryDirectory() as tmp:
             build_tree(Path(tmp), PLATFORM_TABLE, swift=leaked)
-            result = self.run_check(Path(tmp))
+            result = run_check(Path(tmp))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Windows 专用键", result.stdout)
         self.assertIn("yt_dlp_install_command_windows", result.stdout)
@@ -200,6 +205,15 @@ class AccessorNamingTests(unittest.TestCase):
                 capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("2 键", result.stdout)
+
+    def test_checker_reads_output_paths_from_the_generator(self):
+        # #410：产物路径只在生成器声明一处，校验器引用它。
+        spec = importlib.util.spec_from_file_location("check_l10n_keys", SCRIPT)
+        check = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(check)
+        for name in ("SCHEMA", "SWIFT_OUT", "CPP_OUT", "ACCESSORS_OUT"):
+            self.assertEqual(getattr(check, name), getattr(gen_l10n, f"{name}_REL"), name)
 
     def test_duplicate_accessor_names_are_rejected(self):
         table = {"keys": {
