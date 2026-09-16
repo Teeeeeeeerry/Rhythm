@@ -215,8 +215,18 @@ class WindowsStepTableTest(unittest.TestCase):
         for segment in ("零 emoji", "L0 校验脚本自测", "编排层自测"):
             self.assertIn(segment, names)
 
-    def test_full_windows_entry_runs_at_least_twelve_steps(self):
-        self.assertGreaterEqual(len(task_test.windows_steps(self.root)), 12)
+    def test_full_windows_entry_covers_static_analysis_plus_every_platform_stage(self):
+        # 下限由步骤表推导（#415）：共享静态分析前缀，加上每个平台段的配置、构建、运行。
+        segments = ("L1 颜色测试", "L1b 应用工程测试")
+        stages = ("cmake 配置", "cmake 构建", "ctest")
+        steps = task_test.windows_steps(self.root)
+        names = [s.name for s in steps]
+        for segment in segments:
+            for stage in stages:
+                self.assertIn(f"{segment} {stage}", names)
+        self.assertGreaterEqual(
+            len(steps),
+            len(task_test.static_analysis_steps(self.root)) + len(segments) * len(stages))
 
     def test_l0_only_runs_the_static_analysis_steps(self):
         picked = tasks.select_steps(task_test.windows_steps(self.root), l0_only=True)

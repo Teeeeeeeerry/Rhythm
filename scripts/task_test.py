@@ -130,30 +130,26 @@ def macos_steps(root: Path) -> list[tasklib.Step]:
 # testing/README.md「Windows L2 缺口」，补齐后再把步骤加回这里。
 
 
-def _cmake_step(name: str, args: list[str], root: Path, log_name: str) -> tasklib.Step:
-    return tasklib.Step(
-        name,
-        lambda: tasklib.run(["cmake", *args], cwd=root,
-                            log=tasklib.log_path(log_name, root)),
-        static_analysis=False,
-    )
+def _cmake_step(name: str, args: list[str], root: Path, log_name: str, *,
+                project: str | None = None) -> tasklib.Step:
+    """cmake 步骤的唯一构造入口（#415）。
 
-
-def _cmake_configure_step(name: str, source: str, build_dir: Path, root: Path,
-                          log_name: str) -> tasklib.Step:
-    """cmake 配置步骤；源目录里没有工程文件时直接指出缺的是哪个文件（#387）。
-
-    否则失败信息是构建工具的一句笼统报错，看不出步骤指向了空目录。
+    给出 project（配置步骤的源目录）时先检查工程文件：源目录里没有 CMakeLists.txt
+    就直接指出缺的是哪个文件（#387），否则失败信息是构建工具的一句笼统报错，
+    看不出步骤指向了空目录。
     """
     def action() -> int:
-        project = root / source / "CMakeLists.txt"
-        if not project.is_file():
-            print(f"! 缺工程文件：{source}/CMakeLists.txt（「{name}」指向的目录里没有 CMake 工程）")
+        if project is not None and not (root / project / "CMakeLists.txt").is_file():
+            print(f"! 缺工程文件：{project}/CMakeLists.txt（「{name}」指向的目录里没有 CMake 工程）")
             return 1
-        return tasklib.run(["cmake", "-S", source, "-B", str(build_dir)], cwd=root,
+        return tasklib.run(["cmake", *args], cwd=root,
                            log=tasklib.log_path(log_name, root))
 
     return tasklib.Step(name, action, static_analysis=False)
+
+
+def _cmake_configure_args(source: str, build_dir: Path) -> list[str]:
+    return ["-S", source, "-B", str(build_dir)]
 
 
 def windows_steps(root: Path, smoke: bool = False) -> list[tasklib.Step]:
@@ -165,8 +161,9 @@ def windows_steps(root: Path, smoke: bool = False) -> list[tasklib.Step]:
     l1_dir = root / "build" / "windows" / "l1"
     app_dir = task_build.windows_build_dir(root)
     steps = static_analysis_steps(root) + [
-        _cmake_configure_step("L1 颜色测试 cmake 配置", "testing/l1/windows", l1_dir,
-                              root, "l1-windows-cmake"),
+        _cmake_step("L1 颜色测试 cmake 配置",
+                    _cmake_configure_args("testing/l1/windows", l1_dir),
+                    root, "l1-windows-cmake", project="testing/l1/windows"),
         _cmake_step("L1 颜色测试 cmake 构建", ["--build", str(l1_dir)],
                     root, "l1-windows-cmake"),
         tasklib.Step(
@@ -175,8 +172,8 @@ def windows_steps(root: Path, smoke: bool = False) -> list[tasklib.Step]:
                                  "--output-on-failure"], cwd=root,
                                 log=tasklib.log_path("l1-windows-ctest", root)),
             static_analysis=False),
-        _cmake_configure_step("L1b 应用工程测试 cmake 配置", "windows", app_dir,
-                              root, "l1-windows-rhythmtests"),
+        _cmake_step("L1b 应用工程测试 cmake 配置", _cmake_configure_args("windows", app_dir),
+                    root, "l1-windows-rhythmtests", project="windows"),
         _cmake_step("L1b 应用工程测试 cmake 构建",
                     ["--build", str(app_dir), "--target", "RhythmTests",
                      "--config", task_build.WINDOWS_CONFIG],
