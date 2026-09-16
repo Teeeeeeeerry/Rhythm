@@ -10,10 +10,6 @@ namespace rhythm {
 /// (coordinator event payloads).
 std::wstring Utf8ToWide(const std::string& s);
 
-/// Parse a Track from the core's snake_case JSON (used for coordinator
-/// event payloads like track_changed).
-Track ParseTrackJson(const std::string& json);
-
 /// Effective app theme: the app never pins `Application.RequestedTheme`, so
 /// the UI follows the system (the same resolution ThemeDictionaries use for
 /// `ActualTheme`). Light foreground text ⇒ dark system theme.
@@ -121,6 +117,10 @@ struct Track {
             winrt::Windows::UI::Color{kSourceBadgeBackgroundAlpha, rgb.r, rgb.g, rgb.b});
     }
 };
+
+/// Parse a Track from the core's snake_case JSON (used for coordinator
+/// event payloads like track_changed). Declared after `Track` (#408).
+Track ParseTrackJson(const std::string& json);
 
 /// One parsed M3U8 entry — named fields across the seam (#177). Field list
 /// and codec come from contracts/ffi-contract.json (#180).

@@ -67,9 +67,14 @@ set(SOURCES
 # Create executable
 add_executable(${PROJECT_NAME} WIN32 ${SOURCES})
 
+# Bridge/ holds the core's C header, included as <rhythm_core.h> (#408).
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Rhythm
+    ${CMAKE_CURRENT_SOURCE_DIR}/Rhythm/Bridge
 )
+
+# <Windows.h> defines min/max macros that break std::min/max and Catch2 (#408).
+target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX)
 
 # The L10n layer holds the remaining Chinese literals (localized fallback);
 # force UTF-8 so MSVC reads them regardless of the system code page.
@@ -126,7 +131,8 @@ add_executable(RhythmTests ${TEST_SOURCES})
 
 # catch_amalgamated.cpp ships its own main(); TestMain.cpp provides ours
 # (with init_apartment), so tell Catch2 to stand down.
-target_compile_definitions(RhythmTests PRIVATE CATCH_AMALGAMATED_CUSTOM_MAIN)
+# NOMINMAX: <Windows.h>'s min/max macros collide with Catch2 (C2589, #408).
+target_compile_definitions(RhythmTests PRIVATE CATCH_AMALGAMATED_CUSTOM_MAIN NOMINMAX)
 
 # The L10n layer holds the remaining Chinese literals; force UTF-8 so MSVC
 # reads them regardless of the system code page (main target: same flag).
@@ -136,6 +142,7 @@ endif()
 
 target_include_directories(RhythmTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Rhythm
+    ${CMAKE_CURRENT_SOURCE_DIR}/Rhythm/Bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/vendor
 )
 

@@ -23,6 +23,9 @@ if(MSVC)
     target_compile_options(rhythm_color_tests PRIVATE /utf-8)
 endif()
 
+# <Windows.h> 的 min/max 宏与标准库冲突（#408，主工程同款定义）。
+target_compile_definitions(rhythm_color_tests PRIVATE NOMINMAX)
+
 target_link_libraries(rhythm_color_tests PRIVATE Microsoft.WindowsAppSDK)
 
 enable_testing()
