@@ -8,9 +8,12 @@
 
 #include <nlohmann/json.hpp>
 
+#include "RhythmCore.h"
+#include "MessageSpec.h"
+
 namespace rhythm::generated {
 
-// Utf8ToWide / WideToUtf8 由 RhythmCore.cpp 提供（见 RhythmCore.h）。
+// 模型与 Utf8ToWide 声明在 RhythmCore.h，WideToUtf8 声明在 MessageSpec.h（#413）。
 using nlohmann::json;
 
 

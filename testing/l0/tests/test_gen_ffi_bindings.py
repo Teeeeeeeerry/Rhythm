@@ -79,6 +79,29 @@ class CppEncoderShapeTests(unittest.TestCase):
                 self.assertNotIn(f'j["{key}"] = WideToUtf8(', encoder, key)
 
 
+class CppEncodeDispatchTests(unittest.TestCase):
+    """#413：必选与可选字段对同一类型产出同一编码表达式。"""
+
+    # 必选字段 -> 同类型的可选字段（EVERY_TYPE 里的成对字段）。
+    PAIRS = {"name": "maybeName", "count": "maybeCount", "size": "maybeSize",
+             "ratio": "maybeRatio", "flag": "maybeFlag"}
+
+    def test_optional_field_encodes_like_its_required_counterpart(self):
+        lines = [line.strip() for line in
+                 gen.cpp_encode_object("Sample", EVERY_TYPE, "Sample").splitlines()]
+        for required, maybe in self.PAIRS.items():
+            required_rhs = next(l for l in lines if l.startswith(f'j["{required}"] = '))
+            optional_rhs = next(l for l in lines if l.startswith(f"if (t.{maybe}) "))
+            self.assertEqual(optional_rhs.split(" = ", 1)[1],
+                             required_rhs.split(" = ", 1)[1].replace(f"t.{required}", f"*t.{maybe}"),
+                             required)
+
+    def test_unsupported_type_is_rejected_in_both_branches(self):
+        for t in ("blob", "blob?"):
+            with self.assertRaises(SystemExit):
+                gen.cpp_encode_object("Sample", {"x": t}, "Sample")
+
+
 class CppIncludesTests(unittest.TestCase):
     """#361：生成物自带它使用的头文件包含，不依赖调用方的预编译头。"""
 
@@ -90,6 +113,13 @@ class CppIncludesTests(unittest.TestCase):
         includes = self.include_block(cpp)
         for header in ("<cstdint>", "<optional>", "<string>", "<nlohmann/json.hpp>"):
             self.assertIn(f"#include {header}", includes)
+
+    def test_output_includes_the_headers_declaring_models_and_conversions(self):
+        # #413：模型与 Utf8ToWide 在 RhythmCore.h，WideToUtf8 在 MessageSpec.h；
+        # 生成物自己包含它们，单独包含 GeneratedCodec.h 即可编译。
+        includes = self.include_block(gen.gen_cpp(gen.load_schema()))
+        self.assertIn('#include "RhythmCore.h"', includes)
+        self.assertIn('#include "MessageSpec.h"', includes)
 
     def test_map_field_brings_its_own_include(self):
         includes = gen.cpp_includes([("Sample", {"headers": "map", "name": "string"})])

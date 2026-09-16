@@ -168,7 +168,7 @@ CPP_HEADER = """// 本文件由 scripts/gen-ffi-bindings.py 从 contracts/ffi-co
 
 namespace rhythm::generated {
 
-// Utf8ToWide / WideToUtf8 由 RhythmCore.cpp 提供（见 RhythmCore.h）。
+// 模型与 Utf8ToWide 声明在 RhythmCore.h，WideToUtf8 声明在 MessageSpec.h（#413）。
 using nlohmann::json;
 
 """
@@ -236,40 +236,41 @@ def cpp_decode_object(name: str, fields: dict, model: str) -> str:
     return "\n".join(lines)
 
 
+# #413: the one type -> encode expression table, shared by required and
+# optional fields. Only strings are converted; numbers and booleans are
+# assigned as-is (#360: handing them to WideToUtf8 did not compile).
+CPP_ENCODE = {
+    "string": "WideToUtf8({v})",
+    "source_type": "WideToUtf8({v})",
+    "i32": "{v}",
+    "i64": "{v}",
+    "f64": "{v}",
+    "bool": "{v}",
+}
+
+
+def cpp_encode_expr(t: str, value: str, key: str) -> str:
+    try:
+        return CPP_ENCODE[t].format(v=value)
+    except KeyError:
+        raise SystemExit(f"unsupported cpp type {t} for {key}") from None
+
+
 def cpp_encode_object(name: str, fields: dict, model: str) -> str:
     lines = [f"/// Encode a {name} with snake_case keys (contract #{name})."]
     lines.append(f"inline json {name}ToJson(const {model}& t) {{")
     lines.append("    json j;")
     for key, t in fields.items():
         prop = camel(key)
-        if t.endswith("?"):
-            # #360: dispatch on the declared type. Only strings are converted;
-            # numbers and booleans are assigned as-is (they used to be handed to
-            # WideToUtf8, which only accepts std::wstring, so the output did
-            # not compile).
-            base = t[:-1]
-            if base == "string":
-                lines.append(f"    if (t.{prop}) j[\"{key}\"] = WideToUtf8(*t.{prop});")
-            elif base in ("i32", "i64", "f64", "bool"):
-                lines.append(f"    if (t.{prop}) j[\"{key}\"] = *t.{prop};")
-            else:
-                raise SystemExit(f"unsupported cpp optional type {t} for {key}")
-        elif t in ("string", "source_type"):
-            lines.append(f"    j[\"{key}\"] = WideToUtf8(t.{prop});")
-        elif t == "i64":
-            lines.append(f"    j[\"{key}\"] = t.{prop};")
-        elif t == "i32":
-            lines.append(f"    j[\"{key}\"] = t.{prop};")
-        elif t == "f64":
-            lines.append(f"    j[\"{key}\"] = t.{prop};")
-        elif t == "bool":
-            lines.append(f"    j[\"{key}\"] = t.{prop};")
-        elif t == "map":
+        if t == "map":
             lines.append(f"    for (const auto& [k, v] : t.{prop}) {{")
             lines.append(f"        j[\"{key}\"][WideToUtf8(k)] = WideToUtf8(v);")
             lines.append("    }")
+        elif t.endswith("?"):
+            expr = cpp_encode_expr(t[:-1], f"*t.{prop}", key)
+            lines.append(f"    if (t.{prop}) j[\"{key}\"] = {expr};")
         else:
-            raise SystemExit(f"unsupported cpp type {t} for {key}")
+            lines.append(f"    j[\"{key}\"] = {cpp_encode_expr(t, 't.' + prop, key)};")
     lines.append("    return j;")
     lines.append("}")
     return "\n".join(lines)
@@ -299,7 +300,10 @@ def cpp_includes(objects: list[tuple[str, dict]]) -> list[str]:
         includes.append("<map>")
     if any(t.endswith("?") for t in types):
         includes.append("<optional>")
-    includes += ["<string>", "", "<nlohmann/json.hpp>"]
+    includes += ["<string>", "", "<nlohmann/json.hpp>", "",
+                 # #413: models + Utf8ToWide, and WideToUtf8 -- the output
+                 # compiles when included on its own.
+                 '"RhythmCore.h"', '"MessageSpec.h"']
     return [f"#include {h}" if h else "" for h in includes]
 
 
