@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "RhythmCore.h"
 #include "GeneratedCodec.h"
-#include "L10n.h"
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
@@ -391,11 +390,10 @@ ResolveOutcome Resolver::ResolveURL(const std::wstring& url) {
 
     ResolveOutcome outcome;
     if (!json_str) {
-        // #374: no payload at all - the key table's localized copy, not a
-        // hardcoded English literal (macOS ResolveError.unknown parity).
+        // No payload at all: leave the message empty so the one fallback in
+        // L10n::UrlResolveError picks the copy (#374, #412).
         outcome.ok = false;
         outcome.errorKind = L"internal";
-        outcome.errorMessage = L10n::UrlResolveFailed();
         return outcome;
     }
 
