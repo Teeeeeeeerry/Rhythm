@@ -139,7 +139,7 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
 | 文档 | 受众 | 内容 |
 |------|------|------|
 | README.md / README.en.md | 人 | 功能总览、架构介绍、构建方式；版本行与 `Cargo.toml` 同步，每次发布更新 |
-| docs/adr/ | 人+agent | 架构与流程决策记录（现有 0001 行为清单制测试教义） |
+| docs/adr/ | 人+agent | 架构与流程决策记录（0001 行为清单制测试教义、0002 测试桩按平台可执行形式调用、0003 Windows App SDK 接入方式） |
 | docs/testing/behavior/ | 人+agent | 按模块的行为清单 + 红测登记（测试完整性的交付物） |
 | docs/issues/ | 人+agent | 已调查并辑录的 bug 报告（issue 草稿，可直接贴 GitHub） |
 | testing/deep-testing-plan.md | 人 | 主题色彩测试方案（L0-L4）+ F1-F8 修复状态 |

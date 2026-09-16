@@ -43,7 +43,7 @@ jobs:
       - run: cargo test -p rhythm-core
 
   windows:
-    name: Windows 测试（L1 + L2）
+    name: Windows 测试（L0 + L1）
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
