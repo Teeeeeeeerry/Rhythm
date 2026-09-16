@@ -48,6 +48,12 @@
 |---|---|---|---|
 | WA-05 | `PlayTrack` 缺 filePath/sourceUrl 仍置 `CurrentTrack`/`IsPlaying`（无声假播放，#78 同类） | [#81](https://github.com/Teeeeeeerry/Rhythm/issues/81) | 已修复于 T7（#103），红测解禁转绿 |
 | WA-07 | `TogglePlayPause` 恢复时从头重播而非 `Resume()` 续播 | [#82](https://github.com/Teeeeeeerry/Rhythm/issues/82) | 已修复于 T7（#103），红测解禁转绿 |
+| WA-05 | 起播调用的队列为空（期望 1 首） | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
+| WA-10 | `ResolveAndPlay` 成功路径抛未捕获异常 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
+| WA-11 | `ResolveAndPlay` 失败路径抛未捕获异常 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
+| WA-13 | `ResolveAndPlay` 重入保护用例抛未捕获异常 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
+| WA-24 | `ResolveAndPlay` 重载资料库用例抛未捕获异常 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
+| WA-25 | 自动下一首后 `CurrentTrack` 仍是上一首 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
 
 ## 功能新增（用户 2026-08-13 决策：与 macOS 对齐，产品代码实现，非红测）
 

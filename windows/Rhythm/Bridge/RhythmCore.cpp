@@ -44,6 +44,15 @@ static std::vector<Track> ParseTrackList(const char* json) {
     return tracks;
 }
 
+/// Track list -> core JSON array, one generated encoder call per track (#416).
+static std::string TracksToJson(const std::vector<Track>& tracks) {
+    json j = json::array();
+    for (const auto& t : tracks) {
+        j.push_back(generated::TrackToJson(t));
+    }
+    return j.dump();
+}
+
 static std::vector<Playlist> ParsePlaylistList(const char* json) {
     if (!json) return {};
     auto j = json::parse(json);
