@@ -13,12 +13,18 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SCHEMA = os.path.join(ROOT, "contracts", "l10n-keys.json")
-SWIFT_OUT = os.path.join(ROOT, "macos", "Rhythm", "Models", "L10nKeys.swift")
-CPP_OUT = os.path.join(ROOT, "windows", "Rhythm", "Bridge", "L10nKeys.h")
+# Repo-relative paths, declared once here; check-l10n-keys.py reads them (#410).
+SCHEMA_REL = "contracts/l10n-keys.json"
+SWIFT_OUT_REL = "macos/Rhythm/Models/L10nKeys.swift"
+CPP_OUT_REL = "windows/Rhythm/Bridge/L10nKeys.h"
 # Windows named accessors (#371): the module's call surface, generated from the
 # same key table so the checked surface and the called surface are one set.
-ACCESSORS_OUT = os.path.join(ROOT, "windows", "Rhythm", "L10nAccessors.h")
+ACCESSORS_OUT_REL = "windows/Rhythm/L10nAccessors.h"
+
+SCHEMA = os.path.join(ROOT, *SCHEMA_REL.split("/"))
+SWIFT_OUT = os.path.join(ROOT, *SWIFT_OUT_REL.split("/"))
+CPP_OUT = os.path.join(ROOT, *CPP_OUT_REL.split("/"))
+ACCESSORS_OUT = os.path.join(ROOT, *ACCESSORS_OUT_REL.split("/"))
 
 
 def load(path=None) -> dict:
