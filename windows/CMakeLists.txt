@@ -121,6 +121,8 @@ set(TEST_SOURCES
     Rhythm/Models/Track.cpp
     tests/TestMain.cpp
     tests/TestHelpers.h
+    # #413: GeneratedCodec.h included alone must compile.
+    tests/GeneratedCodecStandalone.cpp
     tests/vendor/catch_amalgamated.cpp
     tests/AppStateBehaviorTests.cpp
     tests/BridgeBehaviorTests.cpp
