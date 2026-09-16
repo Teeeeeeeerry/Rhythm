@@ -21,6 +21,7 @@
 | WB-12 | `Resolver::StatusText` | checking/verifying/updating/failed 各文案；downloading 有 total 时 `x / y MB`、无 total 时 `x MB`；未知/quiet → 空串 | 新测 |
 | WB-13 | `ResolverStatus::IsQuiet` | idle/ready → true；其余 → false | 新测 |
 | WB-14 | `Resolver::ClassifyURL` | 返回 "youtube"/"bilibili"/"direct_url"；失败 → 空串 | 新测 |
+| WB-17 | `Coordinator` 绑定真实 `Library` 起播 | `Library::Handle()` 交给核心：起播成功则该曲目播放次数加一；无音频设备时结果为核心分类错误 `playback_failed` 且不记录（#416） | 新测 |
 
 ## 边界情况（P1）
 
@@ -28,6 +29,8 @@
 |---|---|---|---|
 | WB-15 | `ResolveURL` malformed JSON | `ok=false`、kind=internal、消息含 "Malformed resolver response"（分支现状不可达：core 自产 payload 恒可解；测试锁定 core payload 恒解码） | 新测（待 Windows 验证） |
 | WB-16 | `ParseTrackList` 空/null 输入 | 返回空列表，不崩溃（null 分支不可达：FFI 空库返回 `"[]"` 非 null；经 `AllTracks` 黑盒锁定空库 → 空列表） | 新测（待 Windows 验证） |
+| WB-18 | `Coordinator::SyncQueue` 空队列 | 不崩溃；之后起播结果与非空队列一致（队列序列化为合法空数组，#416） | 新测 |
+| WB-19 | 协调器绑定打开失败的 `Library` | 句柄为空；起播/传输/同步调用安全返回、不崩溃（#416） | 新测 |
 
 ## 错误路径（P2）
 
@@ -35,4 +38,8 @@
 
 ## 红测登记
 
-（暂空。实现时若发现现状代码与清单不符，测试照写、禁用并挂 issue 编号，在此登记。）
+| 编号 | 缺陷 | issue | 状态 |
+|---|---|---|---|
+| WB-02 | `SourceTag` 返回英文 "Local"，测试期望「本地」 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
+| WB-04 | `SourceBackgroundBrush` 抛未捕获异常 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
+| WB-12 | `StatusText` 返回英文文案，测试期望中文 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |

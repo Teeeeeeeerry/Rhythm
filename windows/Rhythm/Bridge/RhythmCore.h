@@ -201,6 +201,10 @@ public:
     /// (#233); nullopt means the playlist could not be read.
     std::optional<M3u8ImportOutcome> ImportM3U8(const std::wstring& path);
 
+    /// The underlying core handle, for the coordinator (#416). Ownership stays
+    /// here; null when the database failed to open.
+    RhythmLibrary* Handle() const { return ptr_; }
+
 private:
     RhythmLibrary* ptr_ = nullptr;
 };
