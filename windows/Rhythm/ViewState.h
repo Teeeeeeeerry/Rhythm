@@ -21,8 +21,19 @@ struct TrackRow {
     std::wstring title;
 };
 
-/// The library list: one row per loaded library track.
-std::vector<TrackRow> LibraryRows(const AppState& state);
+/// The library's two orders (#336).
+enum class LibrarySort {
+    /// By artist, then album, then track number. A missing artist or album
+    /// sorts as an empty name, a missing track number as 0.
+    ArtistAlbum,
+    /// By title, ascending.
+    Alphabetical,
+};
+
+/// The library list: one row per loaded library track, in `sort` order.
+/// Stable -- rows that compare equal keep their library order -- and the
+/// state is only read (#336).
+std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort);
 
 /// What the player bar shows.
 struct PlayerBar {

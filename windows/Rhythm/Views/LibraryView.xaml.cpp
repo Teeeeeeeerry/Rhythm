@@ -26,16 +26,11 @@ void LibraryView::InitializeComponent() {
 
 void LibraryView::BindState(rhythm::AppState* state) {
     appState_ = state;
-    PopulateArtistAlbum();
+    Populate();
 }
 
 void LibraryView::OnPivotChanged(IInspectable const&, SelectionChangedEventArgs const&) {
-    if (!appState_) return;
-    if (viewPivot().SelectedIndex() == 0) {
-        PopulateArtistAlbum();
-    } else {
-        PopulateAlphabetical();
-    }
+    Populate();
 }
 
 void LibraryView::OnTrackClick(IInspectable const&, ItemClickEventArgs const& args) {
@@ -44,40 +39,20 @@ void LibraryView::OnTrackClick(IInspectable const&, ItemClickEventArgs const& ar
     appState_->PlayTrack(get_self<Models::implementation::TrackItem>(item)->Model());
 }
 
-void LibraryView::PopulateArtistAlbum() {
+void LibraryView::Populate() {
     if (!appState_) return;
-    // Sort a copy so the shared AppState::Tracks order is never mutated
-    auto tracks = appState_->Tracks;
-
-    // Sort by artist then album then track number
-    std::sort(tracks.begin(), tracks.end(),
-        [](const auto& a, const auto& b) {
-            auto artA = a.artist.value_or(L"");
-            auto artB = b.artist.value_or(L"");
-            if (artA != artB) return artA < artB;
-            auto albA = a.album.value_or(L"");
-            auto albB = b.album.value_or(L"");
-            if (albA != albB) return albA < albB;
-            return a.trackNumber.value_or(0) < b.trackNumber.value_or(0);
-        });
-    ShowTracks(tracks);
+    // The sort rules live in the view state (#336); the pivot only picks one.
+    auto sort = viewPivot().SelectedIndex() == 0 ? rhythm::view::LibrarySort::ArtistAlbum
+                                                 : rhythm::view::LibrarySort::Alphabetical;
+    ShowRows(rhythm::view::LibraryRows(*appState_, sort));
 }
 
-void LibraryView::PopulateAlphabetical() {
-    if (!appState_) return;
-    // Sort a copy so the shared AppState::Tracks order is never mutated
-    auto tracks = appState_->Tracks;
-    std::sort(tracks.begin(), tracks.end(),
-        [](const auto& a, const auto& b) { return a.title < b.title; });
-    ShowTracks(tracks);
-}
-
-void LibraryView::ShowTracks(std::vector<rhythm::Track> const& tracks) {
-    ShowEmptyMessage(tracks.empty());
+void LibraryView::ShowRows(std::vector<rhythm::view::TrackRow> const& rows) {
+    ShowEmptyMessage(rows.empty());
     auto items = winrt::single_threaded_observable_vector<IInspectable>();
     const bool isDark = rhythm::shell::IsDarkTheme();  // #342: resolved once, by the shell
-    for (const auto& track : tracks) {
-        items.Append(winrt::make<Models::implementation::TrackItem>(track, isDark));
+    for (const auto& row : rows) {
+        items.Append(winrt::make<Models::implementation::TrackItem>(row.track, isDark));
     }
     trackList().ItemsSource(items);
 }
