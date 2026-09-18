@@ -13,6 +13,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -255,6 +256,24 @@ class WindowsStepTableTest(unittest.TestCase):
                     code = step.action()
                 self.assertEqual(code, 1, step.name)
                 self.assertIn("CMakeLists.txt", out.getvalue(), step.name)
+
+    def test_build_and_ctest_steps_name_the_same_config(self):
+        # Visual Studio 是多配置生成器：构建带 --config 而 ctest 不带 -C，ctest 找不到
+        # 该配置的可执行文件，报 Not Run（#427）。每个构建与 ctest 步骤都得点名同一配置。
+        config = task_test.task_build.WINDOWS_CONFIG
+        segments = ("L1 颜色测试", "L1b 应用工程测试")
+        stages = ("cmake 构建", "ctest")
+        seen: list[list[str]] = []
+        with mock.patch.object(task_test.tasklib, "run",
+                               lambda cmd, **_: seen.append(list(cmd)) or 0):
+            for step in task_test.windows_steps(self.root):
+                if any(step.name.endswith(stage) for stage in stages):
+                    step.action()
+        self.assertEqual(len(seen), len(segments) * len(stages), seen)
+        for cmd in seen:
+            flag = "-C" if cmd[0] == "ctest" else "--config"
+            self.assertIn(flag, cmd, cmd)
+            self.assertEqual(cmd[cmd.index(flag) + 1], config, cmd)
 
     def test_smoke_segment_is_opt_in(self):
         without = task_test.windows_steps(self.root, smoke=False)
