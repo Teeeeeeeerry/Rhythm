@@ -15,7 +15,8 @@ enum class Icon { Play, Pause, List, Shuffle, RepeatOne, RepeatAll };
 
 /// One row of a track list. `track` is the row's action payload -- what a
 /// click hands to `AppState::PlayTrack`, never rendered; the other fields are
-/// exactly what the row shows, so the shell reads nothing off the model.
+/// exactly what the row shows. The list views bind to them from #339; until
+/// then the shell's row model still derives its text from the track.
 struct TrackRow {
     Track track;
     std::wstring title;
