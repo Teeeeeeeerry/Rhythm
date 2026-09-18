@@ -1,6 +1,7 @@
 // WB-01–19：Windows RhythmCore（Bridge 封装层）行为清单（manifest:
 // docs/testing/behavior/rhythmcore-windows.md）。零接缝：真 rhythm_core DLL
-//（WB-05/06/07/09/10/14 经 FFI 往返），纯函数直测（WB-01–04/12/13）。
+//（WB-05/06/07/09/10/14 经 FFI 往返），纯函数直测（WB-02–04/12/13；WB-01 的时长文案
+// 已迁入视图状态，见 ViewStateTests.cpp VS-18～VS-20，#337）。
 //
 // 这些测试在本机（macOS）不可运行——提交后在 Windows 上 `ctest` 验证。
 
@@ -12,18 +13,6 @@
 
 using namespace rhythm;
 using namespace rhythm_tests;
-
-// ─── WB-01 DurationFormatted ────────────────────────────────────────
-
-TEST_CASE("WB-01 DurationFormatted renders m:ss with zero padding") {
-    Track t;
-    t.duration = 65.0;
-    REQUIRE(t.DurationFormatted() == L"1:05");
-    t.duration = 5.0;
-    REQUIRE(t.DurationFormatted() == L"0:05");
-    t.duration = 0.0;
-    REQUIRE(t.DurationFormatted() == L"0:00");
-}
 
 // ─── WB-02/03 SourceTag / SourceColor ───────────────────────────────
 

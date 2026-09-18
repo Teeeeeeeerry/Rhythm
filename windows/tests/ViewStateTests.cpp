@@ -234,3 +234,33 @@ TEST_CASE("VS-13 buffering counts as playing for the play button") {
     state.IsBuffering = true;
     REQUIRE(view::PlayerBarState(state).playIcon == view::Icon::Pause);
 }
+
+// ─── VS-18/19/20 曲目行时长文案（#337，原 WB-01）────────────────────
+
+namespace {
+
+std::wstring durationTextFor(double seconds) {
+    AppState state;
+    auto track = makeLocalTrack(L"C:\\m\\a.mp3", L"a");
+    track.duration = seconds;
+    state.Tracks = {track};
+    return view::LibraryRows(state, view::LibrarySort::Alphabetical).at(0).durationText;
+}
+
+} // namespace
+
+TEST_CASE("VS-18 a row's duration renders as m:ss with the seconds zero-padded") {
+    REQUIRE(durationTextFor(65.0) == L"1:05");
+    REQUIRE(durationTextFor(5.0) == L"0:05");
+    REQUIRE(durationTextFor(125.9) == L"2:05");
+}
+
+TEST_CASE("VS-19 a zero duration renders 0:00") {
+    REQUIRE(durationTextFor(0.0) == L"0:00");
+}
+
+TEST_CASE("VS-20 over an hour the minutes keep counting (macOS parity)") {
+    // Track.swift durationFormatted is "%d:%02d" of whole minutes too.
+    REQUIRE(durationTextFor(3725.0) == L"62:05");
+    REQUIRE(durationTextFor(36000.0) == L"600:00");
+}

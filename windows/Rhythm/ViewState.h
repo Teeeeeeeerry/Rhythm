@@ -19,7 +19,14 @@ enum class Icon { Play, Pause, List, Shuffle, RepeatOne, RepeatAll };
 struct TrackRow {
     Track track;
     std::wstring title;
+    /// m:ss, seconds zero-padded; past an hour the minutes keep counting
+    /// (62:05), as on macOS (#337).
+    std::wstring durationText;
 };
+
+/// A track's duration as a row shows it (#337). Until the list rows are
+/// rebound to TrackRow (#339), the shell's row model reads it from here.
+std::wstring DurationText(const Track& track);
 
 /// The library's two orders (#336).
 enum class LibrarySort {

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Models/TrackItem.h"
+#include "ViewState.h"
 #if __has_include("Models/TrackItem.g.cpp")
 #include "Models/TrackItem.g.cpp"
 #endif
@@ -34,6 +35,6 @@ winrt::Microsoft::UI::Xaml::Media::Brush TrackItem::SourceBackground() const {
     return ToBrush(track_.SourceBackgroundColor(isDarkTheme_));
 }
 
-hstring TrackItem::DurationText() const { return hstring{track_.DurationFormatted()}; }
+hstring TrackItem::DurationText() const { return hstring{rhythm::view::DurationText(track_)}; }
 
 } // namespace winrt::Rhythm::Models::implementation
