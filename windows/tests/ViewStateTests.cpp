@@ -397,3 +397,23 @@ TEST_CASE("VS-28 an unknown playlist renders no rows") {
     state.Playlists = {mine};
     REQUIRE(view::PlaylistRows(state, 99, true).empty());
 }
+
+// ─── VS-29 托盘菜单文案（#340）──────────────────────────────────────
+
+TEST_CASE("VS-29 the tray menu carries its three labels in the current language") {
+    AppState state;
+    {
+        LanguageScope zh(L"zh");
+        auto menu = view::TrayMenuState(state);
+        REQUIRE(menu.playPause == L"播放 / 暂停");
+        REQUIRE(menu.showWindow == L"显示主窗口");
+        REQUIRE(menu.quit == L"退出 Rhythm");
+    }
+    {
+        LanguageScope en(L"en");
+        auto menu = view::TrayMenuState(state);
+        REQUIRE(menu.playPause == L"Play / Pause");
+        REQUIRE(menu.showWindow == L"Show Window");
+        REQUIRE(menu.quit == L"Quit Rhythm");
+    }
+}
