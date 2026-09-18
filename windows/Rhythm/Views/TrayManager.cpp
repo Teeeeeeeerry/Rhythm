@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "Views/TrayManager.h"
 #include "AppState.h"
-#include "L10n.h"
+#include "ViewState.h"
 
 #include <shellapi.h>
 
@@ -67,12 +67,15 @@ LRESULT TrayManager::MessageHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             POINT pt;
             ::GetCursorPos(&pt);
 
+            // What the menu shows comes from the view state (#340); this only
+            // builds the native menu from it.
+            if (!appState_) break;
+            auto model = rhythm::view::TrayMenuState(*appState_);
             HMENU menu = ::CreatePopupMenu();
-            // #141: tray copy follows the language layer like everything else.
-            ::AppendMenuW(menu, MF_STRING, 1, rhythm::L10n::TrayPlayPause().c_str());
-            ::AppendMenuW(menu, MF_STRING, 2, rhythm::L10n::TrayShowWindow().c_str());
+            ::AppendMenuW(menu, MF_STRING, 1, model.playPause.c_str());
+            ::AppendMenuW(menu, MF_STRING, 2, model.showWindow.c_str());
             ::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-            ::AppendMenuW(menu, MF_STRING, 3, rhythm::L10n::TrayQuit().c_str());
+            ::AppendMenuW(menu, MF_STRING, 3, model.quit.c_str());
 
             ::SetForegroundWindow(hwnd);
             ::TrackPopupMenu(menu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, nullptr);

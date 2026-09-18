@@ -92,4 +92,15 @@ struct PlayerBar {
 
 PlayerBar PlayerBarState(const AppState& state);
 
+/// The notification-area menu (#340): its item labels, in the language the
+/// language layer currently resolves. The tray builds the native menu from
+/// this and nothing else.
+struct TrayMenu {
+    std::wstring playPause;
+    std::wstring showWindow;
+    std::wstring quit;
+};
+
+TrayMenu TrayMenuState(const AppState& state);
+
 } // namespace rhythm::view
