@@ -27,11 +27,15 @@ Icon PlayModeIcon(PlayMode mode) {
 
 } // namespace
 
+std::wstring DurationText(const Track& track) {
+    return MinutesSeconds(track.duration);
+}
+
 std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort) {
     std::vector<TrackRow> rows;
     rows.reserve(state.Tracks.size());
     for (const auto& track : state.Tracks) {
-        rows.push_back(TrackRow{track, track.title});
+        rows.push_back(TrackRow{track, track.title, DurationText(track)});
     }
 
     switch (sort) {

@@ -42,12 +42,6 @@ struct Track {
     std::optional<std::wstring> artworkPath;
     bool isAvailable = true;
 
-    std::wstring DurationFormatted() const {
-        int m = static_cast<int>(duration) / 60;
-        int s = static_cast<int>(duration) % 60;
-        return std::format(L"{}:{:02}", m, s);
-    }
-
     std::wstring SourceTag() const {
         return L10n::SourceTag(sourceType);
     }

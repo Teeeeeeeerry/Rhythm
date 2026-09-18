@@ -8,7 +8,7 @@
 
 | 编号 | 行为 | 断言 | 状态 |
 |---|---|---|---|
-| WB-01 | `Track::DurationFormatted` | 秒 → `m:ss` 格式（秒位零填充） | 新测 |
+| WB-01 | 时长文案（原 `Track::DurationFormatted`） | 已随 #337 迁入视图状态的行时长文案，见 `windows-viewstate.md` VS-18～VS-20 | 已迁移 |
 | WB-02 | `Track::SourceTag` | local→本地/Local、youtube→YT、bilibili→B站/Bili、direct_url→链接/Link、未知→空串（中/英各固定一次） | 新测 |
 | WB-03 | `Track::SourceColor(sourceType, isDarkTheme)` | 四种来源 dark/light 双端色值（与 macOS Theme.swift 一致，#121）；未知来源回退 teal 文字色（dark `#ABC8D4` / light `#0D464D`），非系统 Gray（F4）；#147 起前景与胶囊底共用 `SourceColorRGB` 单一表映射 | 新测 |
 | WB-04 | `Track::SourceBackgroundColor` | A=38、RGB 与 SourceColor 一致（dark/light 各一次）、未知回退灰；返回普通结构 `rhythm::Color`，画刷由壳的 `TrackItem` 包装（#328） | 新测 |
