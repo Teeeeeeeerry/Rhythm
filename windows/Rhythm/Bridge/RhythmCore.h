@@ -20,8 +20,8 @@ inline bool IsDarkTheme() {
 }
 
 /// A colour as plain bytes (#328): the model carries no UI-framework type.
-/// Same field layout as `Windows::UI::Color`, so the shell converts field by
-/// field when it builds a brush.
+/// Field names and order mirror `Windows::UI::Color` on purpose, so the shell
+/// converts field by field when it builds a brush.
 struct Color {
     uint8_t A, R, G, B;
 };
