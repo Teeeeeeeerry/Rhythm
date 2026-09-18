@@ -11,10 +11,11 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from script_runner import run_script
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "testing" / "l0" / "check-token-coverage.py"
@@ -35,10 +36,7 @@ def build_tree(root: Path, views: dict[str, str]) -> None:
 
 class TokenCoverageTests(unittest.TestCase):
     def run_check(self, root: Path) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [sys.executable, str(SCRIPT), "--root", str(root), "--log", str(root / "out.log")],
-            capture_output=True, text=True, encoding="utf-8",
-        )
+        return run_script(str(SCRIPT), "--root", str(root), "--log", str(root / "out.log"))
 
     def test_branded_views_pass(self):
         with tempfile.TemporaryDirectory() as tmp:

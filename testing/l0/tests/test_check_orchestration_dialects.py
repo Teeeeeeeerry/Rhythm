@@ -9,10 +9,11 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from script_runner import run_script
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "testing" / "l0" / "check-orchestration-dialects.py"
@@ -32,11 +33,8 @@ def make_repo(root: Path, files: dict[str, str]) -> None:
 class OrchestrationDialectTests(unittest.TestCase):
     def run_check(self, root: Path, log: Path | None = None):
         with tempfile.TemporaryDirectory() as log_dir:
-            return subprocess.run(
-                [sys.executable, str(SCRIPT), "--root", str(root),
-                 "--log", str(log or Path(log_dir) / "check.log")],
-                capture_output=True, text=True,
-            )
+            return run_script(str(SCRIPT), "--root", str(root),
+                              "--log", str(log or Path(log_dir) / "check.log"))
 
     def test_python_only_tree_passes(self):
         with tempfile.TemporaryDirectory() as tmp:

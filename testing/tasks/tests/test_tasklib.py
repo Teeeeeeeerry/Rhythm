@@ -7,10 +7,14 @@
 
 from __future__ import annotations
 
+import io
+import os
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -97,6 +101,21 @@ class SubprocessTest(unittest.TestCase):
                 log=log, echo=False,
             )
             self.assertIn("hello from step", log.read_text(encoding="utf-8"))
+
+    def test_python_child_writes_utf8_whatever_the_locale(self):
+        # #433: run 按 UTF-8 解码子进程输出；区域编码为 cp1252 时子进程打印中文
+        # 曾直接抛 UnicodeEncodeError。
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "step.log"
+            out = io.StringIO()
+            with mock.patch.dict(os.environ, {"PYTHONIOENCODING": "cp1252"}),                     redirect_stdout(out):
+                code = tasklib.run(
+                    [sys.executable, "-c", "print('中文输出')"],
+                    log=log, echo=False,
+                )
+            self.assertEqual(code, 0)
+            self.assertIn("中文输出", out.getvalue())
+            self.assertIn("中文输出", log.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

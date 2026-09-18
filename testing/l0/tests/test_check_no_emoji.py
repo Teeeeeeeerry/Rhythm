@@ -10,10 +10,11 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from script_runner import run_script
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "scripts" / "check_no_emoji.py"
@@ -36,11 +37,8 @@ def make_repo(root: Path, files: dict[str, bytes]) -> None:
 
 class CheckNoEmojiTests(unittest.TestCase):
     def run_check(self, root: Path) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [sys.executable, str(SCRIPT), "--root", str(root),
-             "--log", str(root / "check.log")],
-            capture_output=True, text=True,
-        )
+        return run_script(str(SCRIPT), "--root", str(root),
+                          "--log", str(root / "check.log"))
 
     def test_clean_tree_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

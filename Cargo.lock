@@ -1582,7 +1582,7 @@ dependencies = [
 
 [[package]]
 name = "rhythm-core"
-version = "0.5.171"
+version = "0.5.172"
 dependencies = [
  "blake3",
  "cpal",

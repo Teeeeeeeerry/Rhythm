@@ -109,6 +109,7 @@ def print_tasks() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    tasklib.utf8_stdio()  # #433: 非 UTF-8 区域下打印中文不崩
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0] in ("-h", "--help", "help", "list"):
         print_tasks()

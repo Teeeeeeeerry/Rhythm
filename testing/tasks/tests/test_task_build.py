@@ -12,10 +12,12 @@ Windows 侧的派生发生在 cmake 配置期，本机没有 cmake 时只能锁�
 
 from __future__ import annotations
 
+import io
 import re
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -77,10 +79,18 @@ class BundleVersionTest(unittest.TestCase):
         self.assertIn(f"<string>{tasklib.workspace_version(ROOT)}</string>", filled)
 
 
+def capture_stdout(test: unittest.TestCase) -> None:
+    """构建任务在本进程里打印中文进度；收进缓冲，不依赖测试进程的区域编码（#433）。"""
+    patcher = mock.patch("sys.stdout", new_callable=io.StringIO)
+    patcher.start()
+    test.addCleanup(patcher.stop)
+
+
 class WindowsBuildOrderTest(unittest.TestCase):
     """ADR-0004（#428）：CMake 出核心与行为库，MSBuild 出应用，入口仍是一条命令。"""
 
     def setUp(self):
+        capture_stdout(self)
         self.calls: list[list[str]] = []
         self._run_checked = tasklib.run_checked
         self.addCleanup(setattr, tasklib, "run_checked", self._run_checked)
@@ -111,6 +121,7 @@ class BuildFailurePropagationTest(unittest.TestCase):
     """构建失败必须非零退出，不得继续执行并报成功。"""
 
     def setUp(self):
+        capture_stdout(self)
         self._run_checked = tasklib.run_checked
         self.addCleanup(setattr, tasklib, "run_checked", self._run_checked)
 

@@ -13,10 +13,11 @@ from __future__ import annotations
 import importlib.util
 import json
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from script_runner import run_script
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "testing" / "l0" / "check-l10n-keys.py"
@@ -72,10 +73,7 @@ def build_tree(root: Path, table: dict, *, accessors: str | None = None,
 
 
 def run_check(root: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), "--root", str(root)],
-        capture_output=True, text=True, encoding="utf-8",
-    )
+    return run_script(str(SCRIPT), "--root", str(root))
 
 
 class CheckL10nAccessorTests(unittest.TestCase):
@@ -200,9 +198,7 @@ class AccessorNamingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             build_tree(Path(tmp), TABLE)
             self.assertEqual(gen_l10n.load(Path(tmp) / "contracts" / "l10n-keys.json"), TABLE)
-            result = subprocess.run(
-                [sys.executable, str(SCRIPT), "--root", tmp],
-                capture_output=True, text=True, encoding="utf-8")
+            result = run_script(str(SCRIPT), "--root", tmp)
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("2 键", result.stdout)
 

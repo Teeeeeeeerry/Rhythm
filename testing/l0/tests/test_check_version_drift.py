@@ -10,10 +10,11 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from script_runner import run_script
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "testing" / "l0" / "check-version-drift.py"
@@ -56,11 +57,8 @@ def build_tree(root: Path, versions: dict[str, str] | None = None,
 
 class CheckVersionDriftTests(unittest.TestCase):
     def run_check(self, root: Path) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [sys.executable, str(SCRIPT), "--root", str(root),
-             "--log", str(root / "check.log")],
-            capture_output=True, text=True,
-        )
+        return run_script(str(SCRIPT), "--root", str(root),
+                          "--log", str(root / "check.log"))
 
     def test_all_consistent_returns_zero(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

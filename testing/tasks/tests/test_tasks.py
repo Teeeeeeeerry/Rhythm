@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import io
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -46,6 +48,19 @@ class TaskListingTest(unittest.TestCase):
         with redirect_stdout(out):
             code = tasks.main(["no-such-task"])
         self.assertEqual(code, tasks.USAGE_ERROR)
+
+    def test_entry_lists_tasks_under_a_non_utf8_locale(self):
+        # #433: 区域编码为 cp1252 且未设 PYTHONUTF8 时，入口打印中文曾抛 UnicodeEncodeError。
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONUTF8"}
+        env["PYTHONIOENCODING"] = "cp1252"
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "tasks.py")],
+            capture_output=True, env=env)
+        self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", "replace"))
+        listing = result.stdout.decode("utf-8")
+        self.assertIn("可用任务", listing)
+        for task in tasks.TASKS:
+            self.assertIn(task.name, listing)
 
 
 class ExitCodeAggregationTest(unittest.TestCase):
