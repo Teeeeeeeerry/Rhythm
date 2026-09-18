@@ -65,6 +65,7 @@ set(TEST_SOURCES
     tests/AppStateBehaviorTests.cpp
     tests/BridgeBehaviorTests.cpp
     tests/L10nTests.cpp
+    tests/ViewStateTests.cpp
 )
 
 # Catch2's own main() (catch_amalgamated.cpp): AppState is plain C++ (#326),
