@@ -104,7 +104,6 @@ file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/RhythmBehavior.props"
 enable_testing()
 
 set(TEST_SOURCES
-    tests/TestMain.cpp
     tests/TestHelpers.h
     # #413: GeneratedCodec.h included alone must compile.
     tests/GeneratedCodecStandalone.cpp
@@ -114,11 +113,9 @@ set(TEST_SOURCES
     tests/L10nTests.cpp
 )
 
+# Catch2's own main() (catch_amalgamated.cpp): AppState is plain C++ (#326),
+# so no WinRT apartment has to be initialised before the suites run.
 add_executable(RhythmTests ${TEST_SOURCES})
-
-# catch_amalgamated.cpp ships its own main(); TestMain.cpp provides ours
-# (with init_apartment), so tell Catch2 to stand down.
-target_compile_definitions(RhythmTests PRIVATE CATCH_AMALGAMATED_CUSTOM_MAIN)
 
 target_include_directories(RhythmTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/vendor

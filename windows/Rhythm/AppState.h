@@ -31,7 +31,9 @@ inline winrt::Microsoft::UI::Xaml::Controls::Symbol PlayModeIcon(PlayMode mode) 
     }
 }
 
-class AppState : public winrt::implements<AppState, winrt::Windows::Foundation::IInspectable> {
+/// Plain C++ state (#326): no WinRT base and no WinUI types, so the behaviour
+/// library and its test host need neither an apartment nor the XAML runtime.
+class AppState {
 public:
     AppState();
 
@@ -108,16 +110,8 @@ public:
     /// events are marshalled through it; empty means "no UI thread".
     using UiPost = std::function<void(std::function<void()>)>;
 
-    /// The app's UI thread: a WinUI DispatcherQueue.
-    void SetDispatcherQueue(winrt::Microsoft::UI::Dispatching::DispatcherQueue dq) {
-        SetUiPost(dq ? UiPost{[dq](std::function<void()> work) {
-                           dq.TryEnqueue([work = std::move(work)] { work(); });
-                       }}
-                     : UiPost{});
-    }
-
-    /// Seam for tests (#418): the DispatcherQueue is a Windows App Runtime
-    /// class that an unpackaged test exe cannot activate.
+    /// The one UI-thread seam (#418/#326): the app posts through its WinUI
+    /// DispatcherQueue (set by MainWindow), tests inject their own thread.
     void SetUiPost(UiPost post) { uiPost_ = std::move(post); }
 
     /// Apply a coordinator event JSON to the state (the seam the tests
