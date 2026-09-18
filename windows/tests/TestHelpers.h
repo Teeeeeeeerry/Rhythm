@@ -2,10 +2,15 @@
 #pragma once
 
 #include "pch.h"
+#include "AppState.h"
 #include "Bridge/RhythmCore.h"
 
+#include <condition_variable>
+#include <deque>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
+#include <thread>
 
 namespace fs = std::filesystem;
 using namespace rhythm;
@@ -20,16 +25,17 @@ inline std::string WideToUtf8ForTest(const std::wstring& ws) {
     return result;
 }
 
-/// Pins the L10n language for the scope of a test (registry override),
-/// restoring the previous value on destruction (fixed-locale assertions,
-/// #142 parity).
-struct LocaleOverride {
-    std::wstring previous;
-    LocaleOverride(const std::wstring& code) {
-        previous = L10n::OverrideLanguage();
+/// Pins the L10n language for a scope (registry override), restoring the
+/// previous override after. Copy assertions never depend on the machine's
+/// UI language (#142 parity; shared by every suite since #418).
+struct LanguageScope {
+    std::wstring previous = L10n::OverrideLanguage();
+
+    explicit LanguageScope(const wchar_t* code) {
         L10n::SetOverrideLanguage(code);
     }
-    ~LocaleOverride() {
+
+    ~LanguageScope() {
         L10n::SetOverrideLanguage(previous);
     }
 };
@@ -316,6 +322,54 @@ inline Track makeUrlTrack(const std::wstring& url, const std::wstring& title) {
     t.duration = 0.0;
     return t;
 }
+
+/// Stand-in for the UI thread (#418): one worker thread draining a queue, fed
+/// through AppState's UiPost seam. The app hands in a WinUI DispatcherQueue,
+/// a Windows App Runtime class that an unpackaged test exe cannot activate.
+class UiThread {
+public:
+    UiThread() : worker_([this] { Drain(); }) {}
+
+    ~UiThread() {
+        {
+            std::lock_guard lock(mutex_);
+            stopping_ = true;
+        }
+        ready_.notify_one();
+        worker_.join();
+    }
+
+    AppState::UiPost Post() {
+        return [this](std::function<void()> work) {
+            {
+                std::lock_guard lock(mutex_);
+                queue_.push_back(std::move(work));
+            }
+            ready_.notify_one();
+        };
+    }
+
+private:
+    void Drain() {
+        for (;;) {
+            std::function<void()> work;
+            {
+                std::unique_lock lock(mutex_);
+                ready_.wait(lock, [this] { return stopping_ || !queue_.empty(); });
+                if (queue_.empty()) return;
+                work = std::move(queue_.front());
+                queue_.pop_front();
+            }
+            work();
+        }
+    }
+
+    std::mutex mutex_;
+    std::condition_variable ready_;
+    std::deque<std::function<void()>> queue_;
+    bool stopping_ = false;
+    std::thread worker_;
+};
 
 /// Poll `condition` until it holds or `timeoutMs` elapses.
 template <typename F>

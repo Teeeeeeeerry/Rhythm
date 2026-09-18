@@ -9,25 +9,9 @@
 #include "AppState.h"
 
 #include <catch_amalgamated.hpp>
+#include "TestHelpers.h"
 
 using namespace rhythm;
-
-namespace {
-
-/// Pin the language for a scope, restoring the previous override after.
-struct LanguageScope {
-    std::wstring previous = L10n::OverrideLanguage();
-
-    explicit LanguageScope(const wchar_t* code) {
-        L10n::SetOverrideLanguage(code);
-    }
-
-    ~LanguageScope() {
-        L10n::SetOverrideLanguage(previous);
-    }
-};
-
-} // namespace
 
 // ─── WA-26 基础文案中/英分支 ────────────────────────────────────────
 

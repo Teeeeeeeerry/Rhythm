@@ -8,7 +8,7 @@
   - 测试 main（`windows/tests/TestMain.cpp`）调一次 `winrt::init_apartment(apartment_type::single_threaded)` 以构造 `AppState`
   - 链接 `rhythm_core.dll.lib` + 临时 DB 路径注入（`OpenDatabase` 接受路径）
   - `nlohmann/json` 在测试 target 显式声明（`find_package(nlohmann_json CONFIG REQUIRED)`；主构建的隐式依赖已在此登记）
-  - `ResolveAndPlay` 的 dispatcher 注入经 `SetDispatcherQueue`；完整链路测试用 `DispatcherQueueController::CreateOnDedicatedThread()`（专属线程自带消息循环），降级路径（无 dispatcher）直接测
+  - `ResolveAndPlay` 与协调器事件经 `UiPost` 回到 UI 线程：应用用 `SetDispatcherQueue`（WinUI DispatcherQueue），测试用 `SetUiPost` 注入 `UiThread`（`TestHelpers.h`，专属线程队列；DispatcherQueue 是 Windows App Runtime 类，未打包的测试 exe 无法激活，#418），降级路径（未设 UI 线程）直接测
   - 接缝（#173）：AppState 的编排经 `ICoordinator` seam，测试注入 `SpyCoordinator`（`windows/tests/TestHelpers.h`，顺序队列模型镜像协调器契约）；原「无音频设备 SKIP」用例全部转确定性断言（真规则在 rust-core）
   - 测试文件：`windows/tests/AppStateBehaviorTests.cpp`（WA）与 `BridgeBehaviorTests.cpp`（WB）
 
@@ -48,12 +48,12 @@
 |---|---|---|---|
 | WA-05 | `PlayTrack` 缺 filePath/sourceUrl 仍置 `CurrentTrack`/`IsPlaying`（无声假播放，#78 同类） | [#81](https://github.com/Teeeeeeerry/Rhythm/issues/81) | 已修复于 T7（#103），红测解禁转绿 |
 | WA-07 | `TogglePlayPause` 恢复时从头重播而非 `Resume()` 续播 | [#82](https://github.com/Teeeeeeerry/Rhythm/issues/82) | 已修复于 T7（#103），红测解禁转绿 |
-| WA-05 | 起播调用的队列为空（期望 1 首） | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
-| WA-10 | `ResolveAndPlay` 成功路径抛未捕获异常 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
-| WA-11 | `ResolveAndPlay` 失败路径抛未捕获异常 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
-| WA-13 | `ResolveAndPlay` 重入保护用例抛未捕获异常 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
-| WA-24 | `ResolveAndPlay` 重载资料库用例抛未捕获异常 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
-| WA-25 | 自动下一首后 `CurrentTrack` 仍是上一首 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 禁用（`SKIP()`），测试宿主首次运行时暴露（#416） |
+| WA-05 | 起播调用的队列为空（期望 1 首） | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 测试口径：用例加曲后没 `RefreshLibrary`，队列（已加载列表）为空；补上加载，已解禁转绿 |
+| WA-10 | `ResolveAndPlay` 成功路径抛未捕获异常 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 测试口径：`DispatcherQueueController` 是 Windows App Runtime 类，未打包的测试 exe 无法激活；AppState 新增 `SetUiPost` 接缝，测试用 `UiThread`（专属线程队列），已解禁转绿 |
+| WA-11 | `ResolveAndPlay` 失败路径抛未捕获异常 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 测试口径：同 WA-10，已解禁转绿 |
+| WA-13 | `ResolveAndPlay` 重入保护用例抛未捕获异常 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 测试口径：同 WA-10，已解禁转绿 |
+| WA-24 | `ResolveAndPlay` 重载资料库用例抛未捕获异常 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 测试口径：同 WA-10；另列表按标题排序，夹具曲名改为排在解析曲目之后的 "Z"，已解禁转绿 |
+| WA-25 | 自动下一首后 `CurrentTrack` 仍是上一首 | [#418](https://github.com/Teeeeeeeerry/Rhythm/issues/418) | 测试口径：用例手拼事件 JSON，Windows 路径的反斜杠未转义，事件解析失败被忽略；改用 JSON 库构造，已解禁转绿 |
 
 ## 功能新增（用户 2026-08-13 决策：与 macOS 对齐，产品代码实现，非红测）
 
