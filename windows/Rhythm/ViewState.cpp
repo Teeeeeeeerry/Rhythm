@@ -25,6 +25,12 @@ std::vector<TrackRow> LibraryRows(const AppState& state) {
 
 PlayerBar PlayerBarState(const AppState& state) {
     PlayerBar bar;
+    if (state.CurrentTrack) {
+        bar.title = state.CurrentTrack->title;
+        bar.artist = state.CurrentTrack->artist.value_or(L"");
+    } else {
+        bar.title = L10n::NotPlaying();
+    }
     if (state.Duration > 0) {
         bar.progressPercent = std::clamp(state.Position / state.Duration * 100.0, 0.0, 100.0);
     }

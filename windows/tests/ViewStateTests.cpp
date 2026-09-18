@@ -107,3 +107,36 @@ TEST_CASE("VS-07 nothing loaded renders 0:00 / 0:00") {
     state.Duration = 10.0;
     REQUIRE(view::PlayerBarState(state).timeText == L"0:00 / 0:10");
 }
+
+// ─── VS-08/09/10 播放条标题与艺人（#334）────────────────────────────
+
+TEST_CASE("VS-08 the current track's title and artist are rendered") {
+    AppState state;
+    auto track = makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha");
+    track.artist = L"Artist A";
+    state.CurrentTrack = track;
+
+    auto bar = view::PlayerBarState(state);
+    REQUIRE(bar.title == L"Alpha");
+    REQUIRE(bar.artist == L"Artist A");
+}
+
+TEST_CASE("VS-09 a current track without an artist renders an empty artist") {
+    AppState state;
+    state.CurrentTrack = makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha");
+    REQUIRE(view::PlayerBarState(state).artist.empty());
+}
+
+TEST_CASE("VS-10 no current track renders the not-playing copy, never the last track") {
+    LanguageScope zh(L"zh");
+    AppState state;
+    auto track = makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha");
+    track.artist = L"Artist A";
+    state.CurrentTrack = track;
+    REQUIRE(view::PlayerBarState(state).title == L"Alpha");
+
+    state.CurrentTrack.reset();
+    auto bar = view::PlayerBarState(state);
+    REQUIRE(bar.title == L10n::NotPlaying());
+    REQUIRE(bar.artist.empty());
+}
