@@ -256,6 +256,25 @@ class WindowsStepTableTest(unittest.TestCase):
                 self.assertEqual(code, 1, step.name)
                 self.assertIn("CMakeLists.txt", out.getvalue(), step.name)
 
+    def test_build_and_ctest_steps_name_the_same_config(self):
+        # Visual Studio 是多配置生成器：构建带 --config 而 ctest 不带 -C，ctest 找不到
+        # 该配置的可执行文件，报 Not Run（#427）。每个构建与 ctest 步骤都得点名同一配置。
+        config = task_test.task_build.WINDOWS_CONFIG
+        seen: list[list[str]] = []
+        original = task_test.tasklib.run
+        task_test.tasklib.run = lambda cmd, **_: seen.append(list(cmd)) or 0
+        try:
+            for step in task_test.windows_steps(self.root):
+                if "cmake 构建" in step.name or "ctest" in step.name:
+                    step.action()
+        finally:
+            task_test.tasklib.run = original
+        self.assertEqual(len(seen), 4, seen)
+        for cmd in seen:
+            flag = "-C" if cmd[0] == "ctest" else "--config"
+            self.assertIn(flag, cmd, cmd)
+            self.assertEqual(cmd[cmd.index(flag) + 1], config, cmd)
+
     def test_smoke_segment_is_opt_in(self):
         without = task_test.windows_steps(self.root, smoke=False)
         with_smoke = task_test.windows_steps(self.root, smoke=True)

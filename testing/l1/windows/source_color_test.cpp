@@ -6,7 +6,7 @@
 //   3. 未知来源类型回退：颜色回退到主题次要文字色（非系统 Gray）。
 //
 // 构建：见同目录 CMakeLists.txt（cmake -S . -B build && cmake --build build
-//       && ctest --test-dir build --output-on-failure）
+//       --config Release && ctest --test-dir build -C Release --output-on-failure）
 
 #include <iostream>
 #include <string>

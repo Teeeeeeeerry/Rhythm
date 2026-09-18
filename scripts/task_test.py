@@ -148,6 +148,20 @@ def _cmake_step(name: str, args: list[str], root: Path, log_name: str, *,
     return tasklib.Step(name, action, static_analysis=False)
 
 
+def _ctest_step(name: str, build_dir: Path, root: Path, log_name: str) -> tasklib.Step:
+    """ctest 步骤：-C 与构建步骤的 --config 同一配置（#427）。
+
+    Visual Studio 是多配置生成器，不点名配置时 ctest 找不到该配置的可执行文件，
+    用例全部报 Not Run。
+    """
+    return tasklib.Step(
+        name,
+        lambda: tasklib.run(["ctest", "--test-dir", str(build_dir),
+                             "-C", task_build.WINDOWS_CONFIG, "--output-on-failure"],
+                            cwd=root, log=tasklib.log_path(log_name, root)),
+        static_analysis=False)
+
+
 def _cmake_configure_args(source: str, build_dir: Path) -> list[str]:
     return ["-S", source, "-B", str(build_dir)]
 
@@ -164,26 +178,17 @@ def windows_steps(root: Path, smoke: bool = False) -> list[tasklib.Step]:
         _cmake_step("L1 颜色测试 cmake 配置",
                     _cmake_configure_args("testing/l1/windows", l1_dir),
                     root, "l1-windows-cmake", project="testing/l1/windows"),
-        _cmake_step("L1 颜色测试 cmake 构建", ["--build", str(l1_dir)],
+        _cmake_step("L1 颜色测试 cmake 构建",
+                    ["--build", str(l1_dir), "--config", task_build.WINDOWS_CONFIG],
                     root, "l1-windows-cmake"),
-        tasklib.Step(
-            "L1 颜色测试 ctest",
-            lambda: tasklib.run(["ctest", "--test-dir", str(l1_dir),
-                                 "--output-on-failure"], cwd=root,
-                                log=tasklib.log_path("l1-windows-ctest", root)),
-            static_analysis=False),
+        _ctest_step("L1 颜色测试 ctest", l1_dir, root, "l1-windows-ctest"),
         _cmake_step("L1b 应用工程测试 cmake 配置", _cmake_configure_args("windows", app_dir),
                     root, "l1-windows-rhythmtests", project="windows"),
         _cmake_step("L1b 应用工程测试 cmake 构建",
                     ["--build", str(app_dir), "--target", "RhythmTests",
                      "--config", task_build.WINDOWS_CONFIG],
                     root, "l1-windows-rhythmtests"),
-        tasklib.Step(
-            "L1b 应用工程测试 ctest",
-            lambda: tasklib.run(["ctest", "--test-dir", str(app_dir),
-                                 "--output-on-failure"], cwd=root,
-                                log=tasklib.log_path("l1-windows-rhythmtests", root)),
-            static_analysis=False),
+        _ctest_step("L1b 应用工程测试 ctest", app_dir, root, "l1-windows-rhythmtests"),
     ]
     if smoke:
         steps.append(tasklib.Step(

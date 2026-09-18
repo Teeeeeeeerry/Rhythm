@@ -26,7 +26,8 @@ endif()
 # <Windows.h> 的 min/max 宏与标准库冲突（#408，主工程同款定义）。
 target_compile_definitions(rhythm_color_tests PRIVATE NOMINMAX)
 
-target_link_libraries(rhythm_color_tests PRIVATE Microsoft.WindowsAppSDK)
+# RhythmCore.h -> L10n.h -> Bridge/MessageSpec.h 需要 <nlohmann/json.hpp>（#427）。
+target_link_libraries(rhythm_color_tests PRIVATE Microsoft.WindowsAppSDK nlohmann_json::nlohmann_json)
 
 enable_testing()
 add_test(NAME rhythm_color_tests COMMAND rhythm_color_tests)
