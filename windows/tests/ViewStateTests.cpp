@@ -102,4 +102,8 @@ TEST_CASE("VS-06 not buffering renders position / duration in m:ss") {
 TEST_CASE("VS-07 nothing loaded renders 0:00 / 0:00") {
     AppState state;
     REQUIRE(view::PlayerBarState(state).timeText == L"0:00 / 0:00");
+    // A position that is not positive reads as 0:00, never "-0:-3".
+    state.Position = -3.0;
+    state.Duration = 10.0;
+    REQUIRE(view::PlayerBarState(state).timeText == L"0:00 / 0:10");
 }
