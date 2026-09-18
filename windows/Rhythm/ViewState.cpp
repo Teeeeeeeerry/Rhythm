@@ -2,6 +2,8 @@
 #include "ViewState.h"
 #include "L10n.h"
 
+#include <tuple>
+
 namespace rhythm::view {
 
 namespace {
@@ -25,11 +27,29 @@ Icon PlayModeIcon(PlayMode mode) {
 
 } // namespace
 
-std::vector<TrackRow> LibraryRows(const AppState& state) {
+std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort) {
     std::vector<TrackRow> rows;
     rows.reserve(state.Tracks.size());
     for (const auto& track : state.Tracks) {
         rows.push_back(TrackRow{track, track.title});
+    }
+
+    switch (sort) {
+        case LibrarySort::ArtistAlbum: {
+            auto key = [](const Track& t) {
+                return std::tuple(t.artist.value_or(L""), t.album.value_or(L""),
+                                  t.trackNumber.value_or(0));
+            };
+            std::stable_sort(rows.begin(), rows.end(), [&](const TrackRow& a, const TrackRow& b) {
+                return key(a.track) < key(b.track);
+            });
+            break;
+        }
+        case LibrarySort::Alphabetical:
+            std::stable_sort(rows.begin(), rows.end(), [](const TrackRow& a, const TrackRow& b) {
+                return a.track.title < b.track.title;
+            });
+            break;
     }
     return rows;
 }

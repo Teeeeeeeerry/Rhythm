@@ -2,6 +2,7 @@
 
 #include "Views/LibraryView.g.h"
 #include "AppState.h"
+#include "ViewState.h"
 
 namespace winrt::Rhythm::Views::implementation {
 
@@ -19,9 +20,9 @@ struct LibraryView : LibraryViewT<LibraryView> {
                       winrt::Microsoft::UI::Xaml::Controls::ItemClickEventArgs const& args);
 
 private:
-    void PopulateArtistAlbum();
-    void PopulateAlphabetical();
-    void ShowTracks(std::vector<rhythm::Track> const& tracks);
+    /// Render the library in the order the pivot selects (#336).
+    void Populate();
+    void ShowRows(std::vector<rhythm::view::TrackRow> const& rows);
     void ShowEmptyMessage(bool show);
 
     rhythm::AppState* appState_ = nullptr;

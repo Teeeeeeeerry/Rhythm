@@ -17,7 +17,7 @@ using namespace rhythm_tests;
 
 TEST_CASE("VS-01 an empty library renders no rows") {
     AppState state;
-    REQUIRE(view::LibraryRows(state).empty());
+    REQUIRE(view::LibraryRows(state, view::LibrarySort::ArtistAlbum).empty());
 }
 
 TEST_CASE("VS-01 every library track renders as one row carrying the track") {
@@ -25,7 +25,7 @@ TEST_CASE("VS-01 every library track renders as one row carrying the track") {
     state.Tracks = {makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha"),
                     makeLocalTrack(L"C:\\m\\b.mp3", L"Beta")};
 
-    auto rows = view::LibraryRows(state);
+    auto rows = view::LibraryRows(state, view::LibrarySort::ArtistAlbum);
 
     REQUIRE(rows.size() == 2);
     for (const auto& row : rows) {
@@ -37,6 +37,73 @@ TEST_CASE("VS-01 every library track renders as one row carrying the track") {
     };
     REQUIRE(hasTitle(L"Alpha"));
     REQUIRE(hasTitle(L"Beta"));
+}
+
+// ─── VS-14/15/16/17 资料库排序（#336）───────────────────────────────
+
+namespace {
+
+Track sortTrack(const wchar_t* title, std::optional<std::wstring> artist,
+                std::optional<std::wstring> album, std::optional<int32_t> number) {
+    auto t = makeLocalTrack(std::wstring(L"C:\\m\\") + title + L".mp3", title);
+    t.artist = std::move(artist);
+    t.album = std::move(album);
+    t.trackNumber = number;
+    return t;
+}
+
+std::vector<std::wstring> titlesOf(const std::vector<view::TrackRow>& rows) {
+    std::vector<std::wstring> titles;
+    for (const auto& row : rows) titles.push_back(row.title);
+    return titles;
+}
+
+} // namespace
+
+TEST_CASE("VS-14 by artist/album sorts by artist, then album, then track number") {
+    AppState state;
+    state.Tracks = {
+        sortTrack(L"b2", L"Beta", L"Two", 1),
+        sortTrack(L"a1-2", L"Alpha", L"One", 2),
+        sortTrack(L"b1", L"Beta", L"One", 7),
+        sortTrack(L"a1-1", L"Alpha", L"One", 1),
+        sortTrack(L"a2", L"Alpha", L"Two", 1),
+    };
+    auto rows = view::LibraryRows(state, view::LibrarySort::ArtistAlbum);
+    REQUIRE(titlesOf(rows) ==
+            std::vector<std::wstring>{L"a1-1", L"a1-2", L"a2", L"b1", L"b2"});
+}
+
+TEST_CASE("VS-15 by letter sorts by title ascending") {
+    AppState state;
+    state.Tracks = {sortTrack(L"Gamma", L"Z", std::nullopt, std::nullopt),
+                    sortTrack(L"Alpha", L"Y", std::nullopt, std::nullopt),
+                    sortTrack(L"Beta", L"X", std::nullopt, std::nullopt)};
+    auto rows = view::LibraryRows(state, view::LibrarySort::Alphabetical);
+    REQUIRE(titlesOf(rows) == std::vector<std::wstring>{L"Alpha", L"Beta", L"Gamma"});
+}
+
+TEST_CASE("VS-16 tracks without an artist are kept, together and in library order") {
+    AppState state;
+    state.Tracks = {
+        sortTrack(L"known", L"Alpha", L"One", 1),
+        sortTrack(L"loose-2", std::nullopt, std::nullopt, std::nullopt),
+        sortTrack(L"loose-1", std::nullopt, std::nullopt, std::nullopt),
+    };
+    auto rows = view::LibraryRows(state, view::LibrarySort::ArtistAlbum);
+    // No artist sorts as an empty name: first, and ties keep library order.
+    REQUIRE(titlesOf(rows) ==
+            std::vector<std::wstring>{L"loose-2", L"loose-1", L"known"});
+}
+
+TEST_CASE("VS-17 sorting leaves the state's track order untouched") {
+    AppState state;
+    state.Tracks = {sortTrack(L"Gamma", L"Z", std::nullopt, std::nullopt),
+                    sortTrack(L"Alpha", L"Y", std::nullopt, std::nullopt)};
+    view::LibraryRows(state, view::LibrarySort::Alphabetical);
+    view::LibraryRows(state, view::LibrarySort::ArtistAlbum);
+    REQUIRE(state.Tracks[0].title == L"Gamma");
+    REQUIRE(state.Tracks[1].title == L"Alpha");
 }
 
 // ─── VS-02 播放条进度百分比（#332）──────────────────────────────────
