@@ -11,7 +11,7 @@
 | WB-01 | `Track::DurationFormatted` | 秒 → `m:ss` 格式（秒位零填充） | 新测 |
 | WB-02 | `Track::SourceTag` | local→本地/Local、youtube→YT、bilibili→B站/Bili、direct_url→链接/Link、未知→空串（中/英各固定一次） | 新测 |
 | WB-03 | `Track::SourceColor(sourceType, isDarkTheme)` | 四种来源 dark/light 双端色值（与 macOS Theme.swift 一致，#121）；未知来源回退 teal 文字色（dark `#ABC8D4` / light `#0D464D`），非系统 Gray（F4）；#147 起前景与胶囊底共用 `SourceColorRGB` 单一表映射 | 新测 |
-| WB-04 | `Track::SourceBackgroundColor` | A=38、RGB 与 SourceColor 一致（dark/light 各一次）、未知回退灰；`SourceBackgroundBrush` 只是它的画刷包装 | 新测 |
+| WB-04 | `Track::SourceBackgroundColor` | A=38、RGB 与 SourceColor 一致（dark/light 各一次）、未知回退灰；返回普通结构 `rhythm::Color`，画刷由壳的 `TrackItem` 包装（#328） | 新测 |
 | WB-05 | `JsonToTrack`/`TrackToJson` 往返 | 各字段保真；null 可选字段 → `nullopt`；缺省字段取默认（#101 已修复：album_artist/genre/file_size/date_added/last_played 全部解析；date_added 由 DB 插入时盖章、last_played 新插入为 NULL） | 新测（待 Windows 验证） |
 | WB-06 | `Utf8ToWide`/`WideToUtf8` 往返 | 中文/emoji 标题转换无损坏；空串安全 | 新测 |
 | WB-07 | `Library` 空指针防御 | open 失败（坏路径）→ 各方法安全默认（-1/空列表/false/原 track 返回） | 新测 |
@@ -21,7 +21,7 @@
 | WB-12 | `Resolver::StatusText` | checking/verifying/updating/failed 各文案；downloading 有 total 时 `x / y MB`、无 total 时 `x MB`；未知/quiet → 空串（中/英各固定一次） | 新测 |
 | WB-13 | `ResolverStatus::IsQuiet` | idle/ready → true；其余 → false | 新测 |
 | WB-14 | `Resolver::ClassifyURL` | 返回 "youtube"/"bilibili"/"direct_url"；失败 → 空串 | 新测 |
-| WB-20 | `Track::SourceForegroundColor` | 不透明，RGB 与 `SourceColor` 同一张表、同一未知回退（dark/light 各一次）；`SourceForegroundBrush` 是视图绑定的画刷包装（#428） | 新测 |
+| WB-20 | `Track::SourceForegroundColor` | 不透明，RGB 与 `SourceColor` 同一张表、同一未知回退（dark/light 各一次）；返回普通结构 `rhythm::Color`，视图绑定的画刷由壳的 `TrackItem` 包装（#428/#328） | 新测 |
 | WB-21 | `ExportM3U8` | 经生成的编码器写出 M3U8（含 `#EXTM3U` 与曲目路径，中文路径不乱码）；目录不存在 → `false`（#428） | 新测 |
 | WB-22 | 文件选择面板的扩展名 `kAudioFileTypes` | 每个扩展名都是核心收的格式：同扩展名的非音频文件经 `ImportFile` 只会计为读取失败、从不计为格式不支持；对照 `.txt` 计为不支持（核心是闸门，列表只塑形对话框，#242）；列表为普通字符串，桥接层不带 WinRT 类型（#327） | 新测 |
 | WB-17 | `Coordinator` 绑定真实 `Library` 起播 | `Library::Handle()` 交给核心：起播成功则该曲目播放次数加一；无音频设备时结果为核心分类错误 `playback_failed` 且不记录（#416） | 新测 |
