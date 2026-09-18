@@ -34,18 +34,22 @@ std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort) {
         rows.push_back(TrackRow{track, track.title});
     }
 
-    if (sort == LibrarySort::ArtistAlbum) {
-        auto key = [](const Track& t) {
-            return std::tuple(t.artist.value_or(L""), t.album.value_or(L""),
-                              t.trackNumber.value_or(0));
-        };
-        std::stable_sort(rows.begin(), rows.end(), [&](const TrackRow& a, const TrackRow& b) {
-            return key(a.track) < key(b.track);
-        });
-    } else {
-        std::stable_sort(rows.begin(), rows.end(), [](const TrackRow& a, const TrackRow& b) {
-            return a.track.title < b.track.title;
-        });
+    switch (sort) {
+        case LibrarySort::ArtistAlbum: {
+            auto key = [](const Track& t) {
+                return std::tuple(t.artist.value_or(L""), t.album.value_or(L""),
+                                  t.trackNumber.value_or(0));
+            };
+            std::stable_sort(rows.begin(), rows.end(), [&](const TrackRow& a, const TrackRow& b) {
+                return key(a.track) < key(b.track);
+            });
+            break;
+        }
+        case LibrarySort::Alphabetical:
+            std::stable_sort(rows.begin(), rows.end(), [](const TrackRow& a, const TrackRow& b) {
+                return a.track.title < b.track.title;
+            });
+            break;
     }
     return rows;
 }
