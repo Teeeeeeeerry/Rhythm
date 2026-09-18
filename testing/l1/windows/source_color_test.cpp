@@ -2,7 +2,7 @@
 //
 // 断言项（对应方案 L1 Windows 组）：
 //   1. 4 个来源类型的 dark/light 双端色值与 palette.json sources 段一致；
-//   2. SourceBackgroundBrush alpha == 38（≈ 15%，与 macOS opacity(0.15) 一致）；
+//   2. SourceBackgroundColor alpha == 38（≈ 15%，与 macOS opacity(0.15) 一致）；
 //   3. 未知来源类型回退：颜色回退到主题次要文字色（非系统 Gray）。
 //
 // 构建与运行：python scripts/tasks.py test（配置名取 task_build.WINDOWS_CONFIG，
@@ -38,10 +38,7 @@ static void check(bool ok, const wchar_t* label) {
 }
 
 int main() {
-    // Brush 构造需要已初始化的 WinRT apartment（同 windows/tests 的 main）。
-    winrt::init_apartment();
-
-    rhythm::Track track;  // 真实模型（SourceColor / SourceBackgroundBrush 均内联于头文件）
+    rhythm::Track track;  // 真实模型（SourceColor / SourceBackgroundColor 均内联于头文件）
 
     // 1) 双端色值
     for (const auto& e : kExpects) {
@@ -52,7 +49,9 @@ int main() {
     }
 
     // 2) 徽标背景 alpha == 38（≈ 15%）
-    check(track.SourceBackgroundBrush().Color().A == 38, L"SourceBackgroundBrush alpha == 38");
+    check(track.SourceBackgroundColor(/*isDark=*/true).A == 38
+              && track.SourceBackgroundColor(/*isDark=*/false).A == 38,
+          L"SourceBackgroundColor alpha == 38");
 
     // 3) 未知类型回退：不得返回系统 Gray；回退到主题次要文字色
     //    （F4 在 macOS 侧同语义：SourceTagView 回退 .rhythmTextTertiary）

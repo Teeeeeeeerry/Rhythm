@@ -108,13 +108,20 @@ struct Track {
     static constexpr uint8_t kSourceBadgeBackgroundAlpha = 38;
     // END GENERATED BADGE BACKGROUND (#249)
 
-    /// Capsule badge background brush — foreground colour at the declared
+    /// Capsule badge background colour — foreground colour at the declared
     /// opacity, matching the macOS `.background(color.opacity(...))` treatment.
-    winrt::Microsoft::UI::Xaml::Media::SolidColorBrush SourceBackgroundBrush() const {
+    /// A plain value, so it is testable without the Windows App Runtime (#418).
+    winrt::Windows::UI::Color SourceBackgroundColor(bool isDarkTheme) const {
         const SourceRGB fallback{0x80, 0x80, 0x80};  // unknown: grey
-        auto rgb = SourceColorRGB(sourceType, IsDarkTheme()).value_or(fallback);
+        auto rgb = SourceColorRGB(sourceType, isDarkTheme).value_or(fallback);
+        return winrt::Windows::UI::Color{kSourceBadgeBackgroundAlpha, rgb.r, rgb.g, rgb.b};
+    }
+
+    /// Binding surface: the badge background as a XAML brush, in the
+    /// effective theme (see `IsDarkTheme`).
+    winrt::Microsoft::UI::Xaml::Media::SolidColorBrush SourceBackgroundBrush() const {
         return winrt::Microsoft::UI::Xaml::Media::SolidColorBrush(
-            winrt::Windows::UI::Color{kSourceBadgeBackgroundAlpha, rgb.r, rgb.g, rgb.b});
+            SourceBackgroundColor(IsDarkTheme()));
     }
 };
 

@@ -197,15 +197,15 @@ void AppState::ResolveAndPlay(const std::wstring& url) {
     if (IsResolvingUrl) return;
     IsResolvingUrl = true;
 
-    auto dq = dispatcher_;
-    std::thread([this, trimmed, dq] {
+    auto post = uiPost_;
+    std::thread([this, trimmed, post] {
         auto outcome = rhythm::Resolver::ResolveURL(trimmed);
-        if (!dq) {
+        if (!post) {
             IsResolvingUrl = false;
             return;
         }
 
-        dq.TryEnqueue([this, outcome] {
+        post([this, outcome] {
             IsResolvingUrl = false;
             if (!outcome.ok) {
                 // Report the reason rather than queueing a track that cannot
@@ -234,11 +234,11 @@ void AppState::ResolveAndPlay(const std::wstring& url) {
 // ─── Coordinator events (ticket #172/#173) ─────────────────────────
 
 void AppState::OnCoordinatorEvent(const std::wstring& json) {
-    auto dq = dispatcher_;
-    if (dq) {
-        dq.TryEnqueue([this, json] { ApplyCoordinatorEvent(json); });
+    auto post = uiPost_;
+    if (post) {
+        post([this, json] { ApplyCoordinatorEvent(json); });
     } else {
-        // No dispatcher (tests): apply synchronously on the caller thread.
+        // No UI thread (tests): apply synchronously on the caller thread.
         ApplyCoordinatorEvent(json);
     }
 }

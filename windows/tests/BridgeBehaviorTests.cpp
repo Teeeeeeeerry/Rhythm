@@ -28,18 +28,28 @@ TEST_CASE("WB-01 DurationFormatted renders m:ss with zero padding") {
 // ─── WB-02/03 SourceTag / SourceColor ───────────────────────────────
 
 TEST_CASE("WB-02 SourceTag maps every source type") {
-    SKIP("#418: red test registered after the host first ran (#416)");
-    Track t;
-    t.sourceType = L"local";
-    REQUIRE(t.SourceTag() == L"本地");
-    t.sourceType = L"youtube";
-    REQUIRE(t.SourceTag() == L"YT");
-    t.sourceType = L"bilibili";
-    REQUIRE(t.SourceTag() == L"B站");
-    t.sourceType = L"direct_url";
-    REQUIRE(t.SourceTag() == L"链接");
-    t.sourceType = L"something_else";
-    REQUIRE(t.SourceTag() == L"");
+    // The tag follows the UI language: pin both branches (#418).
+    auto tag = [](const wchar_t* sourceType) {
+        Track t;
+        t.sourceType = sourceType;
+        return t.SourceTag();
+    };
+    {
+        LanguageScope zh(L"zh");
+        REQUIRE(tag(L"local") == L"本地");
+        REQUIRE(tag(L"youtube") == L"YT");
+        REQUIRE(tag(L"bilibili") == L"B站");
+        REQUIRE(tag(L"direct_url") == L"链接");
+        REQUIRE(tag(L"something_else") == L"");
+    }
+    {
+        LanguageScope en(L"en");
+        REQUIRE(tag(L"local") == L"Local");
+        REQUIRE(tag(L"youtube") == L"YT");
+        REQUIRE(tag(L"bilibili") == L"Bili");
+        REQUIRE(tag(L"direct_url") == L"Link");
+        REQUIRE(tag(L"something_else") == L"");
+    }
 }
 
 TEST_CASE("WB-03 SourceColor maps every source type in both themes (#121)") {
@@ -64,26 +74,33 @@ TEST_CASE("WB-03 SourceColor maps every source type in both themes (#121)") {
     REQUIRE(t.SourceColor(t.sourceType, false) != L"Gray");
 }
 
-// ─── WB-04 SourceBackgroundBrush（需要 apartment，main 已 init）───────
+// ─── WB-04 SourceBackgroundColor（纯值；画刷是运行时类，#418）──────────
 
-TEST_CASE("WB-04 SourceBackgroundBrush carries 15% alpha of the source color") {
-    SKIP("#418: red test registered after the host first ran (#416)");
+TEST_CASE("WB-04 SourceBackgroundColor carries 15% alpha of the source color") {
+    // Theme is a parameter, so the assertion holds on light and dark
+    // machines alike (#418).
     Track t;
     t.sourceType = L"local";
-    auto brush = t.SourceBackgroundBrush();
-    auto color = brush.Color();
-    REQUIRE(color.A == 38);
-    REQUIRE(color.R == 0x8A);
-    REQUIRE(color.G == 0xBC);
-    REQUIRE(color.B == 0xD0);
+    auto dark = t.SourceBackgroundColor(true);
+    REQUIRE(dark.A == 38);
+    REQUIRE(dark.R == 0x8A);
+    REQUIRE(dark.G == 0xBC);
+    REQUIRE(dark.B == 0xD0);
+    auto light = t.SourceBackgroundColor(false);
+    REQUIRE(light.A == 38);
+    REQUIRE(light.R == 0x3A);
+    REQUIRE(light.G == 0x7A);
+    REQUIRE(light.B == 0x8C);
 
     Track unknown;
     unknown.sourceType = L"weird";
-    auto fallback = unknown.SourceBackgroundBrush().Color();
-    REQUIRE(fallback.A == 38);
-    REQUIRE(fallback.R == 128);
-    REQUIRE(fallback.G == 128);
-    REQUIRE(fallback.B == 128);
+    for (bool isDark : {true, false}) {
+        auto fallback = unknown.SourceBackgroundColor(isDark);
+        REQUIRE(fallback.A == 38);
+        REQUIRE(fallback.R == 128);
+        REQUIRE(fallback.G == 128);
+        REQUIRE(fallback.B == 128);
+    }
 }
 
 // ─── WB-05 JsonToTrack/TrackToJson 往返（经 AddTrack 黑盒）───────────
@@ -317,29 +334,37 @@ TEST_CASE("WB-11 failures always carry the core's kind and message") {
 // ─── WB-12/13 ResolverStatus ────────────────────────────────────────
 
 TEST_CASE("WB-12 StatusText renders every phase") {
-    SKIP("#418: red test registered after the host first ran (#416)");
-    ResolverStatus s;
-    s.phase = L"checking";
-    REQUIRE(Resolver::StatusText(s) == L"正在准备解析组件…");
-    s.phase = L"verifying";
-    REQUIRE(Resolver::StatusText(s) == L"正在校验解析组件…");
-    s.phase = L"updating";
-    REQUIRE(Resolver::StatusText(s) == L"正在更新解析组件…");
-    s.phase = L"failed";
-    REQUIRE(Resolver::StatusText(s) == L"解析组件安装失败");
-
-    s.phase = L"downloading";
-    s.received = 1048576;  // 1 MB
-    s.total = 4194304;     // 4 MB
-    REQUIRE(Resolver::StatusText(s) == L"正在下载解析组件 1.0 / 4.0 MB");
-
-    s.total = 0;
-    REQUIRE(Resolver::StatusText(s) == L"正在下载解析组件 1.0 MB");
-
-    s.phase = L"idle";
-    REQUIRE(Resolver::StatusText(s) == L"");
-    s.phase = L"something_unknown";
-    REQUIRE(Resolver::StatusText(s) == L"");
+    // Status copy follows the UI language: pin both branches (#418).
+    auto text = [](const wchar_t* phase, int64_t received = 0, int64_t total = 0) {
+        ResolverStatus s;
+        s.phase = phase;
+        s.received = received;
+        s.total = total;
+        return Resolver::StatusText(s);
+    };
+    const int64_t mb = 1048576;
+    {
+        LanguageScope zh(L"zh");
+        REQUIRE(text(L"checking") == L"正在准备解析组件…");
+        REQUIRE(text(L"verifying") == L"正在校验解析组件…");
+        REQUIRE(text(L"updating") == L"正在更新解析组件…");
+        REQUIRE(text(L"failed") == L"解析组件安装失败");
+        REQUIRE(text(L"downloading", mb, 4 * mb) == L"正在下载解析组件 1.0 / 4.0 MB");
+        REQUIRE(text(L"downloading", mb, 0) == L"正在下载解析组件 1.0 MB");
+        REQUIRE(text(L"idle") == L"");
+        REQUIRE(text(L"something_unknown") == L"");
+    }
+    {
+        LanguageScope en(L"en");
+        REQUIRE(text(L"checking") == L"Preparing resolver…");
+        REQUIRE(text(L"verifying") == L"Verifying resolver…");
+        REQUIRE(text(L"updating") == L"Updating resolver…");
+        REQUIRE(text(L"failed") == L"Resolver install failed");
+        REQUIRE(text(L"downloading", mb, 4 * mb) == L"Downloading resolver 1.0 / 4.0 MB");
+        REQUIRE(text(L"downloading", mb, 0) == L"Downloading resolver 1.0 MB");
+        REQUIRE(text(L"idle") == L"");
+        REQUIRE(text(L"something_unknown") == L"");
+    }
 }
 
 TEST_CASE("WB-13 ResolverStatus IsQuiet") {

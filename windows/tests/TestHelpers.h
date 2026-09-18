@@ -2,10 +2,15 @@
 #pragma once
 
 #include "pch.h"
+#include "AppState.h"
 #include "Bridge/RhythmCore.h"
 
+#include <condition_variable>
+#include <deque>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
+#include <thread>
 
 namespace fs = std::filesystem;
 using namespace rhythm;
@@ -20,16 +25,17 @@ inline std::string WideToUtf8ForTest(const std::wstring& ws) {
     return result;
 }
 
-/// Pins the L10n language for the scope of a test (registry override),
-/// restoring the previous value on destruction (fixed-locale assertions,
-/// #142 parity).
-struct LocaleOverride {
-    std::wstring previous;
-    LocaleOverride(const std::wstring& code) {
-        previous = L10n::OverrideLanguage();
+/// Pins the L10n language for a scope (registry override), restoring the
+/// previous override after. Copy assertions never depend on the machine's
+/// UI language (#142 parity; shared by every suite since #418).
+struct LanguageScope {
+    std::wstring previous = L10n::OverrideLanguage();
+
+    explicit LanguageScope(const wchar_t* code) {
         L10n::SetOverrideLanguage(code);
     }
-    ~LocaleOverride() {
+
+    ~LanguageScope() {
         L10n::SetOverrideLanguage(previous);
     }
 };
@@ -316,6 +322,72 @@ inline Track makeUrlTrack(const std::wstring& url, const std::wstring& title) {
     t.duration = 0.0;
     return t;
 }
+
+/// Stand-in for the UI thread (#418): one worker thread draining a queue, fed
+/// through AppState's UiPost seam. The app hands in a WinUI DispatcherQueue,
+/// a Windows App Runtime class that an unpackaged test exe cannot activate.
+///
+/// The queue outlives this object (shared with every UiPost handed out): a
+/// detached resolver thread may still post after a failed test unwinds, and
+/// work posted after shutdown is dropped, like a shut-down DispatcherQueue.
+class UiThread {
+public:
+    UiThread() : queue_(std::make_shared<Queue>()) {
+        worker_ = std::thread([queue = queue_] { queue->Drain(); });
+    }
+
+    ~UiThread() {
+        queue_->Stop();
+        worker_.join();
+    }
+
+    AppState::UiPost Post() const {
+        return [queue = queue_](std::function<void()> work) { queue->Push(std::move(work)); };
+    }
+
+private:
+    struct Queue {
+        std::mutex mutex;
+        std::condition_variable ready;
+        std::deque<std::function<void()>> work;
+        bool stopping = false;
+
+        void Push(std::function<void()> item) {
+            {
+                std::lock_guard lock(mutex);
+                if (stopping) return;
+                work.push_back(std::move(item));
+            }
+            ready.notify_one();
+        }
+
+        void Stop() {
+            {
+                std::lock_guard lock(mutex);
+                stopping = true;
+            }
+            ready.notify_one();
+        }
+
+        /// Runs queued work until stopped; work already queued still runs.
+        void Drain() {
+            for (;;) {
+                std::function<void()> item;
+                {
+                    std::unique_lock lock(mutex);
+                    ready.wait(lock, [this] { return stopping || !work.empty(); });
+                    if (work.empty()) return;
+                    item = std::move(work.front());
+                    work.pop_front();
+                }
+                item();
+            }
+        }
+    };
+
+    std::shared_ptr<Queue> queue_;
+    std::thread worker_;
+};
 
 /// Poll `condition` until it holds or `timeoutMs` elapses.
 template <typename F>

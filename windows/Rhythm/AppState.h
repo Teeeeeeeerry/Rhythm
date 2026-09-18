@@ -104,23 +104,33 @@ public:
     /// Cycle to the next play mode (WA-21).
     void CyclePlayMode();
 
-    /// UI-thread dispatcher for marshalling async resolver results and
-    /// coordinator events.
+    /// Runs work on the UI thread. Async resolver results and coordinator
+    /// events are marshalled through it; empty means "no UI thread".
+    using UiPost = std::function<void(std::function<void()>)>;
+
+    /// The app's UI thread: a WinUI DispatcherQueue.
     void SetDispatcherQueue(winrt::Microsoft::UI::Dispatching::DispatcherQueue dq) {
-        dispatcher_ = dq;
+        SetUiPost(dq ? UiPost{[dq](std::function<void()> work) {
+                           dq.TryEnqueue([work = std::move(work)] { work(); });
+                       }}
+                     : UiPost{});
     }
+
+    /// Seam for tests (#418): the DispatcherQueue is a Windows App Runtime
+    /// class that an unpackaged test exe cannot activate.
+    void SetUiPost(UiPost post) { uiPost_ = std::move(post); }
 
     /// Apply a coordinator event JSON to the state (the seam the tests
     /// drive; events arrive via the coordinator's C callback and are
-    /// marshalled to the UI thread when a dispatcher is set).
+    /// marshalled to the UI thread when one is set).
     void ApplyCoordinatorEvent(const std::wstring& json);
 
 private:
     /// Coordinator event entry point: marshal to the UI thread when a
-    /// dispatcher is available, otherwise apply directly (tests).
+    /// UI thread is set, otherwise apply directly (tests).
     void OnCoordinatorEvent(const std::wstring& json);
 
-    winrt::Microsoft::UI::Dispatching::DispatcherQueue dispatcher_{ nullptr };
+    UiPost uiPost_;
 };
 
 } // namespace rhythm

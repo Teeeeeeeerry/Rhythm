@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <catch_amalgamated.hpp>
+#include <nlohmann/json.hpp>
 #include "TestHelpers.h"
 
 using namespace rhythm;
@@ -26,6 +27,9 @@ struct SpyApp {
     TempDir dir;
     AppState state;
     SpyCoordinator* spy;
+    // Declared after `state`: the UI thread stops (and drains) before the
+    // state its work touches is destroyed.
+    std::unique_ptr<UiThread> ui;
 
     SpyApp() {
         spy = new SpyCoordinator();
@@ -33,6 +37,12 @@ struct SpyApp {
         spy->SetEventHandler([this](const std::wstring& json) {
             state.ApplyCoordinatorEvent(json);
         });
+    }
+
+    /// Marshal async results through a UI-thread stand-in (#418).
+    void UseUiThread() {
+        ui = std::make_unique<UiThread>();
+        state.SetUiPost(ui->Post());
     }
 };
 
@@ -111,12 +121,13 @@ TEST_CASE("WA-04 DoSearch switches between all tracks and search") {
 // ─── WA-05 PlayTrack 分派（#81 守卫在协调器）─────────────────────────
 
 TEST_CASE("WA-05 PlayTrack dispatches through the coordinator") {
-    SKIP("#418: red test registered after the host first ran (#416)");
     SpyApp app;
     app.state.OpenDatabase(app.dir.dbPath());
 
     auto wav = writeWavAt(app.dir.path, L"play.wav", 3.0);
     auto saved = app.state.Library->AddTrack(makeLocalTrack(wav.wstring(), L"Play Me"));
+    // The queue is the loaded list: load it the way the app does (#418).
+    app.state.RefreshLibrary();
 
     app.state.PlayTrack(saved);
 
@@ -248,25 +259,10 @@ TEST_CASE("WA-09 SetVolume updates state and coordinator") {
 
 // ─── WA-10/11/12/13/14 ResolveAndPlay ───────────────────────────────
 
-namespace {
-
-/// A dedicated-thread dispatcher: its thread pumps its own queue, so
-/// `TryEnqueue` callbacks run without a window message loop in tests.
-winrt::Microsoft::UI::Dispatching::DispatcherQueueController
-makeDispatcher() {
-    return winrt::Microsoft::UI::Dispatching::DispatcherQueueController::
-        CreateOnDedicatedThread();
-}
-
-} // namespace
-
 TEST_CASE("WA-10 ResolveAndPlay success persists, inserts, and plays") {
-    SKIP("#418: red test registered after the host first ran (#416)");
     SpyApp app;
     app.state.OpenDatabase(app.dir.dbPath());
-    auto controller = makeDispatcher();
-    REQUIRE(controller);
-    app.state.SetDispatcherQueue(controller.DispatcherQueue());
+    app.UseUiThread();
 
     app.state.ResolveAndPlay(L"  https://example.com/wa10-tone.mp3  "); // trims input
     // The callback clears IsResolvingUrl first, then persists/inserts/plays —
@@ -284,12 +280,9 @@ TEST_CASE("WA-10 ResolveAndPlay success persists, inserts, and plays") {
 }
 
 TEST_CASE("WA-11 ResolveAndPlay failure reports kind and message (#21)") {
-    SKIP("#418: red test registered after the host first ran (#416)");
     SpyApp app;
     app.state.OpenDatabase(app.dir.dbPath());
-    auto controller = makeDispatcher();
-    REQUIRE(controller);
-    app.state.SetDispatcherQueue(controller.DispatcherQueue());
+    app.UseUiThread();
 
     std::wstring kind, message;
     app.state.OnUrlError = [&](const std::wstring& k, const std::wstring& m) {
@@ -318,12 +311,9 @@ TEST_CASE("WA-12 ResolveAndPlay ignores blank input") {
 }
 
 TEST_CASE("WA-13 ResolveAndPlay ignores re-entrant calls") {
-    SKIP("#418: red test registered after the host first ran (#416)");
     SpyApp app;
     app.state.OpenDatabase(app.dir.dbPath());
-    auto controller = makeDispatcher();
-    REQUIRE(controller);
-    app.state.SetDispatcherQueue(controller.DispatcherQueue());
+    app.UseUiThread();
 
     int errorCallbacks = 0;
     app.state.OnUrlError = [&](const std::wstring&, const std::wstring&) {
@@ -343,10 +333,10 @@ TEST_CASE("WA-13 ResolveAndPlay ignores re-entrant calls") {
     REQUIRE(errorCallbacks == 1); // only the first resolution ran
 }
 
-TEST_CASE("WA-14 ResolveAndPlay without dispatcher drops the result and resets") {
+TEST_CASE("WA-14 ResolveAndPlay without a UI thread drops the result and resets") {
     SpyApp app;
     app.state.OpenDatabase(app.dir.dbPath());
-    // No SetDispatcherQueue: the background thread just clears the flag.
+    // No UI thread set: the background thread just clears the flag.
 
     int errorCallbacks = 0;
     app.state.OnUrlError = [&](const std::wstring&, const std::wstring&) {
@@ -362,20 +352,19 @@ TEST_CASE("WA-14 ResolveAndPlay without dispatcher drops the result and resets")
 }
 
 TEST_CASE("WA-24 ResolveAndPlay reloads from DB so list and queue stay in sync (#139)") {
-    SKIP("#418: red test registered after the host first ran (#416)");
     SpyApp app;
     app.state.OpenDatabase(app.dir.dbPath());
     auto wa = app.dir.path / L"wa";
     fs::create_directories(wa);
     auto a = writeWavAt(wa, L"a.wav", 3.0);
-    auto savedA = app.state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    // The list is ordered by title: "Z" sorts after the resolved
+    // "wa15-tone.mp3", so the pre-existing track is the one "next" reaches (#418).
+    auto savedA = app.state.Library->AddTrack(makeLocalTrack(a.wstring(), L"Z"));
     app.state.RefreshLibrary();
     app.state.PlayTrack(savedA);
     REQUIRE_FALSE(app.state.CanPlayNext()); // single-track queue
 
-    auto controller = makeDispatcher();
-    REQUIRE(controller);
-    app.state.SetDispatcherQueue(controller.DispatcherQueue());
+    app.UseUiThread();
 
     app.state.ResolveAndPlay(L"https://example.com/wa15-tone.mp3");
     REQUIRE(waitFor([&] {
@@ -623,7 +612,6 @@ TEST_CASE("WA-25 progress and state events drive the UI") {
 }
 
 TEST_CASE("WA-25 finished auto-advance renders via track_changed") {
-    SKIP("#418: red test registered after the host first ran (#416)");
     SpyApp app;
     app.state.OpenDatabase(app.dir.dbPath());
     auto wa = app.dir.path / L"wa";
@@ -641,18 +629,23 @@ TEST_CASE("WA-25 finished auto-advance renders via track_changed") {
     REQUIRE_FALSE(app.state.IsPlaying);
     REQUIRE(app.state.CurrentTrack->id == savedA.id);
 
-    std::string trackJson = R"({"id":)" + std::to_string(savedB.id) +
-        R"(,"file_path":")" + WideToUtf8ForTest(savedB.filePath ? *savedB.filePath : L"") +
-        R"(","source_type":"local","title":")" + WideToUtf8ForTest(savedB.title) + R"("})";
-    app.spy->FireEvent(L"{\"type\":\"track_changed\",\"track\":" +
-                       std::wstring(trackJson.begin(), trackJson.end()) + L"}");
+    // Built with the JSON library: a Windows path's backslashes must be
+    // escaped, or the event is malformed and silently ignored (#418).
+    nlohmann::json event = {
+        {"type", "track_changed"},
+        {"track", {{"id", savedB.id},
+                   {"file_path", WideToUtf8ForTest(savedB.filePath.value_or(L""))},
+                   {"source_type", "local"},
+                   {"title", WideToUtf8ForTest(savedB.title)}}},
+    };
+    app.spy->FireEvent(Utf8ToWide(event.dump()));
 
     REQUIRE(app.state.CurrentTrack->id == savedB.id);
     REQUIRE(app.state.IsPlaying);
 }
 
 TEST_CASE("WA-25 playback failure event surfaces classified copy (#120)") {
-    LocaleOverride zh(L"zh");
+    LanguageScope zh(L"zh");
     SpyApp app;
 
     std::wstring kind, message;
