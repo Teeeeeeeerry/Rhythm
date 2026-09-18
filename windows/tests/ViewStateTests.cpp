@@ -76,3 +76,34 @@ TEST_CASE("VS-04 a position outside the duration is clamped into range") {
     state.Position = -3.0;
     REQUIRE(view::PlayerBarState(state).progressPercent == 0.0);
 }
+
+// ─── VS-05/06/07 播放条时间文案（#333）──────────────────────────────
+
+TEST_CASE("VS-05 buffering renders the buffering copy instead of a clock") {
+    for (const wchar_t* language : {L"zh", L"en"}) {
+        LanguageScope scope(language);
+        AppState state;
+        state.IsBuffering = true;
+        state.Position = 12.0;
+        state.Duration = 200.0;
+        REQUIRE(view::PlayerBarState(state).timeText == L10n::Buffering());
+    }
+}
+
+TEST_CASE("VS-06 not buffering renders position / duration in m:ss") {
+    AppState state;
+    state.Position = 65.0;
+    state.Duration = 200.4;
+    REQUIRE(view::PlayerBarState(state).timeText == L"1:05 / 3:20");
+    state.Position = 5.9;
+    REQUIRE(view::PlayerBarState(state).timeText == L"0:05 / 3:20");
+}
+
+TEST_CASE("VS-07 nothing loaded renders 0:00 / 0:00") {
+    AppState state;
+    REQUIRE(view::PlayerBarState(state).timeText == L"0:00 / 0:00");
+    // A position that is not positive reads as 0:00, never "-0:-3".
+    state.Position = -3.0;
+    state.Duration = 10.0;
+    REQUIRE(view::PlayerBarState(state).timeText == L"0:00 / 0:10");
+}
