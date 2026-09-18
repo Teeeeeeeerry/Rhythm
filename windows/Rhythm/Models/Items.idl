@@ -1,0 +1,20 @@
+// Row models the XAML lists bind to (#428): WinRT classes, so x:Bind can
+// reach them. Each wraps a behaviour-library model; created in C++ only.
+namespace Rhythm.Models
+{
+    runtimeclass TrackItem
+    {
+        String Title{ get; };
+        String Artist{ get; };
+        String SourceTag{ get; };
+        Microsoft.UI.Xaml.Media.Brush SourceForeground{ get; };
+        Microsoft.UI.Xaml.Media.Brush SourceBackground{ get; };
+        String DurationText{ get; };
+    }
+
+    runtimeclass PlaylistItem
+    {
+        String Name{ get; };
+        String TrackCountText{ get; };
+    }
+}

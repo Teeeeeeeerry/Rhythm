@@ -1,51 +1,95 @@
 #include "pch.h"
 #include "MainWindow.xaml.h"
+#if __has_include("MainWindow.g.cpp")
+#include "MainWindow.g.cpp"
+#endif
 #include "Views/LibraryView.xaml.h"
 #include "Views/PlaylistListView.xaml.h"
+#include "Views/PlaylistDetailView.xaml.h"
 #include "Views/PlayerBarView.xaml.h"
 #include "Views/TrayManager.h"
+#include "Views/Win32Interop.h"
 #include "L10n.h"
+
+#include <filesystem>
+#include <shlobj_core.h>
+
+using namespace winrt::Microsoft::UI::Xaml;
+using namespace winrt::Microsoft::UI::Xaml::Controls;
+using winrt::Windows::Foundation::IInspectable;
 
 namespace winrt::Rhythm::implementation {
 
-MainWindow::MainWindow() {
-    InitializeComponent();
+namespace {
+
+/// %LOCALAPPDATA%\Rhythm\library.db. An unpackaged app has no
+/// ApplicationData container (ApplicationData::Current() throws, #428).
+std::wstring LibraryDatabasePath() {
+    PWSTR base = nullptr;
+    HRESULT hr = ::SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &base);
+    std::filesystem::path root = SUCCEEDED(hr) ? base : L"";
+    ::CoTaskMemFree(base);  // freed on failure too (API contract)
+    winrt::check_hresult(hr);
+    std::filesystem::path dir = root / L"Rhythm";
+    std::filesystem::create_directories(dir);
+    return (dir / L"library.db").wstring();
+}
+
+} // namespace
+
+void MainWindow::InitializeComponent() {
+    MainWindowT<MainWindow>::InitializeComponent();
+    hwnd_ = rhythm::shell::WindowHandle(*this);
+    AppWindow().Resize({960, 600});
 
     // #141: all static copy comes from the language layer (system UI
     // language, manual override in L10n::SetOverrideLanguage).
     navLibrary().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::LibraryTab() }));
     navPlaylists().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::PlaylistsTab() }));
-    btnImport().ToolTip(winrt::box_value(winrt::hstring{ rhythm::L10n::ImportFolderTooltip() }));
-    btnImportFile().ToolTip(winrt::box_value(winrt::hstring{ rhythm::L10n::ImportTooltip() }));
+    ToolTipService::SetToolTip(btnImport(), winrt::box_value(winrt::hstring{ rhythm::L10n::ImportFolderTooltip() }));
+    ToolTipService::SetToolTip(btnImportFile(), winrt::box_value(winrt::hstring{ rhythm::L10n::ImportTooltip() }));
     searchBox().PlaceholderText(rhythm::L10n::SearchPlaceholder());
     comboArtistAlbum().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::ByArtistAlbum() }));
     comboByLetter().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::ByLetter() }));
 
-    // Open database in AppData
-    auto localFolder = winrt::Windows::Storage::ApplicationData::Current().LocalFolder();
-    auto dbPath = localFolder.Path() + L"\\library.db";
-    appState_.OpenDatabase(dbPath.c_str());
+    appState_.OpenDatabase(LibraryDatabasePath());
 
     // Wire the player bar to the shared state
     appState_.SetDispatcherQueue(DispatcherQueue());
-    playerBar().BindState(&appState_);
-
-    // Setup tray
-    TrayManager::Create(*this, &appState_);
-
-    // Default to library view
-    LoadLibraryView();
+    get_self<Views::implementation::PlayerBarView>(playerBar())->BindState(&appState_);
 
     // #172/#173: playback state, progress, auto-advance, and failure
     // reporting arrive as coordinator events — the old 500 ms polling timer
     // is gone. The player bar re-renders after every applied event.
-    appState_.OnStateChanged = [this] { playerBar().Update(); };
+    appState_.OnStateChanged = [this] {
+        get_self<Views::implementation::PlayerBarView>(playerBar())->Update();
+    };
+
+    TrayManager::Create(hwnd_, &appState_);
+    Closed([](auto&&, auto&&) { TrayManager::Remove(); });
+
+    contentFrame().Navigated({ this, &MainWindow::OnFrameNavigated });
+    navView().SelectedItem(navLibrary());
+    ready_ = true;
+    LoadLibraryView();
+}
+
+void MainWindow::OnFrameNavigated(IInspectable const&,
+                                  Navigation::NavigationEventArgs const& args) {
+    auto content = args.Content();
+    if (auto page = content.try_as<Rhythm::Views::LibraryView>()) {
+        get_self<Views::implementation::LibraryView>(page)->BindState(&appState_);
+    } else if (auto page = content.try_as<Rhythm::Views::PlaylistListView>()) {
+        get_self<Views::implementation::PlaylistListView>(page)->BindState(&appState_);
+    } else if (auto page = content.try_as<Rhythm::Views::PlaylistDetailView>()) {
+        get_self<Views::implementation::PlaylistDetailView>(page)->BindState(&appState_, hwnd_);
+    }
 }
 
 void MainWindow::OnNavSelectionChanged(
-    NavigationView const& sender,
+    NavigationView const&,
     NavigationViewSelectionChangedEventArgs const& args) {
-
+    if (!ready_) return;
     auto item = args.SelectedItem().try_as<NavigationViewItem>();
     if (!item) return;
     auto tag = winrt::unbox_value<hstring>(item.Tag());
@@ -59,86 +103,95 @@ void MainWindow::OnNavSelectionChanged(
     }
 }
 
-void MainWindow::OnImportClick(IInspectable const&, RoutedEventArgs const&) {
-    auto picker = winrt::Windows::Storage::Pickers::FolderPicker();
+winrt::fire_and_forget MainWindow::OnImportClick(IInspectable const&, RoutedEventArgs const&) {
+    auto lifetime = get_strong();
+    winrt::Windows::Storage::Pickers::FolderPicker picker;
     picker.SuggestedStartLocation(
         winrt::Windows::Storage::Pickers::PickerLocationId::MusicLibrary);
-    auto hwnd = GetWindowHandle();
-    picker.as<winrt::Windows::Foundation::IInitializeWithWindow>()->Initialize(hwnd);
+    picker.FileTypeFilter().Append(L"*");
+    rhythm::shell::ParentPicker(picker, hwnd_);
 
-    picker.PickSingleFolderAsync().Completed([this](auto const& operation, auto) {
-        if (auto folder = operation.GetResults()) {
-            appState_.ImportDirectory(folder.Path().c_str());
-        }
-    });
+    try {
+        // Awaited from the UI thread, so the continuation is back on it.
+        auto folder = co_await picker.PickSingleFolderAsync();
+        if (!folder) co_return;
+        appState_.ImportDirectory(folder.Path().c_str());
+        RefreshLibraryIfShown();
+    } catch (winrt::hresult_error const& e) {
+        // An exception leaving a fire_and_forget coroutine ends the process.
+        OutputDebugStringW((L"Folder import failed: " + e.message() + L"\n").c_str());
+    }
 }
 
 /// #242/#243: Windows can import audio files, not only a folder, and more
 /// than one at a time -- the capability macOS has always had. One file goes
 /// through the single-file path, several through the core's batch import.
-void MainWindow::OnImportFileClick(IInspectable const&, RoutedEventArgs const&) {
-    auto picker = winrt::Windows::Storage::Pickers::FileOpenPicker();
+winrt::fire_and_forget MainWindow::OnImportFileClick(IInspectable const&, RoutedEventArgs const&) {
+    auto lifetime = get_strong();
+    winrt::Windows::Storage::Pickers::FileOpenPicker picker;
     picker.SuggestedStartLocation(
         winrt::Windows::Storage::Pickers::PickerLocationId::MusicLibrary);
     for (const auto& ext : rhythm::kAudioFileTypes) {
         picker.FileTypeFilter().Append(ext);
     }
-    auto hwnd = GetWindowHandle();
-    picker.as<winrt::Windows::Foundation::IInitializeWithWindow>()->Initialize(hwnd);
+    rhythm::shell::ParentPicker(picker, hwnd_);
 
-    picker.PickMultipleFilesAsync().Completed([this](auto const& operation, auto) {
-        auto files = operation.GetResults();
-        if (!files || files.Size() == 0) return;
+    try {
+        auto files = co_await picker.PickMultipleFilesAsync();
+        if (!files || files.Size() == 0) co_return;
         if (files.Size() == 1) {
             appState_.ImportFile(files.GetAt(0).Path().c_str());
-            return;
+        } else {
+            std::vector<std::wstring> paths;
+            for (const auto& file : files) {
+                paths.emplace_back(file.Path().c_str());
+            }
+            appState_.ImportPaths(paths);
         }
-        std::vector<std::wstring> paths;
-        for (const auto& file : files) {
-            paths.emplace_back(file.Path().c_str());
-        }
-        appState_.ImportPaths(paths);
-    });
+        RefreshLibraryIfShown();
+    } catch (winrt::hresult_error const& e) {
+        OutputDebugStringW((L"File import failed: " + e.message() + L"\n").c_str());
+    }
 }
 
 void MainWindow::OnSearchSubmitted(AutoSuggestBox const& sender,
                                    AutoSuggestBoxQuerySubmittedEventArgs const&) {
     appState_.SearchQuery = sender.Text().c_str();
     appState_.DoSearch();
+    RefreshLibraryIfShown();
 }
 
 void MainWindow::OnSearchTextChanged(AutoSuggestBox const& sender,
                                      AutoSuggestBoxTextChangedEventArgs const&) {
-    auto text = sender.Text();
-    if (text.empty()) {
+    if (!ready_) return;
+    if (sender.Text().empty()) {
         appState_.SearchQuery = L"";
         appState_.DoSearch();
+        RefreshLibraryIfShown();
     }
 }
 
 void MainWindow::OnViewModeChanged(IInspectable const&, SelectionChangedEventArgs const&) {
-    LoadLibraryView();
+    if (!ready_) return;
+    RefreshLibraryIfShown();
 }
 
+/// Library content changed: re-render only when that tab is showing, so the
+/// frame never switches away from Playlists behind the navigation pane.
+void MainWindow::RefreshLibraryIfShown() {
+    if (appState_.SelectedView == rhythm::SidebarItem::Library) LoadLibraryView();
+}
+
+// Top-level pages start a fresh history: only the playlist detail page goes
+// "back" (to the list), never across tabs.
 void MainWindow::LoadLibraryView() {
-    contentFrame().Navigate(
-        winrt::xaml_typename<Rhythm::Views::LibraryView>(),
-        box_value(appState_));
+    contentFrame().Navigate(winrt::xaml_typename<Rhythm::Views::LibraryView>());
+    contentFrame().BackStack().Clear();
 }
 
 void MainWindow::LoadPlaylistListView() {
-    contentFrame().Navigate(
-        winrt::xaml_typename<Rhythm::Views::PlaylistListView>(),
-        box_value(appState_));
+    contentFrame().Navigate(winrt::xaml_typename<Rhythm::Views::PlaylistListView>());
+    contentFrame().BackStack().Clear();
 }
 
 } // namespace winrt::Rhythm::implementation
-
-// Entry point
-int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
-    winrt::init_apartment();
-    winrt::Microsoft::UI::Xaml::Application::Start(
-        [](auto&&) { winrt::make<Rhythm::implementation::App>(); }
-    );
-    return 0;
-}

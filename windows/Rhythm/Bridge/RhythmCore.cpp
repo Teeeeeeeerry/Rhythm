@@ -188,6 +188,12 @@ bool Library::RemoveTrack(int64_t id) {
     return rhythm_library_remove_track(ptr_, id) == 0;
 }
 
+bool ExportM3U8(const std::wstring& path, const std::vector<Track>& tracks) {
+    auto p = WideToUtf8(path);
+    auto json = TracksToJson(tracks);
+    return rhythm_export_m3u8(p.c_str(), json.c_str()) == 0;
+}
+
 /// Decode the core's named import outcome (#236) — the counts are the whole
 /// contract, the UI never re-derives "did this entry make it".
 std::optional<M3u8ImportOutcome> Library::ImportM3U8(const std::wstring& path) {

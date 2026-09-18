@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.170 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
+Initial development is complete. Current version: **v0.5.171 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
 
 ### Implementation Status
 
@@ -110,7 +110,7 @@ this machine).
 python3 scripts\tasks.py build
 ```
 
-Builds the Rust core and the WinUI 3 app, producing `build\windows\Release\Rhythm.exe`.
+Builds the Rust core, the CMake behaviour library and the WinUI 3 app (MSBuild, #428), producing `build\windows\Release\Rhythm.exe` (self-contained: no separate Windows App Runtime install).
 
 ### Run Tests
 

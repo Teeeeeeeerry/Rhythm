@@ -1,0 +1,8 @@
+namespace Rhythm.Views
+{
+    [default_interface]
+    runtimeclass PlayerBarView : Microsoft.UI.Xaml.Controls.UserControl
+    {
+        PlayerBarView();
+    }
+}

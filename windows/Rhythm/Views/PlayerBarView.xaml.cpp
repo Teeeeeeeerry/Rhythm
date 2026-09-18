@@ -1,11 +1,18 @@
 #include "pch.h"
-#include "PlayerBarView.xaml.h"
+#include "Views/PlayerBarView.xaml.h"
+#if __has_include("Views/PlayerBarView.g.cpp")
+#include "Views/PlayerBarView.g.cpp"
+#endif
 #include "L10n.h"
+
+using namespace winrt::Microsoft::UI::Xaml;
+using namespace winrt::Microsoft::UI::Xaml::Controls;
+using winrt::Windows::Foundation::IInspectable;
 
 namespace winrt::Rhythm::Views::implementation {
 
-PlayerBarView::PlayerBarView() {
-    InitializeComponent();
+void PlayerBarView::InitializeComponent() {
+    PlayerBarViewT<PlayerBarView>::InitializeComponent();
     // #141: static copy from the language layer.
     trackTitle().Text(rhythm::L10n::NotPlaying());
     urlBox().PlaceholderText(rhythm::L10n::UrlPlaceholder());

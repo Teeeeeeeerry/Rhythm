@@ -1,70 +1,78 @@
 #include "pch.h"
-#include "PlaylistListView.xaml.h"
+#include "Views/PlaylistListView.xaml.h"
+#if __has_include("Views/PlaylistListView.g.cpp")
+#include "Views/PlaylistListView.g.cpp"
+#endif
+#include "Models/PlaylistItem.h"
 #include "L10n.h"
+
+using namespace winrt::Microsoft::UI::Xaml;
+using namespace winrt::Microsoft::UI::Xaml::Controls;
+using winrt::Windows::Foundation::IInspectable;
 
 namespace winrt::Rhythm::Views::implementation {
 
-PlaylistListView::PlaylistListView() {
-    InitializeComponent();
+void PlaylistListView::InitializeComponent() {
+    PlaylistListViewT<PlaylistListView>::InitializeComponent();
     // #141: copy from the language layer.
     newPlaylistText().Text(rhythm::L10n::NewPlaylist());
     emptyMessage().Text(rhythm::L10n::PlaylistEmpty());
 }
 
-void PlaylistListView::OnNavigatedTo(Navigation::NavigationEventArgs const& args) {
-    appState_ = winrt::unbox_value<rhythm::AppState*>(args.Parameter());
+void PlaylistListView::BindState(rhythm::AppState* state) {
+    appState_ = state;
     Refresh();
 }
 
-void PlaylistListView::OnNewPlaylistClick(IInspectable const&, RoutedEventArgs const&) {
-    if (!appState_ || !appState_->Library) return;
+winrt::fire_and_forget PlaylistListView::OnNewPlaylistClick(IInspectable const&, RoutedEventArgs const&) {
+    if (!appState_ || !appState_->Library) co_return;
+    auto lifetime = get_strong();
 
     // Simple name input dialog
-    auto tb = TextBox();
+    TextBox tb;
     tb.PlaceholderText(rhythm::L10n::PlaylistNamePlaceholder());
     tb.Width(200);
 
-    auto dialog = ContentDialog();
+    ContentDialog dialog;
+    dialog.XamlRoot(XamlRoot());
     dialog.Title(winrt::box_value(winrt::hstring{ rhythm::L10n::NewPlaylist() }));
     dialog.Content(tb);
     dialog.PrimaryButtonText(rhythm::L10n::Create());
     dialog.CloseButtonText(rhythm::L10n::Cancel());
-    dialog.XamlRoot().XamlRoot();
     dialog.DefaultButton(ContentDialogButton::Primary);
 
-    dialog.PrimaryButtonClick([&](auto const&, auto const&) {
-        auto name = tb.Text();
-        if (!name.empty()) {
-            appState_->Library->CreatePlaylist(name.c_str());
-            appState_->RefreshLibrary();
-            Refresh();
-        }
-    });
+    try {
+        if (co_await dialog.ShowAsync() != ContentDialogResult::Primary) co_return;
+    } catch (winrt::hresult_error const& e) {
+        // An exception leaving a fire_and_forget coroutine ends the process.
+        OutputDebugStringW((L"New playlist dialog failed: " + e.message() + L"\n").c_str());
+        co_return;
+    }
+    auto name = tb.Text();
+    if (name.empty() || !appState_ || !appState_->Library) co_return;
+    appState_->Library->CreatePlaylist(name.c_str());
+    appState_->RefreshLibrary();
+    Refresh();
 }
 
-void PlaylistListView::OnSelectionChanged(IInspectable const&, SelectionChangedEventArgs const&) {
-    if (!appState_) return;
-    auto idx = playlistList().SelectedIndex();
-    if (idx >= 0 && idx < static_cast<int32_t>(appState_->Playlists.size())) {
-        auto& pl = appState_->Playlists[idx];
-        // Navigate to detail view
-        auto frame = playlistList().XamlRoot().Content().try_as<Frame>();
-        if (frame) {
-            frame.Navigate(xaml_typename<Rhythm::Views::PlaylistDetailView>(),
-                           box_value(&pl));
-        }
-    }
+void PlaylistListView::OnPlaylistClick(IInspectable const&, ItemClickEventArgs const& args) {
+    auto item = args.ClickedItem().as<Rhythm::Models::PlaylistItem>();
+    auto id = get_self<Models::implementation::PlaylistItem>(item)->Model().id;
+    if (!id) return;
+    // MainWindow binds the detail page's state when it lands in the frame.
+    Frame().Navigate(winrt::xaml_typename<Rhythm::Views::PlaylistDetailView>(),
+                     winrt::box_value(*id));
 }
 
 void PlaylistListView::Refresh() {
     if (!appState_) return;
-    auto& playlists = appState_->Playlists;
+    auto const& playlists = appState_->Playlists;
     emptyMessage().Visibility(playlists.empty() ? Visibility::Visible : Visibility::Collapsed);
     playlistList().Visibility(playlists.empty() ? Visibility::Collapsed : Visibility::Visible);
 
     auto items = winrt::single_threaded_observable_vector<IInspectable>();
-    for (auto& pl : playlists) {
-        items.Append(box_value(pl));
+    for (const auto& pl : playlists) {
+        items.Append(winrt::make<Models::implementation::PlaylistItem>(pl));
     }
     playlistList().ItemsSource(items);
 }

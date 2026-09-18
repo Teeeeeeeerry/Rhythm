@@ -111,7 +111,8 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   `find_package` 在任何机器上都找不到。依赖改由 `windows/cmake/RhythmWindowsDeps.cmake` 一处负责：按固定版本 +
   SHA-256 下载 NuGet 包与 json 头、跑固定版本的 cppwinrt 生成投影头、以原有目标名 `Microsoft.WindowsAppSDK` /
   `nlohmann_json::nlohmann_json` 导出，缓存在 `build/windows-deps/`。应用与测试宿主都 `include` 这一个模块，
-  升级依赖只改模块里的版本与哈希。XAML 标记编译仍是 MSBuild 专属，不在该模块范围内（见 `docs/adr/0003-Windows-App-SDK-接入方式.md`）
+  升级依赖只改模块里的版本与哈希。XAML 标记编译是 MSBuild 专属：应用由 `windows/Rhythm/Rhythm.vcxproj` 构建，经模块写出的 props 取同一套依赖，
+  链接 CMake 行为库 `RhythmBehavior`；行为源文件只在 CMake 登记（#428，`docs/adr/0004-Windows-应用改由-MSBuild-构建.md`）
 - **编排层只用 Python（#221 组）**：构建与测试的入口是 `python3 scripts/tasks.py <任务>`，任务名两个平台相同
   （`build` / `test` / `check-no-emoji` / `compare-screenshots`），退出码 0 全绿 / 1 有步骤失败（筛选后零步也算，#343）/ 2 用法错误。
   路径解析、日志落盘、失败计数与退出码聚合、子进程调用四项只写在 `scripts/tasklib.py`；新增一个任务改
@@ -139,7 +140,7 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
 | 文档 | 受众 | 内容 |
 |------|------|------|
 | README.md / README.en.md | 人 | 功能总览、架构介绍、构建方式；版本行与 `Cargo.toml` 同步，每次发布更新 |
-| docs/adr/ | 人+agent | 架构与流程决策记录（0001 行为清单制测试教义、0002 测试桩按平台可执行形式调用、0003 Windows App SDK 接入方式） |
+| docs/adr/ | 人+agent | 架构与流程决策记录（0001 行为清单制测试教义、0002 测试桩按平台可执行形式调用、0003 Windows App SDK 接入方式（部分被 0004 取代）、0004 Windows 应用改由 MSBuild 构建） |
 | docs/testing/behavior/ | 人+agent | 按模块的行为清单 + 红测登记（测试完整性的交付物） |
 | docs/issues/ | 人+agent | 已调查并辑录的 bug 报告（issue 草稿，可直接贴 GitHub） |
 | testing/deep-testing-plan.md | 人 | 主题色彩测试方案（L0-L4）+ F1-F8 修复状态 |

@@ -1,5 +1,7 @@
 # Windows App SDK 接入方式
 
+> 2026-09-18 部分被 ADR-0004 取代：应用改由 MSBuild 构建（下文否决 MSBuild 的结论不再成立）；依赖获取部分（固定版本 + SHA-256、`RhythmWindowsDeps.cmake`）继续有效，MSBuild 工程经它写出的 props 取用同一套依赖。
+
 2026-09-15（#386）：Windows 端的依赖由 CMake 模块 `windows/cmake/RhythmWindowsDeps.cmake` 在配置期按固定版本获取——下载 NuGet 包（Windows App SDK、WebView2、C++/WinRT）与 nlohmann/json 单头文件并校验 SHA-256，用固定版本的 `cppwinrt.exe` 生成投影头，以原有目标名导出为导入目标。应用与测试宿主共用这个模块，构建入口仍是 `python3 scripts/tasks.py build` / `test`。
 
 **Considered Options**

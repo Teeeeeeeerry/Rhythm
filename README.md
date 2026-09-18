@@ -24,7 +24,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-初步开发完成。当前版本 **v0.5.170 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
+初步开发完成。当前版本 **v0.5.171 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
 
 ### 实现状态
 
@@ -105,7 +105,7 @@ python3 scripts/tasks.py build
 python3 scripts\tasks.py build
 ```
 
-构建 Rust 核心与 WinUI 3 应用，产出 `build\windows\Release\Rhythm.exe`。
+依次构建 Rust 核心、CMake 行为库与 WinUI 3 应用（MSBuild，#428），产出 `build\windows\Release\Rhythm.exe`（自包含，运行不需要另装 Windows App Runtime）。
 
 ### 运行测试
 
