@@ -9,9 +9,10 @@
 
 namespace rhythm::view {
 
-/// One row of a track list.
+/// One row of a track list. `track` is the row's action payload -- what a
+/// click hands to `AppState::PlayTrack`, never rendered; the other fields are
+/// exactly what the row shows, so the shell reads nothing off the model.
 struct TrackRow {
-    /// The track the row plays when clicked.
     Track track;
     std::wstring title;
 };

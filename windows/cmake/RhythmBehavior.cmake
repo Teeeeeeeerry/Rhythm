@@ -1,9 +1,9 @@
 # The Windows behaviour library, declared once (#330).
 #
 # Everything that is not XAML shell: app state, the core bridge, the L10n
-# layer (ADR-0004, #428) and the view state the shell renders (#331). Its source list, the usage requirements every
-# consumer needs (include paths, NOMINMAX, /utf-8) and the Rust core it links
-# live here and nowhere else:
+# layer (ADR-0004, #428) and the view state the shell renders (#331). Its
+# source list, the usage requirements every consumer needs (include paths,
+# NOMINMAX, /utf-8) and the Rust core it links live here and nowhere else:
 #   - windows/CMakeLists.txt links it into the test host and writes the props
 #     file the MSBuild app imports (values derived from this target);
 #   - testing/l1/windows links it for the colour tests.
