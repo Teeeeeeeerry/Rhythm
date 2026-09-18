@@ -48,6 +48,27 @@ class ArtifactLayoutTest(unittest.TestCase):
                          ROOT / "build" / "windows")
 
 
+class WindowsRuntimeDependencyTest(unittest.TestCase):
+    """#325：CMake 构建的目标（行为库、测试宿主、L1 颜色测试）不链接 Windows App SDK。
+
+    Windows App Runtime 只由 MSBuild 应用经依赖模块写出的 props 取用；测试宿主是未打包的
+    exe，本就无法激活运行时类（#418）。
+    """
+
+    CMAKE_FILES = (
+        WINDOWS_CMAKE,
+        ROOT / "windows" / "cmake" / "RhythmWindowsDeps.cmake",
+        ROOT / "testing" / "l1" / "windows" / "CMakeLists.txt",
+    )
+
+    def test_no_cmake_target_links_the_windows_app_runtime(self):
+        for path in self.CMAKE_FILES:
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.relative_to(ROOT).as_posix()):
+                self.assertNotIn("Microsoft.WindowsAppRuntime", text)
+                self.assertNotRegex(text, r"target_link_libraries\([^)]*Microsoft\.WindowsAppSDK")
+
+
 class BundleVersionTest(unittest.TestCase):
     """应用包的版本字段由工作区清单写入，模板里不留人工副本。"""
 

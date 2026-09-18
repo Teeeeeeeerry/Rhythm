@@ -8,8 +8,10 @@
 #   1. download pinned NuGet packages / release files, verified by SHA-256
 #   2. run the pinned cppwinrt.exe once to generate the C++/WinRT projection
 #      (Windows SDK + Windows App SDK + WebView2 metadata)
-#   3. expose the imports as the target names the build already links:
-#      Microsoft.WindowsAppSDK and nlohmann_json::nlohmann_json
+#   3. expose the imports CMake links as imported targets: Rhythm::CppWinRT
+#      (the projection headers) and nlohmann_json::nlohmann_json. The Windows
+#      App SDK runtime itself is linked only by the MSBuild app, through the
+#      props file written at the end (#325).
 #
 # Everything lands under <repo>/build/windows-deps (the build/ convention; one
 # copy shared by the app and the test hosts). Prerequisites that are NOT fetched
@@ -127,16 +129,15 @@ _rhythm_download(
     "https://github.com/nlohmann/json/releases/download/v${RHYTHM_JSON_VERSION}/json.hpp"
     "${RHYTHM_JSON_INCLUDE}/nlohmann/json.hpp" "${RHYTHM_JSON_SHA256}")
 
-# ---- Imported targets (names the build already links) --------------------
-if(NOT TARGET Microsoft.WindowsAppSDK)
-    add_library(Microsoft.WindowsAppSDK INTERFACE IMPORTED GLOBAL)
-    target_include_directories(Microsoft.WindowsAppSDK INTERFACE
-        "${RHYTHM_WINRT_DIR}"
-        "${RHYTHM_WASDK_ROOT}/include")
-    target_link_libraries(Microsoft.WindowsAppSDK INTERFACE
-        "${RHYTHM_WASDK_ROOT}/lib/win10-x64/Microsoft.WindowsAppRuntime.Bootstrap.lib"
-        "${RHYTHM_WASDK_ROOT}/lib/win10-x64/Microsoft.WindowsAppRuntime.lib"
-        WindowsApp.lib)
+# ---- Imported targets ------------------------------------------------------
+# The C++/WinRT projection only: headers plus the WinRT umbrella library. No
+# Windows App SDK runtime libraries -- nothing CMake builds may depend on the
+# Windows App Runtime (#325): the test hosts are unpackaged exes that cannot
+# activate its classes anyway (#418), and the app gets the runtime from MSBuild.
+if(NOT TARGET Rhythm::CppWinRT)
+    add_library(Rhythm::CppWinRT INTERFACE IMPORTED GLOBAL)
+    target_include_directories(Rhythm::CppWinRT INTERFACE "${RHYTHM_WINRT_DIR}")
+    target_link_libraries(Rhythm::CppWinRT INTERFACE WindowsApp.lib)
 endif()
 
 if(NOT TARGET nlohmann_json::nlohmann_json)

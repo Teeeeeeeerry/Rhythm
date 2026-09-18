@@ -67,9 +67,11 @@ if(MSVC)
 endif()
 
 # L10n.h includes Bridge/MessageSpec.h, which parses the core's message spec
-# JSON; the core itself is a DLL behind its import library.
+# JSON; the core itself is a DLL behind its import library. The C++/WinRT
+# projection, not the Windows App SDK: neither the library nor the test host
+# links the Windows App Runtime (#325).
 target_link_libraries(RhythmBehavior PUBLIC
-    Microsoft.WindowsAppSDK
+    Rhythm::CppWinRT
     nlohmann_json::nlohmann_json
     ${CMAKE_CURRENT_SOURCE_DIR}/../target/release/rhythm_core.dll.lib
 )
