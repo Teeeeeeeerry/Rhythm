@@ -4,24 +4,11 @@
 #include "L10n.h"
 #include <rhythm_core.h>
 
-// UISettings (a Windows SDK type, not WinUI) for the theme lookup `IsDarkTheme`
-// -- the behaviour prefix carries no WinRT header (#329).
-#include <winrt/Windows.UI.ViewManagement.h>
-
 namespace rhythm {
 
 /// UTF-8 → wide-string conversion shared by the bridge and the UI layer
 /// (coordinator event payloads).
 std::wstring Utf8ToWide(const std::string& s);
-
-/// Effective app theme: the app never pins `Application.RequestedTheme`, so
-/// the UI follows the system (the same resolution ThemeDictionaries use for
-/// `ActualTheme`). Light foreground text ⇒ dark system theme.
-inline bool IsDarkTheme() {
-    auto fg = winrt::Windows::UI::ViewManagement::UISettings()
-                  .GetColorValue(winrt::Windows::UI::ViewManagement::UIColorType::Foreground);
-    return (fg.R + fg.G + fg.B) / 3 >= 128;
-}
 
 /// A colour as plain bytes (#328): the model carries no UI-framework type.
 /// Field names and order mirror `Windows::UI::Color` on purpose, so the shell

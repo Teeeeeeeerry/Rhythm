@@ -6,12 +6,10 @@
 # is installed" problem. This module turns both into one reproducible step:
 #
 #   1. download pinned NuGet packages / release files, verified by SHA-256
-#   2. run the pinned cppwinrt.exe once to generate the C++/WinRT projection
-#      (Windows SDK + Windows App SDK + WebView2 metadata)
-#   3. expose the imports CMake links as imported targets: Rhythm::CppWinRT
-#      (the projection headers) and nlohmann_json::nlohmann_json. The Windows
-#      App SDK runtime itself is linked only by the MSBuild app, through the
-#      props file written at the end (#325).
+#   2. expose nlohmann_json::nlohmann_json, the one import CMake links: the
+#      behaviour library and its test hosts use no C++/WinRT (#325/#342)
+#   3. write the props file the MSBuild app imports (Windows App SDK, WebView2
+#      and the C++/WinRT build tooling; the app generates its own projection)
 #
 # Everything lands under <repo>/build/windows-deps (the build/ convention; one
 # copy shared by the app and the test hosts). Prerequisites that are NOT fetched
@@ -92,37 +90,6 @@ _rhythm_nuget(Microsoft.WindowsAppSDK ${RHYTHM_WASDK_VERSION} ${RHYTHM_WASDK_SHA
 _rhythm_nuget(Microsoft.Web.WebView2 ${RHYTHM_WEBVIEW2_VERSION} ${RHYTHM_WEBVIEW2_SHA256} RHYTHM_WEBVIEW2_ROOT)
 _rhythm_nuget(Microsoft.Windows.CppWinRT ${RHYTHM_CPPWINRT_VERSION} ${RHYTHM_CPPWINRT_SHA256} RHYTHM_CPPWINRT_ROOT)
 
-# ---- C++/WinRT projection ------------------------------------------------
-# Regenerated only when the pins change (the stamp records them).
-set(RHYTHM_WINRT_DIR "${RHYTHM_WINDOWS_DEPS_DIR}/cppwinrt")
-set(_rhythm_winrt_stamp
-    "${RHYTHM_CPPWINRT_VERSION}|${RHYTHM_WASDK_VERSION}|${RHYTHM_WEBVIEW2_VERSION}")
-set(_rhythm_winrt_have "")
-if(EXISTS "${RHYTHM_WINRT_DIR}/.stamp")
-    file(READ "${RHYTHM_WINRT_DIR}/.stamp" _rhythm_winrt_have)
-endif()
-if(NOT _rhythm_winrt_have STREQUAL _rhythm_winrt_stamp)
-    message(STATUS "Rhythm deps: generating C++/WinRT projection")
-    file(REMOVE_RECURSE "${RHYTHM_WINRT_DIR}")
-    execute_process(
-        COMMAND "${RHYTHM_CPPWINRT_ROOT}/bin/cppwinrt.exe"
-            -input sdk
-            -input "${RHYTHM_WASDK_ROOT}/lib/uap10.0"
-            -input "${RHYTHM_WASDK_ROOT}/lib/uap10.0.18362"
-            -input "${RHYTHM_WEBVIEW2_ROOT}/lib/Microsoft.Web.WebView2.Core.winmd"
-            -output "${RHYTHM_WINRT_DIR}"
-        RESULT_VARIABLE _rhythm_winrt_rc
-        OUTPUT_VARIABLE _rhythm_winrt_out
-        ERROR_VARIABLE _rhythm_winrt_out)
-    if(NOT _rhythm_winrt_rc EQUAL 0)
-        message(FATAL_ERROR
-            "Rhythm deps: cppwinrt failed (exit ${_rhythm_winrt_rc}):\n${_rhythm_winrt_out}\n"
-            "'-input sdk' needs an installed Windows 10/11 SDK (Visual Studio 2022 "
-            "Build Tools with the Windows SDK component).")
-    endif()
-    file(WRITE "${RHYTHM_WINRT_DIR}/.stamp" "${_rhythm_winrt_stamp}")
-endif()
-
 # ---- nlohmann/json (single header) ---------------------------------------
 set(RHYTHM_JSON_INCLUDE "${RHYTHM_WINDOWS_DEPS_DIR}/nlohmann-json.${RHYTHM_JSON_VERSION}/include")
 _rhythm_download(
@@ -130,16 +97,9 @@ _rhythm_download(
     "${RHYTHM_JSON_INCLUDE}/nlohmann/json.hpp" "${RHYTHM_JSON_SHA256}")
 
 # ---- Imported targets ------------------------------------------------------
-# The C++/WinRT projection only: headers plus the WinRT umbrella library. No
-# Windows App SDK runtime libraries -- nothing CMake builds may depend on the
-# Windows App Runtime (#325): the test hosts are unpackaged exes that cannot
-# activate its classes anyway (#418), and the app gets the runtime from MSBuild.
-if(NOT TARGET Rhythm::CppWinRT)
-    add_library(Rhythm::CppWinRT INTERFACE IMPORTED GLOBAL)
-    target_include_directories(Rhythm::CppWinRT INTERFACE "${RHYTHM_WINRT_DIR}")
-    target_link_libraries(Rhythm::CppWinRT INTERFACE WindowsApp.lib)
-endif()
-
+# Nothing CMake builds uses the Windows App SDK or any C++/WinRT projection
+# (#325/#342): the test hosts are unpackaged exes that could not activate a
+# runtime class anyway (#418), and the app gets both from MSBuild.
 if(NOT TARGET nlohmann_json::nlohmann_json)
     add_library(nlohmann_json::nlohmann_json INTERFACE IMPORTED GLOBAL)
     target_include_directories(nlohmann_json::nlohmann_json INTERFACE "${RHYTHM_JSON_INCLUDE}")

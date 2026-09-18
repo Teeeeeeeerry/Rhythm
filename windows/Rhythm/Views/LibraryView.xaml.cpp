@@ -4,6 +4,7 @@
 #include "Views/LibraryView.g.cpp"
 #endif
 #include "Models/TrackItem.h"
+#include "Views/SystemTheme.h"
 #include "L10n.h"
 
 using namespace winrt::Microsoft::UI::Xaml;
@@ -74,8 +75,9 @@ void LibraryView::PopulateAlphabetical() {
 void LibraryView::ShowTracks(std::vector<rhythm::Track> const& tracks) {
     ShowEmptyMessage(tracks.empty());
     auto items = winrt::single_threaded_observable_vector<IInspectable>();
+    const bool isDark = rhythm::shell::IsDarkTheme();  // #342: resolved once, by the shell
     for (const auto& track : tracks) {
-        items.Append(winrt::make<Models::implementation::TrackItem>(track));
+        items.Append(winrt::make<Models::implementation::TrackItem>(track, isDark));
     }
     trackList().ItemsSource(items);
 }

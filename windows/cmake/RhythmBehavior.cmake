@@ -68,10 +68,10 @@ function(rhythm_copy_runtime_dlls target)
 endfunction()
 
 # L10n.h includes Bridge/MessageSpec.h, which parses the core's message spec
-# JSON. The C++/WinRT projection, not the Windows App SDK: neither the library
-# nor the test hosts link the Windows App Runtime (#325).
+# JSON. No C++/WinRT at all: the library and the test hosts link neither the
+# Windows App Runtime (#325) nor the projection -- theme resolution, the last
+# WinRT call, lives in the shell (#342).
 target_link_libraries(RhythmBehavior PUBLIC
-    Rhythm::CppWinRT
     nlohmann_json::nlohmann_json
     Rhythm::Core
 )
