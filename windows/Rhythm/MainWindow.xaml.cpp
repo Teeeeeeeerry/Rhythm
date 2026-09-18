@@ -56,9 +56,11 @@ void MainWindow::InitializeComponent() {
 
     // Wire the player bar to the shared state. The UI thread is this
     // window's DispatcherQueue -- a WinUI type, so the shell adapts it (#326).
-    appState_.SetUiPost([dq = DispatcherQueue()](std::function<void()> work) {
-        dq.TryEnqueue([work = std::move(work)] { work(); });
-    });
+    if (auto dq = DispatcherQueue()) {
+        appState_.SetUiPost([dq](std::function<void()> work) {
+            dq.TryEnqueue([work = std::move(work)] { work(); });
+        });
+    }
     get_self<Views::implementation::PlayerBarView>(playerBar())->BindState(&appState_);
 
     // #172/#173: playback state, progress, auto-advance, and failure

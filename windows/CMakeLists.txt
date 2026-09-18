@@ -113,10 +113,10 @@ set(TEST_SOURCES
     tests/L10nTests.cpp
 )
 
+# Catch2's own main() (catch_amalgamated.cpp): AppState is plain C++ (#326),
+# so no WinRT apartment has to be initialised before the suites run.
 add_executable(RhythmTests ${TEST_SOURCES})
 
-# Catch2's own main(): AppState is plain C++ (#326), so no WinRT apartment
-# has to be initialised before the suites run.
 target_include_directories(RhythmTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/vendor
 )
