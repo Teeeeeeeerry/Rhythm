@@ -108,7 +108,7 @@ class SubprocessTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             log = Path(tmp) / "step.log"
             out = io.StringIO()
-            with mock.patch.dict(os.environ, {"PYTHONIOENCODING": "cp1252"}),                     redirect_stdout(out):
+            with mock.patch.dict(os.environ, {"PYTHONIOENCODING": "cp1252"}), redirect_stdout(out):
                 code = tasklib.run(
                     [sys.executable, "-c", "print('中文输出')"],
                     log=log, echo=False,
