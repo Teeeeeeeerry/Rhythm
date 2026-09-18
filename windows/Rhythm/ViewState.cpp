@@ -138,10 +138,8 @@ std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool 
 }
 
 std::vector<TrackRow> PlaylistRows(const AppState& state, int64_t playlistId, bool isDarkTheme) {
-    for (const auto& playlist : state.Playlists) {
-        if (playlist.id == playlistId) return RowsOf(playlist.tracks, isDarkTheme);
-    }
-    return {};
+    auto playlist = state.FindPlaylist(playlistId);
+    return playlist ? RowsOf(playlist->tracks, isDarkTheme) : std::vector<TrackRow>{};
 }
 
 PlayerBar PlayerBarState(const AppState& state) {

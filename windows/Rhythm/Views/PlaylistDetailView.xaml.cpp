@@ -36,10 +36,7 @@ void PlaylistDetailView::BindState(rhythm::AppState* state, HWND owner) {
 
 rhythm::Playlist const* PlaylistDetailView::CurrentPlaylist() const {
     if (!appState_ || !playlistId_) return nullptr;
-    for (const auto& pl : appState_->Playlists) {
-        if (pl.id == playlistId_) return &pl;
-    }
-    return nullptr;
+    return appState_->FindPlaylist(*playlistId_);  // #339: one lookup, shared with the rows
 }
 
 void PlaylistDetailView::Refresh() {

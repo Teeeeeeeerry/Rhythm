@@ -36,6 +36,7 @@
 | WA-14 | `ResolveAndPlay` 未设 UI 线程 | 后台结果被丢弃、`IsResolvingUrl` 复位（降级模式） | 新测（待 Windows 验证） |
 | WA-16 | `Library` 打开失败 | `OpenDatabase(坏路径)` → `Library` 内部 ptr 为 null，后续方法安全 no-op | 新测（待 Windows 验证） |
 | WA-31（#432） | 协调器事件载荷非 ASCII | `track_changed` 的中文标题、艺人、路径与 `error` 的中文消息按 UTF-8 往返无损（此前宽窄逐字符截断：字段乱码，或 JSON 非法整条事件被丢弃）；`CurrentTrack`、`OnUrlError` 的 message、`UrlError` 原样还原 | SpyCoordinator 事件注入 |
+| WA-32（#339） | `FindPlaylist(id)` | 返回已加载歌单中该 id 的那一个（指向 `Playlists` 内元素）；id 不存在 → null。歌单详情视图与视图状态 `PlaylistRows` 共用这一处查找 | SpyApp 之外直接构造 |
 
 ## 错误路径（P2）
 

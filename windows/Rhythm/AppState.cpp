@@ -181,6 +181,13 @@ void AppState::PlayPrevious() {
 
 // ─── Play mode (WA-21) ─────────────────────────────────────────────
 
+const Playlist* AppState::FindPlaylist(int64_t id) const {
+    for (const auto& playlist : Playlists) {
+        if (playlist.id == id) return &playlist;
+    }
+    return nullptr;
+}
+
 void AppState::CyclePlayMode() {
     CurrentMode = static_cast<PlayMode>((static_cast<int32_t>(CurrentMode) + 1) % 4);
     Coordinator->SetPlayMode(static_cast<int32_t>(CurrentMode));

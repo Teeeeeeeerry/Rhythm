@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Models/TrackItem.g.h"
+#include "Bridge/RhythmCore.h"
 #include "ViewState.h"
 
 namespace winrt::Rhythm::Models::implementation {
