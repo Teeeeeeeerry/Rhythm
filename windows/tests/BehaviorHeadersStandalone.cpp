@@ -7,6 +7,7 @@
 #include "BehaviorPch.h"
 #include "AppState.h"
 #include "L10n.h"
+#include "ViewState.h"
 #include "Bridge/GeneratedCodec.h"
 #include "Bridge/MessageSpec.h"
 #include "Bridge/RhythmCore.h"

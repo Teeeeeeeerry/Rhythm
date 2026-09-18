@@ -1,7 +1,7 @@
 # The Windows behaviour library, declared once (#330).
 #
-# Everything that is not XAML shell: app state, the core bridge and the L10n
-# layer (ADR-0004, #428). Its source list, the usage requirements every
+# Everything that is not XAML shell: app state, the core bridge, the L10n
+# layer (ADR-0004, #428) and the view state the shell renders (#331). Its source list, the usage requirements every
 # consumer needs (include paths, NOMINMAX, /utf-8) and the Rust core it links
 # live here and nowhere else:
 #   - windows/CMakeLists.txt links it into the test host and writes the props
@@ -38,6 +38,8 @@ set(BEHAVIOR_SOURCES
     Rhythm/Bridge/RhythmCore.h
     Rhythm/Bridge/RhythmCore.cpp
     Rhythm/Bridge/rhythm_core.h
+    Rhythm/ViewState.h
+    Rhythm/ViewState.cpp
 )
 list(TRANSFORM BEHAVIOR_SOURCES PREPEND "${RHYTHM_WINDOWS_DIR}/")
 

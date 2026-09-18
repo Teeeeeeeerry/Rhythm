@@ -41,7 +41,8 @@ macos/              SwiftUI (AppKit) 客户端，SPM 可执行目标
 windows/            WinUI 3 C++ 客户端，镜像 macos 的 AppState（AppState.cpp）
   Rhythm/Bridge/RhythmCore.h        C++ 侧 FFI 封装 + IPlayer/ICoordinator 接缝 + Track/Playlist 模型（含来源徽标色表映射）
   Rhythm/L10n.h                     Windows 文案层（跟随系统语言 + 注册表覆盖，#141）
-  tests/                            Catch2 行为测试（AppState / Bridge / L10n）
+  Rhythm/ViewState.h                视图状态（#317 组）：输入 AppState、输出普通结构体的纯函数，决定「渲染什么」；XAML 壳只灌控件
+  tests/                            Catch2 行为测试（AppState / Bridge / L10n / ViewState）
 testing/            主题色彩测试基础设施：palette.json 单一声明 + L0-L4；编排层自测在 tasks/tests/
 docs/               adr/（决策记录）、testing/behavior/（各模块行为清单）、issues/（已调查的 bug 报告）
 scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build.py / task_test.py；check_no_emoji.py / gen-l10n.py / gen-ffi-bindings.py
