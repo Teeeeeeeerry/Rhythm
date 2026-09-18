@@ -5,8 +5,8 @@
 //   2. SourceBackgroundBrush alpha == 38（≈ 15%，与 macOS opacity(0.15) 一致）；
 //   3. 未知来源类型回退：颜色回退到主题次要文字色（非系统 Gray）。
 //
-// 构建：见同目录 CMakeLists.txt（cmake -S . -B build && cmake --build build
-//       --config Release && ctest --test-dir build -C Release --output-on-failure）
+// 构建与运行：python scripts/tasks.py test（配置名取 task_build.WINDOWS_CONFIG，
+//       构建的 --config 与 ctest 的 -C 同源，#427）
 
 #include <iostream>
 #include <string>
