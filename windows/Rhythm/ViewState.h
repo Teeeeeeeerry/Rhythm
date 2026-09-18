@@ -95,9 +95,9 @@ struct PlayerBar {
     std::wstring urlStatusText;
 };
 
-/// `resolver` is the resolver's provisioning status (`Resolver::Status()`);
+/// `resolverStatus` is the resolver's provisioning status (`Resolver::Status()`);
 /// passed in so the decision stays a pure function the tests can drive.
-PlayerBar PlayerBarState(const AppState& state, const ResolverStatus& resolver = {});
+PlayerBar PlayerBarState(const AppState& state, const ResolverStatus& resolverStatus = {});
 
 /// The notification-area menu (#340): its item labels, in the language the
 /// language layer currently resolves, and whether play/pause is available.
