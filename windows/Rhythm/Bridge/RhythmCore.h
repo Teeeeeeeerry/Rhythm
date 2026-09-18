@@ -1,8 +1,12 @@
 #pragma once
 
-#include "pch.h"
+#include "BehaviorPch.h"
 #include "L10n.h"
 #include <rhythm_core.h>
+
+// UISettings (a Windows SDK type, not WinUI) for the theme lookup `IsDarkTheme`
+// -- the behaviour prefix carries no WinRT header (#329).
+#include <winrt/Windows.UI.ViewManagement.h>
 
 namespace rhythm {
 

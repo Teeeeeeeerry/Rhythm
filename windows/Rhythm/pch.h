@@ -1,6 +1,10 @@
 #pragma once
 
-#include <Windows.h>
+// Prefix of the XAML shell (#329): the behaviour library's prefix plus the
+// C++/WinRT and WinUI headers only the shell uses. Generated XAML and
+// C++/WinRT sources include "pch.h" by name, so the shell keeps this file.
+#include "BehaviorPch.h"
+
 #include <unknwn.h>
 #include <restrictederrorinfo.h>
 #include <hstring.h>
@@ -29,12 +33,3 @@
 #include <winrt/Windows.Storage.Pickers.h>
 #include <winrt/Windows.System.h>
 #include <winrt/Windows.UI.ViewManagement.h>
-
-#include <string>
-#include <vector>
-#include <memory>
-#include <optional>
-#include <algorithm>
-#include <format>
-#include <functional>
-#include <atomic>

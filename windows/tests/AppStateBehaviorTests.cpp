@@ -8,7 +8,7 @@
 //
 // 这些测试在本机（macOS）不可运行——提交后在 Windows 上 `ctest` 验证。
 
-#include "pch.h"
+#include "BehaviorPch.h"
 #include "AppState.h"
 
 #include <algorithm>
@@ -501,13 +501,12 @@ TEST_CASE("WA-21 CyclePlayMode cycles and syncs the queue") {
 }
 
 TEST_CASE("LK-10 clicking the play mode control cycles the mode and its icon (#411)") {
-    using winrt::Microsoft::UI::Xaml::Controls::Symbol;
     SpyApp app;
     // The control's click handler calls CyclePlayMode, then renders PlayModeIcon.
-    const Symbol expected[] = { Symbol::Shuffle, Symbol::RepeatOne, Symbol::RepeatAll, Symbol::List };
-    for (auto symbol : expected) {
+    const Icon expected[] = { Icon::Shuffle, Icon::RepeatOne, Icon::RepeatAll, Icon::List };
+    for (auto icon : expected) {
         app.state.CyclePlayMode();
-        REQUIRE(PlayModeIcon(app.state.CurrentMode) == symbol);
+        REQUIRE(PlayModeIcon(app.state.CurrentMode) == icon);
     }
 }
 

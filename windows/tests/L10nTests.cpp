@@ -4,7 +4,7 @@
 //
 // 这些测试在本机（macOS）不可运行——提交后在 Windows 上 `ctest` 验证。
 
-#include "pch.h"
+#include "BehaviorPch.h"
 #include "L10n.h"
 #include "AppState.h"
 
@@ -163,11 +163,10 @@ TEST_CASE("LK-10 play mode tooltip comes from the key table in both languages") 
 }
 
 TEST_CASE("LK-10 play mode icon follows the current mode (#411)") {
-    using winrt::Microsoft::UI::Xaml::Controls::Symbol;
-    REQUIRE(PlayModeIcon(PlayMode::Sequential) == Symbol::List);
-    REQUIRE(PlayModeIcon(PlayMode::Shuffle) == Symbol::Shuffle);
-    REQUIRE(PlayModeIcon(PlayMode::SingleLoop) == Symbol::RepeatOne);
-    REQUIRE(PlayModeIcon(PlayMode::ListLoop) == Symbol::RepeatAll);
+    REQUIRE(PlayModeIcon(PlayMode::Sequential) == Icon::List);
+    REQUIRE(PlayModeIcon(PlayMode::Shuffle) == Icon::Shuffle);
+    REQUIRE(PlayModeIcon(PlayMode::SingleLoop) == Icon::RepeatOne);
+    REQUIRE(PlayModeIcon(PlayMode::ListLoop) == Icon::RepeatAll);
 }
 
 // ─── LK-11 链接解析失败兜底文案（#374）──────────────────────────────

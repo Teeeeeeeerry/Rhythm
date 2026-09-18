@@ -11,6 +11,21 @@ using winrt::Windows::Foundation::IInspectable;
 
 namespace winrt::Rhythm::Views::implementation {
 
+namespace {
+
+/// The behaviour library's icon name as a XAML symbol (#329).
+Symbol ToSymbol(rhythm::Icon icon) {
+    switch (icon) {
+        case rhythm::Icon::Shuffle:   return Symbol::Shuffle;
+        case rhythm::Icon::RepeatOne: return Symbol::RepeatOne;
+        case rhythm::Icon::RepeatAll: return Symbol::RepeatAll;
+        case rhythm::Icon::List:
+        default:                      return Symbol::List;
+    }
+}
+
+} // namespace
+
 void PlayerBarView::InitializeComponent() {
     PlayerBarViewT<PlayerBarView>::InitializeComponent();
     // #141: static copy from the language layer.
@@ -57,7 +72,7 @@ void PlayerBarView::Update() {
     playIcon().Symbol(
         appState_->IsPlaying ? Symbol::Pause : Symbol::Play);
 
-    playModeIcon().Symbol(rhythm::PlayModeIcon(appState_->CurrentMode));
+    playModeIcon().Symbol(ToSymbol(rhythm::PlayModeIcon(appState_->CurrentMode)));
 
     if (appState_->Duration > 0) {
         progressBar().Value(appState_->Position / appState_->Duration * 100.0);

@@ -1,7 +1,7 @@
 // Shared fixtures for the Wave 4a behavior suites (WA/WB).
 #pragma once
 
-#include "pch.h"
+#include "BehaviorPch.h"
 #include "AppState.h"
 #include "Bridge/RhythmCore.h"
 
