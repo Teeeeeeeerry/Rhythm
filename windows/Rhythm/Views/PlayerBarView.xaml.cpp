@@ -4,6 +4,7 @@
 #include "Views/PlayerBarView.g.cpp"
 #endif
 #include "L10n.h"
+#include "ViewState.h"
 
 using namespace winrt::Microsoft::UI::Xaml;
 using namespace winrt::Microsoft::UI::Xaml::Controls;
@@ -59,6 +60,9 @@ void PlayerBarView::ShowUrlError() {
 
 void PlayerBarView::Update() {
     if (!appState_) return;
+    // What to render is decided by the view state (#317); this only copies
+    // the values into the controls.
+    auto bar = rhythm::view::PlayerBarState(*appState_);
 
     if (appState_->CurrentTrack) {
         trackTitle().Text(appState_->CurrentTrack->title);
@@ -74,9 +78,7 @@ void PlayerBarView::Update() {
 
     playModeIcon().Symbol(ToSymbol(rhythm::PlayModeIcon(appState_->CurrentMode)));
 
-    if (appState_->Duration > 0) {
-        progressBar().Value(appState_->Position / appState_->Duration * 100.0);
-    }
+    progressBar().Value(bar.progressPercent);
 
     // #137: resolving + connecting + prebuffering can take a while on a
     // link; showing 0:00 / 0:00 for all of it reads as a dead player
