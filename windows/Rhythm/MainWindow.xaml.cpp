@@ -137,7 +137,7 @@ winrt::fire_and_forget MainWindow::OnImportFileClick(IInspectable const&, Routed
     picker.SuggestedStartLocation(
         winrt::Windows::Storage::Pickers::PickerLocationId::MusicLibrary);
     for (const auto& ext : rhythm::kAudioFileTypes) {
-        picker.FileTypeFilter().Append(ext);
+        picker.FileTypeFilter().Append(winrt::hstring{ ext });
     }
     rhythm::shell::ParentPicker(picker, hwnd_);
 

@@ -124,7 +124,7 @@ TEST_CASE("WB-20 SourceForegroundColor matches SourceColor in both themes") {
 
 TEST_CASE("WB-21 ExportM3U8 writes the tracks and reports failure") {
     TempDir dir;
-    Track t = makeLocalTrack(L"C:\music\wb21 曲目.mp3", L"WB21 标题");
+    Track t = makeLocalTrack(L"C:\\music\\wb21 曲目.mp3", L"WB21 标题");
     auto out = dir.path / L"list.m3u8";
 
     REQUIRE(ExportM3U8(out.wstring(), {t}));
@@ -134,6 +134,30 @@ TEST_CASE("WB-21 ExportM3U8 writes the tracks and reports failure") {
     REQUIRE(text.find(WideToUtf8ForTest(L"wb21 曲目.mp3")) != std::string::npos);
 
     REQUIRE_FALSE(ExportM3U8((dir.path / L"missing" / L"list.m3u8").wstring(), {t}));
+}
+
+// ─── WB-22 文件选择面板的扩展名都是核心收的格式（#242/#327）──────────
+
+TEST_CASE("WB-22 every picker extension is a format the core imports") {
+    TempDir dir;
+    Library lib(dir.dbPath());
+
+    // The core is the gate; the picker list only shapes the dialog. A file
+    // the picker offers must never come back "unsupported" -- unreadable
+    // (these are not audio) is the expected outcome.
+    for (const std::wstring& ext : kAudioFileTypes) {
+        INFO(WideToUtf8ForTest(ext));
+        auto file = dir.path / (L"x" + ext);
+        std::ofstream(file) << "not audio";
+        auto outcome = lib.ImportFile(file.wstring());
+        REQUIRE(outcome.has_value());
+        REQUIRE(outcome->unsupported == 0);
+    }
+
+    // Control: a format the core refuses is reported as unsupported.
+    auto txt = dir.path / L"x.txt";
+    std::ofstream(txt) << "not audio";
+    REQUIRE(lib.ImportFile(txt.wstring())->unsupported == 1);
 }
 
 // ─── WB-05 JsonToTrack/TrackToJson 往返（经 AddTrack 黑盒）───────────
