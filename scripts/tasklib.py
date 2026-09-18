@@ -6,7 +6,7 @@ bash、批处理、PowerShell 三种脚本方言各自实现过同一组编排�
 测试任务都从这里取：
 
 1. 仓库根定位          repo_root / logs_dir / log_path
-2. 日志目录与输出转存  Tee / open_log / run 的 log 参数
+2. 日志目录与输出转存  Tee / open_log / run 的 log 参数 / utf8_stdio
 3. 失败计数与退出码聚合 Failures
 4. 子进程调用与错误传播 run / run_checked / StepFailed
 5. 工作区版本号读取      workspace_version
@@ -81,6 +81,20 @@ class Tee:
     def flush(self) -> None:
         for s in self.streams:
             s.flush()
+
+
+# 管道两端的编码约定（#433）：编排层按 UTF-8 解码子进程输出，所以也按 UTF-8 写。
+# Python 的标准流默认跟随系统区域（如 cp1252），中文一打印就抛 UnicodeEncodeError；
+# 不要求使用者设 PYTHONUTF8。读管道的一方负责声明：run 给子进程设这个环境变量。
+CHILD_ENCODING_ENV = {"PYTHONIOENCODING": "utf-8"}
+
+
+def utf8_stdio() -> None:
+    """把本进程的 stdout/stderr 改为 UTF-8（入口调用一次；控制台下本就是 UTF-8）。"""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
 
 
 def open_log(path: Path) -> Path:
@@ -164,7 +178,7 @@ def run(
     if echo:
         print(f">>> {' '.join(str(c) for c in cmd)}"
               + (f"  (cwd={cwd})" if cwd else ""))
-    merged_env = {**os.environ, **env} if env else None
+    merged_env = {**os.environ, **CHILD_ENCODING_ENV, **(env or {})}
     sink = open(log, "w", encoding="utf-8") if log else None
     try:
         try:

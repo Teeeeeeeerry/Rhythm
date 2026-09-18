@@ -120,7 +120,8 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   全量测试的步骤表 = 双端共享的静态分析前缀（`task_test.static_analysis_steps`：按名排序的 L0 校验脚本 + 零 emoji +
   两组自测，#344/#345）+ 平台段（只有构建与运行）；筛选后零步以 1 退出（#343）。
   CI 模板（`testing/ci/`，尚未部署到 `.github/workflows/`，#346）调用的就是本地同名命令。新增 .sh / .bat / .ps1 由 `python3 testing/l0/check-orchestration-dialects.py`
-  拦截，确有必要的例外写进该脚本的 ALLOWED 并附理由
+  拦截，确有必要的例外写进该脚本的 ALLOWED 并附理由。
+  标准流编码不跟随系统区域（#433）：读子进程管道的一方按 UTF-8 解码，也负责给子进程设 `PYTHONIOENCODING=utf-8`（`tasklib.run`；L0 自测统一经 `testing/l0/tests/script_runner.py` 启动被测脚本），入口 `tasks.py` 自己的标准流由 `tasklib.utf8_stdio()` 改为 UTF-8，cp1252 这类区域下不需要使用者设 `PYTHONUTF8`
 
 ## 坑（非显而易见，踩过才写）
 

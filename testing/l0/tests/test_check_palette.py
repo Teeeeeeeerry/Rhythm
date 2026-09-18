@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from script_runner import run_script
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "testing" / "l0" / "check-palette.py"
@@ -38,11 +39,8 @@ def make_tree(root: Path) -> None:
 class CheckPaletteTests(unittest.TestCase):
     def run_check(self, root: Path) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as log_dir:
-            return subprocess.run(
-                [sys.executable, str(SCRIPT), "--root", str(root),
-                 "--log", str(Path(log_dir) / "check.log")],
-                capture_output=True, text=True,
-            )
+            return run_script(str(SCRIPT), "--root", str(root),
+                              "--log", str(Path(log_dir) / "check.log"))
 
     def test_untouched_outputs_pass(self):
         with tempfile.TemporaryDirectory() as tmp:
