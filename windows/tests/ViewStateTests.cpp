@@ -48,7 +48,7 @@ TEST_CASE("VS-02 progress is position over duration when the duration is known")
     REQUIRE(view::PlayerBarState(state).progressPercent == 25.0);
 }
 
-TEST_CASE("VS-02 an unknown (zero) duration renders zero progress, never a division") {
+TEST_CASE("VS-03 an unknown (zero) duration renders zero progress, never a division") {
     AppState state;
     state.Position = 5.0;
     state.Duration = 0.0;
@@ -57,7 +57,18 @@ TEST_CASE("VS-02 an unknown (zero) duration renders zero progress, never a divis
     REQUIRE(percent == 0.0);
 }
 
-TEST_CASE("VS-02 a position past the duration is clamped into range") {
+TEST_CASE("VS-03 progress drops to zero when the duration becomes unknown") {
+    // The view used to skip the update on a zero duration, leaving the
+    // previous track's progress on screen.
+    AppState state;
+    state.Position = 60.0;
+    state.Duration = 120.0;
+    REQUIRE(view::PlayerBarState(state).progressPercent == 50.0);
+    state.Duration = 0.0;
+    REQUIRE(view::PlayerBarState(state).progressPercent == 0.0);
+}
+
+TEST_CASE("VS-04 a position outside the duration is clamped into range") {
     AppState state;
     state.Duration = 100.0;
     state.Position = 130.0;
