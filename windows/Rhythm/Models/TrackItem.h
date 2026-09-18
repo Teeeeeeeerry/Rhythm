@@ -2,13 +2,15 @@
 
 #include "Models/TrackItem.g.h"
 #include "Bridge/RhythmCore.h"
+#include "ViewState.h"
 
 namespace winrt::Rhythm::Models::implementation {
 
-/// A library row for x:Bind (#428): wraps the behaviour-library Track. The
-/// theme is resolved by the view at render time and passed in (#342).
+/// A track-list row for x:Bind (#428): wraps a view-state row and only copies
+/// its fields into bindings -- what to render is decided by the view state
+/// (#339). The library and a playlist's detail share it.
 struct TrackItem : TrackItemT<TrackItem> {
-    TrackItem(rhythm::Track track, bool isDarkTheme);
+    explicit TrackItem(rhythm::view::TrackRow row);
 
     hstring Title() const;
     hstring Artist() const;
@@ -17,12 +19,11 @@ struct TrackItem : TrackItemT<TrackItem> {
     winrt::Microsoft::UI::Xaml::Media::Brush SourceBackground() const;
     hstring DurationText() const;
 
-    /// The wrapped model (not projected): what the click handlers play.
-    rhythm::Track const& Model() const { return track_; }
+    /// The row's track (not projected): what the click handlers play.
+    rhythm::Track const& Model() const { return row_.track; }
 
 private:
-    rhythm::Track track_;
-    bool isDarkTheme_;
+    rhythm::view::TrackRow row_;
 };
 
 } // namespace winrt::Rhythm::Models::implementation

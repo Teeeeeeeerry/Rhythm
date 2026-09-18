@@ -17,6 +17,8 @@
 | VS-22（#338，原 WB-03/WB-20） | 来源前景色 `SourceBadgeOf().foreground` | 四种来源 dark/light 双端色值与 palette.json 一致（#121），不透明 | 新测 |
 | VS-24（#338，原 WB-04） | 胶囊底色 `SourceBadgeOf().background` | 前景色 @ 声明不透明度（alpha 38，与 macOS `.background(color.opacity(0.15))` 一致），五种来源（含未知）× 两个主题 | 新测 |
 | VS-25（#338） | 资料库行带徽标 `TrackRow::badge` | 行的徽标即该曲目来源在所给主题下的徽标（主题由壳传入，#342） | 新测 |
+| VS-26（#339） | 行的艺人 `TrackRow::artist` | 取曲目艺人，没有则为空串 | 新测 |
+| VS-27（#339） | 歌单详情行 `PlaylistRows(state, id, isDark)` | 与资料库同一种行（标题、时长文案、徽标、点击载荷），按歌单内顺序；两个列表视图的行模型 `TrackItem` 只灌这些字段 | 新测 |
 | VS-02（#332） | 播放条进度百分比 `PlayerBarState().progressPercent` | 时长已知 → 位置 / 时长 × 100 | 新测 |
 | VS-05（#333） | 缓冲中的时间文案 `PlayerBarState().timeText` | 缓冲中 → 缓冲文案（取 `L10n::Buffering`，中英各一次），不显示时钟（#137：链接起播要等一会儿，0:00 / 0:00 像是死机） | 新测 |
 | VS-06（#333） | 正常的时间文案 | 不缓冲 → 「位置 / 时长」，分:秒，秒补零（65 秒 → 1:05，5.9 秒 → 0:05，不足一秒舍去） | 新测 |
@@ -39,6 +41,7 @@
 | VS-19（#337） | 时长为零 | 返回 0:00 | 新测 |
 | VS-20（#337） | 时长超过一小时 | 分钟继续累加、不进位成小时（3725 秒 → 62:05），与 macOS `Track.durationFormatted` 一致 | 新测 |
 | VS-23（#338） | 未知来源的前景色 | 回退正文色（dark `#ABC8D4` / light `#0D464D`），绝不返回系统灰（F4） | 新测 |
+| VS-28（#339） | 歌单不存在 | `PlaylistRows` 返回空行列表 | 新测 |
 
 ## 错误路径（P2）
 

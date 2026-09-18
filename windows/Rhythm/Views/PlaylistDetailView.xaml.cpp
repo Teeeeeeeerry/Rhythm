@@ -36,10 +36,7 @@ void PlaylistDetailView::BindState(rhythm::AppState* state, HWND owner) {
 
 rhythm::Playlist const* PlaylistDetailView::CurrentPlaylist() const {
     if (!appState_ || !playlistId_) return nullptr;
-    for (const auto& pl : appState_->Playlists) {
-        if (pl.id == playlistId_) return &pl;
-    }
-    return nullptr;
+    return appState_->FindPlaylist(*playlistId_);  // #339: one lookup, shared with the rows
 }
 
 void PlaylistDetailView::Refresh() {
@@ -47,10 +44,11 @@ void PlaylistDetailView::Refresh() {
     if (!playlist) return;
 
     playlistTitle().Text(playlist->name);
-    auto items = winrt::single_threaded_observable_vector<IInspectable>();
+    // The same rows as the library, from the view state (#339).
     const bool isDark = rhythm::shell::IsDarkTheme();  // #342: resolved once, by the shell
-    for (const auto& track : playlist->tracks) {
-        items.Append(winrt::make<Models::implementation::TrackItem>(track, isDark));
+    auto items = winrt::single_threaded_observable_vector<IInspectable>();
+    for (auto& row : rhythm::view::PlaylistRows(*appState_, *playlistId_, isDark)) {
+        items.Append(winrt::make<Models::implementation::TrackItem>(std::move(row)));
     }
     trackList().ItemsSource(items);
 }

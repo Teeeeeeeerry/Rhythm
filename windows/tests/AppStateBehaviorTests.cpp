@@ -825,3 +825,22 @@ TEST_CASE("WA-26 ImportM3U8 on an unreadable playlist shows no alert") {
     REQUIRE_FALSE(app.state.ShowImportAlert);
     REQUIRE(app.state.Tracks.empty());
 }
+
+// ─── WA-32 按 id 取已加载的歌单（#339）─────────────────────────────
+
+TEST_CASE("WA-32 FindPlaylist returns the loaded playlist with that id, or null") {
+    AppState state;
+    Playlist a;
+    a.id = 1;
+    a.name = L"A";
+    Playlist b;
+    b.id = 2;
+    b.name = L"B";
+    state.Playlists = {a, b};
+
+    auto found = state.FindPlaylist(2);
+    REQUIRE(found != nullptr);
+    REQUIRE(found->name == L"B");
+    REQUIRE(found == &state.Playlists[1]);
+    REQUIRE(state.FindPlaylist(99) == nullptr);
+}

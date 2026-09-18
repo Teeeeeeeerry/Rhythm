@@ -353,3 +353,47 @@ TEST_CASE("VS-25 library rows carry their track's badge in the given theme") {
         REQUIRE(row.badge.background.A == expected.background.A);
     }
 }
+
+// ─── VS-26/27/28 列表行：艺人与歌单详情（#339）──────────────────────
+
+TEST_CASE("VS-26 a row carries its track's artist, empty when it has none") {
+    AppState state;
+    auto withArtist = makeLocalTrack(L"C:\\m\\a.mp3", L"a");
+    withArtist.artist = L"Artist A";
+    state.Tracks = {withArtist, makeLocalTrack(L"C:\\m\\b.mp3", L"b")};
+    auto rows = view::LibraryRows(state, view::LibrarySort::Alphabetical, true);
+    REQUIRE(rows.at(0).artist == L"Artist A");
+    REQUIRE(rows.at(1).artist.empty());
+}
+
+TEST_CASE("VS-27 playlist rows are the same rows, in playlist order") {
+    LanguageScope zh(L"zh");
+    AppState state;
+    auto late = makeLocalTrack(L"C:\\m\\z.mp3", L"Zulu");
+    late.duration = 65.0;
+    Playlist other;
+    other.id = 1;
+    other.tracks = {makeLocalTrack(L"C:\\m\\o.mp3", L"Other")};
+    Playlist mine;
+    mine.id = 2;
+    mine.tracks = {late, makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha")};
+    state.Playlists = {other, mine};
+
+    auto rows = view::PlaylistRows(state, 2, false);
+
+    REQUIRE(titlesOf(rows) == std::vector<std::wstring>{L"Zulu", L"Alpha"});
+    REQUIRE(rows.at(0).durationText == L"1:05");
+    REQUIRE(rows.at(0).badge.tag == L"本地");
+    REQUIRE(hexOf(rows.at(0).badge.foreground) ==
+            hexOf(view::SourceBadgeOf(L"local", false).foreground));
+    REQUIRE(rows.at(0).track.title == L"Zulu");
+}
+
+TEST_CASE("VS-28 an unknown playlist renders no rows") {
+    AppState state;
+    Playlist mine;
+    mine.id = 2;
+    mine.tracks = {makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha")};
+    state.Playlists = {mine};
+    REQUIRE(view::PlaylistRows(state, 99, true).empty());
+}

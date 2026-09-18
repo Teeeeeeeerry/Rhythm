@@ -93,6 +93,10 @@ public:
     /// Cycle to the next play mode (WA-21).
     void CyclePlayMode();
 
+    /// The loaded playlist with this id, or null (#339): the one lookup the
+    /// playlist detail view and its view-state rows share.
+    const Playlist* FindPlaylist(int64_t id) const;
+
     /// Runs work on the UI thread. Async resolver results and coordinator
     /// events are marshalled through it; empty means "no UI thread".
     using UiPost = std::function<void(std::function<void()>)>;
