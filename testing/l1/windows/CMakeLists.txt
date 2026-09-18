@@ -16,11 +16,7 @@ add_executable(rhythm_color_tests source_color_test.cpp)
 target_link_libraries(rhythm_color_tests PRIVATE RhythmBehavior)
 
 # 运行时依赖（核心 DLL）从链接的目标取，放到可执行文件旁（#330）。
-add_custom_command(TARGET rhythm_color_tests POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_RUNTIME_DLLS:rhythm_color_tests> $<TARGET_FILE_DIR:rhythm_color_tests>
-    COMMAND_EXPAND_LISTS
-)
+rhythm_copy_runtime_dlls(rhythm_color_tests)
 
 enable_testing()
 add_test(NAME rhythm_color_tests COMMAND rhythm_color_tests)

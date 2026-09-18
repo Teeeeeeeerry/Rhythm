@@ -58,6 +58,15 @@ if(MSVC)
     target_compile_options(RhythmBehavior PUBLIC /utf-8)
 endif()
 
+# Copy the DLLs an executable links (the core) next to it after each build --
+# the one copy step every consumer uses, paths taken from the linked targets.
+function(rhythm_copy_runtime_dlls target)
+    add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:${target}> $<TARGET_FILE_DIR:${target}>
+        COMMAND_EXPAND_LISTS)
+endfunction()
+
 # L10n.h includes Bridge/MessageSpec.h, which parses the core's message spec
 # JSON. The C++/WinRT projection, not the Windows App SDK: neither the library
 # nor the test hosts link the Windows App Runtime (#325).

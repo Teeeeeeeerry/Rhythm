@@ -76,7 +76,7 @@ export RHYTHM_YTDLP_PATH=/your/path/to/yt-dlp # 指定自己的二进制
 - **Rust** 1.70+（[rustup.rs](https://rustup.rs)）
 - yt-dlp 无需预先安装：首次播放在线链接时由应用自动获取
 - **macOS**：Xcode 15+ 或 Command Line Tools + Swift 5.9+
-- **Windows**：Visual Studio 2022（或 Build Tools，需勾选 MSVC 与 Windows 10/11 SDK 组件）+ CMake 3.20+ + Python 3。
+- **Windows**：Visual Studio 2022（或 Build Tools，需勾选 MSVC 与 Windows 10/11 SDK 组件）+ CMake 3.21+ + Python 3。
   Windows App SDK、C++/WinRT 与 nlohmann/json **不需要手工安装**：首次配置时由 `windows/cmake/RhythmWindowsDeps.cmake`
   按固定版本从 NuGet / GitHub 下载并校验 SHA-256，生成投影头，缓存在 `build/windows-deps/`（首次配置需要联网，#386）
 

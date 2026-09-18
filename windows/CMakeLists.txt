@@ -77,12 +77,7 @@ target_include_directories(RhythmTests PRIVATE
 
 target_link_libraries(RhythmTests PRIVATE RhythmBehavior)
 
-# Runtime dependencies (the core DLL) next to the test binary, taken from the
-# linked targets rather than a second copy of their paths (#330).
-add_custom_command(TARGET RhythmTests POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_RUNTIME_DLLS:RhythmTests> $<TARGET_FILE_DIR:RhythmTests>
-    COMMAND_EXPAND_LISTS
-)
+# Runtime dependencies (the core DLL) next to the test binary (#330).
+rhythm_copy_runtime_dlls(RhythmTests)
 
 add_test(NAME RhythmTests COMMAND RhythmTests)
