@@ -103,6 +103,10 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
 - **M3U8 入库策略单一出处**：位置类型识别、标题缺失回退、入库判定与计数只写在 `rust-core/src/playlist/mod.rs`；
   双端在这条路径上只允许三步——调核心入口、按具名结果选提示语、从数据库重载列表。历史上 #136 与 #173 是
   同一缺陷在两平台各修一次，#217 组把策略下沉后不再可能修两次
+- **Windows 视图只灌值（#317 组）**：「渲染什么」由行为库的视图状态 `windows/Rhythm/ViewState.h` 决定——纯函数，输入 `AppState`
+  （主题标志、解析器状态这类壳才拿得到的输入作参数传入），输出普通结构体（列表行、播放条、托盘菜单）。XAML code-behind 与托盘只把结构体灌进控件，
+  不做判断、不调 L10n 选文案、不自己算颜色或格式。新增一条渲染规则 = 在视图状态加字段与测试（`windows/tests/ViewStateTests.cpp`）并在
+  `docs/testing/behavior/windows-viewstate.md` 登记；壳本身不测，被有意做薄。行为库不含任何 C++/WinRT 头，测试宿主不需要 WinUI 与 WinRT 单元
 - **导入结果具名不用魔数**：资料库导入不再有魔数返回码（#244 起）。三条路径共用 `ImportOutcome{imported, unsupported, failed}`，
   「格式不支持」与「读写失败」必须分开——合并会丢掉用户唯一能据以行动的信息。新增一条导入路径沿用同一形状，
   不发明新的返回约定；结果结构声明在 `contracts/ffi-contract.json`，双端绑定由生成器产出，少接一条路径会在生成物比对时暴露

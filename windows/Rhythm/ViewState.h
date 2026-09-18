@@ -88,9 +88,16 @@ struct PlayerBar {
     Icon playModeIcon = Icon::List;
     /// The volume slider's value, 0-100 (#335).
     double volumePercent = 0.0;
+    /// The line under the URL box: empty unless a link is being resolved;
+    /// then the provisioning progress (a first-use yt-dlp download reads as
+    /// progress, not a stall), or the plain "resolving" copy when the
+    /// resolver has nothing to report (#317).
+    std::wstring urlStatusText;
 };
 
-PlayerBar PlayerBarState(const AppState& state);
+/// `resolverStatus` is the resolver's provisioning status (`Resolver::Status()`);
+/// passed in so the decision stays a pure function the tests can drive.
+PlayerBar PlayerBarState(const AppState& state, const ResolverStatus& resolverStatus = {});
 
 /// The notification-area menu (#340): its item labels, in the language the
 /// language layer currently resolves, and whether play/pause is available.
