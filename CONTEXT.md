@@ -112,7 +112,7 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   SHA-256 下载 NuGet 包与 json 头、跑固定版本的 cppwinrt 生成投影头、以导入目标 `Rhythm::CppWinRT`（只含投影头）/
   `nlohmann_json::nlohmann_json` 导出，缓存在 `build/windows-deps/`。CMake 构建的目标（行为库、测试宿主、L1）不链接 Windows App SDK 运行时，运行时只由 MSBuild 应用经 props 取用（#325）。应用与测试宿主都 `include` 这一个模块，
   升级依赖只改模块里的版本与哈希。XAML 标记编译是 MSBuild 专属：应用由 `windows/Rhythm/Rhythm.vcxproj` 构建，经模块写出的 props 取同一套依赖，
-  链接 CMake 行为库 `RhythmBehavior`；行为源文件只在 CMake 登记（#428，`docs/adr/0004-Windows-应用改由-MSBuild-构建.md`）。行为代码的公共前缀是 `windows/Rhythm/BehaviorPch.h`（只有标准库与 Win32）；WinUI 与 C++/WinRT 头只在壳的 `pch.h`（生成的 XAML 源码按名包含它）。行为头文件单独包含时若带进 WinUI 投影，`windows/tests/BehaviorHeadersStandalone.cpp` 编译即失败（#329）
+  链接 CMake 行为库 `RhythmBehavior`；行为源文件只在 CMake 登记（#428，`docs/adr/0004-Windows-应用改由-MSBuild-构建.md`）。行为代码的公共前缀是 `windows/Rhythm/BehaviorPch.h`（只有标准库与 Win32）；WinUI 与 Windows App SDK 头只在壳的 `pch.h`（生成的 XAML 源码按名包含它）。行为代码余下的 C++/WinRT 用处只有主题解析 `IsDarkTheme`（Windows SDK 的 UISettings，在 `RhythmCore.h` 就地包含，#342 移到壳）。行为头文件单独包含时若带进 WinUI 投影，`windows/tests/BehaviorHeadersStandalone.cpp` 编译即失败（#329）
 - **编排层只用 Python（#221 组）**：构建与测试的入口是 `python3 scripts/tasks.py <任务>`，任务名两个平台相同
   （`build` / `test` / `check-no-emoji` / `compare-screenshots`），退出码 0 全绿 / 1 有步骤失败（筛选后零步也算，#343）/ 2 用法错误。
   路径解析、日志落盘、失败计数与退出码聚合、子进程调用四项只写在 `scripts/tasklib.py`；新增一个任务改
