@@ -128,15 +128,17 @@ TEST_CASE("VS-09 a current track without an artist renders an empty artist") {
 }
 
 TEST_CASE("VS-10 no current track renders the not-playing copy, never the last track") {
-    LanguageScope zh(L"zh");
-    AppState state;
-    auto track = makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha");
-    track.artist = L"Artist A";
-    state.CurrentTrack = track;
-    REQUIRE(view::PlayerBarState(state).title == L"Alpha");
+    for (const wchar_t* language : {L"zh", L"en"}) {
+        LanguageScope scope(language);
+        AppState state;
+        auto track = makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha");
+        track.artist = L"Artist A";
+        state.CurrentTrack = track;
+        REQUIRE(view::PlayerBarState(state).title == L"Alpha");
 
-    state.CurrentTrack.reset();
-    auto bar = view::PlayerBarState(state);
-    REQUIRE(bar.title == L10n::NotPlaying());
-    REQUIRE(bar.artist.empty());
+        state.CurrentTrack.reset();
+        auto bar = view::PlayerBarState(state);
+        REQUIRE(bar.title == L10n::NotPlaying());
+        REQUIRE(bar.artist.empty());
+    }
 }
