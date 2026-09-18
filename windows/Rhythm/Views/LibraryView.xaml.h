@@ -22,7 +22,7 @@ struct LibraryView : LibraryViewT<LibraryView> {
 private:
     /// Render the library in the order the pivot selects (#336).
     void Populate();
-    void ShowRows(std::vector<rhythm::view::TrackRow> const& rows, bool isDark);
+    void ShowRows(std::vector<rhythm::view::TrackRow> const& rows);
     void ShowEmptyMessage(bool show);
 
     rhythm::AppState* appState_ = nullptr;

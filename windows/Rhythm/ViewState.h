@@ -33,23 +33,21 @@ struct SourceBadge {
 
 SourceBadge SourceBadgeOf(std::wstring_view sourceType, bool isDarkTheme);
 
-/// One row of a track list. `track` is the row's action payload -- what a
-/// click hands to `AppState::PlayTrack`, never rendered; the other fields are
-/// exactly what the row shows. The list views bind to them from #339; until
-/// then the shell's row model still derives its text from the track.
+/// One row of a track list -- the same row for the library and a playlist's
+/// detail (#339). `track` is the row's action payload -- what a click hands
+/// to `AppState::PlayTrack`, never rendered; the other fields are exactly
+/// what the row shows, and the shell's row model only copies them.
 struct TrackRow {
     Track track;
     std::wstring title;
+    /// Empty when the track has none.
+    std::wstring artist;
     /// m:ss, seconds zero-padded; past an hour the minutes keep counting
     /// (62:05), as on macOS (#337).
     std::wstring durationText;
     /// The track's source badge in the rendered theme (#338).
     SourceBadge badge;
 };
-
-/// A track's duration as a row shows it (#337). Until the list rows are
-/// rebound to TrackRow (#339), the shell's row model reads it from here.
-std::wstring DurationText(const Track& track);
 
 /// The library's two orders (#336).
 enum class LibrarySort {
@@ -64,6 +62,10 @@ enum class LibrarySort {
 /// Stable -- rows that compare equal keep their library order -- and the
 /// state is only read (#336). The theme is resolved by the shell (#342).
 std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool isDarkTheme);
+
+/// A playlist's detail list: one row per track, in playlist order (#339).
+/// No rows when the state holds no playlist with that id.
+std::vector<TrackRow> PlaylistRows(const AppState& state, int64_t playlistId, bool isDarkTheme);
 
 /// What the player bar shows.
 struct PlayerBar {

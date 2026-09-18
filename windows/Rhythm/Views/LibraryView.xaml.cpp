@@ -45,14 +45,14 @@ void LibraryView::Populate() {
     auto sort = viewPivot().SelectedIndex() == 0 ? rhythm::view::LibrarySort::ArtistAlbum
                                                  : rhythm::view::LibrarySort::Alphabetical;
     const bool isDark = rhythm::shell::IsDarkTheme();  // #342: resolved once, by the shell
-    ShowRows(rhythm::view::LibraryRows(*appState_, sort, isDark), isDark);
+    ShowRows(rhythm::view::LibraryRows(*appState_, sort, isDark));
 }
 
-void LibraryView::ShowRows(std::vector<rhythm::view::TrackRow> const& rows, bool isDark) {
+void LibraryView::ShowRows(std::vector<rhythm::view::TrackRow> const& rows) {
     ShowEmptyMessage(rows.empty());
     auto items = winrt::single_threaded_observable_vector<IInspectable>();
     for (const auto& row : rows) {
-        items.Append(winrt::make<Models::implementation::TrackItem>(row.track, isDark));
+        items.Append(winrt::make<Models::implementation::TrackItem>(row));  // #339
     }
     trackList().ItemsSource(items);
 }

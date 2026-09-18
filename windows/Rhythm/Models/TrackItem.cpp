@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "Models/TrackItem.h"
-#include "ViewState.h"
 #if __has_include("Models/TrackItem.g.cpp")
 #include "Models/TrackItem.g.cpp"
 #endif
@@ -18,26 +17,22 @@ winrt::Microsoft::UI::Xaml::Media::SolidColorBrush ToBrush(rhythm::view::Color c
 
 } // namespace
 
-TrackItem::TrackItem(rhythm::Track track, bool isDarkTheme)
-    : track_(std::move(track)), isDarkTheme_(isDarkTheme) {}
+TrackItem::TrackItem(rhythm::view::TrackRow row) : row_(std::move(row)) {}
 
-hstring TrackItem::Title() const { return hstring{track_.title}; }
+hstring TrackItem::Title() const { return hstring{row_.title}; }
 
-hstring TrackItem::Artist() const { return hstring{track_.artist.value_or(L"")}; }
+hstring TrackItem::Artist() const { return hstring{row_.artist}; }
 
-// The badge comes from the view state (#338); rows bind to it directly from #339.
-hstring TrackItem::SourceTag() const {
-    return hstring{rhythm::view::SourceBadgeOf(track_.sourceType, isDarkTheme_).tag};
-}
+hstring TrackItem::SourceTag() const { return hstring{row_.badge.tag}; }
 
 winrt::Microsoft::UI::Xaml::Media::Brush TrackItem::SourceForeground() const {
-    return ToBrush(rhythm::view::SourceBadgeOf(track_.sourceType, isDarkTheme_).foreground);
+    return ToBrush(row_.badge.foreground);
 }
 
 winrt::Microsoft::UI::Xaml::Media::Brush TrackItem::SourceBackground() const {
-    return ToBrush(rhythm::view::SourceBadgeOf(track_.sourceType, isDarkTheme_).background);
+    return ToBrush(row_.badge.background);
 }
 
-hstring TrackItem::DurationText() const { return hstring{rhythm::view::DurationText(track_)}; }
+hstring TrackItem::DurationText() const { return hstring{row_.durationText}; }
 
 } // namespace winrt::Rhythm::Models::implementation

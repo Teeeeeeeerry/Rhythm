@@ -94,17 +94,28 @@ SourceBadge SourceBadgeOf(std::wstring_view sourceType, bool isDarkTheme) {
     return badge;
 }
 
-std::wstring DurationText(const Track& track) {
-    return MinutesSeconds(track.duration);
+namespace {
+
+/// One track as a list row -- the single place a row is built (#339).
+TrackRow RowOf(const Track& track, bool isDarkTheme) {
+    return TrackRow{track, track.title, track.artist.value_or(L""),
+                    MinutesSeconds(track.duration),  // #337
+                    SourceBadgeOf(track.sourceType, isDarkTheme)};
 }
 
-std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool isDarkTheme) {
+std::vector<TrackRow> RowsOf(const std::vector<Track>& tracks, bool isDarkTheme) {
     std::vector<TrackRow> rows;
-    rows.reserve(state.Tracks.size());
-    for (const auto& track : state.Tracks) {
-        rows.push_back(TrackRow{track, track.title, DurationText(track),
-                                SourceBadgeOf(track.sourceType, isDarkTheme)});
+    rows.reserve(tracks.size());
+    for (const auto& track : tracks) {
+        rows.push_back(RowOf(track, isDarkTheme));
     }
+    return rows;
+}
+
+} // namespace
+
+std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool isDarkTheme) {
+    auto rows = RowsOf(state.Tracks, isDarkTheme);
 
     switch (sort) {
         case LibrarySort::ArtistAlbum: {
@@ -124,6 +135,13 @@ std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool 
             break;
     }
     return rows;
+}
+
+std::vector<TrackRow> PlaylistRows(const AppState& state, int64_t playlistId, bool isDarkTheme) {
+    for (const auto& playlist : state.Playlists) {
+        if (playlist.id == playlistId) return RowsOf(playlist.tracks, isDarkTheme);
+    }
+    return {};
 }
 
 PlayerBar PlayerBarState(const AppState& state) {
