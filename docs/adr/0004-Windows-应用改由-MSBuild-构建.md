@@ -10,7 +10,7 @@
 **Consequences**
 
 - **一套依赖前提**：vcxproj 不声明任何版本。CMake 配置期由 `RhythmWindowsDeps.cmake` 写出 `build/windows-deps/RhythmWindowsDeps.props`（已下载并校验的包路径），`windows/CMakeLists.txt` 再写出 `build/windows/<配置>/RhythmBehavior.props`（行为库、核心导入库、包含目录），vcxproj 只导入后者。升级依赖仍只改模块里的版本与哈希。
-- **源文件只声明一处**：行为代码只在 CMake 的 `BEHAVIOR_SOURCES` 登记；vcxproj 只登记 XAML 外壳（视图、行模型、托盘、IDL），链接 CMake 产出的 `RhythmBehavior.lib`。编译选项（C++20、`/utf-8`、`NOMINMAX`、`/MD`）两边一致。
+- **源文件只声明一处**：行为代码只在 CMake 的 `BEHAVIOR_SOURCES` 登记；vcxproj 只登记 XAML 外壳（视图、行模型、托盘、IDL），链接 CMake 产出的 `RhythmBehavior.lib`。编译选项（C++20、`/utf-8`、`NOMINMAX`、`/MD`）两边一致。2026-09-19（#330）起行为库整份声明（源文件清单、包含目录、`NOMINMAX` 与 `/utf-8` 这类使用要求、核心 DLL）收进 `windows/cmake/RhythmBehavior.cmake`；props 里的这些值由目标属性派生，vcxproj 只写壳自己的编译设置，L1 颜色测试也链接同一个库。
 - **构建入口不变**：`python scripts/tasks.py build` 依次跑 Rust 核心、CMake 配置、CMake 构建行为库、MSBuild 构建应用（MSBuild 经 vswhere 定位），产物仍是 `build/windows/Release/Rhythm.exe`。`tasks.py test` 不变，只构建测试宿主。
 - **前提仍只有 Build Tools**：Build Tools 不带 Visual Studio「WinUI/UWP C++」工作负载里把 XAML 编译器接入 C++ 构建的胶水。vcxproj 自己接上：`MarkupCompilePass1` 挂在 MIDL 前、`MarkupCompilePass2` 挂在编译前，喂给 Pass2 C++/WinRT 已解析的 winmd 引用，生成的 `XamlTypeInfo*.g.cpp` 显式编译；PRI 用 SDK 自带的 MSIX 工具（`EnablePriGenTooling=false`）。换 SDK 版本时这几处钩子是首先要复查的地方。
 - **非打包、自包含**：`WindowsPackageType=None` + `WindowsAppSDKSelfContained=true`，运行时随 exe 放在输出目录，机器上不需要装 Windows App Runtime。未打包进程没有 `ApplicationData`，资料库放 `%LOCALAPPDATA%\Rhythm\library.db`。

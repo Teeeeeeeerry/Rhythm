@@ -26,8 +26,12 @@ import task_build  # noqa: E402
 import tasklib  # noqa: E402
 
 WINDOWS_CMAKE = ROOT / "windows" / "CMakeLists.txt"
-# 应用构建配置里对核心产物的引用，形如 ${CMAKE_CURRENT_SOURCE_DIR}/../target/release/x
-CORE_REF_RE = re.compile(r"\$\{CMAKE_CURRENT_SOURCE_DIR\}/\.\./([^\s)]+)/rhythm_core\.")
+# 行为库的唯一声明处：源文件清单、使用要求、核心产物都在这里（#330）
+BEHAVIOR_CMAKE = ROOT / "windows" / "cmake" / "RhythmBehavior.cmake"
+APP_VCXPROJ = ROOT / "windows" / "Rhythm" / "Rhythm.vcxproj"
+L1_CMAKE = ROOT / "testing" / "l1" / "windows" / "CMakeLists.txt"
+# 构建配置里对核心产物的引用，形如 ${RHYTHM_REPO_ROOT}/target/release/x
+CORE_REF_RE = re.compile(r"\$\{RHYTHM_REPO_ROOT\}/([^\s)]+)/rhythm_core\.")
 
 
 class ArtifactLayoutTest(unittest.TestCase):
@@ -36,7 +40,7 @@ class ArtifactLayoutTest(unittest.TestCase):
         self.assertEqual(task_build.core_artifact_dir(ROOT), ROOT / "target" / "release")
 
     def test_windows_take_point_matches_the_single_convention(self):
-        refs = set(CORE_REF_RE.findall(WINDOWS_CMAKE.read_text(encoding="utf-8")))
+        refs = set(CORE_REF_RE.findall(BEHAVIOR_CMAKE.read_text(encoding="utf-8")))
         self.assertTrue(refs, "未在 Windows 构建配置里找到核心产物引用")
         expected = task_build.core_artifact_dir(ROOT).relative_to(ROOT).as_posix()
         self.assertEqual(refs, {expected},
@@ -57,8 +61,9 @@ class WindowsRuntimeDependencyTest(unittest.TestCase):
 
     CMAKE_FILES = (
         WINDOWS_CMAKE,
+        BEHAVIOR_CMAKE,
         ROOT / "windows" / "cmake" / "RhythmWindowsDeps.cmake",
-        ROOT / "testing" / "l1" / "windows" / "CMakeLists.txt",
+        L1_CMAKE,
     )
 
     def test_no_cmake_target_links_the_windows_app_runtime(self):
@@ -67,6 +72,51 @@ class WindowsRuntimeDependencyTest(unittest.TestCase):
             with self.subTest(path=path.relative_to(ROOT).as_posix()):
                 self.assertNotIn("Microsoft.WindowsAppRuntime", text)
                 self.assertNotRegex(text, r"target_link_libraries\([^)]*Microsoft\.WindowsAppSDK")
+
+
+class WindowsSingleDeclarationTest(unittest.TestCase):
+    """#330：源文件、编译选项、链接产物各只声明一处。
+
+    行为库的清单与使用要求只在 windows/cmake/RhythmBehavior.cmake；MSBuild 应用只登记
+    XAML 壳，编译选项与核心产物路径经 CMake 写出的 props 取用；L1 颜色测试链接行为库，
+    不再抄一份包含目录与编译选项。
+    """
+
+    BUILD_FILES = (WINDOWS_CMAKE, APP_VCXPROJ, L1_CMAKE)
+
+    @staticmethod
+    def behavior_sources() -> set[str]:
+        text = BEHAVIOR_CMAKE.read_text(encoding="utf-8")
+        block = re.search(r"set\(BEHAVIOR_SOURCES(.*?)\)", text, re.DOTALL).group(1)
+        return {m for m in re.findall(r"Rhythm/(\S+)", block)}
+
+    @staticmethod
+    def shell_sources() -> set[str]:
+        text = APP_VCXPROJ.read_text(encoding="utf-8")
+        found = re.findall(r'<Cl(?:Compile|Include) Include="([^"$]+)"', text)
+        return {f.replace("\\", "/") for f in found}
+
+    def test_every_windows_source_is_registered_exactly_once(self):
+        tree = {p.relative_to(ROOT / "windows" / "Rhythm").as_posix()
+                for p in (ROOT / "windows" / "Rhythm").rglob("*")
+                if p.suffix in (".cpp", ".h")}
+        behavior, shell = self.behavior_sources(), self.shell_sources()
+        self.assertFalse(behavior & shell, "同一源文件同时登记在行为库与应用工程")
+        self.assertEqual(behavior | shell, tree, "源文件漏登记或登记了不存在的文件")
+
+    def test_behavior_usage_requirements_are_declared_once(self):
+        module = BEHAVIOR_CMAKE.read_text(encoding="utf-8")
+        for flag in ("/utf-8", "NOMINMAX"):
+            self.assertIn(flag, module)
+            for path in self.BUILD_FILES:
+                with self.subTest(flag=flag, path=path.relative_to(ROOT).as_posix()):
+                    self.assertNotIn(flag, path.read_text(encoding="utf-8"))
+
+    def test_core_artifact_is_declared_once(self):
+        self.assertIn("rhythm_core.dll", BEHAVIOR_CMAKE.read_text(encoding="utf-8"))
+        for path in self.BUILD_FILES:
+            with self.subTest(path=path.relative_to(ROOT).as_posix()):
+                self.assertNotIn("rhythm_core.dll", path.read_text(encoding="utf-8"))
 
 
 class BundleVersionTest(unittest.TestCase):

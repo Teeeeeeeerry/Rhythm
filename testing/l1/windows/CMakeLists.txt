@@ -1,33 +1,26 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.21)
 project(RhythmColorTests LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# L1 Windows 测试：独立测试 exe，直接编译真实 RhythmCore.h（#122 解除桩）。
-# RhythmCore.h 引入 pch.h（C++/WinRT 投影头），投影取自与主工程共用的依赖模块
-# （固定版本下载 + 生成投影头，#386），不各有一套前提；不链接 Windows App SDK 运行时（#325）。
+# L1 Windows 测试：独立测试 exe，直接测真实曲目模型（#122 解除桩）。
+# 链接与主工程同一份行为库声明（windows/cmake/RhythmBehavior.cmake）：包含目录、
+# 编译选项与核心产物都从库目标取，不再抄一份（#330）；依赖取自共用的依赖模块（#386），
+# 不链接 Windows App SDK 运行时（#325）。
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../../windows/cmake/RhythmWindowsDeps.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../windows/cmake/RhythmBehavior.cmake)
 
 add_executable(rhythm_color_tests source_color_test.cpp)
 
-target_include_directories(rhythm_color_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../../windows
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../../windows/Rhythm
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../../windows/Rhythm/Bridge
+target_link_libraries(rhythm_color_tests PRIVATE RhythmBehavior)
+
+# 运行时依赖（核心 DLL）从链接的目标取，放到可执行文件旁（#330）。
+add_custom_command(TARGET rhythm_color_tests POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_RUNTIME_DLLS:rhythm_color_tests> $<TARGET_FILE_DIR:rhythm_color_tests>
+    COMMAND_EXPAND_LISTS
 )
-
-# 源文件含中文宽字面量；强制 UTF-8（主工程同款设置）。
-if(MSVC)
-    target_compile_options(rhythm_color_tests PRIVATE /utf-8)
-endif()
-
-# <Windows.h> 的 min/max 宏与标准库冲突（#408，主工程同款定义）。
-target_compile_definitions(rhythm_color_tests PRIVATE NOMINMAX)
-
-# RhythmCore.h -> L10n.h -> Bridge/MessageSpec.h 需要 <nlohmann/json.hpp>（#427）。
-target_link_libraries(rhythm_color_tests PRIVATE Rhythm::CppWinRT nlohmann_json::nlohmann_json)
 
 enable_testing()
 add_test(NAME rhythm_color_tests COMMAND rhythm_color_tests)

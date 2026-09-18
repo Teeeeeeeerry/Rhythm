@@ -12,7 +12,7 @@
 #include <string>
 #include <string_view>
 
-#include "Rhythm/Bridge/RhythmCore.h"
+#include "Bridge/RhythmCore.h"
 
 // ---- 期望值（palette.json sources 段；与 RhythmCore.h 同步）----
 struct Expect {

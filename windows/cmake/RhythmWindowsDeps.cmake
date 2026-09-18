@@ -157,7 +157,6 @@ file(CONFIGURE OUTPUT "${RHYTHM_WINDOWS_DEPS_DIR}/RhythmWindowsDeps.props" CONTE
     <RhythmWindowsAppSDKDir>@RHYTHM_WASDK_ROOT@/</RhythmWindowsAppSDKDir>
     <RhythmWebView2Dir>@RHYTHM_WEBVIEW2_ROOT@/</RhythmWebView2Dir>
     <RhythmCppWinRTDir>@RHYTHM_CPPWINRT_ROOT@/</RhythmCppWinRTDir>
-    <RhythmJsonInclude>@RHYTHM_JSON_INCLUDE@</RhythmJsonInclude>
   </PropertyGroup>
 </Project>
 ]=] @ONLY)
