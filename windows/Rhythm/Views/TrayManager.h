@@ -8,8 +8,8 @@ class AppState;
 
 namespace winrt::Rhythm {
 
-/// Notification-area icon. Its messages go to a message-only window this
-/// class owns (#428: the handler used to be defined but never attached to
+/// Notification-area icon. Its messages go to a hidden window this class
+/// owns (#428: the handler used to be defined but never attached to
 /// any window, so the menu could not appear).
 class TrayManager {
 public:

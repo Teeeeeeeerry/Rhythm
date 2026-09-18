@@ -4,7 +4,7 @@
 #include "Views/PlaylistDetailView.g.cpp"
 #endif
 #include "Models/TrackItem.h"
-#include "Views/WindowHandle.h"
+#include "Views/Win32Interop.h"
 #include "L10n.h"
 
 using namespace winrt::Microsoft::UI::Xaml;
@@ -66,10 +66,15 @@ winrt::fire_and_forget PlaylistDetailView::OnImportClick(IInspectable const&, Ro
 
     // #173: entries are persisted and counted, with the same import alert
     // as macOS.
-    auto file = co_await picker.PickSingleFileAsync();
-    if (file && appState_) {
-        appState_->ImportM3U8(file.Path().c_str());
-        Refresh();
+    try {
+        auto file = co_await picker.PickSingleFileAsync();
+        if (file && appState_) {
+            appState_->ImportM3U8(file.Path().c_str());
+            Refresh();
+        }
+    } catch (winrt::hresult_error const& e) {
+        // An exception leaving a fire_and_forget coroutine ends the process.
+        OutputDebugStringW((L"M3U8 import failed: " + e.message() + L"\n").c_str());
     }
 }
 
@@ -84,12 +89,16 @@ winrt::fire_and_forget PlaylistDetailView::OnExportClick(IInspectable const&, Ro
     picker.FileTypeChoices().Insert(L"M3U8", extensions);
     rhythm::shell::ParentPicker(picker, owner_);
 
-    auto file = co_await picker.PickSaveFileAsync();
-    if (!file) co_return;
-    // Re-read after the await: the state may have changed meanwhile.
-    if (auto current = CurrentPlaylist();
-        !current || !rhythm::ExportM3U8(file.Path().c_str(), current->tracks)) {
-        OutputDebugStringW(L"M3U8 export failed\n");
+    try {
+        auto file = co_await picker.PickSaveFileAsync();
+        if (!file) co_return;
+        // Re-read after the await: the state may have changed meanwhile.
+        if (auto current = CurrentPlaylist();
+            !current || !rhythm::ExportM3U8(file.Path().c_str(), current->tracks)) {
+            OutputDebugStringW(L"M3U8 export failed\n");
+        }
+    } catch (winrt::hresult_error const& e) {
+        OutputDebugStringW((L"M3U8 export failed: " + e.message() + L"\n").c_str());
     }
 }
 

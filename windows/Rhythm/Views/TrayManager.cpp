@@ -10,7 +10,9 @@ namespace winrt::Rhythm {
 namespace {
 
 constexpr UINT kTrayMessage = WM_APP + 1;
-constexpr wchar_t kWindowClass[] = L"RhythmTrayMessageWindow";
+constexpr wchar_t kWindowClass[] = L"RhythmTrayWindow";
+// Explorer broadcasts this after it restarts; the icon must be added again.
+const UINT kTaskbarCreated = ::RegisterWindowMessageW(L"TaskbarCreated");
 
 } // namespace
 
@@ -25,8 +27,11 @@ void TrayManager::Create(HWND mainWindow, rhythm::AppState* appState) {
     wc.hInstance = ::GetModuleHandleW(nullptr);
     wc.lpszClassName = kWindowClass;
     ::RegisterClassExW(&wc);
-    messageWindow_ = ::CreateWindowExW(0, kWindowClass, L"", 0, 0, 0, 0, 0,
-                                       HWND_MESSAGE, nullptr, wc.hInstance, nullptr);
+    // A hidden top-level window, not HWND_MESSAGE: the popup menu needs a
+    // window that can take the foreground (or it never dismisses), and only
+    // top-level windows receive the TaskbarCreated broadcast.
+    messageWindow_ = ::CreateWindowExW(WS_EX_TOOLWINDOW, kWindowClass, L"", WS_POPUP,
+                                       0, 0, 0, 0, nullptr, nullptr, wc.hInstance, nullptr);
     if (!messageWindow_) return;
 
     nid_ = {};
@@ -71,6 +76,8 @@ LRESULT TrayManager::MessageHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 
             ::SetForegroundWindow(hwnd);
             ::TrackPopupMenu(menu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, nullptr);
+            // Documented companion of TrackPopupMenu for notification icons.
+            ::PostMessageW(hwnd, WM_NULL, 0, 0);
             ::DestroyMenu(menu);
             break;
         }
@@ -78,6 +85,11 @@ LRESULT TrayManager::MessageHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             ShowMainWindow();
             break;
         }
+        return 0;
+    }
+
+    if (msg == kTaskbarCreated && created_) {
+        ::Shell_NotifyIconW(NIM_ADD, &nid_);
         return 0;
     }
 

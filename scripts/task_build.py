@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -66,9 +67,7 @@ BUNDLED_DYLIB_REF = f"@executable_path/../Frameworks/{CORE_DYLIB}"
 
 
 def _capture(cmd: list[str], cwd: Path | None = None) -> str:
-    """取命令的标准输出（供 otool 之类的查询用）。"""
-    import subprocess
-
+    """取命令的标准输出（供 otool、vswhere 之类的查询用）。"""
     return subprocess.run(
         [str(c) for c in cmd], cwd=str(cwd) if cwd else None,
         check=True, capture_output=True, text=True,
@@ -191,14 +190,10 @@ VSWHERE = (Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"))
 def msbuild_executable() -> str:
     """定位 MSBuild：vswhere 找最新的 Visual Studio / Build Tools，找不到退回 PATH。"""
     if VSWHERE.is_file():
-        import subprocess
-
         try:
-            found = subprocess.run(
-                [str(VSWHERE), "-latest", "-products", "*",
-                 "-requires", "Microsoft.Component.MSBuild",
-                 "-find", r"MSBuild\**\Bin\MSBuild.exe"],
-                capture_output=True, text=True, check=True).stdout.splitlines()
+            found = _capture([VSWHERE, "-latest", "-products", "*",
+                              "-requires", "Microsoft.Component.MSBuild",
+                              "-find", r"MSBuild\**\Bin\MSBuild.exe"]).splitlines()
         except (OSError, subprocess.CalledProcessError):
             found = []
         if found:

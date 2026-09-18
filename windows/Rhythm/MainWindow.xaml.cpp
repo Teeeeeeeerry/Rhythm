@@ -8,7 +8,7 @@
 #include "Views/PlaylistDetailView.xaml.h"
 #include "Views/PlayerBarView.xaml.h"
 #include "Views/TrayManager.h"
-#include "Views/WindowHandle.h"
+#include "Views/Win32Interop.h"
 #include "L10n.h"
 
 #include <filesystem>
@@ -26,9 +26,11 @@ namespace {
 /// ApplicationData container (ApplicationData::Current() throws, #428).
 std::wstring LibraryDatabasePath() {
     PWSTR base = nullptr;
-    winrt::check_hresult(::SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &base));
-    std::filesystem::path dir = std::filesystem::path(base) / L"Rhythm";
-    ::CoTaskMemFree(base);
+    HRESULT hr = ::SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &base);
+    std::filesystem::path root = SUCCEEDED(hr) ? base : L"";
+    ::CoTaskMemFree(base);  // freed on failure too (API contract)
+    winrt::check_hresult(hr);
+    std::filesystem::path dir = root / L"Rhythm";
     std::filesystem::create_directories(dir);
     return (dir / L"library.db").wstring();
 }
@@ -109,11 +111,16 @@ winrt::fire_and_forget MainWindow::OnImportClick(IInspectable const&, RoutedEven
     picker.FileTypeFilter().Append(L"*");
     rhythm::shell::ParentPicker(picker, hwnd_);
 
-    // Awaited from the UI thread, so the continuation is back on it.
-    auto folder = co_await picker.PickSingleFolderAsync();
-    if (!folder) co_return;
-    appState_.ImportDirectory(folder.Path().c_str());
-    if (appState_.SelectedView == rhythm::SidebarItem::Library) LoadLibraryView();
+    try {
+        // Awaited from the UI thread, so the continuation is back on it.
+        auto folder = co_await picker.PickSingleFolderAsync();
+        if (!folder) co_return;
+        appState_.ImportDirectory(folder.Path().c_str());
+        RefreshLibraryIfShown();
+    } catch (winrt::hresult_error const& e) {
+        // An exception leaving a fire_and_forget coroutine ends the process.
+        OutputDebugStringW((L"Folder import failed: " + e.message() + L"\n").c_str());
+    }
 }
 
 /// #242/#243: Windows can import audio files, not only a folder, and more
@@ -129,25 +136,29 @@ winrt::fire_and_forget MainWindow::OnImportFileClick(IInspectable const&, Routed
     }
     rhythm::shell::ParentPicker(picker, hwnd_);
 
-    auto files = co_await picker.PickMultipleFilesAsync();
-    if (!files || files.Size() == 0) co_return;
-    if (files.Size() == 1) {
-        appState_.ImportFile(files.GetAt(0).Path().c_str());
-    } else {
-        std::vector<std::wstring> paths;
-        for (const auto& file : files) {
-            paths.emplace_back(file.Path().c_str());
+    try {
+        auto files = co_await picker.PickMultipleFilesAsync();
+        if (!files || files.Size() == 0) co_return;
+        if (files.Size() == 1) {
+            appState_.ImportFile(files.GetAt(0).Path().c_str());
+        } else {
+            std::vector<std::wstring> paths;
+            for (const auto& file : files) {
+                paths.emplace_back(file.Path().c_str());
+            }
+            appState_.ImportPaths(paths);
         }
-        appState_.ImportPaths(paths);
+        RefreshLibraryIfShown();
+    } catch (winrt::hresult_error const& e) {
+        OutputDebugStringW((L"File import failed: " + e.message() + L"\n").c_str());
     }
-    if (appState_.SelectedView == rhythm::SidebarItem::Library) LoadLibraryView();
 }
 
 void MainWindow::OnSearchSubmitted(AutoSuggestBox const& sender,
                                    AutoSuggestBoxQuerySubmittedEventArgs const&) {
     appState_.SearchQuery = sender.Text().c_str();
     appState_.DoSearch();
-    LoadLibraryView();
+    RefreshLibraryIfShown();
 }
 
 void MainWindow::OnSearchTextChanged(AutoSuggestBox const& sender,
@@ -156,21 +167,31 @@ void MainWindow::OnSearchTextChanged(AutoSuggestBox const& sender,
     if (sender.Text().empty()) {
         appState_.SearchQuery = L"";
         appState_.DoSearch();
-        LoadLibraryView();
+        RefreshLibraryIfShown();
     }
 }
 
 void MainWindow::OnViewModeChanged(IInspectable const&, SelectionChangedEventArgs const&) {
     if (!ready_) return;
-    LoadLibraryView();
+    RefreshLibraryIfShown();
 }
 
+/// Library content changed: re-render only when that tab is showing, so the
+/// frame never switches away from Playlists behind the navigation pane.
+void MainWindow::RefreshLibraryIfShown() {
+    if (appState_.SelectedView == rhythm::SidebarItem::Library) LoadLibraryView();
+}
+
+// Top-level pages start a fresh history: only the playlist detail page goes
+// "back" (to the list), never across tabs.
 void MainWindow::LoadLibraryView() {
     contentFrame().Navigate(winrt::xaml_typename<Rhythm::Views::LibraryView>());
+    contentFrame().BackStack().Clear();
 }
 
 void MainWindow::LoadPlaylistListView() {
     contentFrame().Navigate(winrt::xaml_typename<Rhythm::Views::PlaylistListView>());
+    contentFrame().BackStack().Clear();
 }
 
 } // namespace winrt::Rhythm::implementation

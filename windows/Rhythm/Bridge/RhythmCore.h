@@ -62,6 +62,17 @@ struct Track {
         uint8_t r, g, b;
     };
 
+    /// "#RRGGBB" (the generated fallback constants) -> opaque colour.
+    static constexpr winrt::Windows::UI::Color OpaqueFromHex(std::wstring_view hex) {
+        auto nibble = [](wchar_t c) -> uint8_t {
+            return static_cast<uint8_t>(c <= L'9' ? c - L'0' : (c | 0x20) - L'a' + 10);
+        };
+        auto byte = [&](size_t at) {
+            return static_cast<uint8_t>(nibble(hex[at]) << 4 | nibble(hex[at + 1]));
+        };
+        return winrt::Windows::UI::Color{0xFF, byte(1), byte(3), byte(5)};
+    }
+
     static std::optional<SourceRGB> SourceColorRGB(std::wstring_view sourceType, bool isDarkTheme) {
         struct Entry {
             std::wstring_view name;
@@ -101,6 +112,21 @@ struct Track {
     /// Binding surface: resolves the effective theme (see `IsDarkTheme`).
     std::wstring SourceColor() const {
         return SourceColor(sourceType, IsDarkTheme());
+    }
+
+    /// Badge foreground as a colour value (#428): the same table and the same
+    /// unknown-source fallback as `SourceColor`, without a text round trip.
+    winrt::Windows::UI::Color SourceForegroundColor(bool isDarkTheme) const {
+        if (auto rgb = SourceColorRGB(sourceType, isDarkTheme)) {
+            return winrt::Windows::UI::Color{0xFF, rgb->r, rgb->g, rgb->b};
+        }
+        return OpaqueFromHex(isDarkTheme ? kUnknownSourceDark : kUnknownSourceLight);
+    }
+
+    /// Binding surface: the badge foreground as a XAML brush.
+    winrt::Microsoft::UI::Xaml::Media::SolidColorBrush SourceForegroundBrush() const {
+        return winrt::Microsoft::UI::Xaml::Media::SolidColorBrush(
+            SourceForegroundColor(IsDarkTheme()));
     }
 
     // BEGIN GENERATED BADGE BACKGROUND (#249) — 由 scripts/gen-palette.py 生成，勿手改

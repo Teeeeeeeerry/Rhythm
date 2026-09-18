@@ -41,9 +41,15 @@ winrt::fire_and_forget PlaylistListView::OnNewPlaylistClick(IInspectable const&,
     dialog.CloseButtonText(rhythm::L10n::Cancel());
     dialog.DefaultButton(ContentDialogButton::Primary);
 
-    if (co_await dialog.ShowAsync() != ContentDialogResult::Primary) co_return;
+    try {
+        if (co_await dialog.ShowAsync() != ContentDialogResult::Primary) co_return;
+    } catch (winrt::hresult_error const& e) {
+        // An exception leaving a fire_and_forget coroutine ends the process.
+        OutputDebugStringW((L"New playlist dialog failed: " + e.message() + L"\n").c_str());
+        co_return;
+    }
     auto name = tb.Text();
-    if (name.empty()) co_return;
+    if (name.empty() || !appState_ || !appState_->Library) co_return;
     appState_->Library->CreatePlaylist(name.c_str());
     appState_->RefreshLibrary();
     Refresh();

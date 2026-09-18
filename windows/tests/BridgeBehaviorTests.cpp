@@ -103,6 +103,39 @@ TEST_CASE("WB-04 SourceBackgroundColor carries 15% alpha of the source color") {
     }
 }
 
+// ─── WB-20 SourceForegroundColor（视图绑定的前景色，#428）──────────────
+
+TEST_CASE("WB-20 SourceForegroundColor matches SourceColor in both themes") {
+    auto hex = [](winrt::Windows::UI::Color c) {
+        return std::format(L"#{:02X}{:02X}{:02X}", c.R, c.G, c.B);
+    };
+    for (const wchar_t* type : {L"local", L"youtube", L"bilibili", L"direct_url", L"nope"}) {
+        Track t;
+        t.sourceType = type;
+        for (bool isDark : {true, false}) {
+            auto color = t.SourceForegroundColor(isDark);
+            REQUIRE(color.A == 0xFF);
+            REQUIRE(hex(color) == t.SourceColor(t.sourceType, isDark));
+        }
+    }
+}
+
+// ─── WB-21 ExportM3U8（导出走生成的编码器，#428）──────────────────────
+
+TEST_CASE("WB-21 ExportM3U8 writes the tracks and reports failure") {
+    TempDir dir;
+    Track t = makeLocalTrack(L"C:\music\wb21 曲目.mp3", L"WB21 标题");
+    auto out = dir.path / L"list.m3u8";
+
+    REQUIRE(ExportM3U8(out.wstring(), {t}));
+    std::ifstream in(out, std::ios::binary);
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    REQUIRE(text.find("#EXTM3U") != std::string::npos);
+    REQUIRE(text.find(WideToUtf8ForTest(L"wb21 曲目.mp3")) != std::string::npos);
+
+    REQUIRE_FALSE(ExportM3U8((dir.path / L"missing" / L"list.m3u8").wstring(), {t}));
+}
+
 // ─── WB-05 JsonToTrack/TrackToJson 往返（经 AddTrack 黑盒）───────────
 
 TEST_CASE("WB-05 AddTrack roundtrip preserves every field") {

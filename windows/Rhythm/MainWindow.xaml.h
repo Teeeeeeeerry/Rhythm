@@ -31,6 +31,7 @@ struct MainWindow : MainWindowT<MainWindow> {
 private:
     void LoadLibraryView();
     void LoadPlaylistListView();
+    void RefreshLibraryIfShown();
     /// Every page that lands in the content frame (including back
     /// navigation) gets the shared state here.
     void OnFrameNavigated(winrt::Windows::Foundation::IInspectable const&,
