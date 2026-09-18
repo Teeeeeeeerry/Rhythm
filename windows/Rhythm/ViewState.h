@@ -93,12 +93,17 @@ struct PlayerBar {
 PlayerBar PlayerBarState(const AppState& state);
 
 /// The notification-area menu (#340): its item labels, in the language the
-/// language layer currently resolves. The tray builds the native menu from
-/// this and nothing else.
+/// language layer currently resolves, and whether play/pause is available.
+/// The tray builds the native menu from this and gates the play/pause command
+/// on the same value (#341).
 struct TrayMenu {
     std::wstring playPause;
     std::wstring showWindow;
     std::wstring quit;
+    /// Whether "play / pause" can do anything -- the coordinator's own
+    /// availability query (#138/#341): off for an empty library with nothing
+    /// current, so a dead click never claims playback.
+    bool playPauseEnabled = false;
 };
 
 TrayMenu TrayMenuState(const AppState& state);

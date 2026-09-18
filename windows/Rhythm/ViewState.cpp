@@ -162,9 +162,10 @@ PlayerBar PlayerBarState(const AppState& state) {
     return bar;
 }
 
-TrayMenu TrayMenuState(const AppState&) {
+TrayMenu TrayMenuState(const AppState& state) {
     // #141: tray copy follows the language layer like everything else.
-    return TrayMenu{L10n::TrayPlayPause(), L10n::TrayShowWindow(), L10n::TrayQuit()};
+    return TrayMenu{L10n::TrayPlayPause(), L10n::TrayShowWindow(), L10n::TrayQuit(),
+                    state.CanTogglePlayback()};
 }
 
 } // namespace rhythm::view

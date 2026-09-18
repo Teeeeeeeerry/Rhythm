@@ -417,3 +417,35 @@ TEST_CASE("VS-29 the tray menu carries its three labels in the current language"
         REQUIRE(menu.quit == L"Quit Rhythm");
     }
 }
+
+// ─── VS-30/31/32 托盘播放暂停可用性（#341）──────────────────────────
+
+// The availability rules live in the core coordinator; SpyApp (TestHelpers.h)
+// injects a SpyCoordinator that mirrors its contract.
+
+TEST_CASE("VS-30 an empty library disables play/pause in the tray") {
+    SpyApp s;
+    REQUIRE_FALSE(view::TrayMenuState(s.state).playPauseEnabled);
+}
+
+TEST_CASE("VS-31 a current track enables play/pause in the tray") {
+    SpyApp s;
+    s.state.PlayTrack(makeLocalTrack(L"C:\\m\\a.mp3", L"a"));
+    REQUIRE(s.state.CurrentTrack.has_value());
+    REQUIRE(view::TrayMenuState(s.state).playPauseEnabled);
+}
+
+TEST_CASE("VS-32 tray availability agrees with the coordinator's query") {
+    SpyApp s;
+    auto agrees = [&] {
+        return view::TrayMenuState(s.state).playPauseEnabled ==
+               s.state.Coordinator->CanTogglePlayback();
+    };
+    REQUIRE(agrees());  // empty
+    s.spy->SyncQueue({makeLocalTrack(L"C:\\m\\a.mp3", L"a")});
+    REQUIRE(agrees());  // library, nothing current: the coordinator can idle-start
+    REQUIRE(view::TrayMenuState(s.state).playPauseEnabled);
+    s.spy->SyncQueue({});
+    REQUIRE(agrees());
+    REQUIRE_FALSE(view::TrayMenuState(s.state).playPauseEnabled);
+}

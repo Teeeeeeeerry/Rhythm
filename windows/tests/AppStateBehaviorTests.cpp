@@ -20,33 +20,6 @@
 using namespace rhythm;
 using namespace rhythm_tests;
 
-// ─── Test fixture ───────────────────────────────────────────────────
-
-/// AppState with a SpyCoordinator injected and its event handler wired to
-/// ApplyCoordinatorEvent (synchronous — no dispatcher in tests).
-struct SpyApp {
-    TempDir dir;
-    AppState state;
-    SpyCoordinator* spy;
-    // Declared after `state`: the UI thread stops (and drains) before the
-    // state its work touches is destroyed.
-    std::unique_ptr<UiThread> ui;
-
-    SpyApp() {
-        spy = new SpyCoordinator();
-        state.Coordinator.reset(spy);
-        spy->SetEventHandler([this](const std::wstring& json) {
-            state.ApplyCoordinatorEvent(json);
-        });
-    }
-
-    /// Marshal async results through a UI-thread stand-in (#418).
-    void UseUiThread() {
-        ui = std::make_unique<UiThread>();
-        state.SetUiPost(ui->Post());
-    }
-};
-
 // ─── WA-01/02 OpenDatabase / RefreshLibrary ─────────────────────────
 
 TEST_CASE("WA-01 OpenDatabase creates the library and fills lists") {
