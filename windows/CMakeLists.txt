@@ -36,7 +36,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/RhythmWindowsDeps.cmake)
 # layer. The app (MSBuild, Rhythm/Rhythm.vcxproj) and the test host both link
 # it -- these sources are declared here and nowhere else.
 set(BEHAVIOR_SOURCES
-    Rhythm/pch.h
+    Rhythm/BehaviorPch.h
     Rhythm/L10n.h
     Rhythm/L10nAccessors.h
     Rhythm/AppState.h
@@ -107,6 +107,8 @@ set(TEST_SOURCES
     tests/TestHelpers.h
     # #413: GeneratedCodec.h included alone must compile.
     tests/GeneratedCodecStandalone.cpp
+    # #329: behaviour headers included alone pull in no WinUI projection.
+    tests/BehaviorHeadersStandalone.cpp
     tests/vendor/catch_amalgamated.cpp
     tests/AppStateBehaviorTests.cpp
     tests/BridgeBehaviorTests.cpp

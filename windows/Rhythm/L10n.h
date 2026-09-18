@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pch.h"
+#include "BehaviorPch.h"
 #include "Bridge/L10nKeys.h"
 #include "Bridge/MessageSpec.h"
 

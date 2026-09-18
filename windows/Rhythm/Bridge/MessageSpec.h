@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pch.h"
+#include "BehaviorPch.h"
 #include <rhythm_core.h>
 #include <nlohmann/json.hpp>
 

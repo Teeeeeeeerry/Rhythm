@@ -4,7 +4,7 @@
 //
 // 这些测试在本机（macOS）不可运行——提交后在 Windows 上 `ctest` 验证。
 
-#include "pch.h"
+#include "BehaviorPch.h"
 #include "Bridge/RhythmCore.h"
 
 #include <catch_amalgamated.hpp>
