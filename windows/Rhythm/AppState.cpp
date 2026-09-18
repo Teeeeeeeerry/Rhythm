@@ -245,7 +245,9 @@ void AppState::OnCoordinatorEvent(const std::wstring& json) {
 
 void AppState::ApplyCoordinatorEvent(const std::wstring& json) {
     try {
-        auto j = json::parse(std::string(json.begin(), json.end()));
+        // #432: UTF-8 both ways -- a per-character cast garbled non-ASCII
+        // titles and paths, or made the JSON invalid so the event was dropped.
+        auto j = json::parse(WideToUtf8(json));
         std::string type = j.value("type", "");
 
         if (type == "progress") {
@@ -265,7 +267,7 @@ void AppState::ApplyCoordinatorEvent(const std::wstring& json) {
             IsPlaying = false;
             IsBuffering = false;
             std::string message = j.value("message", "");
-            auto detail = std::wstring(message.begin(), message.end());
+            auto detail = Utf8ToWide(message);
             std::wstring kind;
             if (j.contains("kind") && !j["kind"].is_null()) {
                 kind = Utf8ToWide(j["kind"].get<std::string>());
