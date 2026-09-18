@@ -65,7 +65,7 @@ void PlayerBarView::Update() {
     if (!appState_) return;
     // What to render is decided by the view state (#317); this only copies
     // the values into the controls.
-    auto bar = rhythm::view::PlayerBarState(*appState_);
+    auto bar = rhythm::view::PlayerBarState(*appState_, rhythm::Resolver::Status());
 
     trackTitle().Text(bar.title);
     trackArtist().Text(bar.artist);
@@ -79,13 +79,7 @@ void PlayerBarView::Update() {
 
     volumeSlider().Value(bar.volumePercent);
 
-    if (appState_->IsResolvingUrl) {
-        auto status = rhythm::Resolver::Status();
-        urlStatus().Text(status.IsQuiet() ? rhythm::L10n::Resolving()
-                                          : rhythm::Resolver::StatusText(status));
-    } else {
-        urlStatus().Text(L"");
-    }
+    urlStatus().Text(bar.urlStatusText);
 }
 
 void PlayerBarView::OnPlayPauseClick(IInspectable const&, RoutedEventArgs const&) {

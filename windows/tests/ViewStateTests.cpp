@@ -449,3 +449,39 @@ TEST_CASE("VS-32 tray availability agrees with the coordinator's query") {
     REQUIRE(agrees());
     REQUIRE_FALSE(view::TrayMenuState(s.state).playPauseEnabled);
 }
+
+// ─── VS-33/34/35 播放条链接解析状态（#317 收尾）─────────────────────
+
+TEST_CASE("VS-33 no resolution in flight renders an empty URL status") {
+    AppState state;
+    ResolverStatus downloading;
+    downloading.phase = L"downloading";
+    downloading.received = 1024 * 1024;
+    REQUIRE(view::PlayerBarState(state, downloading).urlStatusText.empty());
+}
+
+TEST_CASE("VS-34 a resolution with nothing to report renders the resolving copy") {
+    for (const wchar_t* language : {L"zh", L"en"}) {
+        LanguageScope scope(language);
+        AppState state;
+        state.IsResolvingUrl = true;
+        for (const wchar_t* phase : {L"idle", L"ready"}) {
+            ResolverStatus quiet;
+            quiet.phase = phase;
+            REQUIRE(view::PlayerBarState(state, quiet).urlStatusText == L10n::Resolving());
+        }
+    }
+}
+
+TEST_CASE("VS-35 a first-use yt-dlp download renders its progress") {
+    LanguageScope zh(L"zh");
+    AppState state;
+    state.IsResolvingUrl = true;
+    ResolverStatus downloading;
+    downloading.phase = L"downloading";
+    downloading.received = 5 * 1024 * 1024;
+    downloading.total = 36 * 1024 * 1024;
+    auto text = view::PlayerBarState(state, downloading).urlStatusText;
+    REQUIRE(text == Resolver::StatusText(downloading));
+    REQUIRE_FALSE(text.empty());
+}
