@@ -142,3 +142,28 @@ TEST_CASE("VS-10 no current track renders the not-playing copy, never the last t
         REQUIRE(bar.artist.empty());
     }
 }
+
+// ─── VS-11/12/13 播放条音量与播放图标（#335）────────────────────────
+
+TEST_CASE("VS-11 the volume slider shows the current volume") {
+    AppState state;
+    state.Volume = 0.35;
+    REQUIRE(view::PlayerBarState(state).volumePercent == Catch::Approx(35.0));
+    state.Volume = 1.0;
+    REQUIRE(view::PlayerBarState(state).volumePercent == Catch::Approx(100.0));
+}
+
+TEST_CASE("VS-12 the play button shows pause while playing and play otherwise") {
+    AppState state;
+    state.IsPlaying = true;
+    REQUIRE(view::PlayerBarState(state).playIcon == view::Icon::Pause);
+    state.IsPlaying = false;
+    REQUIRE(view::PlayerBarState(state).playIcon == view::Icon::Play);
+}
+
+TEST_CASE("VS-13 buffering counts as playing for the play button") {
+    AppState state;
+    state.IsPlaying = false;
+    state.IsBuffering = true;
+    REQUIRE(view::PlayerBarState(state).playIcon == view::Icon::Pause);
+}

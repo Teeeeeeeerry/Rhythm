@@ -14,14 +14,17 @@ namespace winrt::Rhythm::Views::implementation {
 
 namespace {
 
-/// The behaviour library's icon name as a XAML symbol (#329).
-Symbol ToSymbol(rhythm::Icon icon) {
+/// The view state's icon name as a XAML symbol (#329/#335).
+Symbol ToSymbol(rhythm::view::Icon icon) {
+    using rhythm::view::Icon;
     switch (icon) {
-        case rhythm::Icon::Shuffle:   return Symbol::Shuffle;
-        case rhythm::Icon::RepeatOne: return Symbol::RepeatOne;
-        case rhythm::Icon::RepeatAll: return Symbol::RepeatAll;
-        case rhythm::Icon::List:
-        default:                      return Symbol::List;
+        case Icon::Play:      return Symbol::Play;
+        case Icon::Pause:     return Symbol::Pause;
+        case Icon::Shuffle:   return Symbol::Shuffle;
+        case Icon::RepeatOne: return Symbol::RepeatOne;
+        case Icon::RepeatAll: return Symbol::RepeatAll;
+        case Icon::List:
+        default:              return Symbol::List;
     }
 }
 
@@ -67,16 +70,14 @@ void PlayerBarView::Update() {
     trackTitle().Text(bar.title);
     trackArtist().Text(bar.artist);
 
-    playIcon().Symbol(
-        appState_->IsPlaying ? Symbol::Pause : Symbol::Play);
-
-    playModeIcon().Symbol(ToSymbol(rhythm::PlayModeIcon(appState_->CurrentMode)));
+    playIcon().Symbol(ToSymbol(bar.playIcon));
+    playModeIcon().Symbol(ToSymbol(bar.playModeIcon));
 
     progressBar().Value(bar.progressPercent);
 
     timeText().Text(bar.timeText);
 
-    volumeSlider().Value(appState_->Volume * 100.0);
+    volumeSlider().Value(bar.volumePercent);
 
     if (appState_->IsResolvingUrl) {
         auto status = rhythm::Resolver::Status();

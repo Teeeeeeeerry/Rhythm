@@ -7,6 +7,7 @@
 #include "BehaviorPch.h"
 #include "L10n.h"
 #include "AppState.h"
+#include "ViewState.h"
 
 #include <catch_amalgamated.hpp>
 #include "TestHelpers.h"
@@ -163,10 +164,16 @@ TEST_CASE("LK-10 play mode tooltip comes from the key table in both languages") 
 }
 
 TEST_CASE("LK-10 play mode icon follows the current mode (#411)") {
-    REQUIRE(PlayModeIcon(PlayMode::Sequential) == Icon::List);
-    REQUIRE(PlayModeIcon(PlayMode::Shuffle) == Icon::Shuffle);
-    REQUIRE(PlayModeIcon(PlayMode::SingleLoop) == Icon::RepeatOne);
-    REQUIRE(PlayModeIcon(PlayMode::ListLoop) == Icon::RepeatAll);
+    // The mapping lives in the view state since #335.
+    auto iconFor = [](PlayMode mode) {
+        AppState state;
+        state.CurrentMode = mode;
+        return view::PlayerBarState(state).playModeIcon;
+    };
+    REQUIRE(iconFor(PlayMode::Sequential) == view::Icon::List);
+    REQUIRE(iconFor(PlayMode::Shuffle) == view::Icon::Shuffle);
+    REQUIRE(iconFor(PlayMode::SingleLoop) == view::Icon::RepeatOne);
+    REQUIRE(iconFor(PlayMode::ListLoop) == view::Icon::RepeatAll);
 }
 
 // ─── LK-11 链接解析失败兜底文案（#374）──────────────────────────────
