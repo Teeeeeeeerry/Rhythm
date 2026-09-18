@@ -1,7 +1,7 @@
 // WB-01–19：Windows RhythmCore（Bridge 封装层）行为清单（manifest:
 // docs/testing/behavior/rhythmcore-windows.md）。零接缝：真 rhythm_core DLL
-//（WB-05/06/07/09/10/14 经 FFI 往返），纯函数直测（WB-02–04/12/13；WB-01 的时长文案
-// 已迁入视图状态，见 ViewStateTests.cpp VS-18～VS-20，#337）。
+//（WB-05/06/07/09/10/14 经 FFI 往返），纯函数直测（WB-12/13）。WB-01 的时长文案与 WB-02/03/04/20 的来源徽标
+// 已迁入视图状态（ViewStateTests.cpp VS-18～VS-25，#337/#338）。
 //
 // 这些测试在本机（macOS）不可运行——提交后在 Windows 上 `ctest` 验证。
 
@@ -13,101 +13,6 @@
 
 using namespace rhythm;
 using namespace rhythm_tests;
-
-// ─── WB-02/03 SourceTag / SourceColor ───────────────────────────────
-
-TEST_CASE("WB-02 SourceTag maps every source type") {
-    // The tag follows the UI language: pin both branches (#418).
-    auto tag = [](const wchar_t* sourceType) {
-        Track t;
-        t.sourceType = sourceType;
-        return t.SourceTag();
-    };
-    {
-        LanguageScope zh(L"zh");
-        REQUIRE(tag(L"local") == L"本地");
-        REQUIRE(tag(L"youtube") == L"YT");
-        REQUIRE(tag(L"bilibili") == L"B站");
-        REQUIRE(tag(L"direct_url") == L"链接");
-        REQUIRE(tag(L"something_else") == L"");
-    }
-    {
-        LanguageScope en(L"en");
-        REQUIRE(tag(L"local") == L"Local");
-        REQUIRE(tag(L"youtube") == L"YT");
-        REQUIRE(tag(L"bilibili") == L"Bili");
-        REQUIRE(tag(L"direct_url") == L"Link");
-        REQUIRE(tag(L"something_else") == L"");
-    }
-}
-
-TEST_CASE("WB-03 SourceColor maps every source type in both themes (#121)") {
-    Track t;
-    t.sourceType = L"local";
-    REQUIRE(t.SourceColor(t.sourceType, true) == L"#8ABCD0");
-    REQUIRE(t.SourceColor(t.sourceType, false) == L"#3A7A8C");
-    t.sourceType = L"youtube";
-    REQUIRE(t.SourceColor(t.sourceType, true) == L"#D49573");
-    REQUIRE(t.SourceColor(t.sourceType, false) == L"#8B4A28");
-    t.sourceType = L"bilibili";
-    REQUIRE(t.SourceColor(t.sourceType, true) == L"#C88DA8");
-    REQUIRE(t.SourceColor(t.sourceType, false) == L"#8C4D68");
-    t.sourceType = L"direct_url";
-    REQUIRE(t.SourceColor(t.sourceType, true) == L"#8CB89A");
-    REQUIRE(t.SourceColor(t.sourceType, false) == L"#4C785A");
-    // F4: unknown sources fall back to the teal text colour, never "Gray".
-    t.sourceType = L"nope";
-    REQUIRE(t.SourceColor(t.sourceType, true) == L"#ABC8D4");
-    REQUIRE(t.SourceColor(t.sourceType, false) == L"#0D464D");
-    REQUIRE(t.SourceColor(t.sourceType, true) != L"Gray");
-    REQUIRE(t.SourceColor(t.sourceType, false) != L"Gray");
-}
-
-// ─── WB-04 SourceBackgroundColor（纯值；画刷是运行时类，#418）──────────
-
-TEST_CASE("WB-04 SourceBackgroundColor carries 15% alpha of the source color") {
-    // Theme is a parameter, so the assertion holds on light and dark
-    // machines alike (#418).
-    Track t;
-    t.sourceType = L"local";
-    auto dark = t.SourceBackgroundColor(true);
-    REQUIRE(dark.A == 38);
-    REQUIRE(dark.R == 0x8A);
-    REQUIRE(dark.G == 0xBC);
-    REQUIRE(dark.B == 0xD0);
-    auto light = t.SourceBackgroundColor(false);
-    REQUIRE(light.A == 38);
-    REQUIRE(light.R == 0x3A);
-    REQUIRE(light.G == 0x7A);
-    REQUIRE(light.B == 0x8C);
-
-    Track unknown;
-    unknown.sourceType = L"weird";
-    for (bool isDark : {true, false}) {
-        auto fallback = unknown.SourceBackgroundColor(isDark);
-        REQUIRE(fallback.A == 38);
-        REQUIRE(fallback.R == 128);
-        REQUIRE(fallback.G == 128);
-        REQUIRE(fallback.B == 128);
-    }
-}
-
-// ─── WB-20 SourceForegroundColor（视图绑定的前景色，#428）──────────────
-
-TEST_CASE("WB-20 SourceForegroundColor matches SourceColor in both themes") {
-    auto hex = [](Color c) {
-        return std::format(L"#{:02X}{:02X}{:02X}", c.R, c.G, c.B);
-    };
-    for (const wchar_t* type : {L"local", L"youtube", L"bilibili", L"direct_url", L"nope"}) {
-        Track t;
-        t.sourceType = type;
-        for (bool isDark : {true, false}) {
-            auto color = t.SourceForegroundColor(isDark);
-            REQUIRE(color.A == 0xFF);
-            REQUIRE(hex(color) == t.SourceColor(t.sourceType, isDark));
-        }
-    }
-}
 
 // ─── WB-21 ExportM3U8（导出走生成的编码器，#428）──────────────────────
 

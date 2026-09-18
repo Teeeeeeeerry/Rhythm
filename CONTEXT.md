@@ -39,9 +39,9 @@ macos/              SwiftUI (AppKit) 客户端，SPM 可执行目标
   RhythmTheme/Theme.swift           品牌色 token 独立 library target（测试可 import，见 Package.swift）
   Tests/                            AppStateTests + RhythmThemeTests 两个 testTarget
 windows/            WinUI 3 C++ 客户端，镜像 macos 的 AppState（AppState.cpp）
-  Rhythm/Bridge/RhythmCore.h        C++ 侧 FFI 封装 + IPlayer/ICoordinator 接缝 + Track/Playlist 模型（含来源徽标色表映射）
+  Rhythm/Bridge/RhythmCore.h        C++ 侧 FFI 封装 + IPlayer/ICoordinator 接缝 + Track/Playlist 模型
   Rhythm/L10n.h                     Windows 文案层（跟随系统语言 + 注册表覆盖，#141）
-  Rhythm/ViewState.h                视图状态（#317 组）：输入 AppState、输出普通结构体的纯函数，决定「渲染什么」；XAML 壳只灌控件
+  Rhythm/ViewState.h                视图状态（#317 组）：输入 AppState、输出普通结构体的纯函数，决定「渲染什么」（含来源徽标色表，#338）；XAML 壳只灌控件
   tests/                            Catch2 行为测试（AppState / Bridge / L10n / ViewState）
 testing/            主题色彩测试基础设施：palette.json 单一声明 + L0-L4；编排层自测在 tasks/tests/
 docs/               adr/（决策记录）、testing/behavior/（各模块行为清单）、issues/（已调查的 bug 报告）
@@ -85,7 +85,7 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
 - **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `python3 scripts/tasks.py check-no-emoji` 校验；发现即修，不得绕过。校验范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物，二进制按内容跳过），新增语言或文件类型自动纳入；已挂进两个平台 `python3 scripts/tasks.py test` 的共享静态分析前缀（#224/#345）。CI 工作流仍是 `testing/ci/` 下未部署的模板，不在 CI 生效（#346）
 - **品牌色单一出处（#219 组）**：视图只用 `RhythmTheme` 的 token（如 `.rhythmAccent`），不硬编码色值。
   配色的唯一声明是 `testing/palette.json`——色值、半透明的「基色 + 不透明度」、token 文档块都在里面；
-  三处产物（macOS `Theme.swift`、Windows `Colors.xaml`、Windows `RhythmCore.h`）的标记区间由
+  三处产物（macOS `Theme.swift`、Windows `Colors.xaml`、Windows `ViewState.cpp`）的标记区间由
   `python3 scripts/gen-palette.py --emit-swift-seed` 写入，与文案、契约两个生成器同构。
   改色只改配色文件再重新生成；标记区间内的代码不手改，漂移由 `testing/l0/check-palette.py`
   逐字节比对拦截。这三个文件里的品牌色字面量一律落在标记区间内——区间外的手写副本不被比对覆盖，
@@ -138,8 +138,8 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
 - **测试桩不要把 .py 路径直接交给解析器**：Windows 不能直接执行脚本。桩路径一律取 `rust-core/tests/common` 的 `fake_ytdlp_executable()`，它在 Windows 上写启动器（见 `docs/adr/0002-测试桩按平台可执行形式调用.md`，#388）
 - **YouTube 403 ≠ 链接过期**：googlevideo URL 有效期 ~6h（`expire`-`mt`），播放 403 时先解码 `expire` 判断；未过期却 403 是网络侧拒绝（常见于 ISP 托管的 Google Global Cache 节点 `cache.google.com` 故障、或出口 IP 被 YouTube 拉黑），换网络/VPN 才是出路（见 docs/issues/2026-08-18-youtube-403-misreported-as-expired.md）。#120 已修复：core 用 `RhythmError::Http` 分类（expired/cdn_rejected/other），选哪条文案自 #216 组起也在核心，UI 只填模板——仅真过期才建议重贴
 - **解析缓存不淘汰失败条目**：`RESOLVED_CACHE`（1h TTL）命中即返回，播放 403 不会清条目——重贴同一链接在 TTL 内必然拿到同一个坏 CDN URL，用户建议"重新粘贴"结构性无效。#120 已修复：播放 403/过期时引擎淘汰条目并 `resolve_url_fresh` 绕过缓存重解析一次，仍败才报错
-- **Windows 来源徽标色双主题**：`Track::SourceColor(sourceType, isDarkTheme)` 对齐 macOS `Theme.swift` rhythmSource* 的 dark/light 双端值；
-  #147 起前景色与胶囊底共用单一表映射 `Track::SourceColorRGB`（`SourceColor` / `SourceForegroundColor` / `SourceBackgroundColor` 都从它派生，改色只改一处；色值是普通结构 `rhythm::Color`，模型不带 UI 框架类型，画刷由壳的行模型 `TrackItem` 构造，#418/#328）；未知来源回退 teal 文字色（dark `#ABC8D4` / light `#0D464D`），绝不返回系统 Gray（F4）。theme 由壳的 `rhythm::shell::IsDarkTheme()`（`windows/Rhythm/Views/SystemTheme.h`）解析——应用从不 pin `Application.RequestedTheme`，UI 跟随系统，故用 `UISettings` 前景色判断；视图渲染列表时解析一次，作为标志传给行模型，行为代码只接收主题标志、从不读系统设置（#342）。Windows 侧校验：`python3 testing/l0/check-color-parity.py` + `testing/l1/windows`（#122 解除桩）。#121 已修复
+- **Windows 来源徽标色双主题**：徽标三元素（标记、前景色、胶囊底）由视图状态 `rhythm::view::SourceBadgeOf(sourceType, isDarkTheme)` 给出（#338 从曲目模型搬来），色值对齐 macOS `Theme.swift` rhythmSource* 的 dark/light 双端值；
+  前景与胶囊底共用 `ViewState.cpp` 里生成的单一色表 `SourcePalette`（#147，改色只改配色文件）；胶囊底一律是前景色 @ 声明不透明度（alpha 38），未知来源也不例外；色值是普通结构 `rhythm::view::Color`，画刷由壳的行模型 `TrackItem` 构造（#418/#328）；未知来源回退 teal 文字色（dark `#ABC8D4` / light `#0D464D`），绝不返回系统 Gray（F4）。theme 由壳的 `rhythm::shell::IsDarkTheme()`（`windows/Rhythm/Views/SystemTheme.h`）解析——应用从不 pin `Application.RequestedTheme`，UI 跟随系统，故用 `UISettings` 前景色判断；视图渲染列表时解析一次，作为标志传给行模型，行为代码只接收主题标志、从不读系统设置（#342）。Windows 侧校验：`python3 testing/l0/check-color-parity.py` + `testing/l1/windows`（#122 解除桩）。#121 已修复
 
 ## 文档地图
 

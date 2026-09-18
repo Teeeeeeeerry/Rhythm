@@ -13,7 +13,7 @@
 | L0 静态 | `../scripts/check_no_emoji.py` | 零 emoji 硬性约定校验：范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物），二进制按内容探测跳过（#224/#257） | 提交前 / `tasks.py test` 双端共享前缀 |
 | L0 自测 | `l0/tests/` | L0 校验脚本自身的行为测试（stdlib unittest，临时文件树夹具） | `tasks.py test` 双端共享前缀 |
 | L1 单元 | `l1/macos/` | PaletteSeed + 五组 Swift 测试（isDark/RGB/对比度/语义/互异） | `swift test` |
-| L1 单元 | `l1/windows/` | 来源徽标色 assert 测试 exe（直测 `RhythmCore.h`，#121/#122） | ctest |
+| L1 单元 | `l1/windows/` | 来源徽标色 assert 测试 exe（直测视图状态的徽标 `SourceBadgeOf`，链接行为库，#121/#122/#338） | ctest |
 | L2 快照 | `l2/macos/` | swift-snapshot-testing 模板（8 视图 × 状态 × 外观 × 语言） | visual CI |
 | L2 快照 | `l2/windows/` | **缺口，未实现**：`capture_views.cpp` 是骨架、没有 CMake 工程、没有 golden；已从测试入口移除（#387，见下文「Windows L2 缺口」）。像素比对工具 `compare_screenshots.py` 本身可用 | — |
 | L3 UI | `l3/macos/` | XcodeGen project.yml + 4 组 XCUITest（外观切换/键盘/a11y/新建弹窗） | visual CI |
@@ -66,7 +66,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.187）
+## 当前状态（main，v0.5.188）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|

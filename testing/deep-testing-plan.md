@@ -99,7 +99,7 @@ Windows：`testing/l1/windows/`（`source_color_test.cpp` + CMakeLists）零依�
 F1 已修复（#121）：`Track::SourceColor(sourceType, isDarkTheme)` 双端值 + alpha==38 + 未知类型回退，
 由 `source_color_test.cpp` 直测真实 `RhythmCore.h`（#122 解除自声明桩）。
 #147 起徽标前景与胶囊底共用单一表映射 `Track::SourceColorRGB(sourceType, isDarkTheme)`，
-`SourceColor(sourceType, isDarkTheme)`/`SourceForegroundColor`/`SourceBackgroundColor` 均由它派生；
+`SourceColor(sourceType, isDarkTheme)`/`SourceForegroundColor`/`SourceBackgroundColor` 均由它派生（#338 起徽标整体搬进视图状态 `SourceBadgeOf`，色表随之生成到 `ViewState.cpp`）；
 色值是普通结构 `rhythm::Color`，画刷由壳的行模型 `TrackItem` 构造（#328）。
 
 ### L2 快照与像素回归（必做，非可选）
