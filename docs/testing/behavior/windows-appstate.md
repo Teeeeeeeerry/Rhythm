@@ -33,7 +33,7 @@
 |---|---|---|---|
 | WA-12 | `ResolveAndPlay` 空/纯空白输入 | trim 后为空 → 直接返回 | 新测（待 Windows 验证） |
 | WA-13 | `ResolveAndPlay` 防重入 | `IsResolvingUrl=true` 期间忽略新调用（以 `OnUrlError` 回调计数为观察面：连续两次失败输入只回调一次） | 新测（待 Windows 验证） |
-| WA-14 | `ResolveAndPlay` 无 dispatcher | 后台结果被丢弃、`IsResolvingUrl` 复位（降级模式） | 新测（待 Windows 验证） |
+| WA-14 | `ResolveAndPlay` 未设 UI 线程 | 后台结果被丢弃、`IsResolvingUrl` 复位（降级模式） | 新测（待 Windows 验证） |
 | WA-16 | `Library` 打开失败 | `OpenDatabase(坏路径)` → `Library` 内部 ptr 为 null，后续方法安全 no-op | 新测（待 Windows 验证） |
 
 ## 错误路径（P2）

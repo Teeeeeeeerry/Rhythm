@@ -326,48 +326,66 @@ inline Track makeUrlTrack(const std::wstring& url, const std::wstring& title) {
 /// Stand-in for the UI thread (#418): one worker thread draining a queue, fed
 /// through AppState's UiPost seam. The app hands in a WinUI DispatcherQueue,
 /// a Windows App Runtime class that an unpackaged test exe cannot activate.
+///
+/// The queue outlives this object (shared with every UiPost handed out): a
+/// detached resolver thread may still post after a failed test unwinds, and
+/// work posted after shutdown is dropped, like a shut-down DispatcherQueue.
 class UiThread {
 public:
-    UiThread() : worker_([this] { Drain(); }) {}
+    UiThread() : queue_(std::make_shared<Queue>()) {
+        worker_ = std::thread([queue = queue_] { queue->Drain(); });
+    }
 
     ~UiThread() {
-        {
-            std::lock_guard lock(mutex_);
-            stopping_ = true;
-        }
-        ready_.notify_one();
+        queue_->Stop();
         worker_.join();
     }
 
-    AppState::UiPost Post() {
-        return [this](std::function<void()> work) {
-            {
-                std::lock_guard lock(mutex_);
-                queue_.push_back(std::move(work));
-            }
-            ready_.notify_one();
-        };
+    AppState::UiPost Post() const {
+        return [queue = queue_](std::function<void()> work) { queue->Push(std::move(work)); };
     }
 
 private:
-    void Drain() {
-        for (;;) {
-            std::function<void()> work;
-            {
-                std::unique_lock lock(mutex_);
-                ready_.wait(lock, [this] { return stopping_ || !queue_.empty(); });
-                if (queue_.empty()) return;
-                work = std::move(queue_.front());
-                queue_.pop_front();
-            }
-            work();
-        }
-    }
+    struct Queue {
+        std::mutex mutex;
+        std::condition_variable ready;
+        std::deque<std::function<void()>> work;
+        bool stopping = false;
 
-    std::mutex mutex_;
-    std::condition_variable ready_;
-    std::deque<std::function<void()>> queue_;
-    bool stopping_ = false;
+        void Push(std::function<void()> item) {
+            {
+                std::lock_guard lock(mutex);
+                if (stopping) return;
+                work.push_back(std::move(item));
+            }
+            ready.notify_one();
+        }
+
+        void Stop() {
+            {
+                std::lock_guard lock(mutex);
+                stopping = true;
+            }
+            ready.notify_one();
+        }
+
+        /// Runs queued work until stopped; work already queued still runs.
+        void Drain() {
+            for (;;) {
+                std::function<void()> item;
+                {
+                    std::unique_lock lock(mutex);
+                    ready.wait(lock, [this] { return stopping || !work.empty(); });
+                    if (work.empty()) return;
+                    item = std::move(work.front());
+                    work.pop_front();
+                }
+                item();
+            }
+        }
+    };
+
+    std::shared_ptr<Queue> queue_;
     std::thread worker_;
 };
 

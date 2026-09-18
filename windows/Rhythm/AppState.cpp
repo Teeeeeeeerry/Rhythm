@@ -234,8 +234,9 @@ void AppState::ResolveAndPlay(const std::wstring& url) {
 // ─── Coordinator events (ticket #172/#173) ─────────────────────────
 
 void AppState::OnCoordinatorEvent(const std::wstring& json) {
-    if (uiPost_) {
-        uiPost_([this, json] { ApplyCoordinatorEvent(json); });
+    auto post = uiPost_;
+    if (post) {
+        post([this, json] { ApplyCoordinatorEvent(json); });
     } else {
         // No UI thread (tests): apply synchronously on the caller thread.
         ApplyCoordinatorEvent(json);

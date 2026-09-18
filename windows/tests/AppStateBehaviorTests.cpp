@@ -27,6 +27,9 @@ struct SpyApp {
     TempDir dir;
     AppState state;
     SpyCoordinator* spy;
+    // Declared after `state`: the UI thread stops (and drains) before the
+    // state its work touches is destroyed.
+    std::unique_ptr<UiThread> ui;
 
     SpyApp() {
         spy = new SpyCoordinator();
@@ -34,6 +37,12 @@ struct SpyApp {
         spy->SetEventHandler([this](const std::wstring& json) {
             state.ApplyCoordinatorEvent(json);
         });
+    }
+
+    /// Marshal async results through a UI-thread stand-in (#418).
+    void UseUiThread() {
+        ui = std::make_unique<UiThread>();
+        state.SetUiPost(ui->Post());
     }
 };
 
@@ -253,8 +262,7 @@ TEST_CASE("WA-09 SetVolume updates state and coordinator") {
 TEST_CASE("WA-10 ResolveAndPlay success persists, inserts, and plays") {
     SpyApp app;
     app.state.OpenDatabase(app.dir.dbPath());
-    UiThread ui;
-    app.state.SetUiPost(ui.Post());
+    app.UseUiThread();
 
     app.state.ResolveAndPlay(L"  https://example.com/wa10-tone.mp3  "); // trims input
     // The callback clears IsResolvingUrl first, then persists/inserts/plays —
@@ -274,8 +282,7 @@ TEST_CASE("WA-10 ResolveAndPlay success persists, inserts, and plays") {
 TEST_CASE("WA-11 ResolveAndPlay failure reports kind and message (#21)") {
     SpyApp app;
     app.state.OpenDatabase(app.dir.dbPath());
-    UiThread ui;
-    app.state.SetUiPost(ui.Post());
+    app.UseUiThread();
 
     std::wstring kind, message;
     app.state.OnUrlError = [&](const std::wstring& k, const std::wstring& m) {
@@ -306,8 +313,7 @@ TEST_CASE("WA-12 ResolveAndPlay ignores blank input") {
 TEST_CASE("WA-13 ResolveAndPlay ignores re-entrant calls") {
     SpyApp app;
     app.state.OpenDatabase(app.dir.dbPath());
-    UiThread ui;
-    app.state.SetUiPost(ui.Post());
+    app.UseUiThread();
 
     int errorCallbacks = 0;
     app.state.OnUrlError = [&](const std::wstring&, const std::wstring&) {
@@ -327,7 +333,7 @@ TEST_CASE("WA-13 ResolveAndPlay ignores re-entrant calls") {
     REQUIRE(errorCallbacks == 1); // only the first resolution ran
 }
 
-TEST_CASE("WA-14 ResolveAndPlay without dispatcher drops the result and resets") {
+TEST_CASE("WA-14 ResolveAndPlay without a UI thread drops the result and resets") {
     SpyApp app;
     app.state.OpenDatabase(app.dir.dbPath());
     // No UI thread set: the background thread just clears the flag.
@@ -358,8 +364,7 @@ TEST_CASE("WA-24 ResolveAndPlay reloads from DB so list and queue stay in sync (
     app.state.PlayTrack(savedA);
     REQUIRE_FALSE(app.state.CanPlayNext()); // single-track queue
 
-    UiThread ui;
-    app.state.SetUiPost(ui.Post());
+    app.UseUiThread();
 
     app.state.ResolveAndPlay(L"https://example.com/wa15-tone.mp3");
     REQUIRE(waitFor([&] {
@@ -633,8 +638,7 @@ TEST_CASE("WA-25 finished auto-advance renders via track_changed") {
                    {"source_type", "local"},
                    {"title", WideToUtf8ForTest(savedB.title)}}},
     };
-    auto eventJson = event.dump();  // ASCII: every fixture value above is ASCII
-    app.spy->FireEvent(std::wstring(eventJson.begin(), eventJson.end()));
+    app.spy->FireEvent(Utf8ToWide(event.dump()));
 
     REQUIRE(app.state.CurrentTrack->id == savedB.id);
     REQUIRE(app.state.IsPlaying);
