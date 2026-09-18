@@ -22,6 +22,11 @@ std::vector<TrackRow> LibraryRows(const AppState& state);
 
 /// What the player bar shows.
 struct PlayerBar {
+    /// The current track's title and artist (empty when it has none); with
+    /// no current track, the not-playing copy and an empty artist -- never
+    /// the previous track's values (#334).
+    std::wstring title;
+    std::wstring artist;
     /// Progress bar value, 0-100. Zero while the duration is unknown -- no
     /// made-up progress -- and clamped when the position runs past it (#332).
     double progressPercent = 0.0;

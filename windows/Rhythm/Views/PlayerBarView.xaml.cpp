@@ -30,7 +30,6 @@ Symbol ToSymbol(rhythm::Icon icon) {
 void PlayerBarView::InitializeComponent() {
     PlayerBarViewT<PlayerBarView>::InitializeComponent();
     // #141: static copy from the language layer.
-    trackTitle().Text(rhythm::L10n::NotPlaying());
     urlBox().PlaceholderText(rhythm::L10n::UrlPlaceholder());
     btnUrlPlay().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::PlayUrl() }));
     // #373: the play mode control's tooltip, taken from the key table.
@@ -41,6 +40,7 @@ void PlayerBarView::InitializeComponent() {
 void PlayerBarView::BindState(rhythm::AppState* state) {
     appState_ = state;
     if (!appState_) return;
+    Update();  // the first frame comes from the view state too (#334)
 
     appState_->OnUrlError = [this](const std::wstring&, const std::wstring&) {
         // #230: 分派在核心，AppState 已在每个失败处一次性本地化；本层
@@ -64,14 +64,8 @@ void PlayerBarView::Update() {
     // the values into the controls.
     auto bar = rhythm::view::PlayerBarState(*appState_);
 
-    if (appState_->CurrentTrack) {
-        trackTitle().Text(appState_->CurrentTrack->title);
-        if (appState_->CurrentTrack->artist) {
-            trackArtist().Text(*appState_->CurrentTrack->artist);
-        } else {
-            trackArtist().Text(L"");
-        }
-    }
+    trackTitle().Text(bar.title);
+    trackArtist().Text(bar.artist);
 
     playIcon().Symbol(
         appState_->IsPlaying ? Symbol::Pause : Symbol::Play);
