@@ -18,22 +18,6 @@ static_assert(static_cast<int32_t>(PlayMode::Shuffle) == 1);
 static_assert(static_cast<int32_t>(PlayMode::SingleLoop) == 2);
 static_assert(static_cast<int32_t>(PlayMode::ListLoop) == 3);
 
-/// A UI-free icon name (#329): the XAML shell maps it to its own symbol set,
-/// so the behaviour library carries no WinUI type.
-enum class Icon { List, Shuffle, RepeatOne, RepeatAll };
-
-/// The play mode control's icon (#411) -- the mapping lives beside the type,
-/// like macOS `PlayMode.icon`; the view only reads it.
-inline Icon PlayModeIcon(PlayMode mode) {
-    switch (mode) {
-        case PlayMode::Shuffle:    return Icon::Shuffle;
-        case PlayMode::SingleLoop: return Icon::RepeatOne;
-        case PlayMode::ListLoop:   return Icon::RepeatAll;
-        case PlayMode::Sequential:
-        default:                   return Icon::List;
-    }
-}
-
 /// Plain C++ state (#326): no WinRT base and no WinUI types, so the behaviour
 /// library and its test host need neither an apartment nor the XAML runtime.
 class AppState {

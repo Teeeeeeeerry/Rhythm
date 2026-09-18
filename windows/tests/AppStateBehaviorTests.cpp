@@ -10,6 +10,7 @@
 
 #include "BehaviorPch.h"
 #include "AppState.h"
+#include "ViewState.h"
 
 #include <algorithm>
 #include <catch_amalgamated.hpp>
@@ -502,11 +503,13 @@ TEST_CASE("WA-21 CyclePlayMode cycles and syncs the queue") {
 
 TEST_CASE("LK-10 clicking the play mode control cycles the mode and its icon (#411)") {
     SpyApp app;
-    // The control's click handler calls CyclePlayMode, then renders PlayModeIcon.
+    // The control's click handler calls CyclePlayMode, then renders the
+    // view state's play mode icon (#335).
+    using view::Icon;
     const Icon expected[] = { Icon::Shuffle, Icon::RepeatOne, Icon::RepeatAll, Icon::List };
     for (auto icon : expected) {
         app.state.CyclePlayMode();
-        REQUIRE(PlayModeIcon(app.state.CurrentMode) == icon);
+        REQUIRE(view::PlayerBarState(app.state).playModeIcon == icon);
     }
 }
 

@@ -12,6 +12,17 @@ std::wstring MinutesSeconds(double seconds) {
     return std::format(L"{}:{:02}", whole / 60, whole % 60);
 }
 
+/// The play mode control's icon, like macOS `PlayMode.icon` (#411).
+Icon PlayModeIcon(PlayMode mode) {
+    switch (mode) {
+        case PlayMode::Shuffle:    return Icon::Shuffle;
+        case PlayMode::SingleLoop: return Icon::RepeatOne;
+        case PlayMode::ListLoop:   return Icon::RepeatAll;
+        case PlayMode::Sequential:
+        default:                   return Icon::List;
+    }
+}
+
 } // namespace
 
 std::vector<TrackRow> LibraryRows(const AppState& state) {
@@ -37,6 +48,9 @@ PlayerBar PlayerBarState(const AppState& state) {
     bar.timeText = state.IsBuffering
         ? L10n::Buffering()
         : MinutesSeconds(state.Position) + L" / " + MinutesSeconds(state.Duration);
+    bar.playIcon = state.IsPlaying || state.IsBuffering ? Icon::Pause : Icon::Play;
+    bar.playModeIcon = PlayModeIcon(state.CurrentMode);
+    bar.volumePercent = state.Volume * 100.0;
     return bar;
 }
 

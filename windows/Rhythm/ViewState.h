@@ -9,6 +9,10 @@
 
 namespace rhythm::view {
 
+/// A UI-free icon name (#329/#335): the XAML shell maps it to its own symbol
+/// set, so the view state carries no WinUI type.
+enum class Icon { Play, Pause, List, Shuffle, RepeatOne, RepeatAll };
+
 /// One row of a track list. `track` is the row's action payload -- what a
 /// click hands to `AppState::PlayTrack`, never rendered; the other fields are
 /// exactly what the row shows, so the shell reads nothing off the model.
@@ -34,6 +38,13 @@ struct PlayerBar {
     /// start, and 0:00 / 0:00 reads as a dead player (#137) -- otherwise
     /// "position / duration" in m:ss (#333).
     std::wstring timeText;
+    /// Pause while playing -- buffering counts as playing -- play otherwise
+    /// (#335).
+    Icon playIcon = Icon::Play;
+    /// The play mode control's icon (#411, moved here from AppState by #335).
+    Icon playModeIcon = Icon::List;
+    /// The volume slider's value, 0-100 (#335).
+    double volumePercent = 0.0;
 };
 
 PlayerBar PlayerBarState(const AppState& state);
