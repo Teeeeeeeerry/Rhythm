@@ -99,6 +99,10 @@ struct TrayMenu {
     std::wstring playPause;
     std::wstring showWindow;
     std::wstring quit;
+    /// Whether "play / pause" can do anything -- the coordinator's own
+    /// availability query (#138/#341): off for an empty library with nothing
+    /// current, so a dead click never claims playback.
+    bool playPauseEnabled = false;
 };
 
 TrayMenu TrayMenuState(const AppState& state);

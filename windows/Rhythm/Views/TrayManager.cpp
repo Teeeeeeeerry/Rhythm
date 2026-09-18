@@ -72,7 +72,8 @@ LRESULT TrayManager::MessageHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             if (!appState_) break;
             auto model = rhythm::view::TrayMenuState(*appState_);
             HMENU menu = ::CreatePopupMenu();
-            ::AppendMenuW(menu, MF_STRING, 1, model.playPause.c_str());
+            ::AppendMenuW(menu, MF_STRING | (model.playPauseEnabled ? 0 : MF_GRAYED), 1,
+                          model.playPause.c_str());
             ::AppendMenuW(menu, MF_STRING, 2, model.showWindow.c_str());
             ::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
             ::AppendMenuW(menu, MF_STRING, 3, model.quit.c_str());
@@ -99,11 +100,9 @@ LRESULT TrayManager::MessageHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
     if (msg == WM_COMMAND) {
         switch (LOWORD(wParam)) {
         case 1: {
-            // #138: same entry as the player-bar button. Empty-library /
-            // no-current-track cases are no-ops inside TogglePlayPause
-            // (WA-08/WA-15), and CanTogglePlayback mirrors the macOS tray
-            // gate so a dead click never claims playback.
-            if (appState_ && appState_->CanTogglePlayback()) {
+            // #138: same entry as the player-bar button. Whether it may act
+            // is the same model value that greyed the item out (#341).
+            if (appState_ && rhythm::view::TrayMenuState(*appState_).playPauseEnabled) {
                 appState_->TogglePlayPause();
             }
             break;
