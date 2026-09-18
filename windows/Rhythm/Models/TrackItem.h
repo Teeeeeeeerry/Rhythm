@@ -5,9 +5,10 @@
 
 namespace winrt::Rhythm::Models::implementation {
 
-/// A library row for x:Bind (#428): wraps the behaviour-library Track.
+/// A library row for x:Bind (#428): wraps the behaviour-library Track. The
+/// theme is resolved by the view at render time and passed in (#342).
 struct TrackItem : TrackItemT<TrackItem> {
-    explicit TrackItem(rhythm::Track track);
+    TrackItem(rhythm::Track track, bool isDarkTheme);
 
     hstring Title() const;
     hstring Artist() const;
@@ -21,6 +22,7 @@ struct TrackItem : TrackItemT<TrackItem> {
 
 private:
     rhythm::Track track_;
+    bool isDarkTheme_;
 };
 
 } // namespace winrt::Rhythm::Models::implementation

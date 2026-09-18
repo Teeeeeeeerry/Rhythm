@@ -17,7 +17,8 @@ winrt::Microsoft::UI::Xaml::Media::SolidColorBrush ToBrush(rhythm::Color c) {
 
 } // namespace
 
-TrackItem::TrackItem(rhythm::Track track) : track_(std::move(track)) {}
+TrackItem::TrackItem(rhythm::Track track, bool isDarkTheme)
+    : track_(std::move(track)), isDarkTheme_(isDarkTheme) {}
 
 hstring TrackItem::Title() const { return hstring{track_.title}; }
 
@@ -26,11 +27,11 @@ hstring TrackItem::Artist() const { return hstring{track_.artist.value_or(L"")};
 hstring TrackItem::SourceTag() const { return hstring{track_.SourceTag()}; }
 
 winrt::Microsoft::UI::Xaml::Media::Brush TrackItem::SourceForeground() const {
-    return ToBrush(track_.SourceForegroundColor(rhythm::IsDarkTheme()));
+    return ToBrush(track_.SourceForegroundColor(isDarkTheme_));
 }
 
 winrt::Microsoft::UI::Xaml::Media::Brush TrackItem::SourceBackground() const {
-    return ToBrush(track_.SourceBackgroundColor(rhythm::IsDarkTheme()));
+    return ToBrush(track_.SourceBackgroundColor(isDarkTheme_));
 }
 
 hstring TrackItem::DurationText() const { return hstring{track_.DurationFormatted()}; }

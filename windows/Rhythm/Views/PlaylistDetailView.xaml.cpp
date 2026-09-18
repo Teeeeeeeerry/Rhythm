@@ -4,6 +4,7 @@
 #include "Views/PlaylistDetailView.g.cpp"
 #endif
 #include "Models/TrackItem.h"
+#include "Views/SystemTheme.h"
 #include "Views/Win32Interop.h"
 #include "L10n.h"
 
@@ -47,8 +48,9 @@ void PlaylistDetailView::Refresh() {
 
     playlistTitle().Text(playlist->name);
     auto items = winrt::single_threaded_observable_vector<IInspectable>();
+    const bool isDark = rhythm::shell::IsDarkTheme();  // #342: resolved once, by the shell
     for (const auto& track : playlist->tracks) {
-        items.Append(winrt::make<Models::implementation::TrackItem>(track));
+        items.Append(winrt::make<Models::implementation::TrackItem>(track, isDark));
     }
     trackList().ItemsSource(items);
 }

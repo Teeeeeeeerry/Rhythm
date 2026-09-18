@@ -124,6 +124,7 @@
     <ClInclude Include="Views\PlaylistListView.xaml.h">
       <DependentUpon>Views\PlaylistListView.xaml</DependentUpon>
     </ClInclude>
+    <ClInclude Include="Views\SystemTheme.h" />
     <ClInclude Include="Views\TrayManager.h" />
     <ClInclude Include="Views\Win32Interop.h" />
   </ItemGroup>
