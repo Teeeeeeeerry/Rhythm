@@ -6,7 +6,7 @@ testing/palette.json 是品牌配色的单一声明；本脚本以 scripts/gen-p
 
 - macos/RhythmTheme/Theme.swift（主色 token + 来源徽标色）
 - windows/Rhythm/Themes/Colors.xaml（深浅两套画刷）
-- windows/Rhythm/Bridge/RhythmCore.h（来源徽标色表 + 胶囊底 alpha）
+- windows/Rhythm/ViewState.cpp（来源徽标色表 + 未知回退 + 胶囊底 alpha，#338 随徽标从曲目模型搬来）
 
 与 check-l10n-keys.py、check-ffi-contract.py 同一形状：导入生成器模块、
 重新生成、逐字节比对。「漂移」在本仓库因此只有一种含义。

@@ -9,9 +9,9 @@ namespace winrt::Rhythm::Models::implementation {
 
 namespace {
 
-/// The model's plain colour as a XAML brush (#328: brushes are a shell
-/// concern; the model only knows bytes). Theme resolved at render time.
-winrt::Microsoft::UI::Xaml::Media::SolidColorBrush ToBrush(rhythm::Color c) {
+/// The view state's plain colour as a XAML brush (#328/#338: brushes are a
+/// shell concern; the view state only knows bytes).
+winrt::Microsoft::UI::Xaml::Media::SolidColorBrush ToBrush(rhythm::view::Color c) {
     return winrt::Microsoft::UI::Xaml::Media::SolidColorBrush(
         winrt::Windows::UI::Color{c.A, c.R, c.G, c.B});
 }
@@ -25,14 +25,17 @@ hstring TrackItem::Title() const { return hstring{track_.title}; }
 
 hstring TrackItem::Artist() const { return hstring{track_.artist.value_or(L"")}; }
 
-hstring TrackItem::SourceTag() const { return hstring{track_.SourceTag()}; }
+// The badge comes from the view state (#338); rows bind to it directly from #339.
+hstring TrackItem::SourceTag() const {
+    return hstring{rhythm::view::SourceBadgeOf(track_.sourceType, isDarkTheme_).tag};
+}
 
 winrt::Microsoft::UI::Xaml::Media::Brush TrackItem::SourceForeground() const {
-    return ToBrush(track_.SourceForegroundColor(isDarkTheme_));
+    return ToBrush(rhythm::view::SourceBadgeOf(track_.sourceType, isDarkTheme_).foreground);
 }
 
 winrt::Microsoft::UI::Xaml::Media::Brush TrackItem::SourceBackground() const {
-    return ToBrush(track_.SourceBackgroundColor(isDarkTheme_));
+    return ToBrush(rhythm::view::SourceBadgeOf(track_.sourceType, isDarkTheme_).background);
 }
 
 hstring TrackItem::DurationText() const { return hstring{rhythm::view::DurationText(track_)}; }

@@ -17,7 +17,7 @@ using namespace rhythm_tests;
 
 TEST_CASE("VS-01 an empty library renders no rows") {
     AppState state;
-    REQUIRE(view::LibraryRows(state, view::LibrarySort::ArtistAlbum).empty());
+    REQUIRE(view::LibraryRows(state, view::LibrarySort::ArtistAlbum, true).empty());
 }
 
 TEST_CASE("VS-01 every library track renders as one row carrying the track") {
@@ -25,7 +25,7 @@ TEST_CASE("VS-01 every library track renders as one row carrying the track") {
     state.Tracks = {makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha"),
                     makeLocalTrack(L"C:\\m\\b.mp3", L"Beta")};
 
-    auto rows = view::LibraryRows(state, view::LibrarySort::ArtistAlbum);
+    auto rows = view::LibraryRows(state, view::LibrarySort::ArtistAlbum, true);
 
     REQUIRE(rows.size() == 2);
     for (const auto& row : rows) {
@@ -69,7 +69,7 @@ TEST_CASE("VS-14 by artist/album sorts by artist, then album, then track number"
         sortTrack(L"a1-1", L"Alpha", L"One", 1),
         sortTrack(L"a2", L"Alpha", L"Two", 1),
     };
-    auto rows = view::LibraryRows(state, view::LibrarySort::ArtistAlbum);
+    auto rows = view::LibraryRows(state, view::LibrarySort::ArtistAlbum, true);
     REQUIRE(titlesOf(rows) ==
             std::vector<std::wstring>{L"a1-1", L"a1-2", L"a2", L"b1", L"b2"});
 }
@@ -79,7 +79,7 @@ TEST_CASE("VS-15 by letter sorts by title ascending") {
     state.Tracks = {sortTrack(L"Gamma", L"Z", std::nullopt, std::nullopt),
                     sortTrack(L"Alpha", L"Y", std::nullopt, std::nullopt),
                     sortTrack(L"Beta", L"X", std::nullopt, std::nullopt)};
-    auto rows = view::LibraryRows(state, view::LibrarySort::Alphabetical);
+    auto rows = view::LibraryRows(state, view::LibrarySort::Alphabetical, true);
     REQUIRE(titlesOf(rows) == std::vector<std::wstring>{L"Alpha", L"Beta", L"Gamma"});
 }
 
@@ -90,7 +90,7 @@ TEST_CASE("VS-16 tracks without an artist are kept, together and in library orde
         sortTrack(L"loose-2", std::nullopt, std::nullopt, std::nullopt),
         sortTrack(L"loose-1", std::nullopt, std::nullopt, std::nullopt),
     };
-    auto rows = view::LibraryRows(state, view::LibrarySort::ArtistAlbum);
+    auto rows = view::LibraryRows(state, view::LibrarySort::ArtistAlbum, true);
     // No artist sorts as an empty name: first, and ties keep library order.
     REQUIRE(titlesOf(rows) ==
             std::vector<std::wstring>{L"loose-2", L"loose-1", L"known"});
@@ -100,8 +100,8 @@ TEST_CASE("VS-17 sorting leaves the state's track order untouched") {
     AppState state;
     state.Tracks = {sortTrack(L"Gamma", L"Z", std::nullopt, std::nullopt),
                     sortTrack(L"Alpha", L"Y", std::nullopt, std::nullopt)};
-    view::LibraryRows(state, view::LibrarySort::Alphabetical);
-    view::LibraryRows(state, view::LibrarySort::ArtistAlbum);
+    view::LibraryRows(state, view::LibrarySort::Alphabetical, true);
+    view::LibraryRows(state, view::LibrarySort::ArtistAlbum, true);
     REQUIRE(state.Tracks[0].title == L"Gamma");
     REQUIRE(state.Tracks[1].title == L"Alpha");
 }
@@ -244,7 +244,7 @@ std::wstring durationTextFor(double seconds) {
     auto track = makeLocalTrack(L"C:\\m\\a.mp3", L"a");
     track.duration = seconds;
     state.Tracks = {track};
-    return view::LibraryRows(state, view::LibrarySort::Alphabetical).at(0).durationText;
+    return view::LibraryRows(state, view::LibrarySort::Alphabetical, true).at(0).durationText;
 }
 
 } // namespace
@@ -263,4 +263,93 @@ TEST_CASE("VS-20 over an hour the minutes keep counting (macOS parity)") {
     // Track.swift durationFormatted is "%d:%02d" of whole minutes too.
     REQUIRE(durationTextFor(3725.0) == L"62:05");
     REQUIRE(durationTextFor(36000.0) == L"600:00");
+}
+
+// ─── VS-21..25 来源徽标三元素（#338，原 WB-02/03/04/20）──────────────
+
+namespace {
+
+std::wstring hexOf(view::Color c) {
+    return std::format(L"#{:02X}{:02X}{:02X}", c.R, c.G, c.B);
+}
+
+} // namespace
+
+TEST_CASE("VS-21 the source tag follows the source type in both languages") {
+    auto tag = [](const wchar_t* sourceType) {
+        return view::SourceBadgeOf(sourceType, true).tag;
+    };
+    {
+        LanguageScope zh(L"zh");
+        REQUIRE(tag(L"local") == L"本地");
+        REQUIRE(tag(L"youtube") == L"YT");
+        REQUIRE(tag(L"bilibili") == L"B站");
+        REQUIRE(tag(L"direct_url") == L"链接");
+        REQUIRE(tag(L"something_else") == L"");
+    }
+    {
+        LanguageScope en(L"en");
+        REQUIRE(tag(L"local") == L"Local");
+        REQUIRE(tag(L"youtube") == L"YT");
+        REQUIRE(tag(L"bilibili") == L"Bili");
+        REQUIRE(tag(L"direct_url") == L"Link");
+        REQUIRE(tag(L"something_else") == L"");
+    }
+}
+
+TEST_CASE("VS-22 the badge foreground follows source type and theme (#121)") {
+    struct Expect {
+        const wchar_t* type;
+        const wchar_t* dark;
+        const wchar_t* light;
+    };
+    // palette.json sources
+    const Expect expects[] = {
+        {L"local", L"#8ABCD0", L"#3A7A8C"},
+        {L"youtube", L"#D49573", L"#8B4A28"},
+        {L"bilibili", L"#C88DA8", L"#8C4D68"},
+        {L"direct_url", L"#8CB89A", L"#4C785A"},
+    };
+    for (const auto& e : expects) {
+        auto dark = view::SourceBadgeOf(e.type, true).foreground;
+        auto light = view::SourceBadgeOf(e.type, false).foreground;
+        REQUIRE(hexOf(dark) == e.dark);
+        REQUIRE(hexOf(light) == e.light);
+        REQUIRE(dark.A == 0xFF);
+        REQUIRE(light.A == 0xFF);
+    }
+}
+
+TEST_CASE("VS-23 an unknown source falls back to the text colour, never system grey (F4)") {
+    auto dark = view::SourceBadgeOf(L"nope", true).foreground;
+    auto light = view::SourceBadgeOf(L"nope", false).foreground;
+    REQUIRE(hexOf(dark) == L"#ABC8D4");
+    REQUIRE(hexOf(light) == L"#0D464D");
+    REQUIRE(hexOf(dark) != L"#808080");
+    REQUIRE(hexOf(light) != L"#808080");
+}
+
+TEST_CASE("VS-24 the capsule is the foreground at the declared opacity") {
+    // palette.json sourceBadge.backgroundOpacity 0.15 -> alpha 38, the macOS
+    // `.background(color.opacity(0.15))` treatment -- unknown sources included.
+    for (const wchar_t* type : {L"local", L"youtube", L"bilibili", L"direct_url", L"nope"}) {
+        for (bool isDark : {true, false}) {
+            auto badge = view::SourceBadgeOf(type, isDark);
+            REQUIRE(badge.background.A == 38);
+            REQUIRE(hexOf(badge.background) == hexOf(badge.foreground));
+        }
+    }
+}
+
+TEST_CASE("VS-25 library rows carry their track's badge in the given theme") {
+    LanguageScope zh(L"zh");
+    AppState state;
+    state.Tracks = {makeLocalTrack(L"C:\\m\\a.mp3", L"a")};
+    for (bool isDark : {true, false}) {
+        auto row = view::LibraryRows(state, view::LibrarySort::Alphabetical, isDark).at(0);
+        auto expected = view::SourceBadgeOf(L"local", isDark);
+        REQUIRE(row.badge.tag == L"本地");
+        REQUIRE(hexOf(row.badge.foreground) == hexOf(expected.foreground));
+        REQUIRE(row.badge.background.A == expected.background.A);
+    }
 }

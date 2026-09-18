@@ -10,13 +10,6 @@ namespace rhythm {
 /// (coordinator event payloads).
 std::wstring Utf8ToWide(const std::string& s);
 
-/// A colour as plain bytes (#328): the model carries no UI-framework type.
-/// Field names and order mirror `Windows::UI::Color` on purpose, so the shell
-/// converts field by field when it builds a brush.
-struct Color {
-    uint8_t A, R, G, B;
-};
-
 struct Track {
     int64_t id = 0;
     std::optional<std::wstring> filePath;
@@ -41,89 +34,6 @@ struct Track {
     int32_t playCount = 0;
     std::optional<std::wstring> artworkPath;
     bool isAvailable = true;
-
-    std::wstring SourceTag() const {
-        return L10n::SourceTag(sourceType);
-    }
-
-    /// Single source-type → colour mapping, shared by the badge foreground
-    /// and its capsule background (#147). Dark/light values mirror macOS
-    /// Theme.swift `rhythmSource*`; unknown sources return nullopt so
-    /// callers pick their own fallback.
-    struct SourceRGB {
-        uint8_t r, g, b;
-    };
-
-    /// "#RRGGBB" (the generated fallback constants) -> opaque colour.
-    static constexpr Color OpaqueFromHex(std::wstring_view hex) {
-        auto nibble = [](wchar_t c) -> uint8_t {
-            return static_cast<uint8_t>(c <= L'9' ? c - L'0' : (c | 0x20) - L'a' + 10);
-        };
-        auto byte = [&](size_t at) {
-            return static_cast<uint8_t>(nibble(hex[at]) << 4 | nibble(hex[at + 1]));
-        };
-        return Color{0xFF, byte(1), byte(3), byte(5)};
-    }
-
-    static std::optional<SourceRGB> SourceColorRGB(std::wstring_view sourceType, bool isDarkTheme) {
-        struct Entry {
-            std::wstring_view name;
-            SourceRGB dark, light;
-        };
-        // BEGIN GENERATED SOURCE TABLE (#184) — 由 scripts/gen-palette.py 生成，勿手改
-        static constexpr Entry kTable[] = {
-            {L"bilibili", {0xC8, 0x8D, 0xA8}, {0x8C, 0x4D, 0x68}},
-            {L"direct_url", {0x8C, 0xB8, 0x9A}, {0x4C, 0x78, 0x5A}},
-            {L"local", {0x8A, 0xBC, 0xD0}, {0x3A, 0x7A, 0x8C}},
-            {L"youtube", {0xD4, 0x95, 0x73}, {0x8B, 0x4A, 0x28}},
-        };
-        // END GENERATED SOURCE TABLE (#184)
-        for (const auto& e : kTable) {
-            if (e.name == sourceType) {
-                return isDarkTheme ? e.dark : e.light;
-            }
-        }
-        return std::nullopt;
-    }
-
-    // BEGIN GENERATED SOURCE FALLBACK (#219) — 由 scripts/gen-palette.py 生成，勿手改
-    // 未知来源回退到正文色（rhythmTextPrimary），绝不返回系统 Gray（F4）
-    static constexpr const wchar_t* kUnknownSourceDark = L"#ABC8D4";
-    static constexpr const wchar_t* kUnknownSourceLight = L"#0D464D";
-    // END GENERATED SOURCE FALLBACK (#219)
-
-    /// Badge foreground colour for a source type, theme-aware (F1, #121).
-    /// Unknown sources fall back to the teal text colour — never system Gray (F4).
-    std::wstring SourceColor(std::wstring_view sourceType, bool isDarkTheme) const {
-        if (auto rgb = SourceColorRGB(sourceType, isDarkTheme)) {
-            return std::format(L"#{:02X}{:02X}{:02X}", rgb->r, rgb->g, rgb->b);
-        }
-        return isDarkTheme ? kUnknownSourceDark : kUnknownSourceLight;
-    }
-
-    /// Badge foreground as a colour value (#428): the same table and the same
-    /// unknown-source fallback as `SourceColor`, without a text round trip.
-    Color SourceForegroundColor(bool isDarkTheme) const {
-        if (auto rgb = SourceColorRGB(sourceType, isDarkTheme)) {
-            return Color{0xFF, rgb->r, rgb->g, rgb->b};
-        }
-        return OpaqueFromHex(isDarkTheme ? kUnknownSourceDark : kUnknownSourceLight);
-    }
-
-    // BEGIN GENERATED BADGE BACKGROUND (#249) — 由 scripts/gen-palette.py 生成，勿手改
-    // 胶囊底 = 徽标前景色 @ 0.15（与 macOS `.background(color.opacity(0.15))` 同一声明）
-    static constexpr uint8_t kSourceBadgeBackgroundAlpha = 38;
-    // END GENERATED BADGE BACKGROUND (#249)
-
-    /// Capsule badge background colour — foreground colour at the declared
-    /// opacity, matching the macOS `.background(color.opacity(...))` treatment.
-    /// A plain value, so it is testable without the Windows App Runtime (#418);
-    /// the XAML brush is built by the shell's row model (#328).
-    Color SourceBackgroundColor(bool isDarkTheme) const {
-        const SourceRGB fallback{0x80, 0x80, 0x80};  // unknown: grey
-        auto rgb = SourceColorRGB(sourceType, isDarkTheme).value_or(fallback);
-        return Color{kSourceBadgeBackgroundAlpha, rgb.r, rgb.g, rgb.b};
-    }
 };
 
 /// Parse a Track from the core's snake_case JSON (used for coordinator

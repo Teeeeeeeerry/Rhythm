@@ -28,7 +28,8 @@ PALETTE = os.path.join(ROOT, "testing", "palette.json")
 SWIFT_SEED = "testing/l1/macos/PaletteSeed.swift"
 SWIFT_THEME = "macos/RhythmTheme/Theme.swift"
 XAML_COLORS = "windows/Rhythm/Themes/Colors.xaml"
-CPP_CORE = "windows/Rhythm/Bridge/RhythmCore.h"
+# 来源徽标的色表、未知回退、胶囊底 alpha 随徽标搬进视图状态（#338）
+CPP_VIEW_STATE = "windows/Rhythm/ViewState.cpp"
 
 SWIFT_TOKENS_BEGIN = "    // BEGIN GENERATED TOKENS (#247)"
 SWIFT_TOKENS_END = "    // END GENERATED TOKENS (#247)"
@@ -301,14 +302,14 @@ def generate(palette: dict, root: str = ROOT) -> dict[str, str]:
                               xaml_brush_lines(palette, dict_name, appearance))
     out[XAML_COLORS] = xaml
 
-    cpp_path = os.path.join(root, CPP_CORE)
+    cpp_path = os.path.join(root, CPP_VIEW_STATE)
     with open(cpp_path, encoding="utf-8") as f:
         cpp = f.read()
     cpp = replace_region(
         cpp, CPP_SOURCE_BEGIN, CPP_SOURCE_END, cpp_source_lines(palette))
     cpp = replace_region(
         cpp, CPP_BADGE_BEGIN, CPP_BADGE_END, cpp_badge_lines(palette))
-    out[CPP_CORE] = replace_region(
+    out[CPP_VIEW_STATE] = replace_region(
         cpp, CPP_FALLBACK_BEGIN, CPP_FALLBACK_END, cpp_fallback_lines(palette))
 
     return out

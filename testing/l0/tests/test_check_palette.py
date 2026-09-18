@@ -22,7 +22,7 @@ SCRIPT = REPO_ROOT / "testing" / "l0" / "check-palette.py"
 GENERATED = (
     "macos/RhythmTheme/Theme.swift",
     "windows/Rhythm/Themes/Colors.xaml",
-    "windows/Rhythm/Bridge/RhythmCore.h",
+    "windows/Rhythm/ViewState.cpp",
 )
 
 

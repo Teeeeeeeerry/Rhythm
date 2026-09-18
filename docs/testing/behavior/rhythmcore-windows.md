@@ -1,7 +1,7 @@
 # Windows RhythmCore（Bridge 封装层）行为清单
 
-- 模块：`windows/Rhythm/Bridge/RhythmCore.h` + `.cpp`（FFI 包装类、Track 模型与纯函数、Resolver 静态封装、UTF-8/UTF-16 转换）
-- 历史回归：`#21`（解析失败原因）、`#39`（URL 持久化）、F1（来源徽标色双主题——`testing/l1/windows/source_color_test.cpp` 为该修复的验收测试，`#122` 已解除自声明桩、直测真实 `RhythmCore.h`）
+- 模块：`windows/Rhythm/Bridge/RhythmCore.h` + `.cpp`（FFI 包装类、Track 模型、Resolver 静态封装、UTF-8/UTF-16 转换；来源徽标与时长文案已迁入视图状态，见 `windows-viewstate.md`）
+- 历史回归：`#21`（解析失败原因）、`#39`（URL 持久化）、F1（来源徽标色双主题——`testing/l1/windows/source_color_test.cpp` 为该修复的验收测试，`#122` 已解除自声明桩；#338 起直测视图状态的 `SourceBadgeOf`）
 - 测试设施：Catch2 v3.5.4 header-only（`windows/tests/vendor/`）；测试 main 已 `init_apartment`（Brush 构造可用）；测试文件 `windows/tests/BridgeBehaviorTests.cpp`。
 
 ## 主路径（P0 — 合并门槛）
@@ -9,9 +9,9 @@
 | 编号 | 行为 | 断言 | 状态 |
 |---|---|---|---|
 | WB-01 | 时长文案（原 `Track::DurationFormatted`） | 已随 #337 迁入视图状态的行时长文案，见 `windows-viewstate.md` VS-18～VS-20 | 已迁移 |
-| WB-02 | `Track::SourceTag` | local→本地/Local、youtube→YT、bilibili→B站/Bili、direct_url→链接/Link、未知→空串（中/英各固定一次） | 新测 |
-| WB-03 | `Track::SourceColor(sourceType, isDarkTheme)` | 四种来源 dark/light 双端色值（与 macOS Theme.swift 一致，#121）；未知来源回退 teal 文字色（dark `#ABC8D4` / light `#0D464D`），非系统 Gray（F4）；#147 起前景与胶囊底共用 `SourceColorRGB` 单一表映射 | 新测 |
-| WB-04 | `Track::SourceBackgroundColor` | A=38、RGB 与 SourceColor 一致（dark/light 各一次）、未知回退灰；返回普通结构 `rhythm::Color`，画刷由壳的 `TrackItem` 包装（#328） | 新测 |
+| WB-02 | 来源标记（原 `Track::SourceTag`） | 已随 #338 迁入视图状态，见 `windows-viewstate.md` VS-21 | 已迁移 |
+| WB-03 | 来源前景色（原 `Track::SourceColor`） | 已随 #338 迁入视图状态，见 `windows-viewstate.md` VS-22 / VS-23 | 已迁移 |
+| WB-04 | 胶囊底色（原 `Track::SourceBackgroundColor`） | 已随 #338 迁入视图状态，见 `windows-viewstate.md` VS-24（未知来源的胶囊底改为回退正文色 @ alpha 38，不再是灰） | 已迁移 |
 | WB-05 | `JsonToTrack`/`TrackToJson` 往返 | 各字段保真；null 可选字段 → `nullopt`；缺省字段取默认（#101 已修复：album_artist/genre/file_size/date_added/last_played 全部解析；date_added 由 DB 插入时盖章、last_played 新插入为 NULL） | 新测（待 Windows 验证） |
 | WB-06 | `Utf8ToWide`/`WideToUtf8` 往返 | 中文/emoji 标题转换无损坏；空串安全 | 新测 |
 | WB-07 | `Library` 空指针防御 | open 失败（坏路径）→ 各方法安全默认（-1/空列表/false/原 track 返回） | 新测 |
@@ -21,7 +21,7 @@
 | WB-12 | `Resolver::StatusText` | checking/verifying/updating/failed 各文案；downloading 有 total 时 `x / y MB`、无 total 时 `x MB`；未知/quiet → 空串（中/英各固定一次） | 新测 |
 | WB-13 | `ResolverStatus::IsQuiet` | idle/ready → true；其余 → false | 新测 |
 | WB-14 | `Resolver::ClassifyURL` | 返回 "youtube"/"bilibili"/"direct_url"；失败 → 空串 | 新测 |
-| WB-20 | `Track::SourceForegroundColor` | 不透明，RGB 与 `SourceColor` 同一张表、同一未知回退（dark/light 各一次）；返回普通结构 `rhythm::Color`，视图绑定的画刷由壳的 `TrackItem` 包装（#428/#328） | 新测 |
+| WB-20 | 前景色色值（原 `Track::SourceForegroundColor`） | 已随 #338 迁入视图状态，见 `windows-viewstate.md` VS-22 | 已迁移 |
 | WB-21 | `ExportM3U8` | 经生成的编码器写出 M3U8（含 `#EXTM3U` 与曲目路径，中文路径不乱码）；目录不存在 → `false`（#428） | 新测 |
 | WB-22 | 文件选择面板的扩展名 `kAudioFileTypes` | 每个扩展名都是核心收的格式：同扩展名的非音频文件经 `ImportFile` 只会计为读取失败、从不计为格式不支持；对照 `.txt` 计为不支持（核心是闸门，列表只塑形对话框，#242）；列表为普通字符串，桥接层不带 WinRT 类型（#327） | 新测 |
 | WB-17 | `Coordinator` 绑定真实 `Library` 起播 | `Library::Handle()` 交给核心：起播成功则该曲目播放次数加一；无音频设备时结果为核心分类错误 `playback_failed` 且不记录（#416） | 新测 |
@@ -39,7 +39,7 @@
 
 | 编号 | 缺口 | 状态 | 重启入口 |
 |---|---|---|---|
-| WB-G1 | Windows 视图外观回归（L2 截屏 + golden 像素比对）：截屏宿主只有骨架、无 CMake 工程、无 golden；WB-03/04 只锁色值表，不覆盖视图实际渲染 | 未实现，已从测试入口移除（#387） | `testing/README.md`「Windows L2 缺口」 |
+| WB-G1 | Windows 视图外观回归（L2 截屏 + golden 像素比对）：截屏宿主只有骨架、无 CMake 工程、无 golden；徽标色值表（视图状态 VS-22～VS-24，原 WB-03/04）只锁数值，不覆盖视图实际渲染 | 未实现，已从测试入口移除（#387） | `testing/README.md`「Windows L2 缺口」 |
 
 ## 错误路径（P2）
 

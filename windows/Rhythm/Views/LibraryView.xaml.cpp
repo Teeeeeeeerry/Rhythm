@@ -44,13 +44,13 @@ void LibraryView::Populate() {
     // The sort rules live in the view state (#336); the pivot only picks one.
     auto sort = viewPivot().SelectedIndex() == 0 ? rhythm::view::LibrarySort::ArtistAlbum
                                                  : rhythm::view::LibrarySort::Alphabetical;
-    ShowRows(rhythm::view::LibraryRows(*appState_, sort));
+    const bool isDark = rhythm::shell::IsDarkTheme();  // #342: resolved once, by the shell
+    ShowRows(rhythm::view::LibraryRows(*appState_, sort, isDark), isDark);
 }
 
-void LibraryView::ShowRows(std::vector<rhythm::view::TrackRow> const& rows) {
+void LibraryView::ShowRows(std::vector<rhythm::view::TrackRow> const& rows, bool isDark) {
     ShowEmptyMessage(rows.empty());
     auto items = winrt::single_threaded_observable_vector<IInspectable>();
-    const bool isDark = rhythm::shell::IsDarkTheme();  // #342: resolved once, by the shell
     for (const auto& row : rows) {
         items.Append(winrt::make<Models::implementation::TrackItem>(row.track, isDark));
     }

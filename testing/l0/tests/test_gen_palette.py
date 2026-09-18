@@ -74,7 +74,7 @@ def make_tree(root: Path) -> None:
             "  </ResourceDictionary>\n"
             for name, _ in gen.XAML_DICTS)
         + "</ResourceDictionary>\n", encoding="utf-8")
-    cpp = root / gen.CPP_CORE
+    cpp = root / gen.CPP_VIEW_STATE
     cpp.parent.mkdir(parents=True, exist_ok=True)
     cpp.write_text(
         "struct Track {\n"
