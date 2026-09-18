@@ -1,7 +1,8 @@
-<UserControl
+<Page
     x:Class="Rhythm.Views.LibraryView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:Rhythm.Models">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -20,21 +21,21 @@
                   ItemClick="OnTrackClick"
                   IsItemClickEnabled="True">
             <ListView.ItemTemplate>
-                <DataTemplate x:DataType="x:String">
+                <DataTemplate x:DataType="models:TrackItem">
                     <Grid ColumnDefinitions="Auto,*,Auto,Auto" Padding="8,4">
-                        <TextBlock Grid.Column="1" Text="{Binding Title}"
+                        <TextBlock Grid.Column="1" Text="{x:Bind Title}"
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"
                                    Foreground="{ThemeResource RhythmTextPrimaryBrush}" />
                         <Border Grid.Column="2" Padding="4,1"
                                 Margin="8,0"
                                 CornerRadius="3"
-                                Background="{Binding SourceBackgroundBrush}">
-                            <TextBlock Text="{Binding SourceTag}"
+                                Background="{x:Bind SourceBackground}">
+                            <TextBlock Text="{x:Bind SourceTag}"
                                        FontSize="10"
-                                       Foreground="{Binding SourceColor}" />
+                                       Foreground="{x:Bind SourceForeground}" />
                         </Border>
-                        <TextBlock Grid.Column="3" Text="{Binding DurationFormatted}"
+                        <TextBlock Grid.Column="3" Text="{x:Bind DurationText}"
                                    FontSize="12"
                                    Foreground="{ThemeResource RhythmTextSecondaryBrush}"
                                    VerticalAlignment="Center" />
@@ -55,4 +56,4 @@
                        Foreground="{ThemeResource RhythmTextSecondaryBrush}" />
         </StackPanel>
     </Grid>
-</UserControl>
+</Page>

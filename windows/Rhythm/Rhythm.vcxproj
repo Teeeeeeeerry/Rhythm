@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Rhythm Windows app: the XAML shell only (ADR-0004, #428).
+
+  XAML markup compilation (*.xaml -> *.g.h, XamlTypeInfo) and MIDL exist only
+  as MSBuild tasks, so the app is an MSBuild project. Everything that is not
+  XAML shell lives in the CMake behaviour library (windows/CMakeLists.txt,
+  RhythmBehavior) and is linked here, never listed here.
+
+  Package pins are not declared in this file: RhythmBehavior.props, written by
+  the CMake configure step, points at the packages RhythmWindowsDeps.cmake
+  fetched and verified. Build through `python scripts/tasks.py build`, which
+  runs the CMake steps first; building this project alone needs a configured
+  and built build/windows tree.
+-->
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <RhythmRepoDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</RhythmRepoDir>
+    <RhythmBuildDir Condition="'$(RhythmBuildDir)' == ''">$(RhythmRepoDir)build\windows\</RhythmBuildDir>
+    <RhythmBehaviorProps>$(RhythmBuildDir)$(Configuration)\RhythmBehavior.props</RhythmBehaviorProps>
+  </PropertyGroup>
+  <Import Project="$(RhythmBehaviorProps)" Condition="Exists('$(RhythmBehaviorProps)')" />
+  <Import Project="$(RhythmCppWinRTDir)build\native\Microsoft.Windows.CppWinRT.props" Condition="'$(RhythmCppWinRTDir)' != ''" />
+  <Import Project="$(RhythmWindowsAppSDKDir)build\native\Microsoft.WindowsAppSDK.props" Condition="'$(RhythmWindowsAppSDKDir)' != ''" />
+  <PropertyGroup Label="Globals">
+    <CppWinRTOptimized>true</CppWinRTOptimized>
+    <CppWinRTRootNamespaceAutoMerge>true</CppWinRTRootNamespaceAutoMerge>
+    <CppWinRTUsePrefixes>false</CppWinRTUsePrefixes>
+    <ProjectGuid>{6A1F3C52-7E0B-4D38-9C4E-2B5D8F1A7E30}</ProjectGuid>
+    <ProjectName>Rhythm</ProjectName>
+    <RootNamespace>Rhythm</RootNamespace>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
+    <AppContainerApplication>false</AppContainerApplication>
+    <AppxPackage>false</AppxPackage>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformMinVersion>10.0.17763.0</WindowsTargetPlatformMinVersion>
+    <UseWinUI>true</UseWinUI>
+    <!-- Unpackaged and self-contained: the runtime ships next to Rhythm.exe,
+         so the exe starts without the Windows App Runtime installer. -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <!-- resources.pri (XAML .xbf lookup) via the SDK's own MSIX tooling; the
+         default PriGen path needs Visual Studio's AppxPackage tasks. -->
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <EnablePriGenTooling>false</EnablePriGenTooling>
+    <!-- Native XAML markup compilation (see the MarkupCompilePass hooks below). -->
+    <ManagedAssembly>false</ManagedAssembly>
+    <IsNativeLanguage>true</IsNativeLanguage>
+    <XamlLanguage>CppWinRT</XamlLanguage>
+    <DefaultLanguageSourceExtension>.cpp</DefaultLanguageSourceExtension>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <DesktopCompatible>true</DesktopCompatible>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <!-- The exe lands where tasks.py and the smoke test look for it. -->
+    <OutDir>$(RhythmBuildDir)$(Configuration)\</OutDir>
+    <IntDir>$(RhythmBuildDir)Rhythm.msbuild\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
+      <WarningLevel>Level3</WarningLevel>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <!-- Same flags as the behaviour library it links (windows/CMakeLists.txt). -->
+      <AdditionalOptions>%(AdditionalOptions) /bigobj /utf-8</AdditionalOptions>
+      <PreprocessorDefinitions>NOMINMAX;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory);$(RhythmBehaviorIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <Optimization>MaxSpeed</Optimization>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>$(RhythmBehaviorLib);$(RhythmCoreImportLib);WindowsApp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <Manifest Include="app.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="App.xaml.h">
+      <DependentUpon>App.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="MainWindow.xaml.h">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="Models\TrackItem.h">
+      <DependentUpon>Models\Items.idl</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="Models\PlaylistItem.h">
+      <DependentUpon>Models\Items.idl</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="Views\LibraryView.xaml.h">
+      <DependentUpon>Views\LibraryView.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="Views\PlayerBarView.xaml.h">
+      <DependentUpon>Views\PlayerBarView.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="Views\PlaylistDetailView.xaml.h">
+      <DependentUpon>Views\PlaylistDetailView.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="Views\PlaylistListView.xaml.h">
+      <DependentUpon>Views\PlaylistListView.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="Views\TrayManager.h" />
+    <ClInclude Include="Views\WindowHandle.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ApplicationDefinition Include="App.xaml" />
+    <Page Include="MainWindow.xaml" />
+    <Page Include="Themes\Colors.xaml" />
+    <Page Include="Views\LibraryView.xaml" />
+    <Page Include="Views\PlayerBarView.xaml" />
+    <Page Include="Views\PlaylistDetailView.xaml" />
+    <Page Include="Views\PlaylistListView.xaml" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="App.xaml.cpp">
+      <DependentUpon>App.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="MainWindow.xaml.cpp">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="Models\TrackItem.cpp">
+      <DependentUpon>Models\Items.idl</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="Models\PlaylistItem.cpp">
+      <DependentUpon>Models\Items.idl</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="Views\LibraryView.xaml.cpp">
+      <DependentUpon>Views\LibraryView.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="Views\PlayerBarView.xaml.cpp">
+      <DependentUpon>Views\PlayerBarView.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="Views\PlaylistDetailView.xaml.cpp">
+      <DependentUpon>Views\PlaylistDetailView.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="Views\PlaylistListView.xaml.cpp">
+      <DependentUpon>Views\PlaylistListView.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="Views\TrayManager.cpp" />
+    <ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
+    <!-- Written by MarkupCompilePass2: type info plus every *.xaml.g.hpp
+         (InitializeComponent, Connect, the generated wWinMain). -->
+    <ClCompile Include="$(GeneratedFilesDir)XamlTypeInfo.g.cpp" />
+    <ClCompile Include="$(GeneratedFilesDir)XamlTypeInfo.Impl.g.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Midl Include="MainWindow.idl">
+      <SubType>Code</SubType>
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+    </Midl>
+    <Midl Include="Models\Items.idl" />
+    <Midl Include="Views\LibraryView.idl">
+      <SubType>Code</SubType>
+      <DependentUpon>Views\LibraryView.xaml</DependentUpon>
+    </Midl>
+    <Midl Include="Views\PlayerBarView.idl">
+      <SubType>Code</SubType>
+      <DependentUpon>Views\PlayerBarView.xaml</DependentUpon>
+    </Midl>
+    <Midl Include="Views\PlaylistDetailView.idl">
+      <SubType>Code</SubType>
+      <DependentUpon>Views\PlaylistDetailView.xaml</DependentUpon>
+    </Midl>
+    <Midl Include="Views\PlaylistListView.idl">
+      <SubType>Code</SubType>
+      <DependentUpon>Views\PlaylistListView.xaml</DependentUpon>
+    </Midl>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(RhythmWebView2Dir)build\native\Microsoft.Web.WebView2.targets" Condition="'$(RhythmWebView2Dir)' != ''" />
+  <Import Project="$(RhythmWindowsAppSDKDir)build\native\Microsoft.WindowsAppSDK.targets" Condition="'$(RhythmWindowsAppSDKDir)' != ''" />
+  <Import Project="$(RhythmCppWinRTDir)build\native\Microsoft.Windows.CppWinRT.targets" Condition="'$(RhythmCppWinRTDir)' != ''" />
+  <!-- The SDK's own copy of the VS target that hands the compiled .xbf files
+       to PRI generation (AddProcessedXamlFilesToCopyLocal). -->
+  <Import Project="$(RhythmWindowsAppSDKDir)build\Microsoft.WinUI.NET.Markup.Compiler.targets" Condition="'$(RhythmWindowsAppSDKDir)' != ''" />
+  <!--
+    The Windows App SDK ships the XAML compiler (MarkupCompilePass1/2) but not
+    the glue that runs it inside a C++ build; Visual Studio's UWP/WinUI C++
+    workload normally supplies that. Hooking the two passes here keeps the
+    build on Build Tools + the pinned packages alone (ADR-0004):
+      Pass1 (XAML -> *.xaml.g.h) before MIDL, Pass2 (type info, needs the
+      app's winmd) after the C++/WinRT projection and before compiling.
+  -->
+  <PropertyGroup>
+    <XamlGeneratedOutputPath>$(GeneratedFilesDir)</XamlGeneratedOutputPath>
+    <BeforeMidlCompileTargets>MarkupCompilePass1;$(BeforeMidlCompileTargets)</BeforeMidlCompileTargets>
+    <BeforeClCompileTargets>$(BeforeClCompileTargets);MarkupCompilePass2</BeforeClCompileTargets>
+  </PropertyGroup>
+  <!-- Pass2 reads the winmd references from WinMDReferenceToCompile, which
+       only the workload glue fills in: hand it the platform and package
+       winmds C++/WinRT already resolved. -->
+  <Target Name="RhythmXamlWinMDReferences" BeforeTargets="MarkupCompilePass2"
+          DependsOnTargets="GetCppWinRTPlatformWinMDReferences;GetCppWinRTDirectWinMDReferences">
+    <ItemGroup>
+      <WinMDReferenceToCompile Include="@(CppWinRTPlatformWinMDReferences);@(CppWinRTDirectWinMDReferences)" />
+    </ItemGroup>
+  </Target>
+  <!-- C++/WinRT tags its XamlMetaDataProvider.cpp for a separate
+       "XamlGenerated" compile pass that the workload glue runs; compile it
+       with everything else instead. -->
+  <Target Name="RhythmCompileXamlGenerated" AfterTargets="CppWinRTComputeXamlGeneratedCompileInputs">
+    <ItemGroup>
+      <ClCompile Condition="'%(ClCompile.CompilerIteration)' == 'XamlGenerated'">
+        <CompilerIteration></CompilerIteration>
+      </ClCompile>
+    </ItemGroup>
+  </Target>
+  <Target Name="RhythmRequireCMakeBuild" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(RhythmBehaviorProps)')"
+           Text="Missing $(RhythmBehaviorProps). Build through `python scripts/tasks.py build`: the CMake configure and behaviour-library steps run before this project (ADR-0004)." />
+  </Target>
+  <Target Name="RhythmCopyCore" AfterTargets="Build">
+    <Copy SourceFiles="$(RhythmCoreDll)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

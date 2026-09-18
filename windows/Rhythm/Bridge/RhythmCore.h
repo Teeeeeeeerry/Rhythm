@@ -146,6 +146,10 @@ struct M3u8Entry {
     std::wstring location;
 };
 
+/// Write tracks to an M3U8 file through the core (#428: the view used to
+/// hand-roll its own track encoder; the generated codec is the one encoder).
+bool ExportM3U8(const std::wstring& path, const std::vector<Track>& tracks);
+
 /// Named outcome of an M3U8 import (#234): how many entries the core stored
 /// and how many it could not. Field list and codec come from
 /// contracts/ffi-contract.json.

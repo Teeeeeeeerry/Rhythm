@@ -1,7 +1,8 @@
-<UserControl
+<Page
     x:Class="Rhythm.Views.PlaylistListView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:Rhythm.Models">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -18,16 +19,18 @@
         </Button>
 
         <ListView x:Name="playlistList" Grid.Row="1"
-                  SelectionChanged="OnSelectionChanged">
+                  SelectionMode="None"
+                  IsItemClickEnabled="True"
+                  ItemClick="OnPlaylistClick">
             <ListView.ItemTemplate>
-                <DataTemplate x:DataType="x:String">
+                <DataTemplate x:DataType="models:PlaylistItem">
                     <Grid ColumnDefinitions="Auto,*,Auto" Padding="8,4">
                         <SymbolIcon Grid.Column="0" Symbol="List" />
-                        <TextBlock Grid.Column="1" Text="{Binding Name}"
+                        <TextBlock Grid.Column="1" Text="{x:Bind Name}"
                                    VerticalAlignment="Center" Margin="8,0" />
                         <TextBlock Grid.Column="2" FontSize="12"
                                    Foreground="{ThemeResource RhythmTextSecondaryBrush}"
-                                   Text="{Binding TrackCount}" />
+                                   Text="{x:Bind TrackCountText}" />
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>
@@ -38,4 +41,4 @@
                    Foreground="{ThemeResource RhythmTextSecondaryBrush}"
                    Visibility="Collapsed" />
     </Grid>
-</UserControl>
+</Page>

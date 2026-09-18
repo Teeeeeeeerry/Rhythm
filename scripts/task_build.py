@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -179,11 +180,38 @@ def windows_app_exe(root: Path) -> Path:
     return windows_build_dir(root) / WINDOWS_CONFIG / WINDOWS_EXECUTABLE
 
 
+# 应用是 XAML 外壳，只有 MSBuild 提供 XAML 标记编译（ADR-0004，#428）；行为库与
+# 测试宿主仍在 CMake。vcxproj 从 CMake 配置期写出的 props 取依赖与行为库。
+WINDOWS_APP_PROJECT = Path("windows") / "Rhythm" / "Rhythm.vcxproj"
+BEHAVIOR_LIBRARY = "RhythmBehavior"
+VSWHERE = (Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"))
+           / "Microsoft Visual Studio" / "Installer" / "vswhere.exe")
+
+
+def msbuild_executable() -> str:
+    """定位 MSBuild：vswhere 找最新的 Visual Studio / Build Tools，找不到退回 PATH。"""
+    if VSWHERE.is_file():
+        import subprocess
+
+        try:
+            found = subprocess.run(
+                [str(VSWHERE), "-latest", "-products", "*",
+                 "-requires", "Microsoft.Component.MSBuild",
+                 "-find", r"MSBuild\**\Bin\MSBuild.exe"],
+                capture_output=True, text=True, check=True).stdout.splitlines()
+        except (OSError, subprocess.CalledProcessError):
+            found = []
+        if found:
+            return found[0].strip()
+    return "MSBuild.exe"
+
+
 def build_windows(argv: list[str] | None = None) -> int:
     """构建 Windows 应用。任一步失败即非零退出。
 
-    批处理版没有失败即停的语义，核心构建失败后会继续执行并打印完成信息；
-    这里每一步都走 run_checked，失败立刻传播（#221 用户故事 4）。
+    顺序（ADR-0004）：Rust 核心 -> CMake 配置 -> CMake 构建行为库 -> MSBuild 构建应用。
+    两套构建用同一个配置名；批处理版没有失败即停的语义，这里每一步都走
+    run_checked，失败立刻传播（#221 用户故事 4）。
     """
     if argv:
         print(f"未知参数: {' '.join(argv)}（build-windows 不接受参数）", file=sys.stderr)
@@ -193,13 +221,20 @@ def build_windows(argv: list[str] | None = None) -> int:
     try:
         print("==> 构建 Rust 核心")
         build_core(root)
-        print("==> 配置 Windows 应用")
+        print("==> 配置 Windows 构建（CMake）")
         tasklib.run_checked(
             ["cmake", "-S", str(root / "windows"), "-B", str(build_dir),
              f"-DCMAKE_BUILD_TYPE={WINDOWS_CONFIG}"], cwd=root)
-        print("==> 构建 Windows 应用")
+        print("==> 构建行为库（CMake）")
         tasklib.run_checked(
-            ["cmake", "--build", str(build_dir), "--config", WINDOWS_CONFIG], cwd=root)
+            ["cmake", "--build", str(build_dir), "--target", BEHAVIOR_LIBRARY,
+             "--config", WINDOWS_CONFIG], cwd=root)
+        print("==> 构建 Windows 应用（MSBuild）")
+        tasklib.run_checked(
+            [msbuild_executable(), str(root / WINDOWS_APP_PROJECT),
+             f"-p:Configuration={WINDOWS_CONFIG}", "-p:Platform=x64",
+             f"-p:RhythmBuildDir={build_dir}{os.sep}",
+             "-nologo", "-verbosity:minimal", "-nodeReuse:false"], cwd=root)
     except tasklib.StepFailed as exc:
         print(f"构建失败：{exc}", file=sys.stderr)
         return 1

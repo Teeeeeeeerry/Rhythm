@@ -77,6 +77,36 @@ class BundleVersionTest(unittest.TestCase):
         self.assertIn(f"<string>{tasklib.workspace_version(ROOT)}</string>", filled)
 
 
+class WindowsBuildOrderTest(unittest.TestCase):
+    """ADR-0004（#428）：CMake 出核心与行为库，MSBuild 出应用，入口仍是一条命令。"""
+
+    def setUp(self):
+        self.calls: list[list[str]] = []
+        self._run_checked = tasklib.run_checked
+        self.addCleanup(setattr, tasklib, "run_checked", self._run_checked)
+        tasklib.run_checked = lambda cmd, **_: self.calls.append([str(c) for c in cmd])
+
+    def test_cmake_builds_the_behavior_library_before_msbuild_builds_the_app(self):
+        task_build.build_windows([])
+        tools = [Path(cmd[0]).name.lower() for cmd in self.calls]
+        self.assertEqual(tools[0], "cargo")
+        cmake_build = next(i for i, cmd in enumerate(self.calls)
+                           if cmd[:2] == ["cmake", "--build"])
+        msbuild = next(i for i, name in enumerate(tools) if name.startswith("msbuild"))
+        self.assertIn("RhythmBehavior", self.calls[cmake_build])
+        self.assertLess(cmake_build, msbuild)
+        self.assertEqual(msbuild, len(self.calls) - 1, "应用是最后一步")
+
+    def test_both_builds_use_the_same_configuration(self):
+        task_build.build_windows([])
+        config = task_build.WINDOWS_CONFIG
+        cmake_build = next(cmd for cmd in self.calls if cmd[:2] == ["cmake", "--build"])
+        self.assertEqual(cmake_build[cmake_build.index("--config") + 1], config)
+        msbuild = self.calls[-1]
+        self.assertTrue(msbuild[1].endswith("Rhythm.vcxproj"), msbuild)
+        self.assertIn(f"-p:Configuration={config}", msbuild)
+
+
 class BuildFailurePropagationTest(unittest.TestCase):
     """构建失败必须非零退出，不得继续执行并报成功。"""
 
@@ -97,6 +127,10 @@ class BuildFailurePropagationTest(unittest.TestCase):
 
     def test_windows_build_returns_non_zero_when_cmake_fails(self):
         self._fail_on("cmake")
+        self.assertEqual(task_build.build_windows([]), 1)
+
+    def test_windows_build_returns_non_zero_when_msbuild_fails(self):
+        self._fail_on("Rhythm.vcxproj")
         self.assertEqual(task_build.build_windows([]), 1)
 
     def test_macos_build_returns_non_zero_when_the_core_fails(self):

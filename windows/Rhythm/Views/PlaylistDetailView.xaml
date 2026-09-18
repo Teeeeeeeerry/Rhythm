@@ -1,7 +1,8 @@
-<UserControl
+<Page
     x:Class="Rhythm.Views.PlaylistDetailView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:Rhythm.Models">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -26,23 +27,23 @@
                   ItemClick="OnTrackClick"
                   IsItemClickEnabled="True">
             <ListView.ItemTemplate>
-                <DataTemplate x:DataType="x:String">
+                <DataTemplate x:DataType="models:TrackItem">
                     <Grid ColumnDefinitions="*,Auto,Auto" Padding="8,4">
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="{Binding Title}"
+                            <TextBlock Text="{x:Bind Title}"
                                        TextTrimming="CharacterEllipsis"
                                        Foreground="{ThemeResource RhythmTextPrimaryBrush}" />
-                            <TextBlock Text="{Binding Artist}"
+                            <TextBlock Text="{x:Bind Artist}"
                                        FontSize="11"
                                        Foreground="{ThemeResource RhythmTextSecondaryBrush}" />
                         </StackPanel>
                         <Border Grid.Column="1" Padding="4,1" Margin="4,0"
                                 CornerRadius="3"
-                                Background="{Binding SourceBackgroundBrush}">
-                            <TextBlock Text="{Binding SourceTag}" FontSize="10"
-                                       Foreground="{Binding SourceColor}" />
+                                Background="{x:Bind SourceBackground}">
+                            <TextBlock Text="{x:Bind SourceTag}" FontSize="10"
+                                       Foreground="{x:Bind SourceForeground}" />
                         </Border>
-                        <TextBlock Grid.Column="2" Text="{Binding DurationFormatted}"
+                        <TextBlock Grid.Column="2" Text="{x:Bind DurationText}"
                                    FontSize="12" Margin="4,0"
                                    Foreground="{ThemeResource RhythmTextSecondaryBrush}" />
                     </Grid>
@@ -50,4 +51,4 @@
             </ListView.ItemTemplate>
         </ListView>
     </Grid>
-</UserControl>
+</Page>

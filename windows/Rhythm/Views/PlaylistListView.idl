@@ -1,0 +1,8 @@
+namespace Rhythm.Views
+{
+    [default_interface]
+    runtimeclass PlaylistListView : Microsoft.UI.Xaml.Controls.Page
+    {
+        PlaylistListView();
+    }
+}

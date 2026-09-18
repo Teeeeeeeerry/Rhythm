@@ -1,11 +1,19 @@
 #include "pch.h"
-#include "LibraryView.xaml.h"
+#include "Views/LibraryView.xaml.h"
+#if __has_include("Views/LibraryView.g.cpp")
+#include "Views/LibraryView.g.cpp"
+#endif
+#include "Models/TrackItem.h"
 #include "L10n.h"
+
+using namespace winrt::Microsoft::UI::Xaml;
+using namespace winrt::Microsoft::UI::Xaml::Controls;
+using winrt::Windows::Foundation::IInspectable;
 
 namespace winrt::Rhythm::Views::implementation {
 
-LibraryView::LibraryView() {
-    InitializeComponent();
+void LibraryView::InitializeComponent() {
+    LibraryViewT<LibraryView>::InitializeComponent();
     // #141: copy from the language layer.
     pivotArtistAlbum().Header(winrt::box_value(winrt::hstring{ rhythm::L10n::ByArtistAlbum() }));
     pivotByLetter().Header(winrt::box_value(winrt::hstring{ rhythm::L10n::ByLetter() }));
@@ -15,8 +23,8 @@ LibraryView::LibraryView() {
     emptyHint().Text(rhythm::L10n::ImportHint());
 }
 
-void LibraryView::OnNavigatedTo(Navigation::NavigationEventArgs const& args) {
-    appState_ = winrt::unbox_value<rhythm::AppState*>(args.Parameter());
+void LibraryView::BindState(rhythm::AppState* state) {
+    appState_ = state;
     PopulateArtistAlbum();
 }
 
@@ -31,15 +39,12 @@ void LibraryView::OnPivotChanged(IInspectable const&, SelectionChangedEventArgs 
 
 void LibraryView::OnTrackClick(IInspectable const&, ItemClickEventArgs const& args) {
     if (!appState_) return;
-    auto track = winrt::unbox_value<rhythm::Track>(args.ClickedItem());
-    appState_->PlayTrack(track);
+    auto item = args.ClickedItem().as<Rhythm::Models::TrackItem>();
+    appState_->PlayTrack(get_self<Models::implementation::TrackItem>(item)->Model());
 }
 
 void LibraryView::PopulateArtistAlbum() {
     if (!appState_) return;
-    if (appState_->Tracks.empty()) { ShowEmptyMessage(true); return; }
-    ShowEmptyMessage(false);
-
     // Sort a copy so the shared AppState::Tracks order is never mutated
     auto tracks = appState_->Tracks;
 
@@ -54,29 +59,23 @@ void LibraryView::PopulateArtistAlbum() {
             if (albA != albB) return albA < albB;
             return a.trackNumber.value_or(0) < b.trackNumber.value_or(0);
         });
-
-    // Build grouped collection
-    auto items = winrt::single_threaded_observable_vector<winrt::Windows::Foundation::IInspectable>();
-    for (auto& track : tracks) {
-        items.Append(winrt::box_value(track));
-    }
-    trackList().ItemsSource(items);
+    ShowTracks(tracks);
 }
 
 void LibraryView::PopulateAlphabetical() {
     if (!appState_) return;
-    if (appState_->Tracks.empty()) { ShowEmptyMessage(true); return; }
-    ShowEmptyMessage(false);
-
     // Sort a copy so the shared AppState::Tracks order is never mutated
     auto tracks = appState_->Tracks;
-
     std::sort(tracks.begin(), tracks.end(),
         [](const auto& a, const auto& b) { return a.title < b.title; });
+    ShowTracks(tracks);
+}
 
-    auto items = winrt::single_threaded_observable_vector<winrt::Windows::Foundation::IInspectable>();
-    for (auto& track : tracks) {
-        items.Append(winrt::box_value(track));
+void LibraryView::ShowTracks(std::vector<rhythm::Track> const& tracks) {
+    ShowEmptyMessage(tracks.empty());
+    auto items = winrt::single_threaded_observable_vector<IInspectable>();
+    for (const auto& track : tracks) {
+        items.Append(winrt::make<Models::implementation::TrackItem>(track));
     }
     trackList().ItemsSource(items);
 }

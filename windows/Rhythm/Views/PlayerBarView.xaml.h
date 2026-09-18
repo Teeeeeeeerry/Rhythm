@@ -1,12 +1,16 @@
 #pragma once
 
-#include "../AppState.h"
+#include "Views/PlayerBarView.g.h"
+#include "AppState.h"
 
 namespace winrt::Rhythm::Views::implementation {
 
-struct PlayerBarView : winrt::Microsoft::UI::Xaml::Controls::UserControlT<PlayerBarView> {
-    PlayerBarView();
+struct PlayerBarView : PlayerBarViewT<PlayerBarView> {
+    PlayerBarView() = default;
 
+    void InitializeComponent();
+
+    /// Called by MainWindow (not projected).
     void BindState(rhythm::AppState* state);
 
     void OnPlayPauseClick(winrt::Windows::Foundation::IInspectable const&,
@@ -30,3 +34,9 @@ private:
 };
 
 } // namespace winrt::Rhythm::Views::implementation
+
+namespace winrt::Rhythm::Views::factory_implementation {
+
+struct PlayerBarView : PlayerBarViewT<PlayerBarView, implementation::PlayerBarView> {};
+
+} // namespace winrt::Rhythm::Views::factory_implementation
