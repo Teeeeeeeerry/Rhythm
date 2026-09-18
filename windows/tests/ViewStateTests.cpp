@@ -8,6 +8,7 @@
 #include "TestHelpers.h"
 
 #include <algorithm>
+#include <cmath>
 
 using namespace rhythm;
 using namespace rhythm_tests;
@@ -36,4 +37,31 @@ TEST_CASE("VS-01 every library track renders as one row carrying the track") {
     };
     REQUIRE(hasTitle(L"Alpha"));
     REQUIRE(hasTitle(L"Beta"));
+}
+
+// ─── VS-02 播放条进度百分比（#332）──────────────────────────────────
+
+TEST_CASE("VS-02 progress is position over duration when the duration is known") {
+    AppState state;
+    state.Position = 30.0;
+    state.Duration = 120.0;
+    REQUIRE(view::PlayerBarState(state).progressPercent == 25.0);
+}
+
+TEST_CASE("VS-02 an unknown (zero) duration renders zero progress, never a division") {
+    AppState state;
+    state.Position = 5.0;
+    state.Duration = 0.0;
+    auto percent = view::PlayerBarState(state).progressPercent;
+    REQUIRE(std::isfinite(percent));
+    REQUIRE(percent == 0.0);
+}
+
+TEST_CASE("VS-02 a position past the duration is clamped into range") {
+    AppState state;
+    state.Duration = 100.0;
+    state.Position = 130.0;
+    REQUIRE(view::PlayerBarState(state).progressPercent == 100.0);
+    state.Position = -3.0;
+    REQUIRE(view::PlayerBarState(state).progressPercent == 0.0);
 }

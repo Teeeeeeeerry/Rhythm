@@ -20,4 +20,13 @@ struct TrackRow {
 /// The library list: one row per loaded library track.
 std::vector<TrackRow> LibraryRows(const AppState& state);
 
+/// What the player bar shows.
+struct PlayerBar {
+    /// Progress bar value, 0-100. Zero while the duration is unknown -- no
+    /// made-up progress -- and clamped when the position runs past it (#332).
+    double progressPercent = 0.0;
+};
+
+PlayerBar PlayerBarState(const AppState& state);
+
 } // namespace rhythm::view
