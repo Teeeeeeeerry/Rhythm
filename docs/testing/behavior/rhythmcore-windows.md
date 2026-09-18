@@ -39,7 +39,7 @@
 
 | 编号 | 缺口 | 状态 | 重启入口 |
 |---|---|---|---|
-| WB-G1 | Windows 视图外观回归（L2 截屏 + golden 像素比对）：截屏宿主只有骨架、无 CMake 工程、无 golden；WB-03/04 只锁色值表，不覆盖视图实际渲染 | 未实现，已从测试入口移除（#387） | `testing/README.md`「Windows L2 缺口」 |
+| WB-G1 | Windows 视图外观回归（L2 截屏 + golden 像素比对）：截屏宿主只有骨架、无 CMake 工程、无 golden；徽标色值表（视图状态 VS-22～VS-24，原 WB-03/04）只锁数值，不覆盖视图实际渲染 | 未实现，已从测试入口移除（#387） | `testing/README.md`「Windows L2 缺口」 |
 
 ## 错误路径（P2）
 

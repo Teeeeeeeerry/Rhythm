@@ -96,11 +96,11 @@ palette.json 的 `usage` 段驱动，全矩阵（token × 背景 × 外观）自
 
 Windows：`testing/l1/windows/`（`source_color_test.cpp` + CMakeLists）零依赖 assert 测试 exe
 （CMake `enable_testing()`），另有 `windows/tests/` 的 Catch2 行为测试。
-F1 已修复（#121）：`Track::SourceColor(sourceType, isDarkTheme)` 双端值 + alpha==38 + 未知类型回退，
-由 `source_color_test.cpp` 直测真实 `RhythmCore.h`（#122 解除自声明桩）。
-#147 起徽标前景与胶囊底共用单一表映射 `Track::SourceColorRGB(sourceType, isDarkTheme)`，
-`SourceColor(sourceType, isDarkTheme)`/`SourceForegroundColor`/`SourceBackgroundColor` 均由它派生（#338 起徽标整体搬进视图状态 `SourceBadgeOf`，色表随之生成到 `ViewState.cpp`）；
-色值是普通结构 `rhythm::Color`，画刷由壳的行模型 `TrackItem` 构造（#328）。
+F1 已修复（#121）：来源徽标色双端值 + alpha==38 + 未知类型回退，由 `source_color_test.cpp`
+直测真实代码（#122 解除自声明桩）。#147 起徽标前景与胶囊底共用单一色表；#338 起徽标整体
+搬进视图状态 `rhythm::view::SourceBadgeOf(sourceType, isDarkTheme)`（标记、前景色、胶囊底），
+色表随之生成到 `ViewState.cpp`，L1 测试链接行为库直测它；色值是普通结构 `rhythm::view::Color`，
+画刷由壳的行模型 `TrackItem` 构造（#328）。
 
 ### L2 快照与像素回归（必做，非可选）
 
