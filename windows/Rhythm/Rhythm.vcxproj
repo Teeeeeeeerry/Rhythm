@@ -4,8 +4,9 @@
 
   XAML markup compilation (*.xaml -> *.g.h, XamlTypeInfo) and MIDL exist only
   as MSBuild tasks, so the app is an MSBuild project. Everything that is not
-  XAML shell lives in the CMake behaviour library (windows/CMakeLists.txt,
-  RhythmBehavior) and is linked here, never listed here.
+  XAML shell lives in the CMake behaviour library (RhythmBehavior, declared
+  once in windows/cmake/RhythmBehavior.cmake) and is linked here, never listed
+  here.
 
   Package pins are not declared in this file: RhythmBehavior.props, written by
   the CMake configure step, points at the packages RhythmWindowsDeps.cmake
@@ -80,9 +81,11 @@
       <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
       <WarningLevel>Level3</WarningLevel>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <!-- Same flags as the behaviour library it links (windows/CMakeLists.txt). -->
-      <AdditionalOptions>%(AdditionalOptions) /bigobj /utf-8</AdditionalOptions>
-      <PreprocessorDefinitions>NOMINMAX;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <!-- The behaviour library's usage requirements come from its one
+           declaration (windows/cmake/RhythmBehavior.cmake) through the props
+           file (#330); only the shell's own flags are written here. -->
+      <AdditionalOptions>%(AdditionalOptions) /bigobj $(RhythmBehaviorOptions)</AdditionalOptions>
+      <PreprocessorDefinitions>$(RhythmBehaviorDefines);NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory);$(RhythmBehaviorIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <Optimization>MaxSpeed</Optimization>

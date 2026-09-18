@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.178 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
+Initial development is complete. Current version: **v0.5.179 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
 
 ### Implementation Status
 
@@ -76,7 +76,7 @@ When resolution fails, the app says why — network error, timeout, video unavai
 - **Rust** 1.70+ ([rustup.rs](https://rustup.rs))
 - yt-dlp needs no prior install: the app fetches it on the first online link
 - **macOS**: Xcode 15+ or Command Line Tools + Swift 5.9+
-- **Windows**: Visual Studio 2022 (or Build Tools, with the MSVC and Windows 10/11 SDK components) + CMake 3.20+ + Python 3.
+- **Windows**: Visual Studio 2022 (or Build Tools, with the MSVC and Windows 10/11 SDK components) + CMake 3.21+ + Python 3.
   The Windows App SDK, C++/WinRT and nlohmann/json need **no manual install**: on the first configure
   `windows/cmake/RhythmWindowsDeps.cmake` downloads them at pinned versions from NuGet / GitHub, verifies
   SHA-256, generates the projection headers and caches everything in `build/windows-deps/` (the first
