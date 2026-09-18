@@ -5,10 +5,10 @@
 - 编排归属（#173 起）：起播（先停后播 #51、按来源分发、recordPlay、队列建立定位）、toggle/next/previous（有界跳过 #78）、队列同步（#69）、Finished 自动切歌全部在 rust-core 协调器（见 `coordinator.md` CO-xx）；AppState 只渲染状态，事件（progress/state/finished/error/track_changed）替代 500ms 定时器轮询（#172/#173）
 - 测试设施（Wave 4a 已落地）：
   - Catch2 v3.5.4 header-only（`windows/tests/vendor/` amalgamated，BSL-1.0）+ CMake 测试 target `RhythmTests` 挂 ctest（`enable_testing()`）
-  - 测试 main（`windows/tests/TestMain.cpp`）调一次 `winrt::init_apartment(apartment_type::single_threaded)` 以构造 `AppState`
+  - 测试 main 用 Catch2 自带的：`AppState` 是普通 C++ 类（#326 去掉 `winrt::implements` 基类），构造不需要 WinRT 单元
   - 链接 `rhythm_core.dll.lib` + 临时 DB 路径注入（`OpenDatabase` 接受路径）
   - `nlohmann/json` 在测试 target 显式声明（`find_package(nlohmann_json CONFIG REQUIRED)`；主构建的隐式依赖已在此登记）
-  - `ResolveAndPlay` 与协调器事件经 `UiPost` 回到 UI 线程：应用用 `SetDispatcherQueue`（WinUI DispatcherQueue），测试用 `SetUiPost` 注入 `UiThread`（`TestHelpers.h`，专属线程队列；DispatcherQueue 是 Windows App Runtime 类，未打包的测试 exe 无法激活，#418），降级路径（未设 UI 线程）直接测
+  - `ResolveAndPlay` 与协调器事件经 `UiPost` 回到 UI 线程：应用由 `MainWindow` 把 WinUI DispatcherQueue 包成 `UiPost` 设入（#326，DispatcherQueue 不进行为库），测试用 `SetUiPost` 注入 `UiThread`（`TestHelpers.h`，专属线程队列；DispatcherQueue 是 Windows App Runtime 类，未打包的测试 exe 无法激活，#418），降级路径（未设 UI 线程）直接测
   - 接缝（#173）：AppState 的编排经 `ICoordinator` seam，测试注入 `SpyCoordinator`（`windows/tests/TestHelpers.h`，顺序队列模型镜像协调器契约）；原「无音频设备 SKIP」用例全部转确定性断言（真规则在 rust-core）
   - 测试文件：`windows/tests/AppStateBehaviorTests.cpp`（WA）与 `BridgeBehaviorTests.cpp`（WB）
 
