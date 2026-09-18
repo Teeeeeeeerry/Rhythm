@@ -15,8 +15,8 @@
 namespace fs = std::filesystem;
 using namespace rhythm;
 
-/// UTF-8 conversion for test fixtures (the bridge keeps its own private
-/// converters).
+/// UTF-8 conversion for test fixtures -- independent of the bridge's
+/// `WideToUtf8`, so a fixture never borrows the code under test (#432).
 inline std::string WideToUtf8ForTest(const std::wstring& ws) {
     if (ws.empty()) return {};
     int len = WideCharToMultiByte(CP_UTF8, 0, ws.data(), (int)ws.size(), nullptr, 0, nullptr, nullptr);

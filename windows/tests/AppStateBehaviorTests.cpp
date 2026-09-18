@@ -664,6 +664,45 @@ TEST_CASE("WA-25 playback failure event surfaces classified copy (#120)") {
     REQUIRE(message == L"GET x failed: HTTP 403");
 }
 
+// ─── WA-31 事件载荷非 ASCII 往返（#432）───────────────────────────
+
+TEST_CASE("WA-31 track_changed with a Chinese title and path round-trips (#432)") {
+    SpyApp app;
+
+    nlohmann::json event = {
+        {"type", "track_changed"},
+        {"track", {{"id", 7},
+                   {"file_path", WideToUtf8ForTest(L"C:\\音乐\\晴天.mp3")},
+                   {"source_type", "local"},
+                   {"title", WideToUtf8ForTest(L"晴天")},
+                   {"artist", WideToUtf8ForTest(L"周杰伦")}}},
+    };
+    app.spy->FireEvent(Utf8ToWide(event.dump()));
+
+    REQUIRE(app.state.CurrentTrack.has_value());
+    REQUIRE(app.state.CurrentTrack->title == L"晴天");
+    REQUIRE(app.state.CurrentTrack->artist == L"周杰伦");
+    REQUIRE(app.state.CurrentTrack->filePath == L"C:\\音乐\\晴天.mp3");
+}
+
+TEST_CASE("WA-31 error event with a Chinese message round-trips (#432)") {
+    LanguageScope zh(L"zh");
+    SpyApp app;
+
+    std::wstring message;
+    app.state.OnUrlError = [&](const std::wstring&, const std::wstring& m) { message = m; };
+
+    nlohmann::json event = {
+        {"type", "error"},
+        {"kind", nullptr},
+        {"message", WideToUtf8ForTest(L"无法打开文件：C:\\音乐\\晴天.mp3")},
+    };
+    app.spy->FireEvent(Utf8ToWide(event.dump()));
+
+    REQUIRE(message == L"无法打开文件：C:\\音乐\\晴天.mp3");
+    REQUIRE(app.state.UrlError.find(L"无法打开文件：C:\\音乐\\晴天.mp3") != std::wstring::npos);
+}
+
 // ─── WA-29 单文件导入（#242，Windows 首次具备该能力）──────────────
 
 TEST_CASE("WA-29 ImportFile imports one audio file and reports the outcome") {
