@@ -23,6 +23,7 @@
 | WB-14 | `Resolver::ClassifyURL` | 返回 "youtube"/"bilibili"/"direct_url"；失败 → 空串 | 新测 |
 | WB-20 | `Track::SourceForegroundColor` | 不透明，RGB 与 `SourceColor` 同一张表、同一未知回退（dark/light 各一次）；`SourceForegroundBrush` 是视图绑定的画刷包装（#428） | 新测 |
 | WB-21 | `ExportM3U8` | 经生成的编码器写出 M3U8（含 `#EXTM3U` 与曲目路径，中文路径不乱码）；目录不存在 → `false`（#428） | 新测 |
+| WB-22 | 文件选择面板的扩展名 `kAudioFileTypes` | 每个扩展名都是核心收的格式：同扩展名的非音频文件经 `ImportFile` 只会计为读取失败、从不计为格式不支持；对照 `.txt` 计为不支持（核心是闸门，列表只塑形对话框，#242）；列表为普通字符串，桥接层不带 WinRT 类型（#327） | 新测 |
 | WB-17 | `Coordinator` 绑定真实 `Library` 起播 | `Library::Handle()` 交给核心：起播成功则该曲目播放次数加一；无音频设备时结果为核心分类错误 `playback_failed` 且不记录（#416） | 新测 |
 
 ## 边界情况（P1）

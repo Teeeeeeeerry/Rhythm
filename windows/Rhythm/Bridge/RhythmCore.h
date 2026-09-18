@@ -155,17 +155,18 @@ struct Track {
 /// event payloads like track_changed). Declared after `Track` (#408).
 Track ParseTrackJson(const std::string& json);
 
-/// One parsed M3U8 entry — named fields across the seam (#177). Field list
-/// and codec come from contracts/ffi-contract.json (#180).
 /// Audio extensions the file picker offers, mirroring the core's
 /// SUPPORTED_EXTENSIONS (rust-core/src/metadata/mod.rs) -- the core is still
-/// the gate, this list only shapes the dialog (#242).
-inline const std::vector<winrt::hstring> kAudioFileTypes = {
+/// the gate, this list only shapes the dialog (#242). Plain strings: the
+/// shell hands them to its picker, the bridge carries no WinRT type (#327).
+inline const std::vector<std::wstring> kAudioFileTypes = {
     L".mp3", L".m4a", L".aac", L".flac", L".wav", L".ogg", L".oga", L".opus",
     L".alac", L".ape", L".wma", L".mp4", L".m4b", L".m4p", L".m4r", L".aiff",
     L".aif", L".aifc", L".wv",
 };
 
+/// One parsed M3U8 entry — named fields across the seam (#177). Field list
+/// and codec come from contracts/ffi-contract.json (#180).
 struct M3u8Entry {
     std::wstring title;
     std::optional<std::wstring> artist;
