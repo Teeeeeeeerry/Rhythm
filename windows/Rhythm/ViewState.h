@@ -25,6 +25,10 @@ struct PlayerBar {
     /// Progress bar value, 0-100. Zero while the duration is unknown -- no
     /// made-up progress -- and clamped when the position runs past it (#332).
     double progressPercent = 0.0;
+    /// The buffering copy while buffering -- a link can take a while to
+    /// start, and 0:00 / 0:00 reads as a dead player (#137) -- otherwise
+    /// "position / duration" in m:ss (#333).
+    std::wstring timeText;
 };
 
 PlayerBar PlayerBarState(const AppState& state);

@@ -1,7 +1,18 @@
 #include "BehaviorPch.h"
 #include "ViewState.h"
+#include "L10n.h"
 
 namespace rhythm::view {
+
+namespace {
+
+/// Seconds as m:ss, seconds zero-padded; anything not positive is 0:00.
+std::wstring MinutesSeconds(double seconds) {
+    const int whole = seconds > 0 ? static_cast<int>(seconds) : 0;
+    return std::format(L"{}:{:02}", whole / 60, whole % 60);
+}
+
+} // namespace
 
 std::vector<TrackRow> LibraryRows(const AppState& state) {
     std::vector<TrackRow> rows;
@@ -17,6 +28,9 @@ PlayerBar PlayerBarState(const AppState& state) {
     if (state.Duration > 0) {
         bar.progressPercent = std::clamp(state.Position / state.Duration * 100.0, 0.0, 100.0);
     }
+    bar.timeText = state.IsBuffering
+        ? L10n::Buffering()
+        : MinutesSeconds(state.Position) + L" / " + MinutesSeconds(state.Duration);
     return bar;
 }
 
