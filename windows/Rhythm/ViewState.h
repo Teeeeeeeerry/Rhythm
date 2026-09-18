@@ -93,8 +93,9 @@ struct PlayerBar {
 PlayerBar PlayerBarState(const AppState& state);
 
 /// The notification-area menu (#340): its item labels, in the language the
-/// language layer currently resolves. The tray builds the native menu from
-/// this and nothing else.
+/// language layer currently resolves, and whether play/pause is available.
+/// The tray builds the native menu from this and gates the play/pause command
+/// on the same value (#341).
 struct TrayMenu {
     std::wstring playPause;
     std::wstring showWindow;

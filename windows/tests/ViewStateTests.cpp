@@ -420,32 +420,23 @@ TEST_CASE("VS-29 the tray menu carries its three labels in the current language"
 
 // ─── VS-30/31/32 托盘播放暂停可用性（#341）──────────────────────────
 
-namespace {
-
-/// AppState with a SpyCoordinator: the availability rules live in the core
-/// coordinator; the spy mirrors its contract (TestHelpers.h).
-struct SpyState {
-    AppState state;
-    SpyCoordinator* spy = new SpyCoordinator();
-    SpyState() { state.Coordinator.reset(spy); }
-};
-
-} // namespace
+// The availability rules live in the core coordinator; SpyApp (TestHelpers.h)
+// injects a SpyCoordinator that mirrors its contract.
 
 TEST_CASE("VS-30 an empty library disables play/pause in the tray") {
-    SpyState s;
+    SpyApp s;
     REQUIRE_FALSE(view::TrayMenuState(s.state).playPauseEnabled);
 }
 
 TEST_CASE("VS-31 a current track enables play/pause in the tray") {
-    SpyState s;
+    SpyApp s;
     s.state.PlayTrack(makeLocalTrack(L"C:\\m\\a.mp3", L"a"));
     REQUIRE(s.state.CurrentTrack.has_value());
     REQUIRE(view::TrayMenuState(s.state).playPauseEnabled);
 }
 
 TEST_CASE("VS-32 tray availability agrees with the coordinator's query") {
-    SpyState s;
+    SpyApp s;
     auto agrees = [&] {
         return view::TrayMenuState(s.state).playPauseEnabled ==
                s.state.Coordinator->CanTogglePlayback();
