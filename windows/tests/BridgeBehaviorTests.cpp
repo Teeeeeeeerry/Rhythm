@@ -106,7 +106,7 @@ TEST_CASE("WB-04 SourceBackgroundColor carries 15% alpha of the source color") {
 // ─── WB-20 SourceForegroundColor（视图绑定的前景色，#428）──────────────
 
 TEST_CASE("WB-20 SourceForegroundColor matches SourceColor in both themes") {
-    auto hex = [](winrt::Windows::UI::Color c) {
+    auto hex = [](Color c) {
         return std::format(L"#{:02X}{:02X}{:02X}", c.R, c.G, c.B);
     };
     for (const wchar_t* type : {L"local", L"youtube", L"bilibili", L"direct_url", L"nope"}) {
