@@ -394,6 +394,14 @@ static Track TrackFromResolved(const ResolvedUrl& resolved, const std::wstring& 
     return track;
 }
 
+/// A failed resolution with the given classification.
+static ResolveOutcome ResolveFailure(std::wstring kind, std::wstring message = {}) {
+    ResolveOutcome outcome;
+    outcome.errorKind = std::move(kind);
+    outcome.errorMessage = std::move(message);
+    return outcome;
+}
+
 /// Parse the core's structured resolve result (#176): success payload +
 /// classified error in a single return — the old "null, then query the
 /// global error slot" two-step protocol is gone. The fields come from the
@@ -402,14 +410,10 @@ static Track TrackFromResolved(const ResolvedUrl& resolved, const std::wstring& 
 ResolveOutcome Resolver::ResolveURL(const std::wstring& url) {
     auto u = WideToUtf8(url);
     char* json_str = rhythm_resolve_url(u.c_str());
-
-    ResolveOutcome outcome;
     if (!json_str) {
         // No payload at all: leave the message empty so the one fallback in
         // L10n::UrlResolveError picks the copy (#374, #412).
-        outcome.ok = false;
-        outcome.errorKind = L"internal";
-        return outcome;
+        return ResolveFailure(L"internal");
     }
     std::string payload(json_str);
     rhythm_free_string(json_str);
@@ -418,27 +422,18 @@ ResolveOutcome Resolver::ResolveURL(const std::wstring& url) {
     try {
         result = generated::ResolveResultFromJson(json::parse(payload));
     } catch (const json::exception& e) {
-        outcome.ok = false;
-        outcome.errorKind = L"internal";
-        outcome.errorMessage = L"Malformed resolver response: " + Utf8ToWide(e.what());
-        return outcome;
+        return ResolveFailure(L"internal", L"Malformed resolver response: " + Utf8ToWide(e.what()));
     }
-
     if (!result.ok) {
-        outcome.ok = false;
-        outcome.errorKind = result.errorKind.value_or(L"");
-        outcome.errorMessage = result.errorMessage.value_or(L"");
-        return outcome;
+        return ResolveFailure(result.errorKind.value_or(L""), result.errorMessage.value_or(L""));
     }
     if (!result.resolved) {
-        outcome.ok = false;
-        outcome.errorKind = L"internal";
-        outcome.errorMessage = L"Malformed resolver response";
-        return outcome;
+        return ResolveFailure(L"internal", L"Malformed resolver response");
     }
 
-    outcome.track = TrackFromResolved(*result.resolved, url);
+    ResolveOutcome outcome;
     outcome.ok = true;
+    outcome.track = TrackFromResolved(*result.resolved, url);
     return outcome;
 }
 

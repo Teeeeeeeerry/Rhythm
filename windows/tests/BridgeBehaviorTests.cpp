@@ -1,4 +1,4 @@
-// WB-01–19：Windows RhythmCore（Bridge 封装层）行为清单（manifest:
+// WB-01–27：Windows RhythmCore（Bridge 封装层）行为清单（manifest:
 // docs/testing/behavior/rhythmcore-windows.md）。零接缝：真 rhythm_core DLL
 //（WB-05/06/07/09/10/14 经 FFI 往返），纯函数直测（WB-12/13）。WB-01 的时长文案与 WB-02/03/04/20 的来源徽标
 // 已迁入视图状态（ViewStateTests.cpp VS-18～VS-25，#337/#338）。
