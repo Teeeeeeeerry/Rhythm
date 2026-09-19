@@ -11,9 +11,9 @@
   - `ResolveAndPlay` 与协调器事件经 `UiPost` 回到 UI 线程：应用由 `MainWindow` 把 WinUI DispatcherQueue 包成 `UiPost` 设入（#326，DispatcherQueue 不进行为库），测试用 `SetUiPost` 注入 `UiThread`（`TestHelpers.h`，专属线程队列；DispatcherQueue 是 Windows App Runtime 类，未打包的测试 exe 无法激活，#418），降级路径（未设 UI 线程）直接测
   - 接缝（#173）：AppState 的编排经 `ICoordinator` seam，测试注入 `SpyCoordinator`（`windows/tests/TestHelpers.h`，顺序队列模型镜像协调器契约）；原「无音频设备 SKIP」用例全部转确定性断言（真规则在 rust-core）
   - 测试文件：`windows/tests/AppStateBehaviorTests.cpp`（WA）与 `BridgeBehaviorTests.cpp`（WB）
-  - 临时目录夹具 `TempDir`（#455）：按进程号 + 进程内计数命名，已存在的名字跳过，不依赖计时器精度；清理失败在测试输出留一行。
+  - 临时目录夹具 `TempDir`（#455）：按进程号 + 进程内计数命名，已存在的名字跳过，不依赖计时器精度；清理失败即让留下残留的那个用例失败（报出目录与原因）。
     用例里 `TempDir` 要先于 `AppState`/`Library` 声明（后析构），否则库还占着数据库文件、目录删不掉。
-    夹具自身的约定由 `windows/tests/TestFixtureTests.cpp` 锁定：TF-01 相邻两次构造得到不同的空目录；TF-02 目录先声明时作用域结束后不留残留
+    夹具自身的约定见下文「测试夹具」表（`windows/tests/TestFixtureTests.cpp`）
 
 ## 主路径（P0 — 合并门槛）
 
@@ -40,6 +40,15 @@
 | WA-16 | `Library` 打开失败 | `OpenDatabase(坏路径)` → `Library` 内部 ptr 为 null，后续方法安全 no-op | 新测（待 Windows 验证） |
 | WA-31（#432） | 协调器事件载荷非 ASCII | `track_changed` 的中文标题、艺人、路径与 `error` 的中文消息按 UTF-8 往返无损（此前宽窄逐字符截断：字段乱码，或 JSON 非法整条事件被丢弃）；`CurrentTrack`、`OnUrlError` 的 message、`UrlError` 原样还原 | SpyCoordinator 事件注入 |
 | WA-32（#339） | `FindPlaylist(id)` | 返回已加载歌单中该 id 的那一个（指向 `Playlists` 内元素）；id 不存在 → null。歌单详情视图与视图状态 `PlaylistRows` 共用这一处查找 | SpyApp 之外直接构造 |
+
+## 测试夹具（P1，#455）
+
+夹具出错时红灯落在与被测行为无关的用例上，夹具自身的约定单独锁定（`windows/tests/TestFixtureTests.cpp`）。
+
+| 编号 | 行为 | 断言 | 状态 |
+|---|---|---|---|
+| TF-01 | `TempDir` 每个实例唯一 | 相邻两次构造（同一计时器 tick 内）得到两个不同、存在且为空的目录（此前按进程号 + `GetTickCount64` 命名，相邻用例共用目录、读到上一个用例残留的数据库，WA-03 偶发 `2 == 1`） | 新测 |
+| TF-02 | 目录先于库声明时清理干净 | `TempDir` 先于 `AppState` 声明、导入一首后离开作用域，目录不复存在（库先关闭再删目录）；反序声明时清理失败让该用例失败，不再静默留下 `test.db` | 新测 |
 
 ## 错误路径（P2）
 

@@ -28,16 +28,16 @@ TEST_CASE("TF-01 TempDir instances made back to back get distinct, empty directo
 // ─── TF-02 目录先于库声明时清理干净（#455）──────────────────────────
 
 TEST_CASE("TF-02 a TempDir declared before the AppState using it is removed at scope end") {
-    fs::path leftover;
+    fs::path dirPath;
     {
         TempDir dir;
         AppState state;
         state.OpenDatabase(dir.dbPath());
         writeWavAt(dir.path, L"tone.wav");
         state.Library->ImportDirectory(dir.path.wstring());
-        leftover = dir.path;
+        dirPath = dir.path;
     }
     // AppState is destroyed first and closes the database, so nothing inside
     // the directory is still open when it is removed.
-    REQUIRE_FALSE(fs::exists(leftover));
+    REQUIRE_FALSE(fs::exists(dirPath));
 }

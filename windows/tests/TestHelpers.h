@@ -10,9 +10,10 @@
 #include <deque>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <mutex>
 #include <thread>
+
+#include <catch_amalgamated.hpp>
 
 namespace fs = std::filesystem;
 using namespace rhythm;
@@ -261,10 +262,11 @@ struct TempDir {
         std::error_code ec;
         fs::remove_all(path, ec);
         // #455: a failed cleanup used to vanish silently, leaving a database
-        // behind for the next test to find.
+        // behind for the next test to find. It fails the test that leaked
+        // instead -- a line on stderr is hidden by ctest when the run passes.
         if (ec) {
-            std::cerr << "TempDir: could not remove " << WideToUtf8ForTest(path.wstring())
-                      << " (" << ec.message() << ")\n";
+            FAIL_CHECK("TempDir could not remove " << WideToUtf8ForTest(path.wstring())
+                       << " (" << ec.message() << "); is something inside still open?");
         }
     }
 
