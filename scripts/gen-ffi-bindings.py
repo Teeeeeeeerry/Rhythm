@@ -36,9 +36,8 @@ def fields_of(schema: dict, name: str) -> dict:
     return schema[name]
 
 
-# Top-level contract keys that are not objects. `results` still holds the
-# coordinator result as a bare name list; #363 gives it field types.
-NON_OBJECT_KEYS = ("version", "doc", "enums", "results")
+# Top-level contract keys that are not objects; every other key is one (#363).
+NON_OBJECT_KEYS = ("version", "doc", "enums")
 
 
 def is_enum(schema: dict, t: str) -> bool:

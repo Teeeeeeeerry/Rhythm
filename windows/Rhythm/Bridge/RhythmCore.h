@@ -35,6 +35,9 @@ struct Track {
     int32_t playCount = 0;
     std::optional<std::wstring> artworkPath;
     bool isAvailable = true;
+
+    /// Field-by-field equality: results decoded two ways must agree (#363).
+    bool operator==(const Track&) const = default;
 };
 
 /// Parse a Track from the core's snake_case JSON (used for coordinator
@@ -136,11 +139,12 @@ private:
 /// Structured result of a coordinator call (mirror of the core's
 /// `CoordinatorResult` JSON): success payload + classified error in one
 /// return. `errorKind` is one of: no_playable_location, playback_failed,
-/// invalid_input.
+/// invalid_input. The fields mirror the contract's `coordinator_result`
+/// (the error pair is absent on success); the codec is generated (#363).
 struct CoordinatorResult {
     bool ok = false;
-    std::wstring errorKind;
-    std::wstring errorMessage;
+    std::optional<std::wstring> errorKind;
+    std::optional<std::wstring> errorMessage;
     std::optional<Track> currentTrack;
     /// Whether playback is active (engine Playing/Buffering) after the
     /// operation — what the UI should render for `IsPlaying`.

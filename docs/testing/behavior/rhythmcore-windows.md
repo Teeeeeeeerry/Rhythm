@@ -27,6 +27,8 @@
 | WB-17 | `Coordinator` 绑定真实 `Library` 起播 | `Library::Handle()` 交给核心：起播成功则该曲目播放次数加一；无音频设备时结果为核心分类错误 `playback_failed` 且不记录（#416） | 新测 |
 | WB-23 | 解析结果由生成物解码（#362） | 直链成功与非法链接失败两种核心载荷，生成的 `ResolveResultFromJson` 与 `Resolver::ResolveURL` 逐字段一致：`ok`、`resolved` 的标题/艺人/时长/来源类型，失败时的 `errorKind`/`errorMessage`。只比对格式合法的核心载荷：`ok` 为真却无 `resolved`、JSON 不合法时报 `internal` 属于调用点校验而非解码，由 `ResolveURL` 保留（#364 改调生成物时不变） | 新测（真 core） |
 | WB-24 | 解析结果的契约字段全部被解码（#362） | 每个字段都有值的载荷：`ok`、`resolved` 的七个字段（含 `stream_url`、`thumbnail_url`、`http_headers`）、`error_kind`、`error_message` 逐一还原 | 新测 |
+| WB-25 | 协调器结果由生成物解码（#363） | 同一输入分别交给裸核心协调器与 `Coordinator` 包装：无位置曲目（`no_playable_location`）、文件缺失、真实 wav（有设备时成功带当前曲目，无设备时 `playback_failed`）三种起播，外加空闲时切换播放；生成的 `CoordinatorResultFromJson` 与包装结果逐字段一致（`ok`、`errorKind`、`errorMessage`、`currentTrack` 整条曲目、`playbackActive`） | 新测（真 core） |
+| WB-26 | 协调器结果的契约字段全部被解码（#363） | 每个字段都有值的载荷：`ok`、`error_kind`、`error_message`、`current_track`（经曲目解码）、`playback_active` 逐一还原；成功时错误两项缺省为空（`std::optional`，与契约一致） | 新测 |
 
 ## 边界情况（P1）
 
