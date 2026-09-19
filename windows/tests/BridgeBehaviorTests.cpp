@@ -343,6 +343,24 @@ TEST_CASE("WB-24 the generated resolve-result decoder reads every contract field
     REQUIRE(decoded.errorMessage == L"slow");
 }
 
+// ─── WB-27 解析出的曲目形状（#364）──────────────────────────────────
+
+TEST_CASE("WB-27 a resolved URL becomes an unsaved, available track that keeps the page URL") {
+    auto outcome = Resolver::ResolveURL(L"https://example.com/wb27.mp3");
+    REQUIRE(outcome.ok);
+
+    // What the core resolved, plus the pasted page URL -- nothing else.
+    Track expected;
+    expected.id = -1;  // not in the library yet
+    expected.sourceType = L"direct_url";
+    expected.sourceUrl = L"https://example.com/wb27.mp3";
+    expected.title = L"wb27.mp3";
+    expected.duration = 0.0;
+    REQUIRE(outcome.track.id == -1);
+    REQUIRE(outcome.track.isAvailable);
+    REQUIRE(outcome.track == expected);
+}
+
 // ─── WB-25/26 协调器结果由生成物解码（#363）─────────────────────────
 
 /// One call on a fresh raw core coordinator; returns its result payload.

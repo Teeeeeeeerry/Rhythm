@@ -213,29 +213,19 @@ std::optional<M3u8ImportOutcome> Library::ImportM3U8(const std::wstring& path) {
 
 // ─── Coordinator ────────────────────────────────────────────────────
 
-/// Parse the core's structured result JSON into a CoordinatorResult.
+/// Parse the core's structured result JSON into a CoordinatorResult. The
+/// fields come from the generated decoder (#364); only a missing or
+/// malformed payload is handled here.
 static CoordinatorResult ParseCoordinatorResult(const char* json) {
-    CoordinatorResult result;
-    if (!json) return result;
+    if (!json) return {};
     try {
-        auto j = json::parse(json);
-        result.ok = j.value("ok", false);
-        if (j.contains("error_kind") && !j["error_kind"].is_null()) {
-            result.errorKind = Utf8ToWide(j["error_kind"].get<std::string>());
-        }
-        if (j.contains("error_message") && !j["error_message"].is_null()) {
-            result.errorMessage = Utf8ToWide(j["error_message"].get<std::string>());
-        }
-        if (j.contains("current_track") && !j["current_track"].is_null()) {
-            result.currentTrack = generated::TrackFromJson(j["current_track"]);
-        }
-        result.playbackActive = j.value("playback_active", false);
+        return generated::CoordinatorResultFromJson(json::parse(json));
     } catch (const json::exception&) {
-        result.ok = false;
+        CoordinatorResult result;
         result.errorKind = L"internal";
         result.errorMessage = L"Malformed coordinator response";
+        return result;
     }
-    return result;
 }
 
 /// C trampoline: the core fires events on the playback thread; we hand the
@@ -387,9 +377,28 @@ std::optional<Track> Coordinator::CurrentTrack() const {
 
 // ─── Resolver ───────────────────────────────────────────────────────
 
+/// A resolved URL as a track that is not in the library yet (#364): what the
+/// core resolved, plus the page URL the user pasted. Keep the page URL, not
+/// the resolved CDN link: the core re-resolves (from cache) at playback time,
+/// and those CDN links carry a deadline that expires. The rest keeps the
+/// model's defaults (available, never played) -- decoding the payload as a
+/// whole Track used to leave id 0 and mark the track unavailable.
+static Track TrackFromResolved(const ResolvedUrl& resolved, const std::wstring& pageUrl) {
+    Track track;
+    track.id = -1;
+    track.sourceType = resolved.sourceType;
+    track.sourceUrl = pageUrl;
+    track.title = resolved.title;
+    track.artist = resolved.artist;
+    track.duration = resolved.duration;
+    return track;
+}
+
 /// Parse the core's structured resolve result (#176): success payload +
 /// classified error in a single return — the old "null, then query the
-/// global error slot" two-step protocol is gone.
+/// global error slot" two-step protocol is gone. The fields come from the
+/// generated decoder (#364); only the checks a decoder cannot make (no
+/// payload, malformed JSON, success without a payload) are handled here.
 ResolveOutcome Resolver::ResolveURL(const std::wstring& url) {
     auto u = WideToUtf8(url);
     char* json_str = rhythm_resolve_url(u.c_str());
@@ -402,41 +411,34 @@ ResolveOutcome Resolver::ResolveURL(const std::wstring& url) {
         outcome.errorKind = L"internal";
         return outcome;
     }
+    std::string payload(json_str);
+    rhythm_free_string(json_str);
 
+    ResolveResult result;
     try {
-        auto j = json::parse(json_str);
-        rhythm_free_string(json_str);
-
-        bool ok = j.value("ok", false);
-        if (!ok) {
-            outcome.ok = false;
-            if (j.contains("error_kind") && !j["error_kind"].is_null()) {
-                outcome.errorKind = Utf8ToWide(j["error_kind"].get<std::string>());
-            }
-            if (j.contains("error_message") && !j["error_message"].is_null()) {
-                outcome.errorMessage = Utf8ToWide(j["error_message"].get<std::string>());
-            }
-            return outcome;
-        }
-
-        if (!j.contains("resolved") || j["resolved"].is_null()) {
-            outcome.ok = false;
-            outcome.errorKind = L"internal";
-            outcome.errorMessage = L"Malformed resolver response";
-            return outcome;
-        }
-
-        outcome.track = generated::TrackFromJson(j["resolved"]);
-        // Keep the page URL, not the resolved CDN link: the core re-resolves
-        // (from cache) at playback time, and those CDN links carry a deadline
-        // that expires.
-        outcome.track.sourceUrl = url;
-        outcome.ok = true;
+        result = generated::ResolveResultFromJson(json::parse(payload));
     } catch (const json::exception& e) {
         outcome.ok = false;
         outcome.errorKind = L"internal";
         outcome.errorMessage = L"Malformed resolver response: " + Utf8ToWide(e.what());
+        return outcome;
     }
+
+    if (!result.ok) {
+        outcome.ok = false;
+        outcome.errorKind = result.errorKind.value_or(L"");
+        outcome.errorMessage = result.errorMessage.value_or(L"");
+        return outcome;
+    }
+    if (!result.resolved) {
+        outcome.ok = false;
+        outcome.errorKind = L"internal";
+        outcome.errorMessage = L"Malformed resolver response";
+        return outcome;
+    }
+
+    outcome.track = TrackFromResolved(*result.resolved, url);
+    outcome.ok = true;
     return outcome;
 }
 
