@@ -40,28 +40,34 @@ std::set<std::string> DeclaredObjects() {
     return objects;
 }
 
+/// The object's declared fields whose type passes `keep`.
+template <typename Keep>
+std::set<std::string> FieldsWhere(const std::string& object, Keep keep) {
+    std::set<std::string> fields;
+    for (const auto& [field, type] : Contract()[object].items()) {
+        if (keep(type.get<std::string>())) fields.insert(field);
+    }
+    return fields;
+}
+
 std::set<std::string> DeclaredFields(const std::string& object) {
-    std::set<std::string> fields;
-    for (const auto& [field, type] : Contract()[object].items()) fields.insert(field);
-    return fields;
+    return FieldsWhere(object, [](const std::string&) { return true; });
 }
 
-/// The object's fields declared optional (`?`).
+/// Declared optional (`?`, #366).
 std::set<std::string> OptionalFields(const std::string& object) {
-    std::set<std::string> fields;
-    for (const auto& [field, type] : Contract()[object].items()) {
-        if (type.get<std::string>().ends_with('?')) fields.insert(field);
-    }
-    return fields;
+    return FieldsWhere(object, [](const std::string& type) { return type.ends_with('?'); });
 }
 
-/// The object's fields declared as optional integers (`i32?` / `i64?`).
+/// Declared as optional integers (`i32?` / `i64?`, #366).
 std::set<std::string> IntegerOptionalFields(const std::string& object) {
-    std::set<std::string> fields;
-    for (const auto& [field, type] : Contract()[object].items()) {
-        if (type == "i32?" || type == "i64?") fields.insert(field);
-    }
-    return fields;
+    return FieldsWhere(object, [](const std::string& type) { return type == "i32?" || type == "i64?"; });
+}
+
+/// `object` with each of `fields` set to an explicit null (#366).
+json WithNulls(json object, const std::set<std::string>& fields) {
+    for (const auto& field : fields) object[field] = nullptr;
+    return object;
 }
 
 std::set<std::string> Keys(const json& object) {
@@ -132,7 +138,7 @@ Model RequiredOnly(json& expected) {
     Model object{};
     expected = json::object();
     int serial = 0;
-    Filler filler{expected, serial, false};
+    Filler filler{.expected = expected, .serial = serial, .withOptionals = false};
     generated::ForEachField(object, filler);
     return object;
 }
@@ -226,20 +232,22 @@ TEST_CASE("CR-03 optional fields left empty stay absent through a round trip") {
 // ─── CR-04 显式空值往返后只会变成缺省（#366）─────────────────────────
 
 TEST_CASE("CR-04 an explicit null decodes like an absent field and re-encodes as absent") {
+    size_t nulledFields = 0;
     generated::ForEachContractObject([&](const char* key, auto fromJson, auto toJson) {
         INFO(key);
         json expected;
         auto object = RequiredOnly<decltype(fromJson(json{}))>(expected);
 
-        json nulled = expected;
-        for (const auto& field : OptionalFields(key)) nulled[field] = nullptr;
+        const auto optionals = OptionalFields(key);
+        nulledFields += optionals.size();
 
         // null is "no value": the same object as leaving the field out...
-        auto decoded = fromJson(nulled);
+        auto decoded = fromJson(WithNulls(expected, optionals));
         REQUIRE(decoded == object);
         // ...and it comes back absent, never as null or as some default.
         REQUIRE(toJson(decoded).dump() == expected.dump());
     });
+    REQUIRE(nulledFields > 0);
 }
 
 // ─── CR-05 整型可选字段的缺省形态（#366）─────────────────────────────
@@ -259,9 +267,7 @@ TEST_CASE("CR-05 integer optionals: absent and null stay empty, an explicit 0 st
         REQUIRE(declared.Fields() == integers);
 
         // Absent and null both decode to empty -- not 0 -- and stay out when encoded.
-        json nulled = expected;
-        for (const auto& field : integers) nulled[field] = nullptr;
-        for (const json& input : {expected, nulled}) {
+        for (const json& input : {expected, WithNulls(expected, integers)}) {
             INFO(input.dump());
             auto decoded = fromJson(input);
             IntegerOptionals read;
