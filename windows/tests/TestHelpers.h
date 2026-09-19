@@ -5,12 +5,15 @@
 #include "AppState.h"
 #include "Bridge/RhythmCore.h"
 
+#include <atomic>
 #include <condition_variable>
 #include <deque>
 #include <filesystem>
 #include <fstream>
 #include <mutex>
 #include <thread>
+
+#include <catch_amalgamated.hpp>
 
 namespace fs = std::filesystem;
 using namespace rhythm;
@@ -235,21 +238,40 @@ private:
 namespace rhythm_tests {
 
 /// A fresh temp directory, cleaned up when the guard goes out of scope.
+///
+/// #455: named per instance (process id + in-process counter), never by the
+/// timer -- GetTickCount64 ticks every ~15.6 ms, so neighbouring tests shared
+/// a directory and one opened the other's leftover database. A name already
+/// on disk (left by an earlier run under the same process id) is skipped.
+///
+/// Declare it before anything that keeps files open inside it (AppState,
+/// Library): locals are destroyed in reverse, so the database closes first.
 struct TempDir {
     fs::path path;
 
     TempDir() {
+        static std::atomic<uint64_t> counter{0};
         auto base = fs::temp_directory_path();
-        path = base / (L"rhythm-tests-" +
-            std::to_wstring(::GetCurrentProcessId()) + L"-" +
-            std::to_wstring(::GetTickCount64()));
-        fs::create_directories(path);
+        auto prefix = L"rhythm-tests-" + std::to_wstring(::GetCurrentProcessId()) + L"-";
+        do {
+            path = base / (prefix + std::to_wstring(counter++));
+        } while (!fs::create_directory(path));
     }
 
     ~TempDir() {
         std::error_code ec;
         fs::remove_all(path, ec);
+        // #455: a failed cleanup used to vanish silently, leaving a database
+        // behind for the next test to find. It fails the test that leaked
+        // instead -- a line on stderr is hidden by ctest when the run passes.
+        if (ec) {
+            FAIL_CHECK("TempDir could not remove " << WideToUtf8ForTest(path.wstring())
+                       << " (" << ec.message() << "); is something inside still open?");
+        }
     }
+
+    TempDir(const TempDir&) = delete;
+    TempDir& operator=(const TempDir&) = delete;
 
     std::wstring dbPath() const {
         return (path / L"test.db").wstring();
