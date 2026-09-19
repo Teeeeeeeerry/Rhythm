@@ -170,11 +170,17 @@ class CppContractScopeTests(unittest.TestCase):
             self.assertIn(f"inline {model} {model}FromJson(const json& j) {{", cpp)
             self.assertIn(f"inline json {model}ToJson(const {model}& t) {{", cpp)
 
-    def test_real_contract_generates_the_resolve_result(self):
-        cpp = gen.gen_cpp(gen.load_schema())
-        for model in ("ResolvedUrl", "ResolveResult"):
-            self.assertIn(f"inline {model} {model}FromJson(const json& j) {{", cpp)
-            self.assertIn(f"inline json {model}ToJson(const {model}& t) {{", cpp)
+    def test_every_real_contract_entry_is_generated(self):
+        # #363：除版本、说明与枚举表外，契约里的每个条目都是生成的对象——
+        # 「声明了却不生成」的条目不再存在。
+        schema = gen.load_schema()
+        functions = {line for line in gen.gen_cpp(schema).splitlines() if line.startswith("inline ")}
+        for key in schema:
+            if key in ("version", "doc", "enums"):
+                continue
+            model = gen.pascal(key)
+            self.assertIn(f"inline {model} {model}FromJson(const json& j) {{", functions, key)
+            self.assertIn(f"inline json {model}ToJson(const {model}& t) {{", functions, key)
 
     def test_a_non_object_entry_is_rejected(self):
         with self.assertRaises(SystemExit):

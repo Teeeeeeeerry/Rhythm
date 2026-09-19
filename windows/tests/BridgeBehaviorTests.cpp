@@ -343,6 +343,99 @@ TEST_CASE("WB-24 the generated resolve-result decoder reads every contract field
     REQUIRE(decoded.errorMessage == L"slow");
 }
 
+// ─── WB-25/26 协调器结果由生成物解码（#363）─────────────────────────
+
+/// One call on a fresh raw core coordinator; returns its result payload.
+template <typename Call>
+static std::string RawCoordinatorPayload(Call call) {
+    RhythmCoordinator* ptr = rhythm_coordinator_create();
+    REQUIRE(ptr != nullptr);
+    char* raw = call(ptr);
+    REQUIRE(raw != nullptr);
+    std::string payload(raw);
+    rhythm_free_string(raw);
+    rhythm_coordinator_stop(ptr);
+    rhythm_coordinator_destroy(ptr);
+    return payload;
+}
+
+/// Every field of the two results, the whole current track included.
+static void RequireSameCoordinatorResult(const CoordinatorResult& decoded,
+                                         const CoordinatorResult& wrapped) {
+    REQUIRE(decoded.ok == wrapped.ok);
+    REQUIRE(decoded.errorKind == wrapped.errorKind);
+    REQUIRE(decoded.errorMessage == wrapped.errorMessage);
+    REQUIRE(decoded.currentTrack == wrapped.currentTrack);
+    REQUIRE(decoded.playbackActive == wrapped.playbackActive);
+}
+
+TEST_CASE("WB-25 the generated coordinator-result decoder agrees with Coordinator field by field") {
+    TempDir dir;
+    auto wav = writeWavAt(dir.path, L"wb25.wav");
+    Track nowhere = makeLocalTrack(L"", L"No Location");   // no_playable_location
+    Track missing = makeLocalTrack((dir.path / L"missing.wav").wstring(), L"Missing");
+    Track real = makeLocalTrack(wav.wstring(), L"Real");   // ok, or playback_failed without a device
+
+    for (const Track& track : {nowhere, missing, real}) {
+        INFO(WideToUtf8ForTest(track.title));
+        auto trackJson = generated::TrackToJson(track).dump();
+        auto queueJson = nlohmann::json::array({generated::TrackToJson(track)}).dump();
+        auto decoded = generated::CoordinatorResultFromJson(nlohmann::json::parse(
+            RawCoordinatorPayload([&](RhythmCoordinator* c) {
+                return rhythm_coordinator_start(c, nullptr, trackJson.c_str(), queueJson.c_str(), 0);
+            })));
+
+        Coordinator coord;
+        auto wrapped = coord.Start(track, {track}, 0);
+        coord.Stop();
+
+        RequireSameCoordinatorResult(decoded, wrapped);
+    }
+
+    // Idle transport: ok results with no track.
+    using RawCall = char* (*)(RhythmCoordinator*, RhythmLibrary*);
+    using WrappedCall = CoordinatorResult (Coordinator::*)();
+    const std::pair<RawCall, WrappedCall> idleCalls[] = {
+        {rhythm_coordinator_toggle_play_pause, &Coordinator::TogglePlayPause},
+        {rhythm_coordinator_next, &Coordinator::Next},
+        {rhythm_coordinator_previous, &Coordinator::Previous},
+    };
+    for (const auto& [raw, wrapped] : idleCalls) {
+        auto decoded = generated::CoordinatorResultFromJson(nlohmann::json::parse(
+            RawCoordinatorPayload([raw](RhythmCoordinator* c) { return raw(c, nullptr); })));
+        Coordinator idle;
+        RequireSameCoordinatorResult(decoded, (idle.*wrapped)());
+    }
+}
+
+TEST_CASE("WB-26 the generated coordinator-result decoder reads every contract field") {
+    auto decoded = generated::CoordinatorResultFromJson(nlohmann::json::parse(R"({
+        "ok": false,
+        "error_kind": "playback_failed",
+        "error_message": "设备不可用",
+        "current_track": {"id": 42, "source_type": "local", "file_path": "C:/m/a.wav", "title": "曲目"},
+        "playback_active": true
+    })"));
+
+    REQUIRE_FALSE(decoded.ok);
+    REQUIRE(decoded.errorKind == L"playback_failed");
+    REQUIRE(decoded.errorMessage == L"设备不可用");
+    REQUIRE(decoded.currentTrack.has_value());
+    REQUIRE(decoded.currentTrack->id == 42);
+    REQUIRE(decoded.currentTrack->title == L"曲目");
+    REQUIRE(decoded.currentTrack->filePath == L"C:/m/a.wav");
+    REQUIRE(decoded.playbackActive);
+
+    // A success carries no error pair: both stay empty rather than "".
+    auto success = generated::CoordinatorResultFromJson(
+        nlohmann::json::parse(R"({"ok": true, "playback_active": false})"));
+    REQUIRE(success.ok);
+    REQUIRE_FALSE(success.errorKind.has_value());
+    REQUIRE_FALSE(success.errorMessage.has_value());
+    REQUIRE_FALSE(success.currentTrack.has_value());
+    REQUIRE_FALSE(success.playbackActive);
+}
+
 // ─── WB-12/13 ResolverStatus ────────────────────────────────────────
 
 TEST_CASE("WB-12 StatusText renders every phase") {

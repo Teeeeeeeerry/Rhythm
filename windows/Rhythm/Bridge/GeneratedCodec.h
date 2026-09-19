@@ -226,5 +226,33 @@ inline json ResolveResultToJson(const ResolveResult& t) {
     return j;
 }
 
+/// Decode a CoordinatorResult from the core's snake_case JSON (contract #CoordinatorResult).
+inline CoordinatorResult CoordinatorResultFromJson(const json& j) {
+    CoordinatorResult t;
+    t.ok = j.value("ok", false);
+    if (j.contains("error_kind") && !j["error_kind"].is_null()) {
+        t.errorKind = Utf8ToWide(j["error_kind"].get<std::string>());
+    }
+    if (j.contains("error_message") && !j["error_message"].is_null()) {
+        t.errorMessage = Utf8ToWide(j["error_message"].get<std::string>());
+    }
+    if (j.contains("current_track") && !j["current_track"].is_null()) {
+        t.currentTrack = TrackFromJson(j["current_track"]);
+    }
+    t.playbackActive = j.value("playback_active", false);
+    return t;
+}
+
+/// Encode a CoordinatorResult with snake_case keys (contract #CoordinatorResult).
+inline json CoordinatorResultToJson(const CoordinatorResult& t) {
+    json j;
+    j["ok"] = t.ok;
+    if (t.errorKind) j["error_kind"] = WideToUtf8(*t.errorKind);
+    if (t.errorMessage) j["error_message"] = WideToUtf8(*t.errorMessage);
+    if (t.currentTrack) j["current_track"] = TrackToJson(*t.currentTrack);
+    j["playback_active"] = t.playbackActive;
+    return j;
+}
+
 
 } // namespace rhythm::generated
