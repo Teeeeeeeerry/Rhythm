@@ -1,4 +1,4 @@
-// WB-01–19：Windows RhythmCore（Bridge 封装层）行为清单（manifest:
+// WB-01–27：Windows RhythmCore（Bridge 封装层）行为清单（manifest:
 // docs/testing/behavior/rhythmcore-windows.md）。零接缝：真 rhythm_core DLL
 //（WB-05/06/07/09/10/14 经 FFI 往返），纯函数直测（WB-12/13）。WB-01 的时长文案与 WB-02/03/04/20 的来源徽标
 // 已迁入视图状态（ViewStateTests.cpp VS-18～VS-25，#337/#338）。
@@ -341,6 +341,24 @@ TEST_CASE("WB-24 the generated resolve-result decoder reads every contract field
         {L"Referer", L"https://www.bilibili.com/video/x"}});
     REQUIRE(decoded.errorKind == L"timeout");
     REQUIRE(decoded.errorMessage == L"slow");
+}
+
+// ─── WB-27 解析出的曲目形状（#364）──────────────────────────────────
+
+TEST_CASE("WB-27 a resolved URL becomes an unsaved, available track that keeps the page URL") {
+    auto outcome = Resolver::ResolveURL(L"https://example.com/wb27.mp3");
+    REQUIRE(outcome.ok);
+
+    // What the core resolved, plus the pasted page URL -- nothing else.
+    Track expected;
+    expected.id = -1;  // not in the library yet
+    expected.sourceType = L"direct_url";
+    expected.sourceUrl = L"https://example.com/wb27.mp3";
+    expected.title = L"wb27.mp3";
+    expected.duration = 0.0;
+    REQUIRE(outcome.track.id == -1);
+    REQUIRE(outcome.track.isAvailable);
+    REQUIRE(outcome.track == expected);
 }
 
 // ─── WB-25/26 协调器结果由生成物解码（#363）─────────────────────────

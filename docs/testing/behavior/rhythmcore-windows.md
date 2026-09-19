@@ -1,6 +1,7 @@
 # Windows RhythmCore（Bridge 封装层）行为清单
 
 - 模块：`windows/Rhythm/Bridge/RhythmCore.h` + `.cpp`（FFI 包装类、Track 模型、Resolver 静态封装、UTF-8/UTF-16 转换；来源徽标与时长文案已迁入视图状态，见 `windows-viewstate.md`）
+- #364 起：解析结果与协调器结果的字段一律由生成物解码（`generated::ResolveResultFromJson` / `CoordinatorResultFromJson`），桥接层只保留解码器做不了的调用点校验（无载荷、JSON 不合法、成功却无载荷）
 - 历史回归：`#21`（解析失败原因）、`#39`（URL 持久化）、F1（来源徽标色双主题——`testing/l1/windows/source_color_test.cpp` 为该修复的验收测试，`#122` 已解除自声明桩；#338 起直测视图状态的 `SourceBadgeOf`）
 - 测试设施：Catch2 v3.5.4 header-only（`windows/tests/vendor/`）；测试 main 已 `init_apartment`（Brush 构造可用）；测试文件 `windows/tests/BridgeBehaviorTests.cpp`。
 
@@ -29,12 +30,13 @@
 | WB-24 | 解析结果的契约字段全部被解码（#362） | 每个字段都有值的载荷：`ok`、`resolved` 的七个字段（含 `stream_url`、`thumbnail_url`、`http_headers`）、`error_kind`、`error_message` 逐一还原 | 新测 |
 | WB-25 | 协调器结果由生成物解码（#363） | 同一输入分别交给裸核心协调器与 `Coordinator` 包装：无位置曲目（`no_playable_location`）、文件缺失、真实 wav（有设备时成功带当前曲目，无设备时 `playback_failed`）三种起播，外加空闲时的切换、下一首、上一首；生成的 `CoordinatorResultFromJson` 与包装结果逐字段一致（`ok`、`errorKind`、`errorMessage`、`currentTrack` 整条曲目、`playbackActive`）。当前曲目有值只出现在有音频设备时的真实 wav 起播，无设备机器上由 WB-26 覆盖曲目解码。只比对格式合法的核心载荷：空载荷与 JSON 不合法时报 `internal` 属于调用点校验而非解码，由包装保留（#364 改调生成物时不变） | 新测（真 core） |
 | WB-26 | 协调器结果的契约字段全部被解码（#363） | 每个字段都有值的载荷：`ok`、`error_kind`、`error_message`、`current_track`（经曲目解码）、`playback_active` 逐一还原；成功载荷的错误两项与当前曲目解码为空（`std::optional`，与契约一致），不是空串 | 新测 |
+| WB-27 | 解析出的曲目形状（#364） | 直链解析成功后 `outcome.track` 恰为：`id == -1`（未入库）、来源类型/标题/艺人/时长取自核心、`sourceUrl` 为粘贴的页面 URL、其余取模型缺省（`isAvailable` 为真；`id` 与可用性同 macOS 与核心自建的解析曲目，macOS 另有空标题回退为 URL，Windows 未做）。此前把解析载荷整个当曲目解码，留下 `id 0` 并把曲目标为不可用，入库后数据库里 `is_available = 0` | 新测（真 core，先红后绿） |
 
 ## 边界情况（P1）
 
 | 编号 | 行为 | 断言 | 状态 |
 |---|---|---|---|
-| WB-15 | `ResolveURL` malformed JSON | `ok=false`、kind=internal、消息含 "Malformed resolver response"（分支现状不可达：core 自产 payload 恒可解；测试锁定 core payload 恒解码） | 新测（待 Windows 验证） |
+| WB-15 | `ResolveURL` malformed JSON | `ok=false`、kind=internal、消息含 "Malformed resolver response"（分支现状不可达：core 自产 payload 恒可解；测试锁定 core payload 恒解码）；成功却无 `resolved` 报 `internal` 同为调用点校验、现状不可达（#364 起与解码分开，解码走生成物） | 新测（待 Windows 验证） |
 | WB-16 | `ParseTrackList` 空/null 输入 | 返回空列表，不崩溃（null 分支不可达：FFI 空库返回 `"[]"` 非 null；经 `AllTracks` 黑盒锁定空库 → 空列表） | 新测（待 Windows 验证） |
 | WB-18 | `Coordinator::SyncQueue` 空队列 | 不崩溃；之后起播结果与非空队列一致（队列序列化为合法空数组，#416） | 新测 |
 | WB-19 | 协调器绑定打开失败的 `Library` | 句柄为空；起播/传输/同步调用安全返回、不崩溃（#416） | 新测 |

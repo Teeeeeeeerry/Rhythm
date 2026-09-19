@@ -12,6 +12,7 @@
 - #244 起：旧魔数导入导出 `rhythm_library_import` 与 `rhythm_library_import_file` 删除，资料库导入路径的魔数返回码清零；FF-03/FF-04 归档
 - #362 起：契约字段类型可引用枚举（按字符串传输）与先声明的对象；解析结果 `resolve_result` 由名字清单改为带类型的对象声明。Windows 生成物的范围取自契约本身（声明即生成，不再另列清单），新增 `ResolvedUrl` / `ResolveResult` 编解码；macOS 生成物不变。生成器自测见 `testing/l0/tests/test_gen_ffi_bindings.py`，Windows 端解码断言见 `rhythmcore-windows.md` WB-23/WB-24
 - #363 起：协调器结果 `coordinator_result` 同样改为带类型的对象声明（`current_track` 引用曲目对象），`results` 段删除——契约里除版本、说明与枚举表外的每个条目都是生成的对象（生成器自测锁定）。Windows 新增 `CoordinatorResult` 编解码，模型的错误两项随契约改为可缺省。协调器的错误分类（核心 `CoordinatorErrorKind`）不在契约枚举表里，按 #323「不改枚举取值」的约束 `error_kind` 以 `string?` 声明，纳入枚举表另议；解码断言见 `rhythmcore-windows.md` WB-25/WB-26
+- #364 起：Windows 桥接层删除解析结果与协调器结果的两段手写解码，`Resolver::ResolveURL` 与协调器各调用点改调生成物；两个结果对象加字段时解码不必手改（解析结果转成曲目的那一步仍是桥接层的模型转换）。解析出的曲目由 `ResolvedUrl` 显式构造（未入库 `id -1`、可用），不再把解析载荷当曲目解码
 - 历史回归：`#21`（解析失败只有 null、无原因）
 - 测试途径：`cargo test` 集成测试（现有 `player_ffi.rs` 模式扩展）；library/queue/resolver 部分链接真实现 + 临时库；无需接缝。
 
