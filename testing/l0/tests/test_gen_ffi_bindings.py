@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""scripts/gen-ffi-bindings.py 的 C++ 编码侧测试（零依赖，stdlib unittest）。
+"""scripts/gen-ffi-bindings.py 的 C++ 生成物测试（零依赖，stdlib unittest）。
 
-只断言外部行为：给定一组字段类型，生成的编码函数对每个字段产出什么形状。
+只断言外部行为：给定一份契约，生成哪些对象的编解码、每个字段产出什么形状。
 不断言生成器内部如何分派。
 
 用法：python3 -m unittest discover -s testing/l0/tests
@@ -37,13 +37,16 @@ EVERY_TYPE = {
     "headers": "map",
 }
 
+# EVERY_TYPE 所在的契约：只需声明它引用的枚举。
+EVERY_TYPE_SCHEMA = {"enums": {"source_type": ["local", "direct_url"]}}
+
 
 class CppEncoderShapeTests(unittest.TestCase):
     """#360：编码器按字段声明类型分派，只有字符串走宽字符串转换。"""
 
     def setUp(self):
-        self.lines = [line.strip() for line in
-                      gen.cpp_encode_object("Sample", EVERY_TYPE, "Sample").splitlines()]
+        encoder = gen.cpp_encode_object("Sample", EVERY_TYPE, "Sample", EVERY_TYPE_SCHEMA)
+        self.lines = [line.strip() for line in encoder.splitlines()]
 
     def assertLine(self, expected: str):
         self.assertIn(expected, self.lines)
@@ -73,7 +76,7 @@ class CppEncoderShapeTests(unittest.TestCase):
 
     def test_real_contract_track_encoder_converts_no_numeric_optional(self):
         schema = gen.load_schema()
-        encoder = gen.cpp_encode_object("Track", schema["track"], "Track")
+        encoder = gen.cpp_encode_object("Track", schema["track"], "Track", schema)
         for key, t in schema["track"].items():
             if t in ("i32?", "i64?", "f64?", "bool?"):
                 self.assertNotIn(f'j["{key}"] = WideToUtf8(', encoder, key)
@@ -88,7 +91,8 @@ class CppEncodeDispatchTests(unittest.TestCase):
 
     def test_optional_field_encodes_like_its_required_counterpart(self):
         lines = [line.strip() for line in
-                 gen.cpp_encode_object("Sample", EVERY_TYPE, "Sample").splitlines()]
+                 gen.cpp_encode_object("Sample", EVERY_TYPE, "Sample",
+                                       EVERY_TYPE_SCHEMA).splitlines()]
         for required, maybe in self.PAIRS.items():
             required_rhs = next(l for l in lines if l.startswith(f'j["{required}"] = '))
             optional_rhs = next(l for l in lines if l.startswith(f"if (t.{maybe}) "))
@@ -99,7 +103,7 @@ class CppEncodeDispatchTests(unittest.TestCase):
     def test_unsupported_type_is_rejected_in_both_branches(self):
         for t in ("blob", "blob?"):
             with self.assertRaises(SystemExit):
-                gen.cpp_encode_object("Sample", {"x": t}, "Sample")
+                gen.cpp_encode_object("Sample", {"x": t}, "Sample", EVERY_TYPE_SCHEMA)
 
 
 class CppIncludesTests(unittest.TestCase):
@@ -138,7 +142,68 @@ class CppIncludesTests(unittest.TestCase):
                 if not line.startswith("#include")]
         self.assertIn("namespace rhythm::generated {", body)
         self.assertIn("inline Track TrackFromJson(const json& j) {", body)
-        self.assertEqual(sum(1 for line in body if line.startswith("inline ")), 8)
+        # 每个契约对象一个解码、一个编码。
+        self.assertEqual(sum(1 for line in body if line.startswith("inline ")),
+                         2 * len(gen.cpp_objects(schema)))
+
+
+# 一份最小契约：一个枚举、一个被引用的对象、一个引用它的对象。
+MINI_CONTRACT = {
+    "version": 1,
+    "doc": "mini",
+    "enums": {"shade": ["light", "dark"]},
+    "inner": {"n": "i32"},
+    "outer": {
+        "shade": "shade",
+        "maybe_shade": "shade?",
+        "inner": "inner?",
+    },
+}
+
+
+class CppContractScopeTests(unittest.TestCase):
+    """#362：生成范围取自契约——声明了的对象都有编解码，不再有另写的清单。"""
+
+    def test_every_declared_object_gets_a_decoder_and_an_encoder(self):
+        cpp = gen.gen_cpp(MINI_CONTRACT)
+        for model in ("Inner", "Outer"):
+            self.assertIn(f"inline {model} {model}FromJson(const json& j) {{", cpp)
+            self.assertIn(f"inline json {model}ToJson(const {model}& t) {{", cpp)
+
+    def test_real_contract_generates_the_resolve_result(self):
+        cpp = gen.gen_cpp(gen.load_schema())
+        for model in ("ResolvedUrl", "ResolveResult"):
+            self.assertIn(f"inline {model} {model}FromJson(const json& j) {{", cpp)
+            self.assertIn(f"inline json {model}ToJson(const {model}& t) {{", cpp)
+
+    def test_a_non_object_entry_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            gen.gen_cpp({**MINI_CONTRACT, "stray": ["a", "b"]})
+
+
+class CppReferenceTypeTests(unittest.TestCase):
+    """#362：字段可引用契约里的对象与枚举。"""
+
+    def setUp(self):
+        self.lines = [line.strip() for line in gen.gen_cpp(MINI_CONTRACT).splitlines()]
+
+    def test_object_field_goes_through_the_referenced_codec(self):
+        self.assertIn('t.inner = InnerFromJson(j["inner"]);', self.lines)
+        self.assertIn('if (t.inner) j["inner"] = InnerToJson(*t.inner);', self.lines)
+
+    def test_enum_fields_travel_as_strings(self):
+        self.assertIn('t.maybeShade = Utf8ToWide(j["maybe_shade"].get<std::string>());', self.lines)
+        self.assertIn('j["shade"] = WideToUtf8(t.shade);', self.lines)
+        self.assertIn('if (t.maybeShade) j["maybe_shade"] = WideToUtf8(*t.maybeShade);', self.lines)
+
+    def test_a_missing_required_enum_decodes_to_its_first_value(self):
+        self.assertIn('t.shade = Utf8ToWide(j.value("shade", std::string("light")));', self.lines)
+
+    def test_an_object_must_be_declared_before_it_is_referenced(self):
+        backwards = {"version": 1, "doc": "", "enums": {},
+                     "outer": {"inner": "inner?"}, "inner": {"n": "i32"}}
+        with self.assertRaises(SystemExit):
+            gen.gen_cpp(backwards)
 
 
 if __name__ == "__main__":
