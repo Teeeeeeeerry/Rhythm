@@ -47,7 +47,12 @@ def is_enum(schema: dict, t: str) -> bool:
 
 def is_object_ref(schema: dict, t: str) -> bool:
     """A field type naming another contract object (#362)."""
-    return t in schema and t not in NON_OBJECT_KEYS
+    return t in contract_object_keys(schema)
+
+
+def contract_object_keys(schema: dict) -> list[str]:
+    """The contract's object keys, in contract order."""
+    return [key for key in schema if key not in NON_OBJECT_KEYS]
 
 
 # ─── Swift codec ─────────────────────────────────────────────────────
@@ -309,9 +314,8 @@ def cpp_objects(schema: dict) -> list[tuple[str, dict]]:
     """
     objects: list[tuple[str, dict]] = []
     declared: set[str] = set()
-    for key, fields in schema.items():
-        if key in NON_OBJECT_KEYS:
-            continue
+    for key in contract_object_keys(schema):
+        fields = schema[key]
         if not isinstance(fields, dict) or not all(isinstance(t, str) for t in fields.values()):
             raise SystemExit(f"contract entry {key} is not an object of field types")
         for field, t in fields.items():
@@ -344,6 +348,35 @@ def cpp_includes(objects: list[tuple[str, dict]]) -> list[str]:
     return [f"#include {h}" if h else "" for h in includes]
 
 
+def cpp_field_visitor(name: str, fields: dict, model: str) -> str:
+    """One call per declared field, with the model member it maps to (#365)."""
+    lines = [
+        f"/// Visit every contract field of a {name} as visit(contract key, member) (#365).",
+        "template <typename Visit>",
+        f"void ForEachField({model}& t, Visit&& visit) {{",
+    ]
+    for key in fields:
+        lines.append(f"    visit(\"{key}\", t.{camel(key)});")
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def cpp_object_visitor(schema: dict) -> str:
+    """One call per contract object, in contract order (#365)."""
+    lines = [
+        "/// Every contract object's codec in contract order, as visit(contract key,",
+        "/// decoder, encoder) (#365). Cover every object by walking this list rather",
+        "/// than naming them: an object added to the contract joins on regeneration.",
+        "template <typename Visit>",
+        "void ForEachContractObject(Visit&& visit) {",
+    ]
+    for key in contract_object_keys(schema):
+        model = pascal(key)
+        lines.append(f"    visit(\"{key}\", {model}FromJson, {model}ToJson);")
+    lines.append("}")
+    return "\n".join(lines)
+
+
 def gen_cpp(schema: dict) -> str:
     objects = cpp_objects(schema)
     # The template contains literal braces, so substitute rather than format.
@@ -353,6 +386,9 @@ def gen_cpp(schema: dict) -> str:
         out.append("")
         out.append(cpp_encode_object(name, fields, name, schema))
         out.append("")
+        out.append(cpp_field_visitor(name, fields, name))
+        out.append("")
+    out.append(cpp_object_visitor(schema))
     out.append(CPP_FOOTER)
     return "\n".join(out)
 

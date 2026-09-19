@@ -36,7 +36,8 @@ struct Track {
     std::optional<std::wstring> artworkPath;
     bool isAvailable = true;
 
-    /// Field-by-field equality: results decoded two ways must agree (#363).
+    /// Field-by-field equality, as for every contract model: results decoded
+    /// two ways must agree (#363), a round trip must give the object back (#365).
     bool operator==(const Track&) const = default;
 };
 
@@ -60,6 +61,8 @@ struct M3u8Entry {
     std::wstring title;
     std::optional<std::wstring> artist;
     std::wstring location;
+
+    bool operator==(const M3u8Entry&) const = default;
 };
 
 /// Write tracks to an M3U8 file through the core (#428: the view used to
@@ -72,6 +75,8 @@ bool ExportM3U8(const std::wstring& path, const std::vector<Track>& tracks);
 struct M3u8ImportOutcome {
     int32_t imported = 0;
     int32_t failed = 0;
+
+    bool operator==(const M3u8ImportOutcome&) const = default;
 };
 
 /// Named outcome of a library import (#237): stored / skipped as an
@@ -82,6 +87,8 @@ struct ImportOutcome {
     int32_t imported = 0;
     int32_t unsupported = 0;
     int32_t failed = 0;
+
+    bool operator==(const ImportOutcome&) const = default;
 };
 
 struct Playlist {
@@ -149,6 +156,8 @@ struct CoordinatorResult {
     /// Whether playback is active (engine Playing/Buffering) after the
     /// operation — what the UI should render for `IsPlaying`.
     bool playbackActive = false;
+
+    bool operator==(const CoordinatorResult&) const = default;
 };
 
 /// The playback surface `AppState` orchestrates against (parent issue #165):
@@ -240,6 +249,8 @@ struct ResolvedUrl {
     std::optional<std::wstring> thumbnailUrl;
     /// Headers the CDN requires on every request for `streamUrl`.
     std::map<std::wstring, std::wstring> httpHeaders;
+
+    bool operator==(const ResolvedUrl&) const = default;
 };
 
 /// The core's structured resolve result (#176) as it crosses the seam:
@@ -251,6 +262,8 @@ struct ResolveResult {
     std::optional<ResolvedUrl> resolved;
     std::optional<std::wstring> errorKind;
     std::optional<std::wstring> errorMessage;
+
+    bool operator==(const ResolveResult&) const = default;
 };
 
 /// Outcome of a URL resolution: either a playable track, or why it failed.

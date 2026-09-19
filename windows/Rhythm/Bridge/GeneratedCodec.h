@@ -110,6 +110,34 @@ inline json TrackToJson(const Track& t) {
     return j;
 }
 
+/// Visit every contract field of a Track as visit(contract key, member) (#365).
+template <typename Visit>
+void ForEachField(Track& t, Visit&& visit) {
+    visit("id", t.id);
+    visit("file_path", t.filePath);
+    visit("source_type", t.sourceType);
+    visit("source_url", t.sourceUrl);
+    visit("title", t.title);
+    visit("artist", t.artist);
+    visit("album", t.album);
+    visit("album_artist", t.albumArtist);
+    visit("track_number", t.trackNumber);
+    visit("disc_number", t.discNumber);
+    visit("genre", t.genre);
+    visit("year", t.year);
+    visit("duration", t.duration);
+    visit("format", t.format);
+    visit("bitrate", t.bitrate);
+    visit("sample_rate", t.sampleRate);
+    visit("channels", t.channels);
+    visit("file_size", t.fileSize);
+    visit("date_added", t.dateAdded);
+    visit("last_played", t.lastPlayed);
+    visit("play_count", t.playCount);
+    visit("artwork_path", t.artworkPath);
+    visit("is_available", t.isAvailable);
+}
+
 /// Decode a M3u8Entry from the core's snake_case JSON (contract #M3u8Entry).
 inline M3u8Entry M3u8EntryFromJson(const json& j) {
     M3u8Entry t;
@@ -130,6 +158,14 @@ inline json M3u8EntryToJson(const M3u8Entry& t) {
     return j;
 }
 
+/// Visit every contract field of a M3u8Entry as visit(contract key, member) (#365).
+template <typename Visit>
+void ForEachField(M3u8Entry& t, Visit&& visit) {
+    visit("title", t.title);
+    visit("artist", t.artist);
+    visit("location", t.location);
+}
+
 /// Decode a M3u8ImportOutcome from the core's snake_case JSON (contract #M3u8ImportOutcome).
 inline M3u8ImportOutcome M3u8ImportOutcomeFromJson(const json& j) {
     M3u8ImportOutcome t;
@@ -144,6 +180,13 @@ inline json M3u8ImportOutcomeToJson(const M3u8ImportOutcome& t) {
     j["imported"] = t.imported;
     j["failed"] = t.failed;
     return j;
+}
+
+/// Visit every contract field of a M3u8ImportOutcome as visit(contract key, member) (#365).
+template <typename Visit>
+void ForEachField(M3u8ImportOutcome& t, Visit&& visit) {
+    visit("imported", t.imported);
+    visit("failed", t.failed);
 }
 
 /// Decode a ImportOutcome from the core's snake_case JSON (contract #ImportOutcome).
@@ -162,6 +205,14 @@ inline json ImportOutcomeToJson(const ImportOutcome& t) {
     j["unsupported"] = t.unsupported;
     j["failed"] = t.failed;
     return j;
+}
+
+/// Visit every contract field of a ImportOutcome as visit(contract key, member) (#365).
+template <typename Visit>
+void ForEachField(ImportOutcome& t, Visit&& visit) {
+    visit("imported", t.imported);
+    visit("unsupported", t.unsupported);
+    visit("failed", t.failed);
 }
 
 /// Decode a ResolvedUrl from the core's snake_case JSON (contract #ResolvedUrl).
@@ -200,6 +251,18 @@ inline json ResolvedUrlToJson(const ResolvedUrl& t) {
     return j;
 }
 
+/// Visit every contract field of a ResolvedUrl as visit(contract key, member) (#365).
+template <typename Visit>
+void ForEachField(ResolvedUrl& t, Visit&& visit) {
+    visit("title", t.title);
+    visit("artist", t.artist);
+    visit("stream_url", t.streamUrl);
+    visit("duration", t.duration);
+    visit("source_type", t.sourceType);
+    visit("thumbnail_url", t.thumbnailUrl);
+    visit("http_headers", t.httpHeaders);
+}
+
 /// Decode a ResolveResult from the core's snake_case JSON (contract #ResolveResult).
 inline ResolveResult ResolveResultFromJson(const json& j) {
     ResolveResult t;
@@ -224,6 +287,15 @@ inline json ResolveResultToJson(const ResolveResult& t) {
     if (t.errorKind) j["error_kind"] = WideToUtf8(*t.errorKind);
     if (t.errorMessage) j["error_message"] = WideToUtf8(*t.errorMessage);
     return j;
+}
+
+/// Visit every contract field of a ResolveResult as visit(contract key, member) (#365).
+template <typename Visit>
+void ForEachField(ResolveResult& t, Visit&& visit) {
+    visit("ok", t.ok);
+    visit("resolved", t.resolved);
+    visit("error_kind", t.errorKind);
+    visit("error_message", t.errorMessage);
 }
 
 /// Decode a CoordinatorResult from the core's snake_case JSON (contract #CoordinatorResult).
@@ -254,5 +326,28 @@ inline json CoordinatorResultToJson(const CoordinatorResult& t) {
     return j;
 }
 
+/// Visit every contract field of a CoordinatorResult as visit(contract key, member) (#365).
+template <typename Visit>
+void ForEachField(CoordinatorResult& t, Visit&& visit) {
+    visit("ok", t.ok);
+    visit("error_kind", t.errorKind);
+    visit("error_message", t.errorMessage);
+    visit("current_track", t.currentTrack);
+    visit("playback_active", t.playbackActive);
+}
+
+/// Every contract object's codec in contract order, as visit(contract key,
+/// decoder, encoder) (#365). Cover every object by walking this list rather
+/// than naming them: an object added to the contract joins on regeneration.
+template <typename Visit>
+void ForEachContractObject(Visit&& visit) {
+    visit("track", TrackFromJson, TrackToJson);
+    visit("m3u8_entry", M3u8EntryFromJson, M3u8EntryToJson);
+    visit("m3u8_import_outcome", M3u8ImportOutcomeFromJson, M3u8ImportOutcomeToJson);
+    visit("import_outcome", ImportOutcomeFromJson, ImportOutcomeToJson);
+    visit("resolved_url", ResolvedUrlFromJson, ResolvedUrlToJson);
+    visit("resolve_result", ResolveResultFromJson, ResolveResultToJson);
+    visit("coordinator_result", CoordinatorResultFromJson, CoordinatorResultToJson);
+}
 
 } // namespace rhythm::generated
