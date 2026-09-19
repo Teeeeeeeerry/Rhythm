@@ -359,6 +359,7 @@ static std::string RawCoordinatorPayload(Call call) {
     return payload;
 }
 
+/// Every field of the two results, the whole current track included.
 static void RequireSameCoordinatorResult(const CoordinatorResult& decoded,
                                          const CoordinatorResult& wrapped) {
     REQUIRE(decoded.ok == wrapped.ok);
@@ -391,13 +392,20 @@ TEST_CASE("WB-25 the generated coordinator-result decoder agrees with Coordinato
         RequireSameCoordinatorResult(decoded, wrapped);
     }
 
-    // Idle toggle: an ok result with no track.
-    auto decoded = generated::CoordinatorResultFromJson(nlohmann::json::parse(
-        RawCoordinatorPayload([](RhythmCoordinator* c) {
-            return rhythm_coordinator_toggle_play_pause(c, nullptr);
-        })));
-    Coordinator idle;
-    RequireSameCoordinatorResult(decoded, idle.TogglePlayPause());
+    // Idle transport: ok results with no track.
+    using RawCall = char* (*)(RhythmCoordinator*, RhythmLibrary*);
+    using WrappedCall = CoordinatorResult (Coordinator::*)();
+    const std::pair<RawCall, WrappedCall> idleCalls[] = {
+        {rhythm_coordinator_toggle_play_pause, &Coordinator::TogglePlayPause},
+        {rhythm_coordinator_next, &Coordinator::Next},
+        {rhythm_coordinator_previous, &Coordinator::Previous},
+    };
+    for (const auto& [raw, wrapped] : idleCalls) {
+        auto decoded = generated::CoordinatorResultFromJson(nlohmann::json::parse(
+            RawCoordinatorPayload([raw](RhythmCoordinator* c) { return raw(c, nullptr); })));
+        Coordinator idle;
+        RequireSameCoordinatorResult(decoded, (idle.*wrapped)());
+    }
 }
 
 TEST_CASE("WB-26 the generated coordinator-result decoder reads every contract field") {
@@ -417,6 +425,15 @@ TEST_CASE("WB-26 the generated coordinator-result decoder reads every contract f
     REQUIRE(decoded.currentTrack->title == L"曲目");
     REQUIRE(decoded.currentTrack->filePath == L"C:/m/a.wav");
     REQUIRE(decoded.playbackActive);
+
+    // A success carries no error pair: both stay empty rather than "".
+    auto success = generated::CoordinatorResultFromJson(
+        nlohmann::json::parse(R"({"ok": true, "playback_active": false})"));
+    REQUIRE(success.ok);
+    REQUIRE_FALSE(success.errorKind.has_value());
+    REQUIRE_FALSE(success.errorMessage.has_value());
+    REQUIRE_FALSE(success.currentTrack.has_value());
+    REQUIRE_FALSE(success.playbackActive);
 }
 
 // ─── WB-12/13 ResolverStatus ────────────────────────────────────────
