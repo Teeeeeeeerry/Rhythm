@@ -11,6 +11,9 @@
   - `ResolveAndPlay` 与协调器事件经 `UiPost` 回到 UI 线程：应用由 `MainWindow` 把 WinUI DispatcherQueue 包成 `UiPost` 设入（#326，DispatcherQueue 不进行为库），测试用 `SetUiPost` 注入 `UiThread`（`TestHelpers.h`，专属线程队列；DispatcherQueue 是 Windows App Runtime 类，未打包的测试 exe 无法激活，#418），降级路径（未设 UI 线程）直接测
   - 接缝（#173）：AppState 的编排经 `ICoordinator` seam，测试注入 `SpyCoordinator`（`windows/tests/TestHelpers.h`，顺序队列模型镜像协调器契约）；原「无音频设备 SKIP」用例全部转确定性断言（真规则在 rust-core）
   - 测试文件：`windows/tests/AppStateBehaviorTests.cpp`（WA）与 `BridgeBehaviorTests.cpp`（WB）
+  - 临时目录夹具 `TempDir`（#455）：按进程号 + 进程内计数命名，已存在的名字跳过，不依赖计时器精度；清理失败在测试输出留一行。
+    用例里 `TempDir` 要先于 `AppState`/`Library` 声明（后析构），否则库还占着数据库文件、目录删不掉。
+    夹具自身的约定由 `windows/tests/TestFixtureTests.cpp` 锁定：TF-01 相邻两次构造得到不同的空目录；TF-02 目录先声明时作用域结束后不留残留
 
 ## 主路径（P0 — 合并门槛）
 

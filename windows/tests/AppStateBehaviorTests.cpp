@@ -34,11 +34,11 @@ TEST_CASE("WA-01 OpenDatabase creates the library and fills lists") {
 }
 
 TEST_CASE("WA-02 RefreshLibrary no-ops without a library and refreshes with one") {
+    TempDir dir; // #455: before AppState, so the database closes before cleanup
     AppState state;
     state.RefreshLibrary(); // no Library — must not crash
     REQUIRE(state.Tracks.empty());
 
-    TempDir dir;
     state.OpenDatabase(dir.dbPath());
     auto lib = state.Library.get();
     auto path = writeWavAt(dir.path, L"tone.wav");
@@ -53,11 +53,11 @@ TEST_CASE("WA-02 RefreshLibrary no-ops without a library and refreshes with one"
 // ─── WA-03 ImportDirectory ──────────────────────────────────────────
 
 TEST_CASE("WA-03 ImportDirectory imports and refreshes, no-ops without a library") {
+    TempDir dir; // #455: before AppState, so the database closes before cleanup
     AppState state;
     state.ImportDirectory(L"C:\\whatever"); // no Library — no-op
     REQUIRE(state.Tracks.empty());
 
-    TempDir dir;
     state.OpenDatabase(dir.dbPath());
     auto music = dir.path / L"music";
     fs::create_directories(music);

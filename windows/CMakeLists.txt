@@ -66,6 +66,8 @@ set(TEST_SOURCES
     tests/BridgeBehaviorTests.cpp
     tests/L10nTests.cpp
     tests/ViewStateTests.cpp
+    # #455: the fixtures' own contract (unique, cleanable temp directories).
+    tests/TestFixtureTests.cpp
 )
 
 # Catch2's own main() (catch_amalgamated.cpp): AppState is plain C++ (#326),
