@@ -36,6 +36,21 @@ def fields_of(schema: dict, name: str) -> dict:
     return schema[name]
 
 
+# Top-level contract keys that are not objects. `results` still holds the
+# coordinator result as a bare name list; #363 gives it field types.
+NON_OBJECT_KEYS = ("version", "doc", "enums", "results")
+
+
+def is_enum(schema: dict, t: str) -> bool:
+    """A field type naming a contract enum (travels as its string value)."""
+    return t in schema.get("enums", {})
+
+
+def is_object_ref(schema: dict, t: str) -> bool:
+    """A field type naming another contract object (#362)."""
+    return t in schema and t not in NON_OBJECT_KEYS
+
+
 # ─── Swift codec ─────────────────────────────────────────────────────
 
 SWIFT_HEADER = """// 本文件由 scripts/gen-ffi-bindings.py 从 contracts/ffi-contract.json 生成（#180）。
@@ -199,11 +214,9 @@ def pascal(key: str) -> str:
     return "".join(p[:1].upper() + p[1:] for p in key.split("_"))
 
 
-def cpp_decode_object(name: str, fields: dict, model: str, schema: dict | None = None) -> str:
+def cpp_decode_object(name: str, fields: dict, model: str, schema: dict) -> str:
     """Decoder for one contract object. Field types may name a contract enum
     (a string on the wire) or another contract object (#362)."""
-    schema = schema if schema is not None else load_schema()
-    enums = schema.get("enums", {})
     lines = [f"/// Decode a {name} from the core's snake_case JSON (contract #{name})."]
     lines.append(f"inline {model} {name}FromJson(const json& j) {{")
     lines.append(f"    {model} t;")
@@ -212,18 +225,18 @@ def cpp_decode_object(name: str, fields: dict, model: str, schema: dict | None =
         if t.endswith("?"):
             base = t[:-1]
             lines.append(f"    if (j.contains(\"{key}\") && !j[\"{key}\"].is_null()) {{")
-            if base == "string" or base in enums:
+            if base == "string" or is_enum(schema, base):
                 lines.append(f"        t.{prop} = Utf8ToWide(j[\"{key}\"].get<std::string>());")
             elif base in ("i32", "i64", "f64", "bool"):
                 lines.append(f"        t.{prop} = j[\"{key}\"].get<{cpp_type(base)}>();")
-            elif base in schema and base not in NON_OBJECT_KEYS:
+            elif is_object_ref(schema, base):
                 lines.append(f"        t.{prop} = {pascal(base)}FromJson(j[\"{key}\"]);")
             else:
                 raise SystemExit(f"unsupported cpp optional type {t} for {key}")
             lines.append("    }")
-        elif t == "string" or t in enums:
+        elif t == "string" or is_enum(schema, t):
             # A missing enum decodes to its first declared value.
-            default = enums[t][0] if t in enums else ""
+            default = schema["enums"][t][0] if is_enum(schema, t) else ""
             lines.append(f"    t.{prop} = Utf8ToWide(j.value(\"{key}\", std::string(\"{default}\")));")
         elif t == "i64":
             lines.append(f"    t.{prop} = j.value(\"{key}\", (int64_t)0);")
@@ -261,15 +274,14 @@ CPP_ENCODE = {
 def cpp_encode_expr(t: str, value: str, key: str, schema: dict) -> str:
     if t in CPP_ENCODE:
         return CPP_ENCODE[t].format(v=value)
-    if t in schema.get("enums", {}):
-        return f"WideToUtf8({value})"  # an enum travels as its string value
-    if t in schema and t not in NON_OBJECT_KEYS:
-        return f"{pascal(t)}ToJson({value})"  # another contract object (#362)
+    if is_enum(schema, t):
+        return f"WideToUtf8({value})"
+    if is_object_ref(schema, t):
+        return f"{pascal(t)}ToJson({value})"
     raise SystemExit(f"unsupported cpp type {t} for {key}")
 
 
-def cpp_encode_object(name: str, fields: dict, model: str, schema: dict | None = None) -> str:
-    schema = schema if schema is not None else load_schema()
+def cpp_encode_object(name: str, fields: dict, model: str, schema: dict) -> str:
     lines = [f"/// Encode a {name} with snake_case keys (contract #{name})."]
     lines.append(f"inline json {name}ToJson(const {model}& t) {{")
     lines.append("    json j;")
@@ -289,11 +301,6 @@ def cpp_encode_object(name: str, fields: dict, model: str, schema: dict | None =
     return "\n".join(lines)
 
 
-# Top-level contract keys that are not objects. `results` still holds the
-# coordinator result as a bare name list; #363 gives it field types.
-NON_OBJECT_KEYS = ("version", "doc", "enums", "results")
-
-
 def cpp_objects(schema: dict) -> list[tuple[str, dict]]:
     """The contract objects the C++ codec emits, in contract order (#362).
 
@@ -310,7 +317,7 @@ def cpp_objects(schema: dict) -> list[tuple[str, dict]]:
             raise SystemExit(f"contract entry {key} is not an object of field types")
         for field, t in fields.items():
             base = t.rstrip("?")
-            if base in schema and base not in NON_OBJECT_KEYS and base not in declared:
+            if is_object_ref(schema, base) and base not in declared:
                 raise SystemExit(f"{key}.{field} references {base}, declared later in the contract")
         objects.append((pascal(key), fields))
         declared.add(key)

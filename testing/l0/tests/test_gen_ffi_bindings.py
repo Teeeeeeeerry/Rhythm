@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""scripts/gen-ffi-bindings.py 的 C++ 编码侧测试（零依赖，stdlib unittest）。
+"""scripts/gen-ffi-bindings.py 的 C++ 生成物测试（零依赖，stdlib unittest）。
 
-只断言外部行为：给定一组字段类型，生成的编码函数对每个字段产出什么形状。
+只断言外部行为：给定一份契约，生成哪些对象的编解码、每个字段产出什么形状。
 不断言生成器内部如何分派。
 
 用法：python3 -m unittest discover -s testing/l0/tests
@@ -37,13 +37,16 @@ EVERY_TYPE = {
     "headers": "map",
 }
 
+# EVERY_TYPE 所在的契约：只需声明它引用的枚举。
+EVERY_TYPE_SCHEMA = {"enums": {"source_type": ["local", "direct_url"]}}
+
 
 class CppEncoderShapeTests(unittest.TestCase):
     """#360：编码器按字段声明类型分派，只有字符串走宽字符串转换。"""
 
     def setUp(self):
-        self.lines = [line.strip() for line in
-                      gen.cpp_encode_object("Sample", EVERY_TYPE, "Sample").splitlines()]
+        encoder = gen.cpp_encode_object("Sample", EVERY_TYPE, "Sample", EVERY_TYPE_SCHEMA)
+        self.lines = [line.strip() for line in encoder.splitlines()]
 
     def assertLine(self, expected: str):
         self.assertIn(expected, self.lines)
@@ -73,7 +76,7 @@ class CppEncoderShapeTests(unittest.TestCase):
 
     def test_real_contract_track_encoder_converts_no_numeric_optional(self):
         schema = gen.load_schema()
-        encoder = gen.cpp_encode_object("Track", schema["track"], "Track")
+        encoder = gen.cpp_encode_object("Track", schema["track"], "Track", schema)
         for key, t in schema["track"].items():
             if t in ("i32?", "i64?", "f64?", "bool?"):
                 self.assertNotIn(f'j["{key}"] = WideToUtf8(', encoder, key)
@@ -88,7 +91,8 @@ class CppEncodeDispatchTests(unittest.TestCase):
 
     def test_optional_field_encodes_like_its_required_counterpart(self):
         lines = [line.strip() for line in
-                 gen.cpp_encode_object("Sample", EVERY_TYPE, "Sample").splitlines()]
+                 gen.cpp_encode_object("Sample", EVERY_TYPE, "Sample",
+                                       EVERY_TYPE_SCHEMA).splitlines()]
         for required, maybe in self.PAIRS.items():
             required_rhs = next(l for l in lines if l.startswith(f'j["{required}"] = '))
             optional_rhs = next(l for l in lines if l.startswith(f"if (t.{maybe}) "))
@@ -99,7 +103,7 @@ class CppEncodeDispatchTests(unittest.TestCase):
     def test_unsupported_type_is_rejected_in_both_branches(self):
         for t in ("blob", "blob?"):
             with self.assertRaises(SystemExit):
-                gen.cpp_encode_object("Sample", {"x": t}, "Sample")
+                gen.cpp_encode_object("Sample", {"x": t}, "Sample", EVERY_TYPE_SCHEMA)
 
 
 class CppIncludesTests(unittest.TestCase):

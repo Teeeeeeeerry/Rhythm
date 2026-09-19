@@ -225,8 +225,8 @@ private:
 };
 
 /// What the core resolved a pasted URL to (mirror of the core's
-/// `ResolvedUrl`). Field list and codec come from contracts/ffi-contract.json
-/// (#362).
+/// `ResolvedUrl`). The fields mirror its declaration in
+/// contracts/ffi-contract.json; the codec is generated from it (#362).
 struct ResolvedUrl {
     std::wstring title;
     std::optional<std::wstring> artist;
@@ -240,8 +240,8 @@ struct ResolvedUrl {
 
 /// The core's structured resolve result (#176) as it crosses the seam:
 /// success payload + classified error in one return. `errorKind` is a
-/// `resolve_error_kind` value. Field list and codec come from
-/// contracts/ffi-contract.json (#362).
+/// `resolve_error_kind` value. The fields mirror its declaration in
+/// contracts/ffi-contract.json; the codec is generated from it (#362).
 struct ResolveResult {
     bool ok = false;
     std::optional<ResolvedUrl> resolved;
