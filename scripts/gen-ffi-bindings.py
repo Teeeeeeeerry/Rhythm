@@ -47,7 +47,12 @@ def is_enum(schema: dict, t: str) -> bool:
 
 def is_object_ref(schema: dict, t: str) -> bool:
     """A field type naming another contract object (#362)."""
-    return t in schema and t not in NON_OBJECT_KEYS
+    return t in contract_object_keys(schema)
+
+
+def contract_object_keys(schema: dict) -> list[str]:
+    """The contract's object keys, in contract order."""
+    return [key for key in schema if key not in NON_OBJECT_KEYS]
 
 
 # ─── Swift codec ─────────────────────────────────────────────────────
@@ -300,11 +305,6 @@ def cpp_encode_object(name: str, fields: dict, model: str, schema: dict) -> str:
     return "\n".join(lines)
 
 
-def contract_object_keys(schema: dict) -> list[str]:
-    """The contract's object keys, in contract order."""
-    return [key for key in schema if key not in NON_OBJECT_KEYS]
-
-
 def cpp_objects(schema: dict) -> list[tuple[str, dict]]:
     """The contract objects the C++ codec emits, in contract order (#362).
 
@@ -348,10 +348,21 @@ def cpp_includes(objects: list[tuple[str, dict]]) -> list[str]:
     return [f"#include {h}" if h else "" for h in includes]
 
 
+def cpp_field_visitor(name: str, fields: dict, model: str) -> str:
+    """One call per declared field, with the model member it maps to (#365)."""
+    lines = [
+        f"/// Visit every contract field of a {name} as visit(contract key, member) (#365).",
+        "template <typename Visit>",
+        f"void ForEachField({model}& t, Visit&& visit) {{",
+    ]
+    for key in fields:
+        lines.append(f"    visit(\"{key}\", t.{camel(key)});")
+    lines.append("}")
+    return "\n".join(lines)
+
+
 def cpp_object_visitor(schema: dict) -> str:
-    """One call per contract object (#365): a consumer that must cover every
-    object walks this list instead of naming them, so an object added to the
-    contract is covered as soon as the codec is regenerated."""
+    """One call per contract object, in contract order (#365)."""
     lines = [
         "/// Every contract object's codec in contract order, as visit(contract key,",
         "/// decoder, encoder) (#365). Cover every object by walking this list rather",
@@ -374,6 +385,8 @@ def gen_cpp(schema: dict) -> str:
         out.append(cpp_decode_object(name, fields, name, schema))
         out.append("")
         out.append(cpp_encode_object(name, fields, name, schema))
+        out.append("")
+        out.append(cpp_field_visitor(name, fields, name))
         out.append("")
     out.append(cpp_object_visitor(schema))
     out.append(CPP_FOOTER)

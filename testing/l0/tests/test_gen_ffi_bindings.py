@@ -185,10 +185,18 @@ class CppContractScopeTests(unittest.TestCase):
     def test_the_object_visitor_lists_every_declared_object(self):
         # #365：往返用例经这张表遍历对象；契约新增的对象重新生成后自动在列。
         lines = [line.strip() for line in gen.gen_cpp(MINI_CONTRACT).splitlines()]
-        self.assertIn('visit("inner", InnerFromJson, InnerToJson);', lines)
-        self.assertIn('visit("outer", OuterFromJson, OuterToJson);', lines)
-        self.assertLess(lines.index('visit("inner", InnerFromJson, InnerToJson);'),
-                        lines.index('visit("outer", OuterFromJson, OuterToJson);'))
+        for visit in ('visit("inner", InnerFromJson, InnerToJson);',
+                      'visit("outer", OuterFromJson, OuterToJson);'):
+            self.assertIn(visit, lines)
+
+    def test_each_object_visits_every_declared_field_with_its_member(self):
+        # #365：往返用例经它逐字段构造对象，不点名字段。
+        cpp = gen.gen_cpp(MINI_CONTRACT)
+        visitor = cpp[cpp.index("void ForEachField(Outer& t, Visit&& visit) {"):]
+        visitor = visitor[:visitor.index("}")]
+        for visit in ('visit("shade", t.shade);', 'visit("maybe_shade", t.maybeShade);',
+                      'visit("inner", t.inner);'):
+            self.assertIn(visit, visitor)
 
     def test_a_non_object_entry_is_rejected(self):
         with self.assertRaises(SystemExit):

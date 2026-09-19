@@ -85,7 +85,7 @@ target_link_libraries(RhythmTests PRIVATE RhythmBehavior)
 # #365: the round-trip suite reads the contract itself to learn which objects
 # exist, so an object added there is covered without editing the test.
 target_compile_definitions(RhythmTests PRIVATE
-    RHYTHM_FFI_CONTRACT="${CMAKE_CURRENT_SOURCE_DIR}/../contracts/ffi-contract.json")
+    RHYTHM_FFI_CONTRACT="${RHYTHM_REPO_ROOT}/contracts/ffi-contract.json")
 
 # Runtime dependencies (the core DLL) next to the test binary (#330).
 rhythm_copy_runtime_dlls(RhythmTests)
