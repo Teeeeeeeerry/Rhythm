@@ -182,6 +182,14 @@ class CppContractScopeTests(unittest.TestCase):
             self.assertIn(f"inline {model} {model}FromJson(const json& j) {{", functions, key)
             self.assertIn(f"inline json {model}ToJson(const {model}& t) {{", functions, key)
 
+    def test_the_object_visitor_lists_every_declared_object(self):
+        # #365：往返用例经这张表遍历对象；契约新增的对象重新生成后自动在列。
+        lines = [line.strip() for line in gen.gen_cpp(MINI_CONTRACT).splitlines()]
+        self.assertIn('visit("inner", InnerFromJson, InnerToJson);', lines)
+        self.assertIn('visit("outer", OuterFromJson, OuterToJson);', lines)
+        self.assertLess(lines.index('visit("inner", InnerFromJson, InnerToJson);'),
+                        lines.index('visit("outer", OuterFromJson, OuterToJson);'))
+
     def test_a_non_object_entry_is_rejected(self):
         with self.assertRaises(SystemExit):
             gen.gen_cpp({**MINI_CONTRACT, "stray": ["a", "b"]})

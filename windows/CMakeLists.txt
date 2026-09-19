@@ -68,6 +68,8 @@ set(TEST_SOURCES
     tests/ViewStateTests.cpp
     # #455: the fixtures' own contract (unique, cleanable temp directories).
     tests/TestFixtureTests.cpp
+    # #365: every contract object round-trips through the generated codec.
+    tests/ContractRoundTripTests.cpp
 )
 
 # Catch2's own main() (catch_amalgamated.cpp): AppState is plain C++ (#326),
@@ -79,6 +81,11 @@ target_include_directories(RhythmTests PRIVATE
 )
 
 target_link_libraries(RhythmTests PRIVATE RhythmBehavior)
+
+# #365: the round-trip suite reads the contract itself to learn which objects
+# exist, so an object added there is covered without editing the test.
+target_compile_definitions(RhythmTests PRIVATE
+    RHYTHM_FFI_CONTRACT="${CMAKE_CURRENT_SOURCE_DIR}/../contracts/ffi-contract.json")
 
 # Runtime dependencies (the core DLL) next to the test binary (#330).
 rhythm_copy_runtime_dlls(RhythmTests)

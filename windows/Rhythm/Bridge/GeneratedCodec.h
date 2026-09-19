@@ -254,5 +254,18 @@ inline json CoordinatorResultToJson(const CoordinatorResult& t) {
     return j;
 }
 
+/// Every contract object's codec in contract order, as visit(contract key,
+/// decoder, encoder) (#365). Cover every object by walking this list rather
+/// than naming them: an object added to the contract joins on regeneration.
+template <typename Visit>
+void ForEachContractObject(Visit&& visit) {
+    visit("track", TrackFromJson, TrackToJson);
+    visit("m3u8_entry", M3u8EntryFromJson, M3u8EntryToJson);
+    visit("m3u8_import_outcome", M3u8ImportOutcomeFromJson, M3u8ImportOutcomeToJson);
+    visit("import_outcome", ImportOutcomeFromJson, ImportOutcomeToJson);
+    visit("resolved_url", ResolvedUrlFromJson, ResolvedUrlToJson);
+    visit("resolve_result", ResolveResultFromJson, ResolveResultToJson);
+    visit("coordinator_result", CoordinatorResultFromJson, CoordinatorResultToJson);
+}
 
 } // namespace rhythm::generated
