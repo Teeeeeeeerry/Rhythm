@@ -138,7 +138,68 @@ class CppIncludesTests(unittest.TestCase):
                 if not line.startswith("#include")]
         self.assertIn("namespace rhythm::generated {", body)
         self.assertIn("inline Track TrackFromJson(const json& j) {", body)
-        self.assertEqual(sum(1 for line in body if line.startswith("inline ")), 8)
+        # 每个契约对象一个解码、一个编码。
+        self.assertEqual(sum(1 for line in body if line.startswith("inline ")),
+                         2 * len(gen.cpp_objects(schema)))
+
+
+# 一份最小契约：一个枚举、一个被引用的对象、一个引用它的对象。
+MINI_CONTRACT = {
+    "version": 1,
+    "doc": "mini",
+    "enums": {"shade": ["light", "dark"]},
+    "inner": {"n": "i32"},
+    "outer": {
+        "shade": "shade",
+        "maybe_shade": "shade?",
+        "inner": "inner?",
+    },
+}
+
+
+class CppContractScopeTests(unittest.TestCase):
+    """#362：生成范围取自契约——声明了的对象都有编解码，不再有另写的清单。"""
+
+    def test_every_declared_object_gets_a_decoder_and_an_encoder(self):
+        cpp = gen.gen_cpp(MINI_CONTRACT)
+        for model in ("Inner", "Outer"):
+            self.assertIn(f"inline {model} {model}FromJson(const json& j) {{", cpp)
+            self.assertIn(f"inline json {model}ToJson(const {model}& t) {{", cpp)
+
+    def test_real_contract_generates_the_resolve_result(self):
+        cpp = gen.gen_cpp(gen.load_schema())
+        for model in ("ResolvedUrl", "ResolveResult"):
+            self.assertIn(f"inline {model} {model}FromJson(const json& j) {{", cpp)
+            self.assertIn(f"inline json {model}ToJson(const {model}& t) {{", cpp)
+
+    def test_a_non_object_entry_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            gen.gen_cpp({**MINI_CONTRACT, "stray": ["a", "b"]})
+
+
+class CppReferenceTypeTests(unittest.TestCase):
+    """#362：字段可引用契约里的对象与枚举。"""
+
+    def setUp(self):
+        self.lines = [line.strip() for line in gen.gen_cpp(MINI_CONTRACT).splitlines()]
+
+    def test_object_field_goes_through_the_referenced_codec(self):
+        self.assertIn('t.inner = InnerFromJson(j["inner"]);', self.lines)
+        self.assertIn('if (t.inner) j["inner"] = InnerToJson(*t.inner);', self.lines)
+
+    def test_enum_fields_travel_as_strings(self):
+        self.assertIn('t.maybeShade = Utf8ToWide(j["maybe_shade"].get<std::string>());', self.lines)
+        self.assertIn('j["shade"] = WideToUtf8(t.shade);', self.lines)
+        self.assertIn('if (t.maybeShade) j["maybe_shade"] = WideToUtf8(*t.maybeShade);', self.lines)
+
+    def test_a_missing_required_enum_decodes_to_its_first_value(self):
+        self.assertIn('t.shade = Utf8ToWide(j.value("shade", std::string("light")));', self.lines)
+
+    def test_an_object_must_be_declared_before_it_is_referenced(self):
+        backwards = {"version": 1, "doc": "", "enums": {},
+                     "outer": {"inner": "inner?"}, "inner": {"n": "i32"}}
+        with self.assertRaises(SystemExit):
+            gen.gen_cpp(backwards)
 
 
 if __name__ == "__main__":

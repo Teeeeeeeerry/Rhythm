@@ -2,6 +2,7 @@
 
 #include "BehaviorPch.h"
 #include "L10n.h"
+#include <map>
 #include <rhythm_core.h>
 
 namespace rhythm {
@@ -221,6 +222,31 @@ private:
     RhythmCoordinator* ptr_ = nullptr;
     Library* library_ = nullptr;
     std::function<void(const std::wstring&)> handler_;
+};
+
+/// What the core resolved a pasted URL to (mirror of the core's
+/// `ResolvedUrl`). Field list and codec come from contracts/ffi-contract.json
+/// (#362).
+struct ResolvedUrl {
+    std::wstring title;
+    std::optional<std::wstring> artist;
+    std::wstring streamUrl;
+    double duration = 0.0;
+    std::wstring sourceType;
+    std::optional<std::wstring> thumbnailUrl;
+    /// Headers the CDN requires on every request for `streamUrl`.
+    std::map<std::wstring, std::wstring> httpHeaders;
+};
+
+/// The core's structured resolve result (#176) as it crosses the seam:
+/// success payload + classified error in one return. `errorKind` is a
+/// `resolve_error_kind` value. Field list and codec come from
+/// contracts/ffi-contract.json (#362).
+struct ResolveResult {
+    bool ok = false;
+    std::optional<ResolvedUrl> resolved;
+    std::optional<std::wstring> errorKind;
+    std::optional<std::wstring> errorMessage;
 };
 
 /// Outcome of a URL resolution: either a playable track, or why it failed.

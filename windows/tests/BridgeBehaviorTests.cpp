@@ -7,6 +7,7 @@
 
 #include "BehaviorPch.h"
 #include "Bridge/RhythmCore.h"
+#include "Bridge/GeneratedCodec.h"
 
 #include <catch_amalgamated.hpp>
 #include "TestHelpers.h"
@@ -280,6 +281,66 @@ TEST_CASE("WB-11 failures always carry the core's kind and message") {
     REQUIRE(first.errorKind == L"invalid_url");
     REQUIRE_FALSE(first.errorMessage.empty());
     REQUIRE(second.errorKind == L"invalid_url");
+}
+
+// ─── WB-23/24 解析结果由生成物解码（#362）───────────────────────────
+
+/// The core's raw resolve payload, freed on the way out.
+static std::string RawResolvePayload(const char* url) {
+    char* raw = rhythm_resolve_url(url);
+    REQUIRE(raw != nullptr);
+    std::string payload(raw);
+    rhythm_free_string(raw);
+    return payload;
+}
+
+TEST_CASE("WB-23 the generated resolve-result decoder agrees with ResolveURL field by field") {
+    for (const char* url : {"https://example.com/wb23-song.mp3", "not a url"}) {
+        INFO(url);
+        auto decoded = generated::ResolveResultFromJson(nlohmann::json::parse(RawResolvePayload(url)));
+        auto outcome = Resolver::ResolveURL(Utf8ToWide(url));
+
+        REQUIRE(decoded.ok == outcome.ok);
+        if (outcome.ok) {
+            REQUIRE(decoded.resolved.has_value());
+            REQUIRE(decoded.resolved->title == outcome.track.title);
+            REQUIRE(decoded.resolved->artist == outcome.track.artist);
+            REQUIRE(decoded.resolved->duration == outcome.track.duration);
+            REQUIRE(decoded.resolved->sourceType == outcome.track.sourceType);
+        } else {
+            REQUIRE_FALSE(decoded.resolved.has_value());
+            REQUIRE(decoded.errorKind == outcome.errorKind);
+            REQUIRE(decoded.errorMessage == outcome.errorMessage);
+        }
+    }
+}
+
+TEST_CASE("WB-24 the generated resolve-result decoder reads every contract field") {
+    auto decoded = generated::ResolveResultFromJson(nlohmann::json::parse(R"({
+        "ok": true,
+        "resolved": {
+            "title": "标题", "artist": "艺人",
+            "stream_url": "https://cdn.example.com/a.m4a", "duration": 12.5,
+            "source_type": "bilibili", "thumbnail_url": "https://img.example.com/a.jpg",
+            "http_headers": {"Referer": "https://www.bilibili.com/video/x"}
+        },
+        "error_kind": "timeout",
+        "error_message": "slow"
+    })"));
+
+    REQUIRE(decoded.ok);
+    REQUIRE(decoded.resolved.has_value());
+    const auto& r = *decoded.resolved;
+    REQUIRE(r.title == L"标题");
+    REQUIRE(r.artist == L"艺人");
+    REQUIRE(r.streamUrl == L"https://cdn.example.com/a.m4a");
+    REQUIRE(r.duration == 12.5);
+    REQUIRE(r.sourceType == L"bilibili");
+    REQUIRE(r.thumbnailUrl == L"https://img.example.com/a.jpg");
+    REQUIRE(r.httpHeaders == std::map<std::wstring, std::wstring>{
+        {L"Referer", L"https://www.bilibili.com/video/x"}});
+    REQUIRE(decoded.errorKind == L"timeout");
+    REQUIRE(decoded.errorMessage == L"slow");
 }
 
 // ─── WB-12/13 ResolverStatus ────────────────────────────────────────

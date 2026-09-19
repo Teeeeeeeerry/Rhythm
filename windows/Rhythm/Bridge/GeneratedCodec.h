@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 
@@ -160,6 +161,68 @@ inline json ImportOutcomeToJson(const ImportOutcome& t) {
     j["imported"] = t.imported;
     j["unsupported"] = t.unsupported;
     j["failed"] = t.failed;
+    return j;
+}
+
+/// Decode a ResolvedUrl from the core's snake_case JSON (contract #ResolvedUrl).
+inline ResolvedUrl ResolvedUrlFromJson(const json& j) {
+    ResolvedUrl t;
+    t.title = Utf8ToWide(j.value("title", std::string("")));
+    if (j.contains("artist") && !j["artist"].is_null()) {
+        t.artist = Utf8ToWide(j["artist"].get<std::string>());
+    }
+    t.streamUrl = Utf8ToWide(j.value("stream_url", std::string("")));
+    t.duration = j.value("duration", 0.0);
+    t.sourceType = Utf8ToWide(j.value("source_type", std::string("local")));
+    if (j.contains("thumbnail_url") && !j["thumbnail_url"].is_null()) {
+        t.thumbnailUrl = Utf8ToWide(j["thumbnail_url"].get<std::string>());
+    }
+    if (j.contains("http_headers") && !j["http_headers"].is_null()) {
+        for (const auto& [k, v] : j["http_headers"].items()) {
+            t.httpHeaders[Utf8ToWide(k)] = Utf8ToWide(v.get<std::string>());
+        }
+    }
+    return t;
+}
+
+/// Encode a ResolvedUrl with snake_case keys (contract #ResolvedUrl).
+inline json ResolvedUrlToJson(const ResolvedUrl& t) {
+    json j;
+    j["title"] = WideToUtf8(t.title);
+    if (t.artist) j["artist"] = WideToUtf8(*t.artist);
+    j["stream_url"] = WideToUtf8(t.streamUrl);
+    j["duration"] = t.duration;
+    j["source_type"] = WideToUtf8(t.sourceType);
+    if (t.thumbnailUrl) j["thumbnail_url"] = WideToUtf8(*t.thumbnailUrl);
+    for (const auto& [k, v] : t.httpHeaders) {
+        j["http_headers"][WideToUtf8(k)] = WideToUtf8(v);
+    }
+    return j;
+}
+
+/// Decode a ResolveResult from the core's snake_case JSON (contract #ResolveResult).
+inline ResolveResult ResolveResultFromJson(const json& j) {
+    ResolveResult t;
+    t.ok = j.value("ok", false);
+    if (j.contains("resolved") && !j["resolved"].is_null()) {
+        t.resolved = ResolvedUrlFromJson(j["resolved"]);
+    }
+    if (j.contains("error_kind") && !j["error_kind"].is_null()) {
+        t.errorKind = Utf8ToWide(j["error_kind"].get<std::string>());
+    }
+    if (j.contains("error_message") && !j["error_message"].is_null()) {
+        t.errorMessage = Utf8ToWide(j["error_message"].get<std::string>());
+    }
+    return t;
+}
+
+/// Encode a ResolveResult with snake_case keys (contract #ResolveResult).
+inline json ResolveResultToJson(const ResolveResult& t) {
+    json j;
+    j["ok"] = t.ok;
+    if (t.resolved) j["resolved"] = ResolvedUrlToJson(*t.resolved);
+    if (t.errorKind) j["error_kind"] = WideToUtf8(*t.errorKind);
+    if (t.errorMessage) j["error_message"] = WideToUtf8(*t.errorMessage);
     return j;
 }
 

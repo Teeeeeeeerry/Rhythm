@@ -10,6 +10,7 @@
 - #237 起：资料库导入结果具名结构 `ImportOutcome`（`imported`/`unsupported`/`failed` 三计数分开）进入契约声明 `import_outcome`，双端绑定由生成器产出；expand 阶段与旧魔数导出并存，双端行为未变
 - #239 起：三条导入路径的新导出落地（`rhythm_library_import_directory`/`_single_file`/`_paths`），返回同一结果形状；旧魔数导出仍并存，双端尚未切换
 - #244 起：旧魔数导入导出 `rhythm_library_import` 与 `rhythm_library_import_file` 删除，资料库导入路径的魔数返回码清零；FF-03/FF-04 归档
+- #362 起：契约字段类型可引用枚举（按字符串传输）与先声明的对象；解析结果 `resolve_result` 由名字清单改为带类型的对象声明。Windows 生成物的范围取自契约本身（声明即生成，不再另列清单），新增 `ResolvedUrl` / `ResolveResult` 编解码；macOS 生成物不变
 - 历史回归：`#21`（解析失败只有 null、无原因）
 - 测试途径：`cargo test` 集成测试（现有 `player_ffi.rs` 模式扩展）；library/queue/resolver 部分链接真实现 + 临时库；无需接缝。
 
