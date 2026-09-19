@@ -1,4 +1,4 @@
-// CR：契约编解码往返（manifest: docs/testing/behavior/ffi.md「契约编解码往返」，#365）。
+// CR：契约编解码往返（manifest: docs/testing/behavior/ffi.md「契约编解码往返」，#365/#366）。
 //
 // 用例里不写对象名也不写字段名：对象经生成物的 ForEachContractObject 遍历，字段经
 // ForEachField 逐个赋值；契约文件本身在运行时读入，作为「声明了哪些对象、哪些字段」的
@@ -40,10 +40,34 @@ std::set<std::string> DeclaredObjects() {
     return objects;
 }
 
-std::set<std::string> DeclaredFields(const std::string& object) {
+/// The object's declared fields whose type passes `keep`.
+template <typename Keep>
+std::set<std::string> FieldsWhere(const std::string& object, Keep keep) {
     std::set<std::string> fields;
-    for (const auto& [field, type] : Contract()[object].items()) fields.insert(field);
+    for (const auto& [field, type] : Contract()[object].items()) {
+        if (keep(type.get<std::string>())) fields.insert(field);
+    }
     return fields;
+}
+
+std::set<std::string> DeclaredFields(const std::string& object) {
+    return FieldsWhere(object, [](const std::string&) { return true; });
+}
+
+/// Declared optional (`?`, #366).
+std::set<std::string> OptionalFields(const std::string& object) {
+    return FieldsWhere(object, [](const std::string& type) { return type.ends_with('?'); });
+}
+
+/// Declared as optional integers (`i32?` / `i64?`, #366).
+std::set<std::string> IntegerOptionalFields(const std::string& object) {
+    return FieldsWhere(object, [](const std::string& type) { return type == "i32?" || type == "i64?"; });
+}
+
+/// `object` with each of `fields` set to an explicit null (#366).
+json WithNulls(json object, const std::set<std::string>& fields) {
+    for (const auto& field : fields) object[field] = nullptr;
+    return object;
 }
 
 std::set<std::string> Keys(const json& object) {
@@ -56,13 +80,15 @@ std::wstring Widen(const char* ascii) {
     return std::wstring(ascii, ascii + std::strlen(ascii));
 }
 
-/// Gives every member of a model a value, optionals included, and records the
-/// JSON the encoder must write for it. No value is what decoding a missing
-/// field yields, and numbers differ per field, so a dropped field or two
-/// fields of one type trading places cannot round-trip by accident.
-struct FullFiller {
+/// Gives every member of a model a value -- optionals too, unless told to
+/// leave them empty (#366) -- and records the JSON the encoder must write for
+/// it. No value is what decoding a missing field yields, and numbers differ
+/// per field, so a dropped field or two fields of one type trading places
+/// cannot round-trip by accident.
+struct Filler {
     json& expected;
     int& serial;
+    bool withOptionals = true;
 
     void operator()(const char* key, std::wstring& member) {
         member = Widen(key) + L"-值";
@@ -90,19 +116,57 @@ struct FullFiller {
     }
     template <typename T>
     void operator()(const char* key, std::optional<T>& member) {
+        if (!withOptionals) return;
         T value{};
         (*this)(key, value);
         member = std::move(value);
     }
     /// A field holding another contract object.
     template <typename Model>
-        requires requires(Model& model, FullFiller& filler) { generated::ForEachField(model, filler); }
+        requires requires(Model& model, Filler& filler) { generated::ForEachField(model, filler); }
     void operator()(const char* key, Model& member) {
         json nested = json::object();
-        FullFiller inner{nested, serial};
+        Filler inner{nested, serial, withOptionals};
         generated::ForEachField(member, inner);
         expected[key] = nested;
     }
+};
+
+/// A model with only its required fields set, and the JSON that encodes it.
+template <typename Model>
+Model RequiredOnly(json& expected) {
+    Model object{};
+    expected = json::object();
+    int serial = 0;
+    Filler filler{.expected = expected, .serial = serial, .withOptionals = false};
+    generated::ForEachField(object, filler);
+    return object;
+}
+
+/// Reads every integer optional member of a model, keyed by contract field.
+struct IntegerOptionals {
+    std::map<std::string, std::optional<int64_t>> values;
+
+    void operator()(const char* key, std::optional<int32_t>& member) {
+        values[key] = member ? std::optional<int64_t>(*member) : std::nullopt;
+    }
+    void operator()(const char* key, std::optional<int64_t>& member) { values[key] = member; }
+    template <typename T>
+    void operator()(const char*, T&) {}
+
+    std::set<std::string> Fields() const {
+        std::set<std::string> fields;
+        for (const auto& [field, value] : values) fields.insert(field);
+        return fields;
+    }
+};
+
+/// Sets every integer optional member of a model to an explicit 0.
+struct ZeroIntegerOptionals {
+    void operator()(const char*, std::optional<int32_t>& member) { member = 0; }
+    void operator()(const char*, std::optional<int64_t>& member) { member = 0; }
+    template <typename T>
+    void operator()(const char*, T&) {}
 };
 
 } // namespace
@@ -128,7 +192,7 @@ TEST_CASE("CR-02 every contract object round-trips with every field set, optiona
         Model object{};
         json expected = json::object();
         int serial = 0;
-        FullFiller filler{expected, serial};
+        Filler filler{expected, serial};
         generated::ForEachField(object, filler);
         REQUIRE(Keys(expected) == DeclaredFields(key));
 
@@ -139,4 +203,100 @@ TEST_CASE("CR-02 every contract object round-trips with every field set, optiona
         // Decode: the same object back, field by field.
         REQUIRE(fromJson(encoded) == object);
     });
+}
+
+// ─── CR-03 缺省的可选字段往返后仍缺省（#366）─────────────────────────
+
+TEST_CASE("CR-03 optional fields left empty stay absent through a round trip") {
+    size_t optionals = 0;
+    generated::ForEachContractObject([&](const char* key, auto fromJson, auto toJson) {
+        INFO(key);
+        json expected;
+        auto object = RequiredOnly<decltype(fromJson(json{}))>(expected);
+
+        // Encode: an empty optional is left out, not written as null, "" or 0.
+        auto encoded = toJson(object);
+        for (const auto& field : OptionalFields(key)) {
+            INFO(field);
+            REQUIRE_FALSE(encoded.contains(field));
+            ++optionals;
+        }
+        REQUIRE(encoded.dump() == expected.dump());
+
+        // Decode: still empty.
+        REQUIRE(fromJson(encoded) == object);
+    });
+    REQUIRE(optionals > 0);
+}
+
+// ─── CR-04 显式空值往返后只会变成缺省（#366）─────────────────────────
+
+TEST_CASE("CR-04 an explicit null decodes like an absent field and re-encodes as absent") {
+    size_t nulledFields = 0;
+    generated::ForEachContractObject([&](const char* key, auto fromJson, auto toJson) {
+        INFO(key);
+        json expected;
+        auto object = RequiredOnly<decltype(fromJson(json{}))>(expected);
+
+        const auto optionals = OptionalFields(key);
+        nulledFields += optionals.size();
+
+        // null is "no value": the same object as leaving the field out...
+        auto decoded = fromJson(WithNulls(expected, optionals));
+        REQUIRE(decoded == object);
+        // ...and it comes back absent, never as null or as some default.
+        REQUIRE(toJson(decoded).dump() == expected.dump());
+    });
+    REQUIRE(nulledFields > 0);
+}
+
+// ─── CR-05 整型可选字段的缺省形态（#366）─────────────────────────────
+
+TEST_CASE("CR-05 integer optionals: absent and null stay empty, an explicit 0 stays 0") {
+    size_t checked = 0;
+    generated::ForEachContractObject([&](const char* key, auto fromJson, auto toJson) {
+        const auto integers = IntegerOptionalFields(key);
+        if (integers.empty()) return;
+        INFO(key);
+        json expected;
+        auto object = RequiredOnly<decltype(fromJson(json{}))>(expected);
+
+        // The model's integer optionals are exactly the contract's i32?/i64? fields.
+        IntegerOptionals declared;
+        generated::ForEachField(object, declared);
+        REQUIRE(declared.Fields() == integers);
+
+        // Absent and null both decode to empty -- not 0 -- and stay out when encoded.
+        for (const json& input : {expected, WithNulls(expected, integers)}) {
+            INFO(input.dump());
+            auto decoded = fromJson(input);
+            IntegerOptionals read;
+            generated::ForEachField(decoded, read);
+            for (const auto& [field, value] : read.values) {
+                INFO(field);
+                REQUIRE_FALSE(value.has_value());
+            }
+            auto encoded = toJson(decoded);
+            for (const auto& field : integers) REQUIRE_FALSE(encoded.contains(field));
+        }
+
+        // 0 is a value like any other: written, and read back as 0.
+        ZeroIntegerOptionals zero;
+        generated::ForEachField(object, zero);
+        auto encoded = toJson(object);
+        for (const auto& field : integers) {
+            INFO(field);
+            REQUIRE(encoded.contains(field));
+            REQUIRE(encoded[field] == 0);
+        }
+        auto decoded = fromJson(encoded);
+        IntegerOptionals read;
+        generated::ForEachField(decoded, read);
+        for (const auto& [field, value] : read.values) {
+            INFO(field);
+            REQUIRE(value == int64_t{0});
+        }
+        checked += integers.size();
+    });
+    REQUIRE(checked > 0);
 }
