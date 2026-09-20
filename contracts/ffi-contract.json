@@ -67,6 +67,8 @@
     "id": "i64?",
     "name": "string",
     "description": "string?",
+    "date_created": "string?",
+    "date_modified": "string?",
     "tracks": "track[]"
   },
   "m3u8_entry": {
