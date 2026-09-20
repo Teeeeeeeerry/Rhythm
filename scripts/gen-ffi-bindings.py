@@ -50,6 +50,20 @@ def is_object_ref(schema: dict, t: str) -> bool:
     return t in contract_object_keys(schema)
 
 
+def base_type(t: str) -> str:
+    """A field type without its optional (`?`) or list (`[]`) marker (#367)."""
+    if t.endswith("?"):
+        return t[:-1]
+    if t.endswith("[]"):
+        return t[:-2]
+    return t
+
+
+def is_object_list(schema: dict, t: str) -> bool:
+    """A field type naming a list of another contract object (#367)."""
+    return t.endswith("[]") and is_object_ref(schema, t[:-2])
+
+
 def contract_object_keys(schema: dict) -> list[str]:
     """The contract's object keys, in contract order."""
     return [key for key in schema if key not in NON_OBJECT_KEYS]
@@ -213,6 +227,11 @@ def cpp_type(t: str) -> str:
     raise SystemExit(f"unsupported cpp type {t}")
 
 
+def cpp_list_element(t: str) -> str:
+    """The C++ model name a list field holds (#367)."""
+    return pascal(t[:-2])
+
+
 def pascal(key: str) -> str:
     """snake_case contract key -> C++ model name (m3u8_entry -> M3u8Entry)."""
     return "".join(p[:1].upper() + p[1:] for p in key.split("_"))
@@ -256,6 +275,12 @@ def cpp_decode_object(name: str, fields: dict, model: str, schema: dict) -> str:
             lines.append(f"            t.{prop}[Utf8ToWide(k)] = Utf8ToWide(v.get<std::string>());")
             lines.append("        }")
             lines.append("    }")
+        elif is_object_list(schema, t):
+            lines.append(f"    if (j.contains(\"{key}\") && !j[\"{key}\"].is_null()) {{")
+            lines.append(f"        for (const auto& item : j[\"{key}\"]) {{")
+            lines.append(f"            t.{prop}.push_back({cpp_list_element(t)}FromJson(item));")
+            lines.append("        }")
+            lines.append("    }")
         else:
             raise SystemExit(f"unsupported cpp type {t} for {key}")
     lines.append("    return t;")
@@ -295,6 +320,12 @@ def cpp_encode_object(name: str, fields: dict, model: str, schema: dict) -> str:
             lines.append(f"    for (const auto& [k, v] : t.{prop}) {{")
             lines.append(f"        j[\"{key}\"][WideToUtf8(k)] = WideToUtf8(v);")
             lines.append("    }")
+        elif is_object_list(schema, t):
+            # An empty list is still a list: the key is always written (#367).
+            lines.append(f"    j[\"{key}\"] = json::array();")
+            lines.append(f"    for (const auto& item : t.{prop}) {{")
+            lines.append(f"        j[\"{key}\"].push_back({cpp_list_element(t)}ToJson(item));")
+            lines.append("    }")
         elif t.endswith("?"):
             expr = cpp_encode_expr(t[:-1], f"*t.{prop}", key, schema)
             lines.append(f"    if (t.{prop}) j[\"{key}\"] = {expr};")
@@ -319,7 +350,7 @@ def cpp_objects(schema: dict) -> list[tuple[str, dict]]:
         if not isinstance(fields, dict) or not all(isinstance(t, str) for t in fields.values()):
             raise SystemExit(f"contract entry {key} is not an object of field types")
         for field, t in fields.items():
-            base = t.rstrip("?")
+            base = base_type(t)
             if is_object_ref(schema, base) and base not in declared:
                 raise SystemExit(f"{key}.{field} references {base}, declared later in the contract")
         objects.append((pascal(key), fields))
@@ -333,7 +364,8 @@ def cpp_includes(objects: list[tuple[str, dict]]) -> list[str]:
     The output declares its own includes instead of relying on a caller's
     precompiled header: fixed-width integer casts and std::string are always
     used; std::optional access only when an optional field is emitted; a map
-    field needs <map>. nlohmann/json is the codec's JSON type.
+    field needs <map>, a list field <vector> (#367). nlohmann/json is the
+    codec's JSON type.
     """
     types = {t for _, fields in objects for t in fields.values()}
     includes = ["<cstdint>"]
@@ -341,7 +373,10 @@ def cpp_includes(objects: list[tuple[str, dict]]) -> list[str]:
         includes.append("<map>")
     if any(t.endswith("?") for t in types):
         includes.append("<optional>")
-    includes += ["<string>", "", "<nlohmann/json.hpp>", "",
+    includes.append("<string>")
+    if any(t.endswith("[]") for t in types):
+        includes.append("<vector>")
+    includes += ["", "<nlohmann/json.hpp>", "",
                  # #413: models + Utf8ToWide, and WideToUtf8 -- the output
                  # compiles when included on its own.
                  '"RhythmCore.h"', '"MessageSpec.h"']

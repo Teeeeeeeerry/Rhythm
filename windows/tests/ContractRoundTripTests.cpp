@@ -130,6 +130,19 @@ struct Filler {
         generated::ForEachField(member, inner);
         expected[key] = nested;
     }
+    /// A field holding a list of contract objects (#367). One element is
+    /// enough to prove the element codec is the contract's own: an empty
+    /// list would round-trip through any encoder.
+    template <typename Model>
+        requires requires(Model& model, Filler& filler) { generated::ForEachField(model, filler); }
+    void operator()(const char* key, std::vector<Model>& member) {
+        json nested = json::object();
+        Model element{};
+        Filler inner{nested, serial, withOptionals};
+        generated::ForEachField(element, inner);
+        member.push_back(std::move(element));
+        expected[key] = json::array({nested});
+    }
 };
 
 /// A model with only its required fields set, and the JSON that encodes it.

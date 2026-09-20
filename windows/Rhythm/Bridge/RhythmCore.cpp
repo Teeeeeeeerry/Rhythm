@@ -52,20 +52,14 @@ static std::string TracksToJson(const std::vector<Track>& tracks) {
     return j.dump();
 }
 
+/// Playlist list -> models, one generated decoder call per playlist (#367).
+/// The fields come from the contract; this side only walks the array.
 static std::vector<Playlist> ParsePlaylistList(const char* json) {
     if (!json) return {};
     auto j = json::parse(json);
     std::vector<Playlist> playlists;
     for (const auto& item : j) {
-        Playlist p;
-        p.id = item.value("id", 0);
-        p.name = Utf8ToWide(item.value("name", ""));
-        if (item.contains("description") && !item["description"].is_null())
-            p.description = Utf8ToWide(item["description"].get<std::string>());
-        for (const auto& tj : item["tracks"]) {
-            p.tracks.push_back(generated::TrackFromJson(tj));
-        }
-        playlists.push_back(p);
+        playlists.push_back(generated::PlaylistFromJson(item));
     }
     return playlists;
 }

@@ -13,6 +13,7 @@
 - #362 起：契约字段类型可引用枚举（按字符串传输）与先声明的对象；解析结果 `resolve_result` 由名字清单改为带类型的对象声明。Windows 生成物的范围取自契约本身（声明即生成，不再另列清单），新增 `ResolvedUrl` / `ResolveResult` 编解码；macOS 生成物不变。生成器自测见 `testing/l0/tests/test_gen_ffi_bindings.py`，Windows 端解码断言见 `rhythmcore-windows.md` WB-23/WB-24
 - #363 起：协调器结果 `coordinator_result` 同样改为带类型的对象声明（`current_track` 引用曲目对象），`results` 段删除——契约里除版本、说明与枚举表外的每个条目都是生成的对象（生成器自测锁定）。Windows 新增 `CoordinatorResult` 编解码，模型的错误两项随契约改为可缺省。协调器的错误分类（核心 `CoordinatorErrorKind`）不在契约枚举表里，按 #323「不改枚举取值」的约束 `error_kind` 以 `string?` 声明，纳入枚举表另议；解码断言见 `rhythmcore-windows.md` WB-25/WB-26
 - #364 起：Windows 桥接层删除解析结果与协调器结果的两段手写解码，`Resolver::ResolveURL` 与协调器各调用点改调生成物；两个结果对象加字段时解码不必手改（解析结果转成曲目的那一步仍是桥接层的模型转换）。解析出的曲目由 `ResolvedUrl` 显式构造（未入库 `id -1`、可用），不再把解析载荷当曲目解码
+- #367 起：歌单 `playlist` 进入契约声明（`id`/`name`/`description` 与它持有的曲目列表）。契约的字段类型新增「对象列表」写法 `<对象>[]`，列表元素经该对象自己的编解码——曲目加字段不必再改第二处解码。Windows 桥接层的手写歌单解码删除，`Library::AllPlaylists` 改调生成物；歌单纳入 CR 组往返用例（macOS 生成物不变）
 - 历史回归：`#21`（解析失败只有 null、无原因）
 - 测试途径：`cargo test` 集成测试（现有 `player_ffi.rs` 模式扩展）；library/queue/resolver 部分链接真实现 + 临时库；无需接缝。
 
@@ -40,7 +41,8 @@
 - 测试文件：`windows/tests/ContractRoundTripTests.cpp`。用例里不写对象名也不写字段名：对象经生成物的 `generated::ForEachContractObject`
   遍历，字段经每个模型的 `generated::ForEachField` 逐个赋值；契约文件 `contracts/ffi-contract.json` 在运行时读入（路径由构建注入），
   作为「声明了哪些对象、哪些字段」的对照。契约新增对象或字段，重新生成后自动纳入。两个遍历模板只供覆盖全部对象的使用方（目前是本组用例）调用。
-- 取值：字符串按字段名各不相同（含非 ASCII）、整数与浮点逐字段递增（`i64` 超出 32 位、浮点带小数）、布尔取真、映射两项、对象字段递归——
+- 取值：字符串按字段名各不相同（含非 ASCII）、整数与浮点逐字段递增（`i64` 超出 32 位、浮点带小数）、布尔取真、映射两项、对象字段递归、
+  对象列表取一个递归填好的元素（空列表经任何编码器都能往返，证明不了元素走的是契约自己的编解码，#367）——
   都不是字段缺省时解码得到的值，丢字段或两个同类型字段互换都不可能碰巧往返成功。
 
 | 编号 | 行为 | 断言 | 状态 |

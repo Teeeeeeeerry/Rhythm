@@ -157,6 +157,7 @@ MINI_CONTRACT = {
         "shade": "shade",
         "maybe_shade": "shade?",
         "inner": "inner?",
+        "inners": "inner[]",
     },
 }
 
@@ -226,6 +227,58 @@ class CppReferenceTypeTests(unittest.TestCase):
                      "outer": {"inner": "inner?"}, "inner": {"n": "i32"}}
         with self.assertRaises(SystemExit):
             gen.gen_cpp(backwards)
+
+
+class CppObjectListTests(unittest.TestCase):
+    """#367：字段可以是契约对象的列表（歌单持有的曲目）。"""
+
+    def setUp(self):
+        self.lines = [line.strip() for line in gen.gen_cpp(MINI_CONTRACT).splitlines()]
+
+    def test_each_element_decodes_through_the_referenced_decoder(self):
+        self.assertIn('for (const auto& item : j["inners"]) {', self.lines)
+        self.assertIn("t.inners.push_back(InnerFromJson(item));", self.lines)
+
+    def test_each_element_encodes_through_the_referenced_encoder(self):
+        self.assertIn('j["inners"] = json::array();', self.lines)
+        self.assertIn('j["inners"].push_back(InnerToJson(item));', self.lines)
+
+    def test_an_empty_list_still_writes_its_key(self):
+        # A list is never absent: the key is set before the elements go in,
+        # so an empty list encodes as [] rather than dropping out.
+        encoder = gen.cpp_encode_object("Outer", MINI_CONTRACT["outer"], "Outer", MINI_CONTRACT)
+        body = encoder.splitlines()
+        self.assertLess(body.index('    j["inners"] = json::array();'),
+                        body.index('    for (const auto& item : t.inners) {'))
+
+    def test_the_list_field_is_visited_like_any_other(self):
+        self.assertIn('visit("inners", t.inners);', self.lines)
+
+    def test_a_list_field_brings_the_vector_include(self):
+        includes = gen.cpp_includes([("Outer", {"inners": "inner[]"})])
+        self.assertIn("#include <vector>", includes)
+
+    def test_no_vector_include_without_a_list_field(self):
+        self.assertNotIn("#include <vector>", gen.cpp_includes([("Sample", {"n": "i32"})]))
+
+    def test_a_list_of_something_that_is_not_a_contract_object_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            gen.gen_cpp({**MINI_CONTRACT, "outer": {"items": "nope[]"}})
+
+    def test_a_list_must_name_an_object_declared_before_it(self):
+        backwards = {"version": 1, "doc": "", "enums": {},
+                     "outer": {"inners": "inner[]"}, "inner": {"n": "i32"}}
+        with self.assertRaises(SystemExit):
+            gen.gen_cpp(backwards)
+
+    def test_the_real_contract_declares_the_playlist_with_its_tracks(self):
+        # #367：歌单在契约里，曲目列表经曲目自己的编解码。
+        schema = gen.load_schema()
+        self.assertEqual(schema["playlist"]["tracks"], "track[]")
+        cpp = gen.gen_cpp(schema)
+        self.assertIn("inline Playlist PlaylistFromJson(const json& j) {", cpp)
+        self.assertIn("inline json PlaylistToJson(const Playlist& t) {", cpp)
+        self.assertIn("t.tracks.push_back(TrackFromJson(item));", cpp)
 
 
 if __name__ == "__main__":
