@@ -38,7 +38,7 @@ python3 testing/l0/check-contrast.py
 python3 testing/l0/check-forbidden-colors.py
 python3 testing/l0/check-token-coverage.py
 python3 testing/l0/check-doc-drift.py
-python3 testing/l0/check-ffi-contract.py
+python3 testing/l0/check-ffi-contract.py           # 契约的第一道门：生成物与契约文本一致？
 python3 testing/l0/check-l10n-keys.py
 python3 testing/l0/check-version-drift.py
 python3 testing/l0/check-orchestration-dialects.py
@@ -48,7 +48,11 @@ python3 -m unittest discover -s testing/l0/tests
 # 编排层自测：
 python3 -m unittest discover -s testing/tasks/tests
 # 或一键全量（日志统一落盘）。两个平台先跑同一组静态分析前缀（L0 九项 + 零 emoji + 两组自测），
-# 再跑平台段：macOS 为 L1 swift test + ASan，Windows 为 L1 ctest（L2 未实现，#387）
+# 再跑平台段：macOS 为 L1 swift test + ASan，Windows 为 L1 ctest（L2 未实现，#387）。
+# Windows 段里的「L1b 契约生成物编译门」是契约的第二道门（#369）：生成物由 CMake 目标
+# RhythmGeneratedCodec 单独编译一次，文本比对看不见的「生成器产不出可编译代码」在这里报红；
+# 门本身有牙齿由 ctest 用例 GeneratedCodecTypeErrorFailsTheBuild 证明（构建一个故意写错类型的
+# 翻译单元，构建必须失败）
 python3 scripts/tasks.py test
 # Windows 侧（任务名相同，--smoke 追加 L3 冒烟）：
 python3 scripts/tasks.py test --smoke
@@ -66,7 +70,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.200）
+## 当前状态（main，v0.5.201）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
@@ -135,7 +139,7 @@ CI 模板调用的是同名命令（模板在 `testing/ci/`，尚未部署到 `.
 | 任务 | 内容 |
 |---|---|
 | `build` | 构建本平台应用（macOS `build/Rhythm.app`；Windows `build/windows/Release/Rhythm.exe`） |
-| `test` | 本平台全量测试：双端共享静态分析前缀（L0 九项 + 零 emoji + 两组自测，#344/#345），再接平台段——macOS L1（swift test + ASan）；Windows L1（ctest），`--smoke` 追加 L3；Windows L2 未实现（#387） |
+| `test` | 本平台全量测试：双端共享静态分析前缀（L0 九项 + 零 emoji + 两组自测，#344/#345），再接平台段——macOS L1（swift test + ASan）；Windows L1（ctest）外加契约生成物编译门（#369），`--smoke` 追加 L3；Windows L2 未实现（#387） |
 | `bump-version` | 提升版本号（不带参数末位加一），同步三处文档副本与依赖锁文件后自校验 |
 | `check-no-emoji` | 零 emoji 硬性约定校验 |
 | `compare-screenshots` | L2 截屏与 golden 的像素比对 |

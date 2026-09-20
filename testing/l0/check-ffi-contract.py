@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""L0: FFI 数据契约生成物一致性（#180/#185）。
+"""L0: FFI 数据契约生成物一致性（#180/#185）——契约的第一道门。
 
 contracts/ffi-contract.json 是跨 seam 字段/枚举的单一声明；本脚本以
 scripts/gen-ffi-bindings.py 重新生成，与提交的
 macos/Rhythm/Models/GeneratedCodec.swift、windows/Rhythm/Bridge/GeneratedCodec.h
 逐字节比对——漂移即红（人为漂移被拦截）。
+
+这一道比的是文本，按结构就看不见「生成器本身产不出可编译代码」：生成器与提交物
+一起错的时候它照样绿（#323）。第二道门补上这一格——生成物由 CMake 目标
+RhythmGeneratedCodec 单独编译一次（#369），两道都过才算契约没漂。
 
 用法：python3 testing/l0/check-ffi-contract.py
 """
