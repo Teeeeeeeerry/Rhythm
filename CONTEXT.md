@@ -111,7 +111,11 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   「格式不支持」与「读写失败」必须分开——合并会丢掉用户唯一能据以行动的信息。新增一条导入路径沿用同一形状，
   不发明新的返回约定；结果结构声明在 `contracts/ffi-contract.json`，双端绑定由生成器产出，少接一条路径会在生成物比对时暴露。
   契约的门有两条（#369）：`testing/l0/check-ffi-contract.py` 比对文本，CMake 目标 `RhythmGeneratedCodec` 把生成物单独编译一次——
-  文本比对按结构看不见「生成器本身产不出可编译代码」（#323），两条都过才算契约没漂
+  文本比对按结构看不见「生成器本身产不出可编译代码」（#323），两条都过才算契约没漂。
+  跨 seam 的编解码只有生成物一份（#323 收口）：曲目、歌单与各结果对象的编码与解码都不再手写，
+  两个平台的生成范围都取自契约本身——C++ 侧声明即生成，Swift 侧默认生成、例外写在生成器的具名退出清单
+  `SWIFT_SKIP`（macOS 仍走 Codable 的四个对象），清单与契约不一致由契约校验报红。
+  加字段只改 `contracts/ffi-contract.json` 再跑 `python3 scripts/gen-ffi-bindings.py`，不必手改任何一处解码
 - **构建产物**：放 `build/` 目录——macOS 为 `build/Rhythm.app`，Windows 为 `build/windows/Release/Rhythm.exe`，
   截屏产物 `build/artifacts`（Windows L2 截屏尚未实现、已从测试入口移除，#387）；Rust 核心产物在工作区根 `target/release/`，取用点只有 `task_build.core_artifact_dir` 一处
 - **Windows 依赖在仓库里声明（#386）**：Windows App SDK 上游只给 MSBuild 的 props/targets，没有 CMake 包，

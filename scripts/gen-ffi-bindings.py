@@ -159,14 +159,32 @@ def swift_encode_object(name: str, fields: dict, model: str) -> str:
     return "\n".join(lines)
 
 
+# Contract objects the Swift codec deliberately leaves to macOS's own
+# Codable+convertFromSnakeCase path (#323). This is an opt-out, not a second
+# scope list: everything the contract declares is generated for Swift unless
+# it is named here with a reason, so "declared but not generated" cannot
+# happen quietly on either platform -- the hole #362 closed for C++.
+SWIFT_SKIP = {
+    # #367/#368: macOS decodes Playlist through Codable; the contract entry
+    # was added for the Windows codec and the macOS output stays unchanged.
+    "playlist",
+    # #362/#363: same, for the resolver and coordinator payloads
+    # (RhythmCore.swift's ResolveResultPayload / CoordinatorStartResult).
+    "resolved_url",
+    "resolve_result",
+    "coordinator_result",
+}
+
+
+def swift_objects(schema: dict) -> list[tuple[str, dict]]:
+    """The contract objects the Swift codec emits, in contract order (#323)."""
+    return [(pascal(key), schema[key])
+            for key in contract_object_keys(schema) if key not in SWIFT_SKIP]
+
+
 def gen_swift(schema: dict) -> str:
     out = [SWIFT_HEADER]
-    for model, fields in (
-        ("Track", schema["track"]),
-        ("M3u8Entry", schema["m3u8_entry"]),
-        ("M3u8ImportOutcome", schema["m3u8_import_outcome"]),
-        ("ImportOutcome", schema["import_outcome"]),
-    ):
+    for model, fields in swift_objects(schema):
         out.append(swift_decode_object(model, fields, model))
         out.append("")
         out.append(swift_encode_object(model, fields, model))
