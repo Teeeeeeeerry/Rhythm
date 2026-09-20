@@ -45,6 +45,15 @@ def main() -> int:
         if path.read_text(encoding="utf-8") != generated:
             problems.append(f"{rel} 与契约漂移——运行 python3 scripts/gen-ffi-bindings.py")
 
+    # #323：Swift 侧的生成范围是「默认全生成 + 一张具名的退出清单」。清单里留着
+    # 契约已经不再声明的对象，就说明有人删了对象却没回来看这张清单——下一个读它的人
+    # 会以为那个对象还在契约里、只是走了 macOS 自己的路径。
+    stale = gen.SWIFT_SKIP - set(gen.contract_object_keys(schema))
+    if stale:
+        problems.append(
+            "scripts/gen-ffi-bindings.py 的 SWIFT_SKIP 里有契约未声明的对象："
+            + "、".join(sorted(stale)))
+
     if problems:
         print("FFI 契约生成物校验失败：")
         print("\n".join(problems))

@@ -229,6 +229,48 @@ class CppReferenceTypeTests(unittest.TestCase):
             gen.gen_cpp(backwards)
 
 
+class SwiftScopeTests(unittest.TestCase):
+    """#323：Swift 侧的生成范围同样取自契约，不再是另写的一张清单。
+
+    macOS 的编解码在 #323 里被冻结，所以有几个对象仍走它自己的 Codable 路径——
+    但那是一张具名的「退出」清单（`SWIFT_SKIP`），不是一张「加入」清单：契约新增
+    的对象默认就在范围内，「声明了却没生成」不会悄悄发生。
+    """
+
+    # macOS 冻结的生成范围（#323「不改 macOS 的编解码实现」）。
+    FROZEN = {"Track", "M3u8Entry", "M3u8ImportOutcome", "ImportOutcome"}
+
+    def test_the_opt_out_plus_what_is_generated_is_the_whole_contract(self):
+        schema = gen.load_schema()
+        generated = {key for key, _ in gen.swift_objects(schema)}
+        skipped = {gen.pascal(key) for key in gen.SWIFT_SKIP}
+        self.assertEqual(generated | skipped,
+                         {gen.pascal(key) for key in gen.contract_object_keys(schema)})
+        self.assertFalse(generated & skipped)
+
+    def test_the_macos_scope_is_the_one_frozen_by_323(self):
+        self.assertEqual({key for key, _ in gen.swift_objects(gen.load_schema())}, self.FROZEN)
+
+    def test_generated_objects_keep_contract_order(self):
+        schema = gen.load_schema()
+        order = [key for key in gen.contract_object_keys(schema) if key not in gen.SWIFT_SKIP]
+        self.assertEqual([key for key, _ in gen.swift_objects(schema)],
+                         [gen.pascal(key) for key in order])
+
+    def test_a_new_contract_object_joins_the_swift_binding_by_default(self):
+        schema = {"version": 1, "doc": "", "enums": {}, "thing": {"n": "i32"}}
+        swift = gen.gen_swift(schema)
+        self.assertIn("static func decodeThing(_ json: String) -> Thing? {", swift)
+        self.assertIn("static func encodeThing(_ value: Thing) -> String {", swift)
+
+    def test_a_stale_opt_out_is_visible_as_a_mismatch(self):
+        # 契约里删掉一个对象却忘了改退出清单：两边不再合成整份契约，
+        # 契约校验（testing/l0/check-ffi-contract.py）据此报红。
+        trimmed = {key: value for key, value in gen.load_schema().items()
+                   if key != "playlist"}
+        self.assertTrue(gen.SWIFT_SKIP - set(gen.contract_object_keys(trimmed)))
+
+
 class CppObjectListTests(unittest.TestCase):
     """#367：字段可以是契约对象的列表（歌单持有的曲目）。"""
 
