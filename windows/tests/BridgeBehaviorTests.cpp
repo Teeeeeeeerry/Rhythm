@@ -1,6 +1,6 @@
-// WB-01–27：Windows RhythmCore（Bridge 封装层）行为清单（manifest:
+// WB-01–28：Windows RhythmCore（Bridge 封装层）行为清单（manifest:
 // docs/testing/behavior/rhythmcore-windows.md）。零接缝：真 rhythm_core DLL
-//（WB-05/06/07/09/10/14 经 FFI 往返），纯函数直测（WB-12/13）。WB-01 的时长文案与 WB-02/03/04/20 的来源徽标
+//（WB-05/06/07/09/10/14/28 经 FFI 往返），纯函数直测（WB-12/13）。WB-01 的时长文案与 WB-02/03/04/20 的来源徽标
 // 已迁入视图状态（ViewStateTests.cpp VS-18～VS-25，#337/#338）。
 //
 // 这些测试在本机（macOS）不可运行——提交后在 Windows 上 `ctest` 验证。
@@ -530,4 +530,45 @@ TEST_CASE("WB-16 empty track list parses to an empty vector") {
     TempDir dir;
     Library lib(dir.dbPath());
     REQUIRE(lib.AllTracks().empty());
+}
+
+// ─── WB-28 歌单由生成物解码，含两个时间戳（#367/#368）────────────────
+
+TEST_CASE("WB-28 playlists decode through the generated codec, timestamps included") {
+    TempDir dir;
+    Library lib(dir.dbPath());
+
+    auto saved = lib.AddTrack(makeUrlTrack(L"https://example.com/wb28.mp3", L"WB28 标题"));
+    REQUIRE(saved.id >= 0);
+    auto id = lib.CreatePlaylist(L"WB28 歌单");
+    REQUIRE(id >= 0);
+    lib.AddToPlaylist(id, saved.id);
+
+    auto playlists = lib.AllPlaylists();
+    REQUIRE(playlists.size() == 1);
+    const auto& playlist = playlists[0];
+    REQUIRE(playlist.id == id);
+    REQUIRE(playlist.name == L"WB28 歌单");
+
+    // The core writes both timestamps (SQLite datetime('now')); before #368
+    // they were not in the contract and nothing decoded them.
+    REQUIRE(playlist.dateCreated.has_value());
+    REQUIRE(playlist.dateModified.has_value());
+    REQUIRE(playlist.dateCreated->size() == 19);  // YYYY-MM-DD HH:MM:SS
+    REQUIRE(playlist.dateModified->size() == 19);
+
+    // The tracks it holds go through the contract's own track codec.
+    REQUIRE(playlist.tracks.size() == 1);
+    REQUIRE(playlist.tracks[0].id == saved.id);
+    REQUIRE(playlist.tracks[0].title == L"WB28 标题");
+}
+
+TEST_CASE("WB-28 a playlist payload without timestamps decodes to empty, not to junk") {
+    auto bare = generated::PlaylistFromJson(nlohmann::json::parse(
+        R"({"id":7,"name":"WB28 无时间戳","tracks":[]})"));
+
+    REQUIRE(bare.id == 7);
+    REQUIRE_FALSE(bare.dateCreated.has_value());
+    REQUIRE_FALSE(bare.dateModified.has_value());
+    REQUIRE(bare.tracks.empty());
 }

@@ -149,6 +149,12 @@ inline Playlist PlaylistFromJson(const json& j) {
     if (j.contains("description") && !j["description"].is_null()) {
         t.description = Utf8ToWide(j["description"].get<std::string>());
     }
+    if (j.contains("date_created") && !j["date_created"].is_null()) {
+        t.dateCreated = Utf8ToWide(j["date_created"].get<std::string>());
+    }
+    if (j.contains("date_modified") && !j["date_modified"].is_null()) {
+        t.dateModified = Utf8ToWide(j["date_modified"].get<std::string>());
+    }
     if (j.contains("tracks") && !j["tracks"].is_null()) {
         for (const auto& item : j["tracks"]) {
             t.tracks.push_back(TrackFromJson(item));
@@ -163,6 +169,8 @@ inline json PlaylistToJson(const Playlist& t) {
     if (t.id) j["id"] = *t.id;
     j["name"] = WideToUtf8(t.name);
     if (t.description) j["description"] = WideToUtf8(*t.description);
+    if (t.dateCreated) j["date_created"] = WideToUtf8(*t.dateCreated);
+    if (t.dateModified) j["date_modified"] = WideToUtf8(*t.dateModified);
     j["tracks"] = json::array();
     for (const auto& item : t.tracks) {
         j["tracks"].push_back(TrackToJson(item));
@@ -176,6 +184,8 @@ void ForEachField(Playlist& t, Visit&& visit) {
     visit("id", t.id);
     visit("name", t.name);
     visit("description", t.description);
+    visit("date_created", t.dateCreated);
+    visit("date_modified", t.dateModified);
     visit("tracks", t.tracks);
 }
 
