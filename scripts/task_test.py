@@ -129,6 +129,9 @@ def macos_steps(root: Path) -> list[tasklib.Step]:
 # golden 目录不存在，三步注定失败却让人以为外观回归有防线。重启所需的产物清单见
 # testing/README.md「Windows L2 缺口」，补齐后再把步骤加回这里。
 
+# 契约生成物的编译门（#369），声明在 windows/CMakeLists.txt。
+GENERATED_CODEC_TARGET = "RhythmGeneratedCodec"
+
 
 def _cmake_step(name: str, args: list[str], root: Path, log_name: str, *,
                 project: str | None = None) -> tasklib.Step:
@@ -184,6 +187,12 @@ def windows_steps(root: Path, smoke: bool = False) -> list[tasklib.Step]:
         _ctest_step("L1 颜色测试 ctest", l1_dir, root, "l1-windows-ctest"),
         _cmake_step("L1b 应用工程测试 cmake 配置", _cmake_configure_args("windows", app_dir),
                     root, "l1-windows-rhythmtests", project="windows"),
+        # 契约的门第二条（#369）：文本比对之后，生成物必须真的被编译一次。
+        # 单独成步，生成器产出坏代码时报的是这一步，而不是某个碰巧先编的调用方。
+        _cmake_step("L1b 契约生成物编译门（#369）",
+                    ["--build", str(app_dir), "--target", GENERATED_CODEC_TARGET,
+                     "--config", task_build.WINDOWS_CONFIG],
+                    root, "l1-windows-generated-codec"),
         _cmake_step("L1b 应用工程测试 cmake 构建",
                     ["--build", str(app_dir), "--target", "RhythmTests",
                      "--config", task_build.WINDOWS_CONFIG],

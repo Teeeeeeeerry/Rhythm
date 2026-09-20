@@ -109,7 +109,9 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   `docs/testing/behavior/windows-viewstate.md` 登记；壳本身不测，被有意做薄。行为库不含任何 C++/WinRT 头，测试宿主不需要 WinUI 与 WinRT 单元
 - **导入结果具名不用魔数**：资料库导入不再有魔数返回码（#244 起）。三条路径共用 `ImportOutcome{imported, unsupported, failed}`，
   「格式不支持」与「读写失败」必须分开——合并会丢掉用户唯一能据以行动的信息。新增一条导入路径沿用同一形状，
-  不发明新的返回约定；结果结构声明在 `contracts/ffi-contract.json`，双端绑定由生成器产出，少接一条路径会在生成物比对时暴露
+  不发明新的返回约定；结果结构声明在 `contracts/ffi-contract.json`，双端绑定由生成器产出，少接一条路径会在生成物比对时暴露。
+  契约的门有两条（#369）：`testing/l0/check-ffi-contract.py` 比对文本，CMake 目标 `RhythmGeneratedCodec` 把生成物单独编译一次——
+  文本比对按结构看不见「生成器本身产不出可编译代码」（#323），两条都过才算契约没漂
 - **构建产物**：放 `build/` 目录——macOS 为 `build/Rhythm.app`，Windows 为 `build/windows/Release/Rhythm.exe`，
   截屏产物 `build/artifacts`（Windows L2 截屏尚未实现、已从测试入口移除，#387）；Rust 核心产物在工作区根 `target/release/`，取用点只有 `task_build.core_artifact_dir` 一处
 - **Windows 依赖在仓库里声明（#386）**：Windows App SDK 上游只给 MSBuild 的 props/targets，没有 CMake 包，

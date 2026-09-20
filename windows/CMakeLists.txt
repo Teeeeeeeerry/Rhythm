@@ -50,6 +50,28 @@ string(CONFIGURE [=[
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/$<CONFIG>/RhythmBehavior.props"
     CONTENT "${RHYTHM_BEHAVIOR_PROPS}")
 
+# ─── The contract gate, second half: the generated codec compiles (#369) ──
+#
+# The first half stays where it is: testing/l0/check-ffi-contract.py regenerates
+# from the contract and compares the text byte for byte. That check cannot see
+# that the generator stopped producing compilable code -- generator and committed
+# output are wrong together and it is still green (#323).
+#
+# So the generated codec gets a target of its own. It compiles one translation
+# unit that includes GeneratedCodec.h and nothing else: no precompiled header,
+# no model definitions ahead of it (#413). A type error in the generated code,
+# or a header it uses but does not include, fails the build right here instead
+# of surfacing in whichever consumer happens to be compiled first.
+add_library(RhythmGeneratedCodec OBJECT tests/GeneratedCodecStandalone.cpp)
+target_link_libraries(RhythmGeneratedCodec PRIVATE RhythmBehavior)
+
+# The gate's own proof: the same include plus one deliberate type error, of the
+# shape the generator used to emit for optional integers (#323). Excluded from
+# the default build; the ctest case below builds it and asserts the build fails.
+add_library(RhythmGeneratedCodecTypeError OBJECT EXCLUDE_FROM_ALL
+    tests/GeneratedCodecTypeError.cpp)
+target_link_libraries(RhythmGeneratedCodecTypeError PRIVATE RhythmBehavior)
+
 # ─── Tests (Wave 4a) ────────────────────────────────────────────────
 
 # Catch2 v3 header-only test target, linking the behaviour library (#428).
@@ -57,8 +79,6 @@ enable_testing()
 
 set(TEST_SOURCES
     tests/TestHelpers.h
-    # #413: GeneratedCodec.h included alone must compile.
-    tests/GeneratedCodecStandalone.cpp
     # #329: behaviour headers included alone pull in no WinUI projection.
     tests/BehaviorHeadersStandalone.cpp
     tests/vendor/catch_amalgamated.cpp
@@ -82,6 +102,10 @@ target_include_directories(RhythmTests PRIVATE
 
 target_link_libraries(RhythmTests PRIVATE RhythmBehavior)
 
+# Building the tests still compiles the generated codec on its own (#369):
+# the gate has its own target, but nobody can get to green without it.
+add_dependencies(RhythmTests RhythmGeneratedCodec)
+
 # #365: the round-trip suite reads the contract itself to learn which objects
 # exist, so an object added there is covered without editing the test.
 target_compile_definitions(RhythmTests PRIVATE
@@ -91,3 +115,11 @@ target_compile_definitions(RhythmTests PRIVATE
 rhythm_copy_runtime_dlls(RhythmTests)
 
 add_test(NAME RhythmTests COMMAND RhythmTests)
+
+# #369: the compile gate has teeth -- building the deliberately ill-typed
+# translation unit must fail. WILL_FAIL inverts the verdict, so this case is
+# green exactly when the build is red.
+add_test(NAME GeneratedCodecTypeErrorFailsTheBuild
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}
+        --target RhythmGeneratedCodecTypeError --config $<CONFIG>)
+set_tests_properties(GeneratedCodecTypeErrorFailsTheBuild PROPERTIES WILL_FAIL TRUE)
