@@ -91,6 +91,10 @@ struct ImportOutcome {
     bool operator==(const ImportOutcome&) const = default;
 };
 
+/// A user-built playlist. Field list and codec come from
+/// contracts/ffi-contract.json (#367) -- the tracks it holds go through the
+/// contract's own track codec, so a field added to a track reaches a playlist
+/// without a second decoder to update.
 struct Playlist {
     std::optional<int64_t> id;
     std::wstring name;
@@ -98,6 +102,8 @@ struct Playlist {
     std::optional<std::wstring> dateCreated;
     std::optional<std::wstring> dateModified;
     std::vector<Track> tracks;
+
+    bool operator==(const Playlist&) const = default;
 };
 
 // Wrapper around the Rust rhythm-core library

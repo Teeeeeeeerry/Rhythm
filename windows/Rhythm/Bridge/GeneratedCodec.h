@@ -6,6 +6,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -136,6 +137,46 @@ void ForEachField(Track& t, Visit&& visit) {
     visit("play_count", t.playCount);
     visit("artwork_path", t.artworkPath);
     visit("is_available", t.isAvailable);
+}
+
+/// Decode a Playlist from the core's snake_case JSON (contract #Playlist).
+inline Playlist PlaylistFromJson(const json& j) {
+    Playlist t;
+    if (j.contains("id") && !j["id"].is_null()) {
+        t.id = j["id"].get<int64_t>();
+    }
+    t.name = Utf8ToWide(j.value("name", std::string("")));
+    if (j.contains("description") && !j["description"].is_null()) {
+        t.description = Utf8ToWide(j["description"].get<std::string>());
+    }
+    if (j.contains("tracks") && !j["tracks"].is_null()) {
+        for (const auto& item : j["tracks"]) {
+            t.tracks.push_back(TrackFromJson(item));
+        }
+    }
+    return t;
+}
+
+/// Encode a Playlist with snake_case keys (contract #Playlist).
+inline json PlaylistToJson(const Playlist& t) {
+    json j;
+    if (t.id) j["id"] = *t.id;
+    j["name"] = WideToUtf8(t.name);
+    if (t.description) j["description"] = WideToUtf8(*t.description);
+    j["tracks"] = json::array();
+    for (const auto& item : t.tracks) {
+        j["tracks"].push_back(TrackToJson(item));
+    }
+    return j;
+}
+
+/// Visit every contract field of a Playlist as visit(contract key, member) (#365).
+template <typename Visit>
+void ForEachField(Playlist& t, Visit&& visit) {
+    visit("id", t.id);
+    visit("name", t.name);
+    visit("description", t.description);
+    visit("tracks", t.tracks);
 }
 
 /// Decode a M3u8Entry from the core's snake_case JSON (contract #M3u8Entry).
@@ -342,6 +383,7 @@ void ForEachField(CoordinatorResult& t, Visit&& visit) {
 template <typename Visit>
 void ForEachContractObject(Visit&& visit) {
     visit("track", TrackFromJson, TrackToJson);
+    visit("playlist", PlaylistFromJson, PlaylistToJson);
     visit("m3u8_entry", M3u8EntryFromJson, M3u8EntryToJson);
     visit("m3u8_import_outcome", M3u8ImportOutcomeFromJson, M3u8ImportOutcomeToJson);
     visit("import_outcome", ImportOutcomeFromJson, ImportOutcomeToJson);
