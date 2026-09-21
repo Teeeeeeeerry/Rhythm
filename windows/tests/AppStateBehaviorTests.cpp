@@ -817,3 +817,43 @@ TEST_CASE("WA-32 FindPlaylist returns the loaded playlist with that id, or null"
     REQUIRE(found == &state.Playlists[1]);
     REQUIRE(state.FindPlaylist(99) == nullptr);
 }
+
+// ─── WA-33 创建歌单（#347）──────────────────────────────────────────
+
+TEST_CASE("WA-33 CreatePlaylist stores the playlist and reloads the list") {
+    TempDir dir; // #455: before AppState, so the database closes before cleanup
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+
+    auto id = state.CreatePlaylist(L"晨跑");
+
+    REQUIRE(id > 0);
+    REQUIRE(state.Playlists.size() == 1);
+    REQUIRE(state.Playlists[0].name == L"晨跑");
+    REQUIRE(state.Playlists[0].id.value_or(-1) == id);
+    auto stored = state.Library->AllPlaylists();
+    REQUIRE(stored.size() == 1);
+    REQUIRE(stored[0].name == L"晨跑");
+}
+
+TEST_CASE("WA-33 CreatePlaylist without a library is a safe no-op") {
+    AppState state;
+    REQUIRE(state.CreatePlaylist(L"A") == -1);
+    REQUIRE(state.Playlists.empty());
+
+    TempDir dir;
+    AppState failed;
+    failed.OpenDatabase(dir.path.wstring()); // a directory: open fails
+    REQUIRE(failed.CreatePlaylist(L"A") == -1);
+    REQUIRE(failed.Playlists.empty());
+}
+
+TEST_CASE("WA-33 CreatePlaylist with an empty name creates nothing") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+
+    REQUIRE(state.CreatePlaylist(L"") == -1);
+    REQUIRE(state.Playlists.empty());
+    REQUIRE(state.Library->AllPlaylists().empty());
+}

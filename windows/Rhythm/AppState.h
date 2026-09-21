@@ -71,6 +71,10 @@ public:
     /// whole failure; the aggregation itself comes from the core.
     void ImportPaths(const std::vector<std::wstring>& paths);
     void DoSearch();
+    /// Create a playlist and reload the lists (#347), so the view needs no
+    /// library handle. Returns the new id; -1 with nothing created when no
+    /// library is open or the name is empty.
+    int64_t CreatePlaylist(const std::wstring& name);
     void PlayTrack(const Track& track);
     void TogglePlayPause();
     void SetVolume(double v);
