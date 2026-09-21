@@ -457,7 +457,8 @@ TEST_CASE("VS-33 no resolution in flight renders an empty URL status") {
     ResolverStatus downloading;
     downloading.phase = L"downloading";
     downloading.received = 1024 * 1024;
-    REQUIRE(view::PlayerBarState(state, downloading).urlStatusText.empty());
+    state.PollResolverStatus = [downloading] { return downloading; };
+    REQUIRE(view::PlayerBarState(state).urlStatusText.empty());
 }
 
 TEST_CASE("VS-34 a resolution with nothing to report renders the resolving copy") {
@@ -468,7 +469,8 @@ TEST_CASE("VS-34 a resolution with nothing to report renders the resolving copy"
         for (const wchar_t* phase : {L"idle", L"ready"}) {
             ResolverStatus quiet;
             quiet.phase = phase;
-            REQUIRE(view::PlayerBarState(state, quiet).urlStatusText == L10n::Resolving());
+            state.PollResolverStatus = [quiet] { return quiet; };
+            REQUIRE(view::PlayerBarState(state).urlStatusText == L10n::Resolving());
         }
     }
 }
@@ -481,7 +483,9 @@ TEST_CASE("VS-35 a first-use yt-dlp download renders its progress") {
     downloading.phase = L"downloading";
     downloading.received = 5 * 1024 * 1024;
     downloading.total = 36 * 1024 * 1024;
-    auto text = view::PlayerBarState(state, downloading).urlStatusText;
+    // #350: the progress copy comes through the app state, not the view.
+    state.PollResolverStatus = [downloading] { return downloading; };
+    auto text = view::PlayerBarState(state).urlStatusText;
     REQUIRE(text == Resolver::StatusText(downloading));
     REQUIRE_FALSE(text.empty());
 }

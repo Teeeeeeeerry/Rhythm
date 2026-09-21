@@ -142,7 +142,7 @@ std::vector<TrackRow> PlaylistRows(const AppState& state, int64_t playlistId, bo
     return playlist ? RowsOf(playlist->tracks, isDarkTheme) : std::vector<TrackRow>{};
 }
 
-PlayerBar PlayerBarState(const AppState& state, const ResolverStatus& resolverStatus) {
+PlayerBar PlayerBarState(const AppState& state) {
     PlayerBar bar;
     if (state.CurrentTrack) {
         bar.title = state.CurrentTrack->title;
@@ -160,8 +160,8 @@ PlayerBar PlayerBarState(const AppState& state, const ResolverStatus& resolverSt
     bar.playModeIcon = PlayModeIcon(state.CurrentMode);
     bar.volumePercent = state.Volume * 100.0;
     if (state.IsResolvingUrl) {
-        bar.urlStatusText = resolverStatus.IsQuiet() ? L10n::Resolving()
-                                                     : Resolver::StatusText(resolverStatus);
+        auto progress = state.ResolverStatusText();
+        bar.urlStatusText = progress.empty() ? L10n::Resolving() : progress;
     }
     return bar;
 }
