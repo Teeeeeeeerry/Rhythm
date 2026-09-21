@@ -198,7 +198,7 @@ const Playlist* AppState::FindPlaylist(int64_t id) const {
 
 std::wstring AppState::ResolverStatusText() const {
     // The status is an FFI poll: only worth taking while a link resolves.
-    if (!IsResolvingUrl || !PollResolverStatus) return {};
+    if (!IsResolvingUrl) return {};
     auto status = PollResolverStatus();
     return status.IsQuiet() ? std::wstring{} : Resolver::StatusText(status);
 }
