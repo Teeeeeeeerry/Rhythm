@@ -22,7 +22,7 @@
 | VS-29（#340） | 托盘菜单文案 `TrayMenuState()` | 播放暂停、显示窗口、退出三项文案，跟随语言层的当前语言（中英各一次）；托盘只按此构造原生菜单 | 新测 |
 | VS-30（#341） | 空曲库时托盘「播放暂停」不可用 `TrayMenuState().playPauseEnabled` | 无曲目、无当前曲目 → 不可用（原生菜单置灰，点击命令同样以此为准） | 新测 |
 | VS-31（#341） | 有当前曲目时托盘「播放暂停」可用 | 起播后 → 可用 | 新测 |
-| VS-34（#317） | 解析中且解析器无事可报 `PlayerBarState(state, status).urlStatusText` | 解析器状态为 idle/ready → 「解析中」文案（中英各一次） | 新测 |
+| VS-34（#317） | 解析中且解析器无事可报 `PlayerBarState(state).urlStatusText` | 解析器状态为 idle/ready → 「解析中」文案（中英各一次）；状态经 AppState 的 `PollResolverStatus` 注入（#350，播放条不再直接查询解析器） | 新测 |
 | VS-35（#317） | 解析中且首次下载 yt-dlp | 返回下载进度文案（与 `Resolver::StatusText` 同一出处），读作进度而非卡死 | 新测 |
 | VS-02（#332） | 播放条进度百分比 `PlayerBarState().progressPercent` | 时长已知 → 位置 / 时长 × 100 | 新测 |
 | VS-05（#333） | 缓冲中的时间文案 `PlayerBarState().timeText` | 缓冲中 → 缓冲文案（取 `L10n::Buffering`，中英各一次），不显示时钟（#137：链接起播要等一会儿，0:00 / 0:00 像是死机） | 新测 |
