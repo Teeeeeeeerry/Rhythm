@@ -24,7 +24,7 @@ Rhythm has a two-layer architecture. The upper layer is the platform-native UI: 
 
 ## Development Status
 
-Initial development is complete. Current version: **v0.5.202 "Motif"** (kept in sync with `Cargo.toml`; bump this line on every release).
+Initial development is complete. Current version: **v0.5.203 "Motif"** (the single source is `[workspace.package] version` in `Cargo.toml`; this line is synced by `python3 scripts/tasks.py bump-version` - do not edit it by hand).
 
 ### Implementation Status
 
@@ -33,7 +33,7 @@ Initial development is complete. Current version: **v0.5.202 "Motif"** (kept in 
 | Local audio playback (MP3/FLAC/AAC/WAV/OGG/ALAC/APE/WMA/AIFF/WavPack/MP4) | Done | — |
 | Library management + FTS5 full-text search | Done | — |
 | Local import (folder / single file / batch, with per-count partial success) | Done (parity on both platforms) | [#218](https://github.com/Teeeeeeeerry/Rhythm/issues/218) |
-| Playlists (mixed local/online, M3U8 import/export) | Done | — |
+| Playlists (mixed local/online, M3U8 import/export; import policy has a single source in the core) | Done | [#217](https://github.com/Teeeeeeeerry/Rhythm/issues/217) |
 | Play queue (sequential/shuffle/single-loop/list-loop) | Done | — |
 | Album cover extraction | Done | — |
 | System media keys + tray mode | Done | — |
@@ -86,12 +86,15 @@ Building and testing both go through one cross-platform task entry; the task
 names are the same on both platforms (#221):
 
 ```bash
-python3 scripts/tasks.py            # list every task
-python3 scripts/tasks.py build      # build the app for this platform
-python3 scripts/tasks.py test       # full test suite for this platform
+python3 scripts/tasks.py                      # list every task
+python3 scripts/tasks.py build                # build the app for this platform
+python3 scripts/tasks.py test                 # full test suite for this platform
+python3 scripts/tasks.py bump-version         # bump the version (last digit +1, or pass e.g. 0.6.0)
+python3 scripts/tasks.py check-no-emoji       # zero-emoji check
+python3 scripts/tasks.py compare-screenshots  # L2 screenshot pixel diff against goldens
 ```
 
-Exit codes: `0` all green / `1` a step failed / `2` usage error.
+Exit codes: `0` all green / `1` a step failed (a filter that leaves zero steps also counts, #343) / `2` usage error.
 
 ### macOS
 
@@ -128,6 +131,22 @@ Use `--l0-only` for static analysis alone. Expected failures must be waived
 explicitly (`--allow-expected-failures`, or `ALLOW_EXPECTED_FAILURES=1`); the
 default strict mode exits non-zero as soon as any step goes red.
 
+## Single-Source Conventions
+
+Data shared across platforms is declared in exactly one place; everything else is generated or derived, and L0 checks catch drift:
+
+| What | Single source | How it is derived | Issue |
+|------|---------------|-------------------|-------|
+| Version | `[workspace.package] version` in `Cargo.toml` | Doc copies synced by `bump-version`; the macOS bundle and Windows build config are written at build time | [#220](https://github.com/Teeeeeeeerry/Rhythm/issues/220) |
+| Colour palette | `testing/palette.json` | `scripts/gen-palette.py` generates both platforms' theme code | [#219](https://github.com/Teeeeeeeerry/Rhythm/issues/219) |
+| L10n keys | `contracts/l10n-keys.json` | `scripts/gen-l10n.py` generates both key tables and the Windows named accessors | [#167](https://github.com/Teeeeeeeerry/Rhythm/issues/167), [#371](https://github.com/Teeeeeeeerry/Rhythm/issues/371) |
+| FFI contract | `contracts/ffi-contract.json` | `scripts/gen-ffi-bindings.py` generates both codecs; output must pass the text diff and compile on its own | [#180](https://github.com/Teeeeeeeerry/Rhythm/issues/180), [#323](https://github.com/Teeeeeeeerry/Rhythm/issues/323), [#369](https://github.com/Teeeeeeeerry/Rhythm/issues/369) |
+| Build and test orchestration | `scripts/tasks.py` | Same task names on both platforms; the CI templates call the same commands (not yet deployed) | [#221](https://github.com/Teeeeeeeerry/Rhythm/issues/221), [#346](https://github.com/Teeeeeeeerry/Rhythm/issues/346) |
+
+Do not hand-edit code inside generator markers: change the source and regenerate. On Windows, what to
+render is decided by the view state in `windows/Rhythm/ViewState.h`; the XAML shell only pours the
+result into controls ([#317](https://github.com/Teeeeeeeerry/Rhythm/issues/317)).
+
 ## Tech Stack
 
 - Audio: symphonia (decoding) + cpal (output)
@@ -137,4 +156,4 @@ default strict mode exits non-zero as soon as any step goes red.
 
 ## License
 
-To be determined. All rights reserved until a license is chosen.
+[MIT](LICENSE).

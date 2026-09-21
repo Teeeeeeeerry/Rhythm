@@ -24,7 +24,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 
 ## 开发状态
 
-初步开发完成。当前版本 **v0.5.202 "Motif"**（与 `Cargo.toml` 同步，版本提升随每次发布更新本行）。
+初步开发完成。当前版本 **v0.5.203 "Motif"**（唯一出处是 `Cargo.toml` 的 `[workspace.package] version`，本行由 `python3 scripts/tasks.py bump-version` 同步，不手改）。
 
 ### 实现状态
 
@@ -33,7 +33,7 @@ Rhythm 的架构分为两层。上层是平台原生 UI：macOS 端用 Swift 和
 | 本地音乐播放（MP3/FLAC/AAC/WAV/OGG/ALAC/APE/WMA/AIFF/WavPack/MP4） | 完成 | — |
 | 资料库管理 + FTS5 全文搜索 | 完成 | — |
 | 本地导入（目录 / 单文件 / 批量，部分成功分项计数） | 完成（双端能力对等） | [#218](https://github.com/Teeeeeeeerry/Rhythm/issues/218) |
-| 播放列表（混合本地/在线，M3U8 导入导出） | 完成 | — |
+| 播放列表（混合本地/在线，M3U8 导入导出；入库策略在核心单一出处） | 完成 | [#217](https://github.com/Teeeeeeeerry/Rhythm/issues/217) |
 | 播放队列（顺序/随机/单曲循环/列表循环） | 完成 | — |
 | 专辑封面自动提取 | 完成 | — |
 | 系统媒体键 + 托盘模式 | 完成 | — |
@@ -83,12 +83,15 @@ export RHYTHM_YTDLP_PATH=/your/path/to/yt-dlp # 指定自己的二进制
 构建与测试都走同一个跨平台任务入口，任务名两个平台相同（#221）：
 
 ```bash
-python3 scripts/tasks.py            # 列出全部任务
-python3 scripts/tasks.py build      # 构建本平台应用
-python3 scripts/tasks.py test       # 本平台全量测试
+python3 scripts/tasks.py                      # 列出全部任务
+python3 scripts/tasks.py build                # 构建本平台应用
+python3 scripts/tasks.py test                 # 本平台全量测试
+python3 scripts/tasks.py bump-version         # 提升版本号（末位加一，或指定如 0.6.0）
+python3 scripts/tasks.py check-no-emoji       # 零 emoji 校验
+python3 scripts/tasks.py compare-screenshots  # L2 截屏与 golden 像素比对
 ```
 
-退出码：`0` 全绿 / `1` 有步骤失败 / `2` 用法错误。
+退出码：`0` 全绿 / `1` 有步骤失败（筛选后一步都没跑也算失败，#343）/ `2` 用法错误。
 
 ### macOS
 
@@ -122,6 +125,21 @@ CI 工作流（`testing/ci/ci.yml`、`visual.yml`）目前是**未部署的模�
 只跑静态分析用 `--l0-only`；预期失败需显式豁免（`--allow-expected-failures`，
 或环境变量 `ALLOW_EXPECTED_FAILURES=1`），默认严格模式下任一步红即非零退出。
 
+## 单一出处约定
+
+跨端共享的数据都只在一处声明，其余位置生成或派生，漂移由 L0 校验拦截：
+
+| 内容 | 唯一出处 | 派生方式 | Issue |
+|------|----------|----------|-------|
+| 版本号 | `Cargo.toml` `[workspace.package] version` | 文档副本由 `bump-version` 同步；macOS 应用包与 Windows 构建配置在构建期写入 | [#220](https://github.com/Teeeeeeeerry/Rhythm/issues/220) |
+| 配色 | `testing/palette.json` | `scripts/gen-palette.py` 生成双端主题代码 | [#219](https://github.com/Teeeeeeeerry/Rhythm/issues/219) |
+| 文案键 | `contracts/l10n-keys.json` | `scripts/gen-l10n.py` 生成双端键表与 Windows 具名访问器 | [#167](https://github.com/Teeeeeeeerry/Rhythm/issues/167)、[#371](https://github.com/Teeeeeeeerry/Rhythm/issues/371) |
+| FFI 契约 | `contracts/ffi-contract.json` | `scripts/gen-ffi-bindings.py` 生成双端编解码；生成物须通过文本比对并能单独编译 | [#180](https://github.com/Teeeeeeeerry/Rhythm/issues/180)、[#323](https://github.com/Teeeeeeeerry/Rhythm/issues/323)、[#369](https://github.com/Teeeeeeeerry/Rhythm/issues/369) |
+| 构建与测试编排 | `scripts/tasks.py` | 两平台同名任务；CI 模板调用同名命令（尚未部署） | [#221](https://github.com/Teeeeeeeerry/Rhythm/issues/221)、[#346](https://github.com/Teeeeeeeerry/Rhythm/issues/346) |
+
+生成器标记区间内的代码不要手改：改出处后重新生成。Windows 端「渲染什么」由视图状态
+`windows/Rhythm/ViewState.h` 决定，XAML 壳只把结果灌进控件（[#317](https://github.com/Teeeeeeeerry/Rhythm/issues/317)）。
+
 ## 技术选型
 
 - 音频：symphonia（解码）+ cpal（输出）
@@ -131,4 +149,4 @@ CI 工作流（`testing/ci/ci.yml`、`visual.yml`）目前是**未部署的模�
 
 ## 许可
 
-尚未确定。在选定许可证之前，本仓库保留所有权利。
+[MIT](LICENSE)。
