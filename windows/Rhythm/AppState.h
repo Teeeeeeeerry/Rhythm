@@ -46,6 +46,9 @@ public:
     /// True while a URL resolution is in flight. Atomic: cleared from the
     /// resolver thread when no dispatcher is available.
     std::atomic<bool> IsResolvingUrl{ false };
+    /// Where the resolver's provisioning status comes from: the FFI poll in
+    /// the app, a fixed status in tests (#349).
+    std::function<ResolverStatus()> PollResolverStatus = &Resolver::Status;
     /// Raised on the UI thread when a URL fails to resolve: (kind, message).
     std::function<void(const std::wstring&, const std::wstring&)> OnUrlError;
 
@@ -93,6 +96,11 @@ public:
     /// queue is absent or exhausted.
     void PlayNext();
     void PlayPrevious();
+
+    /// The resolver's provisioning copy (#349), so views never query the
+    /// resolver: empty unless a link is resolving, and empty while the
+    /// resolver has nothing to report (idle/ready). Polls only while resolving.
+    std::wstring ResolverStatusText() const;
 
     /// Cycle to the next play mode (WA-21).
     void CyclePlayMode();
