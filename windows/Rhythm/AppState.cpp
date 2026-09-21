@@ -33,6 +33,14 @@ void AppState::RefreshLibrary() {
     Coordinator->SyncQueue(Tracks);
 }
 
+int64_t AppState::CreatePlaylist(const std::wstring& name) {
+    if (!Library || name.empty()) return -1;
+    auto id = Library->CreatePlaylist(name);
+    if (id < 0) return -1;
+    RefreshLibrary();
+    return id;
+}
+
 void AppState::ImportDirectory(const std::wstring& path) {
     if (!Library) return;
     auto outcome = Library->ImportDirectory(path);
