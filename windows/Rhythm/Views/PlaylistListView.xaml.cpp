@@ -25,7 +25,7 @@ void PlaylistListView::BindState(rhythm::AppState* state) {
 }
 
 winrt::fire_and_forget PlaylistListView::OnNewPlaylistClick(IInspectable const&, RoutedEventArgs const&) {
-    if (!appState_ || !appState_->Library) co_return;
+    if (!appState_) co_return;
     auto lifetime = get_strong();
 
     // Simple name input dialog
@@ -48,10 +48,9 @@ winrt::fire_and_forget PlaylistListView::OnNewPlaylistClick(IInspectable const&,
         OutputDebugStringW((L"New playlist dialog failed: " + e.message() + L"\n").c_str());
         co_return;
     }
-    auto name = tb.Text();
-    if (name.empty() || !appState_ || !appState_->Library) co_return;
-    appState_->Library->CreatePlaylist(name.c_str());
-    appState_->RefreshLibrary();
+    if (!appState_) co_return;
+    // #348: creating is the app state's job; the view holds no library handle.
+    appState_->CreatePlaylist(std::wstring{ tb.Text() });
     Refresh();
 }
 
