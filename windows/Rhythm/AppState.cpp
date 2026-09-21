@@ -196,6 +196,13 @@ const Playlist* AppState::FindPlaylist(int64_t id) const {
     return nullptr;
 }
 
+std::wstring AppState::ResolverStatusText() const {
+    // The status is an FFI poll: only worth taking while a link resolves.
+    if (!IsResolvingUrl || !PollResolverStatus) return {};
+    auto status = PollResolverStatus();
+    return status.IsQuiet() ? std::wstring{} : Resolver::StatusText(status);
+}
+
 void AppState::CyclePlayMode() {
     CurrentMode = static_cast<PlayMode>((static_cast<int32_t>(CurrentMode) + 1) % 4);
     Coordinator->SetPlayMode(static_cast<int32_t>(CurrentMode));

@@ -857,3 +857,52 @@ TEST_CASE("WA-33 CreatePlaylist with an empty name creates nothing") {
     REQUIRE(state.Playlists.empty());
     REQUIRE(state.Library->AllPlaylists().empty());
 }
+
+// ─── WA-34 解析器状态文案（#349）────────────────────────────────────
+
+TEST_CASE("WA-34 ResolverStatusText renders the provisioning phase while a link resolves") {
+    LanguageScope zh(L"zh");
+    AppState state;
+    state.IsResolvingUrl = true;
+    for (const wchar_t* phase : {L"checking", L"downloading", L"verifying", L"updating", L"failed"}) {
+        ResolverStatus status;
+        status.phase = phase;
+        status.received = 5 * 1024 * 1024;
+        status.total = 36 * 1024 * 1024;
+        state.PollResolverStatus = [status] { return status; };
+        auto text = state.ResolverStatusText();
+        REQUIRE(text == Resolver::StatusText(status));
+        REQUIRE_FALSE(text.empty());
+    }
+}
+
+TEST_CASE("WA-34 ResolverStatusText is empty in the quiet phases") {
+    AppState state;
+    state.IsResolvingUrl = true;
+    for (const wchar_t* phase : {L"idle", L"ready"}) {
+        ResolverStatus quiet;
+        quiet.phase = phase;
+        state.PollResolverStatus = [quiet] { return quiet; };
+        REQUIRE(state.ResolverStatusText().empty());
+    }
+}
+
+TEST_CASE("WA-34 ResolverStatusText does not poll when no link resolves") {
+    AppState state; // no library opened either
+    int polls = 0;
+    state.PollResolverStatus = [&polls] {
+        ++polls;
+        ResolverStatus downloading;
+        downloading.phase = L"downloading";
+        return downloading;
+    };
+    REQUIRE(state.ResolverStatusText().empty());
+    REQUIRE(polls == 0);
+}
+
+TEST_CASE("WA-34 ResolverStatusText without a library is a safe query of the real resolver") {
+    AppState state;
+    state.IsResolvingUrl = true;
+    auto real = Resolver::Status();
+    REQUIRE(state.ResolverStatusText() == (real.IsQuiet() ? L"" : Resolver::StatusText(real)));
+}
