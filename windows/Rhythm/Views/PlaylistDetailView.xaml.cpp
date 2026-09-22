@@ -69,8 +69,10 @@ winrt::fire_and_forget PlaylistDetailView::OnImportClick(IInspectable const&, Ro
     try {
         auto file = co_await picker.PickSingleFileAsync();
         if (file && appState_) {
+            appState_->DismissAlerts();  // #352: only this import's feedback
             appState_->ImportM3U8(file.Path().c_str());
             Refresh();
+            co_await ShowPendingAlert();
         }
     } catch (winrt::hresult_error const& e) {
         // An exception leaving a fire_and_forget coroutine ends the process.
@@ -91,16 +93,29 @@ winrt::fire_and_forget PlaylistDetailView::OnExportClick(IInspectable const&, Ro
 
     try {
         auto file = co_await picker.PickSaveFileAsync();
-        if (!file) co_return;
-        // Re-read after the await: the state may have changed meanwhile.
-        if (auto current = CurrentPlaylist();
-            !current || rhythm::ExportM3U8(file.Path().c_str(), current->tracks).status
-                            != rhythm::M3u8ExportStatus::Exported) {
-            OutputDebugStringW(L"M3U8 export failed\n");
-        }
+        if (!file || !appState_ || !playlistId_) co_return;
+        // #352: the state exports the playlist it holds now (re-read after
+        // the await) and picks the result or failure copy; this only shows it.
+        appState_->DismissAlerts();
+        appState_->ExportPlaylist(*playlistId_, file.Path().c_str());
+        co_await ShowPendingAlert();
     } catch (winrt::hresult_error const& e) {
         OutputDebugStringW((L"M3U8 export failed: " + e.message() + L"\n").c_str());
     }
+}
+
+winrt::Windows::Foundation::IAsyncAction PlaylistDetailView::ShowPendingAlert() {
+    if (!appState_) co_return;
+    auto alert = rhythm::view::PendingAlert(*appState_);
+    if (!alert) co_return;
+    appState_->DismissAlerts();
+
+    ContentDialog dialog;
+    dialog.XamlRoot(XamlRoot());
+    dialog.Title(winrt::box_value(winrt::hstring{ alert->title }));
+    dialog.Content(winrt::box_value(winrt::hstring{ alert->message }));
+    dialog.CloseButtonText(rhythm::L10n::Ok());
+    co_await dialog.ShowAsync();
 }
 
 void PlaylistDetailView::OnTrackClick(IInspectable const&, ItemClickEventArgs const& args) {

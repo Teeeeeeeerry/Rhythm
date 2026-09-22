@@ -28,6 +28,8 @@ private:
     /// Render once both the id (navigation) and the state (MainWindow) are in.
     void Refresh();
     rhythm::Playlist const* CurrentPlaylist() const;
+    /// Show the import/export feedback the state asks for, if any (#352).
+    winrt::Windows::Foundation::IAsyncAction ShowPendingAlert();
 
     std::optional<int64_t> playlistId_;
     rhythm::AppState* appState_ = nullptr;

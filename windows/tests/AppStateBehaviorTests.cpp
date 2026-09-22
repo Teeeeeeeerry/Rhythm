@@ -954,3 +954,54 @@ TEST_CASE("WA-35 ExportPlaylist without a library or playlist is a safe no-op") 
     REQUIRE_FALSE(state.ExportPlaylist(42, out.wstring()).has_value());
     REQUIRE_FALSE(std::filesystem::exists(out));
 }
+
+// ─── WA-36 导出反馈文案（#352）──────────────────────────────────────
+
+TEST_CASE("WA-36 a successful export raises the export result alert") {
+    LanguageScope zh(L"zh");
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto saved = state.Library->AddTrack(makeLocalTrack(L"C:\\music\\wa36.mp3", L"WA36"));
+    auto id = state.CreatePlaylist(L"A");
+    state.Library->AddToPlaylist(id, saved.id);
+    state.RefreshLibrary();
+
+    state.ExportPlaylist(id, (dir.path / L"a.m3u8").wstring());
+
+    REQUIRE(state.ShowExportAlert);
+    REQUIRE(state.ExportAlertTitle == L10n::ExportResultTitle());
+    REQUIRE(state.ExportAlertMessage == L10n::ExportedTracks(1));
+}
+
+TEST_CASE("WA-36 a failed export raises the export failed alert with the core's code") {
+    LanguageScope zh(L"zh");
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto id = state.CreatePlaylist(L"A");
+
+    state.ExportPlaylist(id, (dir.path / L"missing" / L"a.m3u8").wstring());
+
+    REQUIRE(state.ShowExportAlert);
+    REQUIRE(state.ExportAlertTitle == L10n::ExportFailedTitle());
+    REQUIRE(state.ExportAlertMessage == L10n::ExportFailed(-2));
+}
+
+TEST_CASE("WA-36 an export that does not run raises no alert") {
+    TempDir dir;
+    AppState state;
+    state.ExportPlaylist(1, (dir.path / L"a.m3u8").wstring());
+    REQUIRE_FALSE(state.ShowExportAlert);
+    REQUIRE(state.ExportAlertMessage.empty());
+}
+
+TEST_CASE("WA-36 DismissAlerts clears both the import and the export alert") {
+    AppState state;
+    state.ShowImportAlert = true;
+    state.ShowExportAlert = true;
+    state.DismissAlerts();
+    REQUIRE_FALSE(state.ShowImportAlert);
+    REQUIRE_FALSE(state.ShowExportAlert);
+}
+

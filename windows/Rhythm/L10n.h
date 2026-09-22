@@ -96,6 +96,8 @@ inline const wchar_t* Key(const char* key) {
         L10N_ENTRY(export_failed)
         L10N_ENTRY(export_failed_title)
         L10N_ENTRY(export_m3u8)
+        L10N_ENTRY(export_result_title)
+        L10N_ENTRY(exported_tracks)
         L10N_ENTRY(import_all_failed)
         L10N_ENTRY(import_button)
         L10N_ENTRY(import_dir_empty)
@@ -244,6 +246,16 @@ inline std::wstring ImportedTracks(int32_t count) {
 inline std::wstring ImportSomeFailed(int32_t imported, int32_t failed) {
     return Fill(ImportSomeFailedTemplate().c_str(),
                 {{L"imported", std::to_wstring(imported)}, {L"failed", std::to_wstring(failed)}});
+}
+
+// ─── Export feedback (#352, the same shape as the import alert) ─────
+
+inline std::wstring ExportedTracks(int32_t count) {
+    return Fill(ExportedTracksTemplate().c_str(),
+                {{L"count", std::to_wstring(count)}, {L"s", count == 1 ? L"" : L"s"}});
+}
+inline std::wstring ExportFailed(int32_t code) {
+    return Fill(ExportFailedTemplate().c_str(), {{L"code", std::to_wstring(code)}});
 }
 
 // ─── Source tags ────────────────────────────────────────────────────

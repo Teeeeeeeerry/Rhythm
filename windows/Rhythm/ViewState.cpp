@@ -172,4 +172,10 @@ TrayMenu TrayMenuState(const AppState& state) {
                     state.CanTogglePlayback()};
 }
 
+std::optional<Alert> PendingAlert(const AppState& state) {
+    if (state.ShowExportAlert) return Alert{ state.ExportAlertTitle, state.ExportAlertMessage };
+    if (state.ShowImportAlert) return Alert{ L10n::ImportResultTitle(), state.ImportAlertMessage };
+    return std::nullopt;
+}
+
 } // namespace rhythm::view

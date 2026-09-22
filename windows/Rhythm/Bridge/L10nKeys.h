@@ -38,6 +38,10 @@ inline const wchar_t* L10nKeys_zh_export_failed_title() { return L"导出失败"
 inline const wchar_t* L10nKeys_en_export_failed_title() { return L"Export Failed"; }
 inline const wchar_t* L10nKeys_zh_export_m3u8() { return L"导出 M3U8"; }
 inline const wchar_t* L10nKeys_en_export_m3u8() { return L"Export M3U8"; }
+inline const wchar_t* L10nKeys_zh_export_result_title() { return L"导出结果"; }
+inline const wchar_t* L10nKeys_en_export_result_title() { return L"Export Result"; }
+inline const wchar_t* L10nKeys_zh_exported_tracks() { return L"已导出 {count} 首歌曲"; }
+inline const wchar_t* L10nKeys_en_exported_tracks() { return L"Exported {count} track{s}."; }
 inline const wchar_t* L10nKeys_zh_import_all_failed() { return L"全部导入失败，请检查文件是否支持"; }
 inline const wchar_t* L10nKeys_en_import_all_failed() { return L"All imports failed. Check that the files are supported."; }
 inline const wchar_t* L10nKeys_zh_import_button() { return L"导入"; }

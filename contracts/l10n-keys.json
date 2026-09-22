@@ -256,6 +256,16 @@
       "zh": "导出失败（错误码: {code}），请重试。",
       "en": "Export failed (code: {code}). Please try again."
     },
+    "export_result_title": {
+      "zh": "导出结果",
+      "en": "Export Result",
+      "platform": "windows"
+    },
+    "exported_tracks": {
+      "zh": "已导出 {count} 首歌曲",
+      "en": "Exported {count} track{s}.",
+      "platform": "windows"
+    },
     "back": {
       "zh": "返回",
       "en": "Back"
