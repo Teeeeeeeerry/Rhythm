@@ -9,7 +9,7 @@
 |---|---|---|---|
 | 数据源 | `palette.json` | 品牌配色的单一声明（人工维护）：tokens/sources 色值、translucent 基色 + 不透明度、docs token 文档块、sourceBadge 胶囊底不透明度、决策段 | — |
 | 生成器 | `../scripts/gen-palette.py` | 配色文件写回三处源码标记区间（macOS 主色 token #247、Windows 主题字典 #248、来源徽标色 #246、徽标胶囊底与未知来源回退 #249/#219）；`--emit-swift-seed` 顺带刷新 L1 种子；与文案、契约两个生成器同构 | 改色后 |
-| L0 静态 | `l0/` | 9 个零依赖 Python 脚本（palette/contrast/forbidden/coverage/doc-drift/ffi-contract/l10n-keys/version-drift/orchestration-dialects） | `tasks.py test` 双端共享前缀 |
+| L0 静态 | `l0/` | 10 个零依赖 Python 脚本（palette/contrast/forbidden/coverage/doc-drift/ffi-contract/l10n-keys/version-drift/orchestration-dialects/view-seams） | `tasks.py test` 双端共享前缀 |
 | L0 静态 | `../scripts/check_no_emoji.py` | 零 emoji 硬性约定校验：范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物），二进制按内容探测跳过（#224/#257） | 提交前 / `tasks.py test` 双端共享前缀 |
 | L0 自测 | `l0/tests/` | L0 校验脚本自身的行为测试（stdlib unittest，临时文件树夹具） | `tasks.py test` 双端共享前缀 |
 | L1 单元 | `l1/macos/` | PaletteSeed + 五组 Swift 测试（isDark/RGB/对比度/语义/互异） | `swift test` |
@@ -42,12 +42,13 @@ python3 testing/l0/check-ffi-contract.py           # 契约的第一道门：生
 python3 testing/l0/check-l10n-keys.py
 python3 testing/l0/check-version-drift.py
 python3 testing/l0/check-orchestration-dialects.py
+python3 testing/l0/check-view-seams.py
 python3 scripts/check_no_emoji.py
 # L0 校验脚本自身的测试：
 python3 -m unittest discover -s testing/l0/tests
 # 编排层自测：
 python3 -m unittest discover -s testing/tasks/tests
-# 或一键全量（日志统一落盘）。两个平台先跑同一组静态分析前缀（L0 九项 + 零 emoji + 两组自测），
+# 或一键全量（日志统一落盘）。两个平台先跑同一组静态分析前缀（L0 十项 + 零 emoji + 两组自测），
 # 再跑平台段：macOS 为 L1 swift test + ASan，Windows 为 L1 ctest（L2 未实现，#387）。
 # Windows 段里的「L1b 契约生成物编译门」是契约的第二道门（#369）：生成物由 CMake 目标
 # RhythmGeneratedCodec 单独编译一次，文本比对看不见的「生成器产不出可编译代码」在这里报红；
@@ -70,7 +71,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.208）
+## 当前状态（main，v0.5.209）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
@@ -81,6 +82,7 @@ EOF
 | `check-doc-drift.py` | PASS | 文档色值全部收录于 palette.json |
 | `check-version-drift.py` | PASS | 四处人工版本副本与 `Cargo.toml` 一致；macOS 应用包版本与 Windows 项目版本改构建期派生，源文件写死版本即报红（版本号只改 `Cargo.toml`，#251/#252/#253/#254/#255） |
 | `check-orchestration-dialects.py` | PASS | 被跟踪文件中无 bash / 批处理 / PowerShell 脚本（编排层只用 Python，#221） |
+| `check-view-seams.py` | PASS | Windows 视图不直接调 FFI、导出层、解析器或 AppState 的资料库/协调器句柄，只经 AppState 取能力（#321/#353） |
 | `check_no_emoji.py` | PASS | 203 个被跟踪文件零 emoji；范围由扩展名白名单翻转为排除清单，此前漏检的 43 个文件（Windows UI 实现层、L0 脚本、界面标记文件）自此纳入（#224/#257） |
 
 L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门槛见 deep-testing-plan.md §7；
@@ -139,7 +141,7 @@ CI 模板调用的是同名命令（模板在 `testing/ci/`，尚未部署到 `.
 | 任务 | 内容 |
 |---|---|
 | `build` | 构建本平台应用（macOS `build/Rhythm.app`；Windows `build/windows/Release/Rhythm.exe`） |
-| `test` | 本平台全量测试：双端共享静态分析前缀（L0 九项 + 零 emoji + 两组自测，#344/#345），再接平台段——macOS L1（swift test + ASan）；Windows L1（ctest）外加契约生成物编译门（#369），`--smoke` 追加 L3；Windows L2 未实现（#387） |
+| `test` | 本平台全量测试：双端共享静态分析前缀（L0 十项 + 零 emoji + 两组自测，#344/#345），再接平台段——macOS L1（swift test + ASan）；Windows L1（ctest）外加契约生成物编译门（#369），`--smoke` 追加 L3；Windows L2 未实现（#387） |
 | `bump-version` | 提升版本号（不带参数末位加一），同步三处文档副本与依赖锁文件后自校验 |
 | `check-no-emoji` | 零 emoji 硬性约定校验 |
 | `compare-screenshots` | L2 截屏与 golden 的像素比对 |
