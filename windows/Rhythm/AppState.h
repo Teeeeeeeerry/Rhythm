@@ -20,6 +20,10 @@ static_assert(static_cast<int32_t>(PlayMode::ListLoop) == 3);
 
 /// Plain C++ state (#326): no WinRT base and no WinUI types, so the behaviour
 /// library and its test host need neither an apartment nor the XAML runtime.
+/// The failure copy for an export outcome, picked by its named category
+/// (#321 review): bad track data and an unwritable target read differently.
+std::wstring ExportFailureText(const M3u8ExportOutcome& outcome);
+
 class AppState {
 public:
     AppState();
@@ -62,7 +66,9 @@ public:
     std::wstring ExportAlertMessage;
     bool ShowExportAlert = false;
 
-    /// Mark the import and export alerts as shown (#352).
+    /// Mark the import and export alerts as shown (#352). Each import or
+    /// export clears the stale alerts itself, so the view only calls this
+    /// after showing one.
     void DismissAlerts();
 
     PlayMode CurrentMode = PlayMode::Sequential;

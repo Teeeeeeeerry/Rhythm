@@ -77,6 +77,18 @@ class ViewSeamTests(unittest.TestCase):
         for line in ("B.xaml.cpp:1", "B.xaml.cpp:2", "B.xaml.cpp:3"):
             self.assertIn(line, result.stdout)
 
+    def test_including_a_bridge_header_is_reported(self):
+        result = self.check_tree({
+            f"{VIEWS}/D.xaml.cpp":
+                '#include "AppState.h"\n'
+                '#include "Bridge/RhythmCore.h"\n'
+                "#include <rhythm_core.h>\n",
+        })
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn("D.xaml.cpp:1", result.stdout)
+        self.assertIn("D.xaml.cpp:2", result.stdout)
+        self.assertIn("D.xaml.cpp:3", result.stdout)
+
     def test_comments_do_not_count(self):
         result = self.check_tree({
             f"{VIEWS}/C.xaml.cpp":
@@ -84,6 +96,17 @@ class ViewSeamTests(unittest.TestCase):
                 "/// never Resolver::Status() here\n",
         })
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_block_comments_do_not_count_and_keep_line_numbers(self):
+        result = self.check_tree({
+            f"{VIEWS}/E.xaml.cpp":
+                "/* the old path:\n"
+                "   rhythm::ExportM3U8(path, tracks); */\n"
+                "rhythm::Resolver::Status();\n",
+        })
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn("E.xaml.cpp:2", result.stdout)
+        self.assertIn("E.xaml.cpp:3", result.stdout)
 
     def test_files_outside_the_views_are_not_scanned(self):
         result = self.check_tree({

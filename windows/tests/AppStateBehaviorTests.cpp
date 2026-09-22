@@ -1005,3 +1005,34 @@ TEST_CASE("WA-36 DismissAlerts clears both the import and the export alert") {
     REQUIRE_FALSE(state.ShowExportAlert);
 }
 
+// ─── WA-37 失败文案按类别选键、提示由 AppState 自己清（#321 评审）──────
+
+TEST_CASE("WA-37 each export failure category gets its own copy") {
+    for (const wchar_t* language : {L"zh", L"en"}) {
+        LanguageScope scope(language);
+        auto invalid = ExportFailureText({ M3u8ExportStatus::InvalidTracks, 0, -1 });
+        auto unwritable = ExportFailureText({ M3u8ExportStatus::WriteFailed, 0, -2 });
+        REQUIRE(invalid == L10n::ExportInvalidTracks(-1));
+        REQUIRE(unwritable == L10n::ExportFailed(-2));
+        REQUIRE(invalid != unwritable);
+    }
+}
+
+TEST_CASE("WA-37 an export clears a stale import alert, an M3U8 import a stale export alert") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto id = state.CreatePlaylist(L"A");
+
+    state.ShowImportAlert = true;  // left over from an earlier folder import
+    state.ExportPlaylist(id, (dir.path / L"a.m3u8").wstring());
+    REQUIRE(state.ShowExportAlert);
+    REQUIRE_FALSE(state.ShowImportAlert);
+
+    auto empty = dir.path / L"empty.m3u8";
+    std::ofstream(empty) << "#EXTM3U\n";
+    state.ImportM3U8(empty.wstring());  // nothing imported: no alert of its own
+    REQUIRE_FALSE(state.ShowExportAlert);
+    REQUIRE_FALSE(state.ShowImportAlert);
+}
+

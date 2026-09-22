@@ -26,6 +26,7 @@ inline std::wstring DeleteFromLibrary() { return Key("delete_from_library"); }
 inline std::wstring DetailPrefixZh() { return Key("detail_prefix_zh"); }
 inline std::wstring ExportFailedTemplate() { return Key("export_failed"); }
 inline std::wstring ExportFailedTitle() { return Key("export_failed_title"); }
+inline std::wstring ExportInvalidTracksTemplate() { return Key("export_invalid_tracks"); }
 inline std::wstring ExportM3U8() { return Key("export_m3u8"); }
 inline std::wstring ExportResultTitle() { return Key("export_result_title"); }
 inline std::wstring ExportedTracksTemplate() { return Key("exported_tracks"); }

@@ -95,6 +95,7 @@ inline const wchar_t* Key(const char* key) {
         L10N_ENTRY(detail_prefix_zh)
         L10N_ENTRY(export_failed)
         L10N_ENTRY(export_failed_title)
+        L10N_ENTRY(export_invalid_tracks)
         L10N_ENTRY(export_m3u8)
         L10N_ENTRY(export_result_title)
         L10N_ENTRY(exported_tracks)
@@ -256,6 +257,10 @@ inline std::wstring ExportedTracks(int32_t count) {
 }
 inline std::wstring ExportFailed(int32_t code) {
     return Fill(ExportFailedTemplate().c_str(), {{L"code", std::to_wstring(code)}});
+}
+/// Bad track data is a bug, not something a retry fixes (#321 review).
+inline std::wstring ExportInvalidTracks(int32_t code) {
+    return Fill(ExportInvalidTracksTemplate().c_str(), {{L"code", std::to_wstring(code)}});
 }
 
 // ─── Source tags ────────────────────────────────────────────────────

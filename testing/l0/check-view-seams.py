@@ -6,7 +6,8 @@
 「视图只依赖 AppState」仍只是一条写在文档里的约定——本脚本把它变成会报红的检查：
 windows/Rhythm/Views/ 下的源码一旦直接调用下层模块即失败。
 
-被拦下的调用：
+被拦下的调用与包含：
+  - 下层模块的头文件（Bridge/ 下的任何头、rhythm_core.h；#321：视图的包含列表里只有 AppState）
   - FFI 裸函数（rhythm_xxx(...)）
   - Bridge 的导出层（ExportM3U8(...)，文案访问器 L10n::ExportM3U8() 除外）
   - 解析器（Resolver::...）
@@ -32,6 +33,8 @@ SOURCE_SUFFIXES = (".cpp", ".h")
 
 # (理由, 正则)：每条对应 #321 收拢过的一类绕过路径。
 RULES: list[tuple[str, re.Pattern[str]]] = [
+    ("下层模块头文件（只包含 AppState.h）",
+     re.compile(r'#\s*include\s*[<"](?:Bridge/|rhythm_core\.h)')),
     ("FFI 裸函数", re.compile(r"\brhythm_[a-z0-9_]+\s*\(")),
     ("FFI 导出层（改调 AppState::ExportPlaylist）",
      re.compile(r"(?<!L10n::)\bExportM3U8\s*\(\s*[^)\s]")),
@@ -44,6 +47,12 @@ RULES: list[tuple[str, re.Pattern[str]]] = [
 ALLOWED: dict[str, str] = {}
 
 LINE_COMMENT = re.compile(r"//.*$")
+BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+
+
+def strip_block_comments(text: str) -> str:
+    """去掉 /* */ 注释，只留其中的换行，行号不变。"""
+    return BLOCK_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
 
 
 def view_sources(root: Path) -> list[Path]:
@@ -57,7 +66,7 @@ def offenders(root: Path) -> list[str]:
     found = []
     for path in view_sources(root):
         rel = path.relative_to(root).as_posix()
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = strip_block_comments(path.read_text(encoding="utf-8", errors="replace"))
         for number, line in enumerate(text.splitlines(), start=1):
             code = LINE_COMMENT.sub("", line)
             for reason, pattern in RULES:
