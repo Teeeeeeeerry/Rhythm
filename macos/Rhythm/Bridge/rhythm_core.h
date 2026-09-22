@@ -151,6 +151,8 @@ char* rhythm_message_resolver_status(const char* phase, int64_t received, int64_
 
 // ─── M3U8 Import/Export ────────────────────────────────────────────
 
+// Write tracks to an M3U8 file. Returns 0 on success, -1 when tracks_json
+// cannot be decoded, -2 when the file cannot be written (#351).
 int32_t rhythm_export_m3u8(const char* file_path, const char* tracks_json);
 char* rhythm_import_m3u8(const char* file_path);
 

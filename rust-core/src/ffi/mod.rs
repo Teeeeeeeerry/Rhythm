@@ -1084,7 +1084,9 @@ pub unsafe extern "C" fn rhythm_coordinator_get_play_mode(ptr: *mut RhythmCoordi
 
 // ─── M3U8 Import/Export FFI ───────────────────────────────────────
 
-/// Export tracks to an M3U8 file. Returns 0 on success.
+/// Export tracks to an M3U8 file. Returns 0 on success, -1 when the track
+/// JSON cannot be decoded, -2 when the file cannot be written (#351: the two
+/// failures are told apart so the UI can name them).
 #[no_mangle]
 ///
 /// # Safety
@@ -1103,7 +1105,7 @@ pub unsafe extern "C" fn rhythm_export_m3u8(
 
     match playlist::export_m3u8(Path::new(p), &tracks) {
         Ok(_) => 0,
-        Err(_) => -1,
+        Err(_) => -2,
     }
 }
 

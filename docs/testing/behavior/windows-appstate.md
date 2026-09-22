@@ -42,6 +42,7 @@
 | WA-32（#339） | `FindPlaylist(id)` | 返回已加载歌单中该 id 的那一个（指向 `Playlists` 内元素）；id 不存在 → null。歌单详情视图与视图状态 `PlaylistRows` 共用这一处查找 | SpyApp 之外直接构造 |
 | WA-33（#347） | `CreatePlaylist(name)` | 真库建歌单后 `Playlists` 立即含新歌单（id 与返回值一致），库里也有；未打开库或打开失败 → 返回 -1、列表不变；空名字 → 返回 -1、什么都不建。视图因此不必持有资料库句柄 | 真库（临时路径） |
 | WA-34（#349） | `ResolverStatusText()` | 链接解析进行中：各供给阶段（checking/downloading/verifying/updating/failed）返回与 `Resolver::StatusText` 相同的文案；静默阶段（idle/ready）返回空串；无解析在进行 → 空串且不轮询解析器；未打开资料库时照常安全返回。状态来源经 `PollResolverStatus` 注入，默认是真解析器的 FFI 轮询。视图因此不必直接接触解析器 | 注入状态来源 + 真解析器 |
+| WA-35（#351） | `ExportPlaylist(id, path)` | 真库歌单导出成功 → 具名结果 `Exported`、`exported` 为曲目数、文件含曲目路径；写不出文件 → `WriteFailed`、`code == -2`（核心把「曲目数据解不开」-1 与「写不出」-2 分开，见 FF-14）；未打开资料库或歌单 id 不存在 → `nullopt`、什么都不写。视图因此不必直接调 FFI 导出层 | 真库（临时路径） |
 
 ## 测试夹具（P1，#455）
 

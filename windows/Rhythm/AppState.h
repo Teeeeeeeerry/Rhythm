@@ -85,6 +85,10 @@ public:
     /// Import an M3U8 file through the core's parse-and-store entry point:
     /// pick the alert text from the named counts and reload the list (#236).
     void ImportM3U8(const std::wstring& path);
+    /// Export a loaded playlist to an M3U8 file (#351), so the view never
+    /// calls the FFI export layer. Returns the named outcome; nullopt with
+    /// nothing written when no library is open or the playlist is unknown.
+    std::optional<M3u8ExportOutcome> ExportPlaylist(int64_t playlistId, const std::wstring& path);
 
     /// Transport availability (WA-22, mirrors the macOS tray-menu gates).
     bool CanTogglePlayback() const;

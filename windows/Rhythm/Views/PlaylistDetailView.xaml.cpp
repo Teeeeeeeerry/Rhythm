@@ -94,7 +94,8 @@ winrt::fire_and_forget PlaylistDetailView::OnExportClick(IInspectable const&, Ro
         if (!file) co_return;
         // Re-read after the await: the state may have changed meanwhile.
         if (auto current = CurrentPlaylist();
-            !current || !rhythm::ExportM3U8(file.Path().c_str(), current->tracks)) {
+            !current || rhythm::ExportM3U8(file.Path().c_str(), current->tracks).status
+                            != rhythm::M3u8ExportStatus::Exported) {
             OutputDebugStringW(L"M3U8 export failed\n");
         }
     } catch (winrt::hresult_error const& e) {

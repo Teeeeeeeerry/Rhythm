@@ -65,9 +65,28 @@ struct M3u8Entry {
     bool operator==(const M3u8Entry&) const = default;
 };
 
+/// How an M3U8 export ended (#351). The two failures are kept apart the way
+/// the import outcomes are: bad track data is a bug, an unwritable target is
+/// something the user can act on.
+enum class M3u8ExportStatus { Exported, InvalidTracks, WriteFailed };
+
+/// Named outcome of an M3U8 export (#351), in place of the core's bare
+/// integer. `code` is the core's return code, kept for the failure copy.
+struct M3u8ExportOutcome {
+    M3u8ExportStatus status = M3u8ExportStatus::Exported;
+    int32_t exported = 0;
+    int32_t code = 0;
+
+    bool operator==(const M3u8ExportOutcome&) const = default;
+};
+
+/// Map the core's export return code onto the named outcome (#351). An
+/// unknown code is a write failure, never a silent success.
+M3u8ExportOutcome M3u8ExportOutcomeFromCode(int32_t code, int32_t trackCount);
+
 /// Write tracks to an M3U8 file through the core (#428: the view used to
 /// hand-roll its own track encoder; the generated codec is the one encoder).
-bool ExportM3U8(const std::wstring& path, const std::vector<Track>& tracks);
+M3u8ExportOutcome ExportM3U8(const std::wstring& path, const std::vector<Track>& tracks);
 
 /// Named outcome of an M3U8 import (#234): how many entries the core stored
 /// and how many it could not. Field list and codec come from

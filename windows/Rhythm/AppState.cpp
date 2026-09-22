@@ -109,6 +109,13 @@ void AppState::ImportM3U8(const std::wstring& path) {
     }
 }
 
+std::optional<M3u8ExportOutcome> AppState::ExportPlaylist(int64_t playlistId, const std::wstring& path) {
+    if (!Library) return std::nullopt;
+    auto playlist = FindPlaylist(playlistId);
+    if (!playlist) return std::nullopt;
+    return ExportM3U8(path, playlist->tracks);
+}
+
 void AppState::DoSearch() {
     if (!Library) return;
     Tracks = SearchQuery.empty() ? Library->AllTracks() : Library->Search(SearchQuery);
