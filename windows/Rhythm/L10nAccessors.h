@@ -27,6 +27,8 @@ inline std::wstring DetailPrefixZh() { return Key("detail_prefix_zh"); }
 inline std::wstring ExportFailedTemplate() { return Key("export_failed"); }
 inline std::wstring ExportFailedTitle() { return Key("export_failed_title"); }
 inline std::wstring ExportM3U8() { return Key("export_m3u8"); }
+inline std::wstring ExportResultTitle() { return Key("export_result_title"); }
+inline std::wstring ExportedTracksTemplate() { return Key("exported_tracks"); }
 inline std::wstring ImportAllFailed() { return Key("import_all_failed"); }
 inline std::wstring ImportButton() { return Key("import_button"); }
 inline std::wstring ImportNoFiles() { return Key("import_dir_empty"); }

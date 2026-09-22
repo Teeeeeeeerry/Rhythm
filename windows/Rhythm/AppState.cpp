@@ -113,7 +113,23 @@ std::optional<M3u8ExportOutcome> AppState::ExportPlaylist(int64_t playlistId, co
     if (!Library) return std::nullopt;
     auto playlist = FindPlaylist(playlistId);
     if (!playlist) return std::nullopt;
-    return ExportM3U8(path, playlist->tracks);
+    auto outcome = ExportM3U8(path, playlist->tracks);
+    // #352: the failure copy finally reaches the UI; the code tells a bad
+    // payload (-1) from an unwritable target (-2).
+    if (outcome.status == M3u8ExportStatus::Exported) {
+        ExportAlertTitle = L10n::ExportResultTitle();
+        ExportAlertMessage = L10n::ExportedTracks(outcome.exported);
+    } else {
+        ExportAlertTitle = L10n::ExportFailedTitle();
+        ExportAlertMessage = L10n::ExportFailed(outcome.code);
+    }
+    ShowExportAlert = true;
+    return outcome;
+}
+
+void AppState::DismissAlerts() {
+    ShowImportAlert = false;
+    ShowExportAlert = false;
 }
 
 void AppState::DoSearch() {

@@ -116,4 +116,16 @@ struct TrayMenu {
 
 TrayMenu TrayMenuState(const AppState& state);
 
+/// A feedback dialog's two texts (#352).
+struct Alert {
+    std::wstring title;
+    std::wstring message;
+};
+
+/// The feedback a finished import or export asks for (#352): the export
+/// alert with its own title, else the import alert under the import result
+/// title; nothing when neither is pending. The shell shows it, then calls
+/// `AppState::DismissAlerts`.
+std::optional<Alert> PendingAlert(const AppState& state);
+
 } // namespace rhythm::view

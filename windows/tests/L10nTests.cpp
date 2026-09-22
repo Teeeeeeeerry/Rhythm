@@ -64,6 +64,22 @@ TEST_CASE("LK-02 L10n imported-tracks count copy") {
     }
 }
 
+// ─── WA-36 导出反馈（#352）──────────────────────────────────────────
+
+TEST_CASE("LK-12 L10n export feedback copy") {
+    {
+        LanguageScope zh(L"zh");
+        REQUIRE(L10n::ExportedTracks(2) == L"已导出 2 首歌曲");
+        REQUIRE(L10n::ExportFailed(-2) == L"导出失败（错误码: -2），请重试。");
+    }
+    {
+        LanguageScope en(L"en");
+        REQUIRE(L10n::ExportedTracks(1) == L"Exported 1 track.");
+        REQUIRE(L10n::ExportedTracks(3) == L"Exported 3 tracks.");
+        REQUIRE(L10n::ExportFailed(-2) == L"Export failed (code: -2). Please try again.");
+    }
+}
+
 // ─── WA-26 解析/播放失败分类（#120 英文分支）────────────────────────
 
 TEST_CASE("LK-03 L10n playback failure classification has English branches") {

@@ -489,3 +489,37 @@ TEST_CASE("VS-35 a first-use yt-dlp download renders its progress") {
     REQUIRE(text == Resolver::StatusText(downloading));
     REQUIRE_FALSE(text.empty());
 }
+
+// ─── VS-36/37 导入导出反馈弹窗（#352）──────────────────────────────
+
+TEST_CASE("VS-36 a pending export alert renders its own title and message") {
+    AppState state;
+    state.ShowExportAlert = true;
+    state.ExportAlertTitle = L"T";
+    state.ExportAlertMessage = L"M";
+    auto alert = view::PendingAlert(state);
+    REQUIRE(alert.has_value());
+    REQUIRE(alert->title == L"T");
+    REQUIRE(alert->message == L"M");
+}
+
+TEST_CASE("VS-36 a pending import alert renders under the import result title") {
+    for (const wchar_t* language : {L"zh", L"en"}) {
+        LanguageScope scope(language);
+        AppState state;
+        state.ShowImportAlert = true;
+        state.ImportAlertMessage = L10n::ImportedTracks(2);
+        auto alert = view::PendingAlert(state);
+        REQUIRE(alert.has_value());
+        REQUIRE(alert->title == L10n::ImportResultTitle());
+        REQUIRE(alert->message == L10n::ImportedTracks(2));
+    }
+}
+
+TEST_CASE("VS-37 nothing pending renders no alert") {
+    AppState state;
+    state.ImportAlertMessage = L"stale";
+    state.ExportAlertMessage = L"stale";
+    REQUIRE_FALSE(view::PendingAlert(state).has_value());
+}
+
