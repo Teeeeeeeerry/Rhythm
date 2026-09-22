@@ -47,6 +47,12 @@ RULES: list[tuple[str, re.Pattern[str]]] = [
 ALLOWED: dict[str, str] = {}
 
 LINE_COMMENT = re.compile(r"//.*$")
+BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+
+
+def strip_block_comments(text: str) -> str:
+    """去掉 /* */ 注释，只留其中的换行，行号不变。"""
+    return BLOCK_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
 
 
 def view_sources(root: Path) -> list[Path]:
@@ -60,7 +66,7 @@ def offenders(root: Path) -> list[str]:
     found = []
     for path in view_sources(root):
         rel = path.relative_to(root).as_posix()
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = strip_block_comments(path.read_text(encoding="utf-8", errors="replace"))
         for number, line in enumerate(text.splitlines(), start=1):
             code = LINE_COMMENT.sub("", line)
             for reason, pattern in RULES:

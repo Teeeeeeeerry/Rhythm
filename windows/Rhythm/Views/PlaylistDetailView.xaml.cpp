@@ -7,6 +7,7 @@
 #include "Views/SystemTheme.h"
 #include "Views/Win32Interop.h"
 #include "L10n.h"
+#include "ViewState.h"
 
 using namespace winrt::Microsoft::UI::Xaml;
 using namespace winrt::Microsoft::UI::Xaml::Controls;
@@ -69,7 +70,6 @@ winrt::fire_and_forget PlaylistDetailView::OnImportClick(IInspectable const&, Ro
     try {
         auto file = co_await picker.PickSingleFileAsync();
         if (file && appState_) {
-            appState_->DismissAlerts();  // #352: only this import's feedback
             appState_->ImportM3U8(file.Path().c_str());
             Refresh();
             co_await ShowPendingAlert();
@@ -96,7 +96,6 @@ winrt::fire_and_forget PlaylistDetailView::OnExportClick(IInspectable const&, Ro
         if (!file || !appState_ || !playlistId_) co_return;
         // #352: the state exports the playlist it holds now (re-read after
         // the await) and picks the result or failure copy; this only shows it.
-        appState_->DismissAlerts();
         appState_->ExportPlaylist(*playlistId_, file.Path().c_str());
         co_await ShowPendingAlert();
     } catch (winrt::hresult_error const& e) {

@@ -36,6 +36,8 @@ inline const wchar_t* L10nKeys_zh_export_failed() { return L"导出失败（错�
 inline const wchar_t* L10nKeys_en_export_failed() { return L"Export failed (code: {code}). Please try again."; }
 inline const wchar_t* L10nKeys_zh_export_failed_title() { return L"导出失败"; }
 inline const wchar_t* L10nKeys_en_export_failed_title() { return L"Export Failed"; }
+inline const wchar_t* L10nKeys_zh_export_invalid_tracks() { return L"歌单数据无法导出（错误码: {code}），请反馈这个问题。"; }
+inline const wchar_t* L10nKeys_en_export_invalid_tracks() { return L"The playlist data could not be exported (code: {code}). Please report this issue."; }
 inline const wchar_t* L10nKeys_zh_export_m3u8() { return L"导出 M3U8"; }
 inline const wchar_t* L10nKeys_en_export_m3u8() { return L"Export M3U8"; }
 inline const wchar_t* L10nKeys_zh_export_result_title() { return L"导出结果"; }

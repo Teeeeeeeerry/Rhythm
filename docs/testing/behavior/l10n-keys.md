@@ -46,7 +46,7 @@
 | LK-09 | 适配层模板填充（#228） | 按键取模板、按参数填 `{占位符}`、按顺序拼接核心规格的各段；未知键回退（macOS 回退键名、Windows 回退空串） | 双端固定 locale |
 | LK-10 | 播放模式提示接线（#373） | Windows 播放栏新增播放模式控件（点击循环 `CyclePlayMode`，图标取视图状态 `PlayerBarState().playModeIcon`，不含 WinUI 类型的 `rhythm::view::Icon`：顺序 List / 随机 Shuffle / 单曲循环 RepeatOne / 列表循环 RepeatAll，由播放栏换成 XAML Symbol；映射自 #335 起在 `ViewState.cpp`，#329），提示文案取键表 `play_mode_tooltip`（生成访问器 `PlayModeTooltip()`）；中英两语言均能取到 | Windows 固定 locale（`L10nTests.cpp`：文案与四种模式图标）；点击循环后图标随模式（`AppStateBehaviorTests.cpp`，#411）；两条均断言视图状态的返回值（#335） |
 | LK-11 | 链接解析失败兜底文案（#374） | 解析失败却没有可显示内容（核心无返回、无分类无详情、`internal` 无详情）时显示键表 `url_resolve_failed`（生成访问器 `UrlResolveFailed()`），不弹空白对话框；有引擎详情时仍显示详情；Windows 解析桥接的无返回分支留空消息，兜底只在 `L10n::UrlResolveError` 一处（#412） | Windows 固定 locale（`L10nTests.cpp`） |
-| LK-12 | 导出反馈文案（#352） | `ExportedTracks(n)` 取键表 `exported_tracks`（中文「已导出 n 首歌曲」，英文单复数同导入）；`ExportFailed(code)` 填 `export_failed` 的 `{code}`；标题 `export_result_title` / `export_failed_title`。两个新键仅 Windows（macOS 导出成功不提示） | Windows 固定 locale（`L10nTests.cpp`） |
+| LK-12 | 导出反馈文案（#352） | `ExportedTracks(n)` 取键表 `exported_tracks`（中文「已导出 n 首歌曲」，英文单复数同导入）；`ExportFailed(code)` 填 `export_failed` 的 `{code}`；曲目数据解不开时 `ExportInvalidTracks(code)` 取 `export_invalid_tracks`（#321 评审）；标题 `export_result_title` / `export_failed_title`。三个新键仅 Windows（macOS 导出成功不提示） | Windows 固定 locale（`L10nTests.cpp`） |
 
 ## 红测登记
 

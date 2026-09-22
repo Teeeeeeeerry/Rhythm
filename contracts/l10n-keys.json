@@ -256,6 +256,11 @@
       "zh": "导出失败（错误码: {code}），请重试。",
       "en": "Export failed (code: {code}). Please try again."
     },
+    "export_invalid_tracks": {
+      "zh": "歌单数据无法导出（错误码: {code}），请反馈这个问题。",
+      "en": "The playlist data could not be exported (code: {code}). Please report this issue.",
+      "platform": "windows"
+    },
     "export_result_title": {
       "zh": "导出结果",
       "en": "Export Result",
