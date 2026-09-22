@@ -6,7 +6,8 @@
 「视图只依赖 AppState」仍只是一条写在文档里的约定——本脚本把它变成会报红的检查：
 windows/Rhythm/Views/ 下的源码一旦直接调用下层模块即失败。
 
-被拦下的调用：
+被拦下的调用与包含：
+  - 下层模块的头文件（Bridge/ 下的任何头、rhythm_core.h；#321：视图的包含列表里只有 AppState）
   - FFI 裸函数（rhythm_xxx(...)）
   - Bridge 的导出层（ExportM3U8(...)，文案访问器 L10n::ExportM3U8() 除外）
   - 解析器（Resolver::...）
@@ -32,6 +33,8 @@ SOURCE_SUFFIXES = (".cpp", ".h")
 
 # (理由, 正则)：每条对应 #321 收拢过的一类绕过路径。
 RULES: list[tuple[str, re.Pattern[str]]] = [
+    ("下层模块头文件（只包含 AppState.h）",
+     re.compile(r'#\s*include\s*[<"](?:Bridge/|rhythm_core\.h)')),
     ("FFI 裸函数", re.compile(r"\brhythm_[a-z0-9_]+\s*\(")),
     ("FFI 导出层（改调 AppState::ExportPlaylist）",
      re.compile(r"(?<!L10n::)\bExportM3U8\s*\(\s*[^)\s]")),

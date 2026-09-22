@@ -107,8 +107,8 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   （主题标志这类壳才拿得到的输入作参数传入；解析器状态文案经 `AppState::ResolverStatusText()` 取，视图不直接接触解析器，#350），输出普通结构体（列表行、播放条、托盘菜单）。XAML code-behind 与托盘只把结构体灌进控件，
   不做判断、不调 L10n 选文案、不自己算颜色或格式。新增一条渲染规则 = 在视图状态加字段与测试（`windows/tests/ViewStateTests.cpp`）并在
   `docs/testing/behavior/windows-viewstate.md` 登记；壳本身不测，被有意做薄。行为库不含任何 C++/WinRT 头，测试宿主不需要 WinUI 与 WinRT 单元
-  视图的能力只经 `AppState` 的方法取（创建歌单、导出歌单、解析器文案……，#321）：直接调 FFI、导出层、解析器或 `AppState` 的
-  `Library`/`Coordinator` 句柄由 `python3 testing/l0/check-view-seams.py` 拦截（#353），确有必要的例外写进该脚本的 ALLOWED 并附理由
+  视图的能力只经 `AppState` 的方法取（创建歌单、导出歌单、解析器文案……，#321），包含列表里也没有下层模块：包含 `Bridge/` 下的头或
+  `rhythm_core.h`、直接调 FFI、导出层、解析器或 `AppState` 的 `Library`/`Coordinator` 句柄由 `python3 testing/l0/check-view-seams.py` 拦截（#353），确有必要的例外写进该脚本的 ALLOWED 并附理由
 - **导入结果具名不用魔数**：资料库导入不再有魔数返回码（#244 起）。三条路径共用 `ImportOutcome{imported, unsupported, failed}`，
   「格式不支持」与「读写失败」必须分开——合并会丢掉用户唯一能据以行动的信息。新增一条导入路径沿用同一形状，
   不发明新的返回约定；结果结构声明在 `contracts/ffi-contract.json`，双端绑定由生成器产出，少接一条路径会在生成物比对时暴露。

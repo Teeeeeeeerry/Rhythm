@@ -71,7 +71,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.210）
+## 当前状态（main，v0.5.211）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
@@ -82,7 +82,7 @@ EOF
 | `check-doc-drift.py` | PASS | 文档色值全部收录于 palette.json |
 | `check-version-drift.py` | PASS | 四处人工版本副本与 `Cargo.toml` 一致；macOS 应用包版本与 Windows 项目版本改构建期派生，源文件写死版本即报红（版本号只改 `Cargo.toml`，#251/#252/#253/#254/#255） |
 | `check-orchestration-dialects.py` | PASS | 被跟踪文件中无 bash / 批处理 / PowerShell 脚本（编排层只用 Python，#221） |
-| `check-view-seams.py` | PASS | Windows 视图不直接调 FFI、导出层、解析器或 AppState 的资料库/协调器句柄，只经 AppState 取能力（#321/#353） |
+| `check-view-seams.py` | PASS | Windows 视图不包含 `Bridge/` 头与 `rhythm_core.h`，不直接调 FFI、导出层、解析器或 AppState 的资料库/协调器句柄，只经 AppState 取能力（#321/#353） |
 | `check_no_emoji.py` | PASS | 203 个被跟踪文件零 emoji；范围由扩展名白名单翻转为排除清单，此前漏检的 43 个文件（Windows UI 实现层、L0 脚本、界面标记文件）自此纳入（#224/#257） |
 
 L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门槛见 deep-testing-plan.md §7；
