@@ -84,8 +84,9 @@ struct M3u8ExportOutcome {
 /// unknown code is a write failure, never a silent success.
 M3u8ExportOutcome M3u8ExportOutcomeFromCode(int32_t code, int32_t trackCount);
 
-/// Write tracks to an M3U8 file through the core (#428: the view used to
-/// hand-roll its own track encoder; the generated codec is the one encoder).
+/// Write tracks to an M3U8 file through the core (#428/#385: the view used to
+/// hand-roll its own track encoder; the generated codec is the one encoder,
+/// and WB-30 pins that the file it writes is byte-identical to the old one).
 M3u8ExportOutcome ExportM3U8(const std::wstring& path, const std::vector<Track>& tracks);
 
 /// Named outcome of an M3U8 import (#234): how many entries the core stored

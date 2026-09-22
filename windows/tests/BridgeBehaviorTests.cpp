@@ -1,4 +1,4 @@
-// WB-01–29：Windows RhythmCore（Bridge 封装层）行为清单（manifest:
+// WB-01–30：Windows RhythmCore（Bridge 封装层）行为清单（manifest:
 // docs/testing/behavior/rhythmcore-windows.md）。零接缝：真 rhythm_core DLL
 //（WB-05/06/07/09/10/14/28 经 FFI 往返），纯函数直测（WB-12/13）。WB-01 的时长文案与 WB-02/03/04/20 的来源徽标
 // 已迁入视图状态（ViewStateTests.cpp VS-18～VS-25，#337/#338）。
@@ -45,6 +45,97 @@ TEST_CASE("WB-29 the core's export code maps onto a named outcome") {
     // An unknown code is still a failure the user sees, never a silent success.
     REQUIRE(M3u8ExportOutcomeFromCode(-7, 3).status == M3u8ExportStatus::WriteFailed);
     REQUIRE(M3u8ExportOutcomeFromCode(-7, 3).code == -7);
+}
+
+// ─── WB-30 导出与删掉的手写编码器逐字节一致（#385）──────────────────
+
+namespace {
+
+std::string ReadBytes(const fs::path& path) {
+    std::ifstream in(path, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+}
+
+nlohmann::json OptText(const std::optional<std::wstring>& v) {
+    return v ? nlohmann::json(WideToUtf8ForTest(*v)) : nlohmann::json(nullptr);
+}
+
+template <typename T>
+nlohmann::json OptNumber(const std::optional<T>& v) {
+    return v ? nlohmann::json(*v) : nlohmann::json(nullptr);
+}
+
+/// The payload shape of the track encoder the playlist detail view used to
+/// hand-roll (removed in #428): every key present, empty optionals as
+/// explicit nulls. Kept here only as the "before" of the export.
+nlohmann::json HandRolledTrackJson(const Track& t) {
+    return {
+        {"id", t.id},
+        {"file_path", OptText(t.filePath)},
+        {"source_type", WideToUtf8ForTest(t.sourceType)},
+        {"source_url", OptText(t.sourceUrl)},
+        {"title", WideToUtf8ForTest(t.title)},
+        {"artist", OptText(t.artist)},
+        {"album", OptText(t.album)},
+        {"album_artist", OptText(t.albumArtist)},
+        {"track_number", OptNumber(t.trackNumber)},
+        {"disc_number", OptNumber(t.discNumber)},
+        {"genre", OptText(t.genre)},
+        {"year", OptNumber(t.year)},
+        {"duration", t.duration},
+        {"format", OptText(t.format)},
+        {"bitrate", OptNumber(t.bitrate)},
+        {"sample_rate", OptNumber(t.sampleRate)},
+        {"channels", OptNumber(t.channels)},
+        {"file_size", OptNumber(t.fileSize)},
+        {"date_added", OptText(t.dateAdded)},
+        {"last_played", OptText(t.lastPlayed)},
+        {"play_count", t.playCount},
+        {"artwork_path", OptText(t.artworkPath)},
+        {"is_available", t.isAvailable},
+    };
+}
+
+} // namespace
+
+TEST_CASE("WB-30 exporting through the generated encoder writes what the hand-rolled one did") {
+    TempDir dir;
+
+    Track full = makeLocalTrack(L"C:\\music\\wb30 全字段.flac", L"全字段");
+    full.id = 12;
+    full.artist = L"艺术家";
+    full.album = L"专辑";
+    full.albumArtist = L"专辑艺术家";
+    full.trackNumber = 3;
+    full.discNumber = 1;
+    full.genre = L"摇滚";
+    full.year = 2021;
+    full.duration = 245.9;
+    full.format = L"flac";
+    full.bitrate = 900;
+    full.sampleRate = 48000;
+    full.channels = 2;
+    full.fileSize = 12'345'678;
+    full.dateAdded = L"2026-09-01 10:00:00";
+    full.lastPlayed = L"2026-09-02 11:00:00";
+    full.playCount = 4;
+    full.artworkPath = L"C:\\art\\wb30.jpg";
+
+    Track bare = makeUrlTrack(L"https://example.com/wb30.mp3", L"Bare URL");  // no artist
+    std::vector<Track> tracks{ full, bare };
+
+    auto before = dir.path / L"before.m3u8";
+    nlohmann::json handRolled = nlohmann::json::array();
+    for (const auto& t : tracks) handRolled.push_back(HandRolledTrackJson(t));
+    REQUIRE(rhythm_export_m3u8(WideToUtf8ForTest(before.wstring()).c_str(),
+                               handRolled.dump().c_str()) == 0);
+
+    auto after = dir.path / L"after.m3u8";
+    REQUIRE(ExportM3U8(after.wstring(), tracks).status == M3u8ExportStatus::Exported);
+
+    auto expected = ReadBytes(before);
+    REQUIRE(expected.find("Unknown Artist - Bare URL") != std::string::npos);
+    REQUIRE(ReadBytes(after) == expected);
 }
 
 // ─── WB-22 文件选择面板的扩展名都是核心收的格式（#242/#327）──────────
