@@ -182,10 +182,17 @@ bool Library::RemoveTrack(int64_t id) {
     return rhythm_library_remove_track(ptr_, id) == 0;
 }
 
-bool ExportM3U8(const std::wstring& path, const std::vector<Track>& tracks) {
+M3u8ExportOutcome M3u8ExportOutcomeFromCode(int32_t code, int32_t trackCount) {
+    if (code == 0) return { M3u8ExportStatus::Exported, trackCount, 0 };
+    if (code == -1) return { M3u8ExportStatus::InvalidTracks, 0, code };
+    return { M3u8ExportStatus::WriteFailed, 0, code };
+}
+
+M3u8ExportOutcome ExportM3U8(const std::wstring& path, const std::vector<Track>& tracks) {
     auto p = WideToUtf8(path);
     auto json = TracksToJson(tracks);
-    return rhythm_export_m3u8(p.c_str(), json.c_str()) == 0;
+    return M3u8ExportOutcomeFromCode(rhythm_export_m3u8(p.c_str(), json.c_str()),
+                                     static_cast<int32_t>(tracks.size()));
 }
 
 /// Decode the core's named import outcome (#236) — the counts are the whole

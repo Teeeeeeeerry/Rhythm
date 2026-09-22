@@ -906,3 +906,51 @@ TEST_CASE("WA-34 ResolverStatusText without a library is a safe query of the rea
     auto real = Resolver::Status();
     REQUIRE(state.ResolverStatusText() == (real.IsQuiet() ? L"" : Resolver::StatusText(real)));
 }
+
+// ─── WA-35 导出歌单（#351）──────────────────────────────────────────
+
+TEST_CASE("WA-35 ExportPlaylist writes the playlist and returns a named success") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto saved = state.Library->AddTrack(makeLocalTrack(L"C:\\music\\wa35 晨跑.mp3", L"WA35"));
+    auto id = state.CreatePlaylist(L"晨跑");
+    state.Library->AddToPlaylist(id, saved.id);
+    state.RefreshLibrary();
+    auto out = dir.path / L"晨跑.m3u8";
+
+    auto outcome = state.ExportPlaylist(id, out.wstring());
+
+    REQUIRE(outcome.has_value());
+    REQUIRE(outcome->status == M3u8ExportStatus::Exported);
+    REQUIRE(outcome->exported == 1);
+    std::ifstream in(out, std::ios::binary);
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    REQUIRE(text.find(WideToUtf8ForTest(L"wa35 晨跑.mp3")) != std::string::npos);
+}
+
+TEST_CASE("WA-35 ExportPlaylist to an unwritable target returns a named write failure") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto id = state.CreatePlaylist(L"A");
+
+    auto outcome = state.ExportPlaylist(id, (dir.path / L"missing" / L"a.m3u8").wstring());
+
+    REQUIRE(outcome.has_value());
+    REQUIRE(outcome->status == M3u8ExportStatus::WriteFailed);
+    REQUIRE(outcome->code == -2);
+}
+
+TEST_CASE("WA-35 ExportPlaylist without a library or playlist is a safe no-op") {
+    TempDir dir;
+    auto out = dir.path / L"none.m3u8";
+
+    AppState closed;
+    REQUIRE_FALSE(closed.ExportPlaylist(1, out.wstring()).has_value());
+
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    REQUIRE_FALSE(state.ExportPlaylist(42, out.wstring()).has_value());
+    REQUIRE_FALSE(std::filesystem::exists(out));
+}

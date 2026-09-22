@@ -238,6 +238,9 @@ fn ff14_m3u8_export_import() {
     assert_eq!(unsafe { rhythm_export_m3u8(c(out.to_str().unwrap()).as_ptr(), c(&tracks).as_ptr()) }, 0);
     assert!(out.exists());
     assert_eq!(unsafe { rhythm_export_m3u8(c(out.to_str().unwrap()).as_ptr(), c("bad{").as_ptr()) }, -1);
+    // #351: an unwritable target is its own failure class, not the bad-input one.
+    let missing = dir.path().join("missing").join("out.m3u8");
+    assert_eq!(unsafe { rhythm_export_m3u8(c(missing.to_str().unwrap()).as_ptr(), c(&tracks).as_ptr()) }, -2);
 
     let imported = unsafe { rhythm_import_m3u8(c(out.to_str().unwrap()).as_ptr()) };
     unsafe {

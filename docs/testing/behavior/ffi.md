@@ -33,7 +33,7 @@
 | FF-06 | `rhythm_library_add_track` JSON 往返 | 合法 JSON → 带 DB id 的 JSON；非法 JSON → null |
 | FF-12 | resolve 结构化结果（#176） | 一次返回 `{"ok":true,"resolved":{...}}` 或 `{"ok":false,"error_kind":"...","error_message":"..."}`；不再返回 null、不再读全局错误槽 |
 | FF-13 | `rhythm_classify_url` | 结构化结果：成功 `{"ok":true,"source_type":...}`；失败 `{"ok":false,"error_kind":...}`（#181，无全局错误槽） |
-| FF-14 | M3U8 FFI | export 成功 0/失败 -1；import 成功 JSON/失败 null |
+| FF-14 | M3U8 FFI | export 成功 0/曲目 JSON 解不开 -1/写不出文件 -2（#351）；import 成功 JSON/失败 null |
 | FF-23 | M3U8 解析并入库（#234） | 返回具名结果 JSON `{"imported":N,"failed":M}`；不可读列表与空句柄 → null |
 | FF-25 | 消息规格导出（#227/#229/#231） | `rhythm_message_playback_failure` / `rhythm_message_resolve_failure(kind, detail, language)` / `rhythm_message_resolver_status(phase, received, total)` 返回 `{"segments":[…]}`：键段带 `key`/`params`，字面量段带 `text`；空指针与未知分类 → 回退分支（泛化标题 / 引擎原文 / 空段列表） |
 | FF-15 | `rhythm_free_string` | 空指针安全 |

@@ -24,7 +24,7 @@
 | WB-13 | `ResolverStatus::IsQuiet` | idle/ready → true；其余 → false | 新测 |
 | WB-14 | `Resolver::ClassifyURL` | 返回 "youtube"/"bilibili"/"direct_url"；失败 → 空串 | 新测 |
 | WB-20 | 前景色色值（原 `Track::SourceForegroundColor`） | 已随 #338 迁入视图状态，见 `windows-viewstate.md` VS-22 | 已迁移 |
-| WB-21 | `ExportM3U8` | 经生成的编码器写出 M3U8（含 `#EXTM3U` 与曲目路径，中文路径不乱码）；目录不存在 → `false`（#428） | 新测 |
+| WB-21 | `ExportM3U8` | 经生成的编码器写出 M3U8（含 `#EXTM3U` 与曲目路径，中文路径不乱码），返回具名结果 `Exported` 与曲目数；目录不存在 → `WriteFailed`、`code == -2`（#428/#351） | 新测 |
 | WB-22 | 文件选择面板的扩展名 `kAudioFileTypes` | 每个扩展名都是核心收的格式：同扩展名的非音频文件经 `ImportFile` 只会计为读取失败、从不计为格式不支持；对照 `.txt` 计为不支持（核心是闸门，列表只塑形对话框，#242）；列表为普通字符串，桥接层不带 WinRT 类型（#327） | 新测 |
 | WB-17 | `Coordinator` 绑定真实 `Library` 起播 | `Library::Handle()` 交给核心：起播成功则该曲目播放次数加一；无音频设备时结果为核心分类错误 `playback_failed` 且不记录（#416） | 新测 |
 | WB-23 | 解析结果由生成物解码（#362） | 直链成功与非法链接失败两种核心载荷，生成的 `ResolveResultFromJson` 与 `Resolver::ResolveURL` 逐字段一致：`ok`、`resolved` 的标题/艺人/时长/来源类型，失败时的 `errorKind`/`errorMessage`。只比对格式合法的核心载荷：`ok` 为真却无 `resolved`、JSON 不合法时报 `internal` 属于调用点校验而非解码，由 `ResolveURL` 保留（#364 改调生成物时不变） | 新测（真 core） |
@@ -33,6 +33,7 @@
 | WB-26 | 协调器结果的契约字段全部被解码（#363） | 每个字段都有值的载荷：`ok`、`error_kind`、`error_message`、`current_track`（经曲目解码）、`playback_active` 逐一还原；成功载荷的错误两项与当前曲目解码为空（`std::optional`，与契约一致），不是空串 | 新测 |
 | WB-27 | 解析出的曲目形状（#364） | 直链解析成功后 `outcome.track` 恰为：`id == -1`（未入库）、来源类型/标题/艺人/时长取自核心、`sourceUrl` 为粘贴的页面 URL、其余取模型缺省（`isAvailable` 为真；`id` 与可用性同 macOS 与核心自建的解析曲目，macOS 另有空标题回退为 URL，Windows 未做）。此前把解析载荷整个当曲目解码，留下 `id 0` 并把曲目标为不可用，入库后数据库里 `is_available = 0` | 新测（真 core，先红后绿） |
 | WB-28 | 歌单由生成物解码，含两个时间戳（#367/#368） | 真库建歌单并加一首曲目后 `AllPlaylists`：`id`/`name` 还原，创建与修改时间戳都有值且为 `YYYY-MM-DD HH:MM:SS`（核心写入，此前不在契约里、从未被解码），曲目列表经曲目自己的编解码还原 id 与标题；载荷里没有这两个键时解码为空（`std::optional` 无值），不是空串也不是别的缺省值 | 新测（真 core） |
+| WB-29 | 导出返回码映射为具名结果（#351） | `0` → `Exported`（带曲目数）；`-1` → `InvalidTracks`；`-2` → `WriteFailed`；未知负码也算 `WriteFailed` 并保留原码，绝不当成功 | 新测 |
 
 ## 边界情况（P1）
 

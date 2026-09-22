@@ -1,4 +1,4 @@
-// WB-01–28：Windows RhythmCore（Bridge 封装层）行为清单（manifest:
+// WB-01–29：Windows RhythmCore（Bridge 封装层）行为清单（manifest:
 // docs/testing/behavior/rhythmcore-windows.md）。零接缝：真 rhythm_core DLL
 //（WB-05/06/07/09/10/14/28 经 FFI 往返），纯函数直测（WB-12/13）。WB-01 的时长文案与 WB-02/03/04/20 的来源徽标
 // 已迁入视图状态（ViewStateTests.cpp VS-18～VS-25，#337/#338）。
@@ -22,13 +22,29 @@ TEST_CASE("WB-21 ExportM3U8 writes the tracks and reports failure") {
     Track t = makeLocalTrack(L"C:\\music\\wb21 曲目.mp3", L"WB21 标题");
     auto out = dir.path / L"list.m3u8";
 
-    REQUIRE(ExportM3U8(out.wstring(), {t}));
+    auto written = ExportM3U8(out.wstring(), {t});
+    REQUIRE(written.status == M3u8ExportStatus::Exported);
+    REQUIRE(written.exported == 1);
+    REQUIRE(written.code == 0);
     std::ifstream in(out, std::ios::binary);
     std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     REQUIRE(text.find("#EXTM3U") != std::string::npos);
     REQUIRE(text.find(WideToUtf8ForTest(L"wb21 曲目.mp3")) != std::string::npos);
 
-    REQUIRE_FALSE(ExportM3U8((dir.path / L"missing" / L"list.m3u8").wstring(), {t}));
+    // #351: the failure is named, and an unwritable target is a write failure.
+    auto failed = ExportM3U8((dir.path / L"missing" / L"list.m3u8").wstring(), {t});
+    REQUIRE(failed.status == M3u8ExportStatus::WriteFailed);
+    REQUIRE(failed.exported == 0);
+    REQUIRE(failed.code == -2);
+}
+
+TEST_CASE("WB-29 the core's export code maps onto a named outcome") {
+    REQUIRE(M3u8ExportOutcomeFromCode(0, 3) == M3u8ExportOutcome{ M3u8ExportStatus::Exported, 3, 0 });
+    REQUIRE(M3u8ExportOutcomeFromCode(-1, 3) == M3u8ExportOutcome{ M3u8ExportStatus::InvalidTracks, 0, -1 });
+    REQUIRE(M3u8ExportOutcomeFromCode(-2, 3) == M3u8ExportOutcome{ M3u8ExportStatus::WriteFailed, 0, -2 });
+    // An unknown code is still a failure the user sees, never a silent success.
+    REQUIRE(M3u8ExportOutcomeFromCode(-7, 3).status == M3u8ExportStatus::WriteFailed);
+    REQUIRE(M3u8ExportOutcomeFromCode(-7, 3).code == -7);
 }
 
 // ─── WB-22 文件选择面板的扩展名都是核心收的格式（#242/#327）──────────
