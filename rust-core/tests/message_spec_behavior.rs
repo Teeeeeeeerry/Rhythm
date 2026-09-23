@@ -1,12 +1,12 @@
-//! MS-01~10：核心消息规格（manifest: docs/testing/behavior/l10n-keys.md）。
+//! MS-01~11：核心消息规格（manifest: docs/testing/behavior/l10n-keys.md）。
 //!
 //! 零接缝：纯函数，无 UI 框架依赖，确定性运行。
 //! 历史回归：#120（播放失败分类）、#135（分类判断被写进中文分支，英文用户
 //! 拿不到分类建议）——分派下沉到核心后，两端两语言不可能再分叉。
 
 use rhythm_core::message::{
-    import_directory_result, import_file_result, playback_failure, resolve_failure,
-    MessageLanguage, MessagePlatform, MessageSegment, MessageSpec,
+    import_batch_result, import_directory_result, import_file_result, playback_failure,
+    resolve_failure, MessageLanguage, MessagePlatform, MessageSegment, MessageSpec,
 };
 use rhythm_core::message::resolver_status;
 use rhythm_core::resolver::install::InstallStatus;
@@ -424,5 +424,71 @@ fn ms10_imported_tracks_carries_count_and_pluralization_params() {
             assert_eq!(params.get("s").map(String::as_str), Some(""));
         }
         other => panic!("expected a key segment, got {other:?}"),
+    }
+}
+
+// ─── MS-11 批量导入结果分类到文案键 ─────────────────────────────────
+
+/// 规格里第一个键段的参数名，按字典序。
+fn param_names(spec: &MessageSpec) -> Vec<&str> {
+    match &spec.segments[0] {
+        MessageSegment::Key { params, .. } => params.keys().map(String::as_str).collect(),
+        other => panic!("expected a key segment, got {other:?}"),
+    }
+}
+
+#[test]
+fn ms11_batch_import_maps_each_count_combination_to_its_key() {
+    // 表驱动：「全部成功」「部分成功」「全部失败」「没找到支持的文件」四种组合各一行（#379）。
+    let cases: &[(i32, i32, &str)] = &[
+        (3, 0, "imported_tracks"),    // 全部成功
+        (2, 1, "import_some_failed"), // 部分成功
+        (0, 2, "import_all_failed"),  // 全部失败
+        (0, 0, "import_none_found"),  // 没找到支持的文件
+    ];
+    for (imported, failed, expected_key) in cases {
+        let spec = import_batch_result(*imported, *failed);
+        assert_eq!(
+            headline_key(&spec),
+            *expected_key,
+            "imported={imported} failed={failed} 应当选中 {expected_key}"
+        );
+    }
+}
+
+#[test]
+fn ms11_partial_success_carries_both_counts_in_one_key() {
+    // 成功与失败两个数字出现在同一句话里：一个键段，恰好两个参数。
+    let spec = import_batch_result(2, 1);
+    assert_eq!(spec.segments.len(), 1);
+    assert_eq!(param_names(&spec), ["failed", "imported"]);
+    match &spec.segments[0] {
+        MessageSegment::Key { params, .. } => {
+            assert_eq!(params.get("imported").map(String::as_str), Some("2"));
+            assert_eq!(params.get("failed").map(String::as_str), Some("1"));
+        }
+        other => panic!("expected a key segment, got {other:?}"),
+    }
+}
+
+#[test]
+fn ms11_all_success_carries_count_and_pluralization_params() {
+    let spec = import_batch_result(1, 0);
+    assert_eq!(param_names(&spec), ["count", "s"]);
+    match &spec.segments[0] {
+        MessageSegment::Key { params, .. } => {
+            assert_eq!(params.get("count").map(String::as_str), Some("1"));
+            assert_eq!(params.get("s").map(String::as_str), Some(""));
+        }
+        other => panic!("expected a key segment, got {other:?}"),
+    }
+    assert_eq!(param_names(&import_batch_result(3, 0)), ["count", "s"]);
+}
+
+#[test]
+fn ms11_all_failed_and_none_found_take_no_parameters() {
+    for spec in [import_batch_result(0, 2), import_batch_result(0, 0)] {
+        assert_eq!(spec.segments.len(), 1);
+        assert!(param_names(&spec).is_empty(), "{:?} 不该带参数", spec.segments[0]);
     }
 }

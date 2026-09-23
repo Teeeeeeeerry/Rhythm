@@ -651,6 +651,18 @@ pub extern "C" fn rhythm_message_import_file_result(
     str_to_c_string(&serde_json::to_string(&spec).unwrap_or_default())
 }
 
+/// 批量导入结果的文案规格（#379）。`imported` / `failed` 是批量导入聚合
+/// 后的具名计数；四态分派（全成/部分成/全败/没找到）与部分成功那一句
+/// 的两个数字都在核心。Free with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_message_import_batch_result(
+    imported: i32,
+    failed: i32,
+) -> *mut c_char {
+    let spec = message::import_batch_result(imported, failed);
+    str_to_c_string(&serde_json::to_string(&spec).unwrap_or_default())
+}
+
 // ─── Playback Coordinator FFI ─────────────────────────────────────
 //
 // The coordinator owns the orchestration rules (stop old playback, dispatch

@@ -309,6 +309,33 @@ pub fn import_file_result(imported: i32, unsupported: i32) -> MessageSpec {
     }
 }
 
+/// 批量导入结果的文案规格（#379）。
+///
+/// `imported` / `failed` 是批量导入聚合后的具名计数（`ImportOutcome`）。
+/// 四态：全部成功、部分成功、全部失败、没找到支持的文件。部分成功把
+/// 成功与失败两个数字放进同一个键的 `imported`/`failed` 参数——一句话
+/// 的形状由核心决定，双端不自行拼接数字。
+pub fn import_batch_result(imported: i32, failed: i32) -> MessageSpec {
+    if imported > 0 && failed == 0 {
+        MessageSpec::new(vec![MessageSegment::key_with(
+            "imported_tracks",
+            &[
+                ("count", &imported.to_string()),
+                ("s", if imported == 1 { "" } else { "s" }),
+            ],
+        )])
+    } else if imported > 0 {
+        MessageSpec::new(vec![MessageSegment::key_with(
+            "import_some_failed",
+            &[("imported", &imported.to_string()), ("failed", &failed.to_string())],
+        )])
+    } else if failed > 0 {
+        MessageSpec::new(vec![MessageSegment::key("import_all_failed")])
+    } else {
+        MessageSpec::new(vec![MessageSegment::key("import_none_found")])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
