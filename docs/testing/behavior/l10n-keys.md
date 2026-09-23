@@ -37,6 +37,7 @@
 | MS-07 | 下载进度两种形态（#231） | 有总量 → `resolver_status_downloading` 带 `received`/`total` 两个参数；无总量（缺失或 0）→ `resolver_status_downloading_unknown_total` 只带 `received` | 核心表驱动 |
 | MS-08 | 字节到 MB 换算（#231） | 除以 1048576 保留一位小数，换算与位数由核心决定 | 核心表驱动 |
 | MS-09 | 目录导入结果分类到文案键（#375） | 有导入（无视失败与否）→ `imported_tracks` 带 `count`/`s` 参数；无导入且有失败 → `import_dir_failed`；无导入无失败 → `import_dir_empty`；失败/空两键不带参数 | 核心表驱动 |
+| MS-10 | 单文件导入结果分类到文案键（#377） | 有导入 → `imported_tracks` 带 `count`/`s` 参数（优先于不支持计数）；无导入且格式不支持 → `import_file_unsupported`；无导入且非不支持（读取失败）→ `import_file_failed`；两键不同，不折成一种失败 | 核心表驱动 |
 
 ## 边界情况（P1）
 

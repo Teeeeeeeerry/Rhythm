@@ -1,12 +1,12 @@
-//! MS-01~09：核心消息规格（manifest: docs/testing/behavior/l10n-keys.md）。
+//! MS-01~10：核心消息规格（manifest: docs/testing/behavior/l10n-keys.md）。
 //!
 //! 零接缝：纯函数，无 UI 框架依赖，确定性运行。
 //! 历史回归：#120（播放失败分类）、#135（分类判断被写进中文分支，英文用户
 //! 拿不到分类建议）——分派下沉到核心后，两端两语言不可能再分叉。
 
 use rhythm_core::message::{
-    import_directory_result, playback_failure, resolve_failure, MessageLanguage,
-    MessagePlatform, MessageSegment, MessageSpec,
+    import_directory_result, import_file_result, playback_failure, resolve_failure,
+    MessageLanguage, MessagePlatform, MessageSegment, MessageSpec,
 };
 use rhythm_core::message::resolver_status;
 use rhythm_core::resolver::install::InstallStatus;
@@ -378,5 +378,51 @@ fn ms09_failed_and_empty_keys_take_no_parameters() {
                 assert!(params.is_empty(), "{key} 不该带参数");
             }
         }
+    }
+}
+
+// ─── MS-10 单文件导入结果分类到文案键 ───────────────────────────────
+
+#[test]
+fn ms10_file_import_maps_each_count_combination_to_its_key() {
+    // 表驱动：「有导入」「格式不支持」「读取失败」三种组合各一行（#377）。
+    let cases: &[(i32, i32, &str)] = &[
+        (1, 0, "imported_tracks"),          // 有导入
+        (0, 1, "import_file_unsupported"),  // 格式不支持
+        (0, 0, "import_file_failed"),       // 读取失败
+    ];
+    for (imported, unsupported, expected_key) in cases {
+        let spec = import_file_result(*imported, *unsupported);
+        assert_eq!(
+            headline_key(&spec),
+            *expected_key,
+            "imported={imported} unsupported={unsupported} 应当选中 {expected_key}"
+        );
+    }
+}
+
+#[test]
+fn ms10_unsupported_and_failed_are_distinct_keys() {
+    // 「不支持」与「读取失败」是用户唯一能据以行动的区分，不折成一种失败。
+    let unsupported = import_file_result(0, 1);
+    let failed = import_file_result(0, 0);
+    assert_ne!(headline_key(&unsupported), headline_key(&failed));
+}
+
+#[test]
+fn ms10_has_import_wins_even_when_the_rest_are_unsupported() {
+    let spec = import_file_result(1, 5);
+    assert_eq!(headline_key(&spec), "imported_tracks");
+}
+
+#[test]
+fn ms10_imported_tracks_carries_count_and_pluralization_params() {
+    let spec = import_file_result(1, 0);
+    match &spec.segments[0] {
+        MessageSegment::Key { params, .. } => {
+            assert_eq!(params.get("count").map(String::as_str), Some("1"));
+            assert_eq!(params.get("s").map(String::as_str), Some(""));
+        }
+        other => panic!("expected a key segment, got {other:?}"),
     }
 }
