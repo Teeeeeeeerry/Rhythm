@@ -25,6 +25,7 @@
 |---|---|---|---|
 | WA-01 | `OpenDatabase` | `Library` 创建 + `Tracks`/`Playlists` 填充 | 新测（待 Windows 验证） |
 | WA-02 | `RefreshLibrary` | 无 Library → no-op；有 → Tracks/Playlists 从库刷新（队列同步在协调器，CO-14） | 新测（待 Windows 验证） |
+| WA-40（#356） | 当前歌单被删除后刷新 | 刷新后新列表里没有该标识 → 当前歌单清空（不保留失效的指向）、不崩溃，界面进入空态；清空后再次选中其他歌单正常；当前歌单没有标识（未入库）时刷新同样清空 | 真库（临时路径） |
 | WA-39（#355） | `RefreshLibrary` 后当前歌单 | 刷新会替换歌单列表，当前歌单按标识从新列表重新解析：刷新后仍是同一个歌单，且内容（名字、曲目）取自刷新后的列表而不是选中时的副本；连续多次刷新结果稳定；未选中时刷新仍为空 | 真库（临时路径） |
 | WA-03 | `ImportDirectory` | 有 Library → 导入 + `RefreshLibrary`；无 Library → no-op（数量反馈见 WA-23，T7 已实现） | 新测（待 Windows 验证） |
 | WA-04 | `DoSearch` | 空 query → `AllTracks`；非空 → `Search(query)` | 新测（待 Windows 验证） |
