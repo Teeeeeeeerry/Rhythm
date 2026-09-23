@@ -71,14 +71,10 @@ void AppState::ImportFile(const std::wstring& path) {
     if (!Library) return;
     auto outcome = Library->ImportFile(path);
     if (!outcome) return;
-    if (outcome->imported > 0) {
-        RefreshLibrary();
-        ImportAlertMessage = L10n::ImportedTracks(outcome->imported);
-    } else if (outcome->unsupported > 0) {
-        ImportAlertMessage = L10n::ImportFileUnsupported();
-    } else {
-        ImportAlertMessage = L10n::ImportFileFailed();
-    }
+    // Which of the three arms to pick, and the imported-count wording, is
+    // decided by the core (#377).
+    if (outcome->imported > 0) RefreshLibrary();
+    ImportAlertMessage = L10n::ImportFileResult(outcome->imported, outcome->unsupported);
     ShowImportAlert = true;
 }
 

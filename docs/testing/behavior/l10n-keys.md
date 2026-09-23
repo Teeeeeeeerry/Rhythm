@@ -51,6 +51,7 @@
 | LK-12 | 导出反馈文案（#352） | `ExportedTracks(n)` 取键表 `exported_tracks`（中文「已导出 n 首歌曲」，英文单复数同导入）；`ExportFailed(code)` 填 `export_failed` 的 `{code}`；曲目数据解不开时 `ExportInvalidTracks(code)` 取 `export_invalid_tracks`（#321 评审）；标题 `export_result_title` / `export_failed_title`。三个新键仅 Windows（macOS 导出成功不提示） | Windows 固定 locale（`L10nTests.cpp`） |
 | LK-13（#359） | 歌单详情空态文案（#359） | `NoPlaylistSelected()` 取键表 `no_playlist_selected`（中文「未选中歌单」，英文 "No playlist selected"）；未选中歌单时由视图状态 `PlaylistDetailOf` 取，视图不写死字符串。该键仅 Windows | Windows 固定 locale（`L10nTests.cpp`） |
 | LK-14（#376） | 目录导入结果文案 | 双端 `ImportDirectory`/`importDirectory` 不再自选文案键，改传具名计数 `{imported, failed}` 给核心入口渲染；同一组计数两端渲染同一句话 | 核心表驱动（MS-09，#376 起分派在核心）；Windows `AppStateBehaviorTests.cpp`（WA-23）+ macOS `AppStatePlaybackMainPathTests.swift`（AS-24）行为回归原样通过 |
+| LK-15（#378） | 单文件导入结果文案 | 双端 `ImportFile`/`importFile` 不再自选文案键，改传具名计数 `{imported, unsupported}` 给核心入口渲染；「不支持」与「读取失败」在双端仍显示为两句不同的话 | 核心表驱动（MS-10，#378 起分派在核心）；Windows `AppStateBehaviorTests.cpp`（WA-29）+ macOS `AppStatePlaybackMainPathTests.swift`（AS-24）行为回归原样通过 |
 
 ## 红测登记
 

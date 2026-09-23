@@ -658,6 +658,14 @@ func importDirectoryResultSpec(imported: Int32, failed: Int32) -> MessageSpec? {
     return decodeMessageSpec(String(cString: json))
 }
 
+/// 单文件导入结果的消息规格。三态分派（有导入/格式不支持/读取失败）与
+/// 「有导入」时的单复数参数都在核心（#377）。
+func importFileResultSpec(imported: Int32, unsupported: Int32) -> MessageSpec? {
+    guard let json = rhythm_message_import_file_result(imported, unsupported) else { return nil }
+    defer { rhythm_free_string(json) }
+    return decodeMessageSpec(String(cString: json))
+}
+
 /// Progress of yt-dlp provisioning, polled while a resolution is running so a
 /// first-run download doesn't look like a hang.
 struct ResolverStatus: Decodable {
