@@ -39,6 +39,7 @@
 | MS-09 | 目录导入结果分类到文案键（#375） | 有导入（无视失败与否）→ `imported_tracks` 带 `count`/`s` 参数；无导入且有失败 → `import_dir_failed`；无导入无失败 → `import_dir_empty`；失败/空两键不带参数 | 核心表驱动 |
 | MS-10 | 单文件导入结果分类到文案键（#377） | 有导入 → `imported_tracks` 带 `count`/`s` 参数（优先于不支持计数）；无导入且格式不支持 → `import_file_unsupported`；无导入且非不支持（读取失败）→ `import_file_failed`；两键不同，不折成一种失败 | 核心表驱动 |
 | MS-11 | 批量导入结果分类到文案键（#379） | 全部成功（有导入无失败）→ `imported_tracks` 带 `count`/`s` 参数；部分成功 → `import_some_failed` 恰好带 `imported`/`failed` 两个参数（两个数字在同一句话里）；无导入有失败 → `import_all_failed`；两者皆 0 → `import_none_found`；后两键不带参数 | 核心表驱动 |
+| MS-12 | M3U8 导入结果分类到文案键（#381） | 有失败 → `import_some_failed` 恰好带 `imported`/`failed` 两个参数（成功为 0 也照报，沿用双端原措辞）；无失败有导入 → `imported_tracks` 带 `count`/`s` 参数；两者皆 0（列表里没有可读条目）→ 确定的 `import_none_found`，不返回空规格；与目录/单文件/批量三条路径同一种返回形状 | 核心表驱动 |
 
 ## 边界情况（P1）
 

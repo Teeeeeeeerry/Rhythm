@@ -1,12 +1,13 @@
-//! MS-01~11：核心消息规格（manifest: docs/testing/behavior/l10n-keys.md）。
+//! MS-01~12：核心消息规格（manifest: docs/testing/behavior/l10n-keys.md）。
 //!
 //! 零接缝：纯函数，无 UI 框架依赖，确定性运行。
 //! 历史回归：#120（播放失败分类）、#135（分类判断被写进中文分支，英文用户
 //! 拿不到分类建议）——分派下沉到核心后，两端两语言不可能再分叉。
 
 use rhythm_core::message::{
-    import_batch_result, import_directory_result, import_file_result, playback_failure,
-    resolve_failure, MessageLanguage, MessagePlatform, MessageSegment, MessageSpec,
+    import_batch_result, import_directory_result, import_file_result, import_m3u8_result,
+    playback_failure, resolve_failure, MessageLanguage, MessagePlatform, MessageSegment,
+    MessageSpec,
 };
 use rhythm_core::message::resolver_status;
 use rhythm_core::resolver::install::InstallStatus;
@@ -491,4 +492,63 @@ fn ms11_all_failed_and_none_found_take_no_parameters() {
         assert_eq!(spec.segments.len(), 1);
         assert!(param_names(&spec).is_empty(), "{:?} 不该带参数", spec.segments[0]);
     }
+}
+
+// ─── MS-12 M3U8 导入结果分类到文案键 ─────────────────────────────────
+
+#[test]
+fn ms12_m3u8_import_maps_each_count_combination_to_its_key() {
+    // 表驱动：M3U8 现有的措辞组合原样搬进核心（#381）——有失败即报成功与
+    // 失败两个数字（含 0 首成功），全成报导入数，空列表也有确定的键。
+    let cases: &[(i32, i32, &str)] = &[
+        (2, 0, "imported_tracks"),    // 全部入库
+        (2, 1, "import_some_failed"), // 部分失败
+        (0, 2, "import_some_failed"), // 全部失败：仍报两个数字
+        (0, 0, "import_none_found"),  // 列表里没有可读条目
+    ];
+    for (imported, failed, expected_key) in cases {
+        let spec = import_m3u8_result(*imported, *failed);
+        assert_eq!(
+            headline_key(&spec),
+            *expected_key,
+            "imported={imported} failed={failed} 应当选中 {expected_key}"
+        );
+    }
+}
+
+#[test]
+fn ms12_failures_carry_both_counts_in_one_key() {
+    for (imported, failed) in [(2, 1), (0, 2)] {
+        let spec = import_m3u8_result(imported, failed);
+        assert_eq!(spec.segments.len(), 1);
+        assert_eq!(param_names(&spec), ["failed", "imported"]);
+        match &spec.segments[0] {
+            MessageSegment::Key { params, .. } => {
+                assert_eq!(params.get("imported"), Some(&imported.to_string()));
+                assert_eq!(params.get("failed"), Some(&failed.to_string()));
+            }
+            other => panic!("expected a key segment, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn ms12_all_imported_carries_count_and_pluralization_params() {
+    let spec = import_m3u8_result(1, 0);
+    assert_eq!(param_names(&spec), ["count", "s"]);
+    match &spec.segments[0] {
+        MessageSegment::Key { params, .. } => {
+            assert_eq!(params.get("count").map(String::as_str), Some("1"));
+            assert_eq!(params.get("s").map(String::as_str), Some(""));
+        }
+        other => panic!("expected a key segment, got {other:?}"),
+    }
+}
+
+#[test]
+fn ms12_empty_playlist_is_a_definite_key_without_parameters() {
+    // 无可读内容不返回空规格（空话），而是一个确定的键（#381）。
+    let spec = import_m3u8_result(0, 0);
+    assert_eq!(spec.segments.len(), 1);
+    assert!(param_names(&spec).is_empty());
 }

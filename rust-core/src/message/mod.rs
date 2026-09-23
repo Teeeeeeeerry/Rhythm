@@ -265,6 +265,18 @@ pub fn resolver_status(status: &InstallStatus) -> MessageSpec {
     }
 }
 
+/// 「已导入 N 首」：四条导入路径共用的成功句，带 `count`/`s` 两个占位符——
+/// 单复数由核心决定，不猜文案。
+fn imported_tracks(imported: i32) -> MessageSpec {
+    MessageSpec::new(vec![MessageSegment::key_with(
+        "imported_tracks",
+        &[
+            ("count", &imported.to_string()),
+            ("s", if imported == 1 { "" } else { "s" }),
+        ],
+    )])
+}
+
 /// 目录导入结果的文案规格（#375）。
 ///
 /// `imported` / `failed` 是目录导入的具名计数（`ImportOutcome`）。三态：
@@ -273,13 +285,7 @@ pub fn resolver_status(status: &InstallStatus) -> MessageSpec {
 /// 占位符——单复数由核心决定，不猜文案。
 pub fn import_directory_result(imported: i32, failed: i32) -> MessageSpec {
     if imported > 0 {
-        MessageSpec::new(vec![MessageSegment::key_with(
-            "imported_tracks",
-            &[
-                ("count", &imported.to_string()),
-                ("s", if imported == 1 { "" } else { "s" }),
-            ],
-        )])
+        imported_tracks(imported)
     } else if failed > 0 {
         MessageSpec::new(vec![MessageSegment::key("import_dir_failed")])
     } else {
@@ -295,13 +301,7 @@ pub fn import_directory_result(imported: i32, failed: i32) -> MessageSpec {
 /// imported 段带 `count`/`s` 两个占位符，与目录导入同形（#375）。
 pub fn import_file_result(imported: i32, unsupported: i32) -> MessageSpec {
     if imported > 0 {
-        MessageSpec::new(vec![MessageSegment::key_with(
-            "imported_tracks",
-            &[
-                ("count", &imported.to_string()),
-                ("s", if imported == 1 { "" } else { "s" }),
-            ],
-        )])
+        imported_tracks(imported)
     } else if unsupported > 0 {
         MessageSpec::new(vec![MessageSegment::key("import_file_unsupported")])
     } else {
@@ -317,13 +317,7 @@ pub fn import_file_result(imported: i32, unsupported: i32) -> MessageSpec {
 /// 的形状由核心决定，双端不自行拼接数字。
 pub fn import_batch_result(imported: i32, failed: i32) -> MessageSpec {
     if imported > 0 && failed == 0 {
-        MessageSpec::new(vec![MessageSegment::key_with(
-            "imported_tracks",
-            &[
-                ("count", &imported.to_string()),
-                ("s", if imported == 1 { "" } else { "s" }),
-            ],
-        )])
+        imported_tracks(imported)
     } else if imported > 0 {
         MessageSpec::new(vec![MessageSegment::key_with(
             "import_some_failed",
@@ -331,6 +325,25 @@ pub fn import_batch_result(imported: i32, failed: i32) -> MessageSpec {
         )])
     } else if failed > 0 {
         MessageSpec::new(vec![MessageSegment::key("import_all_failed")])
+    } else {
+        MessageSpec::new(vec![MessageSegment::key("import_none_found")])
+    }
+}
+
+/// M3U8 导入结果的文案规格（#381）。
+///
+/// `imported` / `failed` 是核心解析并入库后的具名计数（`M3u8ImportOutcome`）。
+/// 措辞沿用双端原有组合：有失败 → 一句话带成功与失败两个数字（成功为 0
+/// 也照报）；全部入库 → 已导入 N 首；列表里没有可读条目 → 确定的「没找到」
+/// 键，而不是空规格。是否为空列表弹提示由双端决定，文案选择只在这里。
+pub fn import_m3u8_result(imported: i32, failed: i32) -> MessageSpec {
+    if failed > 0 {
+        MessageSpec::new(vec![MessageSegment::key_with(
+            "import_some_failed",
+            &[("imported", &imported.to_string()), ("failed", &failed.to_string())],
+        )])
+    } else if imported > 0 {
+        imported_tracks(imported)
     } else {
         MessageSpec::new(vec![MessageSegment::key("import_none_found")])
     }

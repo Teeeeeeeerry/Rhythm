@@ -663,6 +663,18 @@ pub extern "C" fn rhythm_message_import_batch_result(
     str_to_c_string(&serde_json::to_string(&spec).unwrap_or_default())
 }
 
+/// M3U8 导入结果的文案规格（#381）。`imported` / `failed` 是核心解析并
+/// 入库后的具名计数；分派（有失败/全部入库/没有可读条目）在核心。
+/// Free with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_message_import_m3u8_result(
+    imported: i32,
+    failed: i32,
+) -> *mut c_char {
+    let spec = message::import_m3u8_result(imported, failed);
+    str_to_c_string(&serde_json::to_string(&spec).unwrap_or_default())
+}
+
 // ─── Playback Coordinator FFI ─────────────────────────────────────
 //
 // The coordinator owns the orchestration rules (stop old playback, dispatch
