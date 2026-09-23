@@ -1,12 +1,12 @@
-//! MS-01~08：核心消息规格（manifest: docs/testing/behavior/l10n-keys.md）。
+//! MS-01~09：核心消息规格（manifest: docs/testing/behavior/l10n-keys.md）。
 //!
 //! 零接缝：纯函数，无 UI 框架依赖，确定性运行。
 //! 历史回归：#120（播放失败分类）、#135（分类判断被写进中文分支，英文用户
 //! 拿不到分类建议）——分派下沉到核心后，两端两语言不可能再分叉。
 
 use rhythm_core::message::{
-    playback_failure, resolve_failure, MessageLanguage, MessagePlatform, MessageSegment,
-    MessageSpec,
+    import_directory_result, playback_failure, resolve_failure, MessageLanguage,
+    MessagePlatform, MessageSegment, MessageSpec,
 };
 use rhythm_core::message::resolver_status;
 use rhythm_core::resolver::install::InstallStatus;
@@ -318,6 +318,65 @@ fn ms08_byte_to_megabyte_conversion_keeps_one_decimal() {
                 assert_eq!(params.get("received").map(String::as_str), Some(*expected));
             }
             other => panic!("expected a key segment, got {other:?}"),
+        }
+    }
+}
+
+// ─── MS-09 目录导入结果分类到文案键 ─────────────────────────────────
+
+#[test]
+fn ms09_directory_import_maps_each_count_combination_to_its_key() {
+    // 表驱动：「有导入」「全部失败」「没找到文件」三种组合各一行（#375）。
+    let cases: &[(i32, i32, &str)] = &[
+        (2, 0, "imported_tracks"),  // 有导入
+        (0, 3, "import_dir_failed"), // 全部失败
+        (0, 0, "import_dir_empty"), // 没找到文件
+    ];
+    for (imported, failed, expected_key) in cases {
+        let spec = import_directory_result(*imported, *failed);
+        assert_eq!(
+            headline_key(&spec),
+            *expected_key,
+            "imported={imported} failed={failed} 应当选中 {expected_key}"
+        );
+    }
+}
+
+#[test]
+fn ms09_has_import_wins_even_when_some_paths_also_failed() {
+    // 有导入优先于失败——不是全有全无。
+    let spec = import_directory_result(1, 5);
+    assert_eq!(headline_key(&spec), "imported_tracks");
+}
+
+#[test]
+fn ms09_imported_tracks_carries_count_and_pluralization_params() {
+    let spec = import_directory_result(1, 0);
+    match &spec.segments[0] {
+        MessageSegment::Key { params, .. } => {
+            assert_eq!(params.get("count").map(String::as_str), Some("1"));
+            assert_eq!(params.get("s").map(String::as_str), Some(""));
+        }
+        other => panic!("expected a key segment, got {other:?}"),
+    }
+
+    let spec = import_directory_result(2, 0);
+    match &spec.segments[0] {
+        MessageSegment::Key { params, .. } => {
+            assert_eq!(params.get("count").map(String::as_str), Some("2"));
+            assert_eq!(params.get("s").map(String::as_str), Some("s"));
+        }
+        other => panic!("expected a key segment, got {other:?}"),
+    }
+}
+
+#[test]
+fn ms09_failed_and_empty_keys_take_no_parameters() {
+    for spec in [import_directory_result(0, 4), import_directory_result(0, 0)] {
+        for segment in &spec.segments {
+            if let MessageSegment::Key { key, params } = segment {
+                assert!(params.is_empty(), "{key} 不该带参数");
+            }
         }
     }
 }

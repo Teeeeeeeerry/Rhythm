@@ -265,6 +265,28 @@ pub fn resolver_status(status: &InstallStatus) -> MessageSpec {
     }
 }
 
+/// 目录导入结果的文案规格（#375）。
+///
+/// `imported` / `failed` 是目录导入的具名计数（`ImportOutcome`）。三态：
+/// 有导入（无视失败与否，成功优先）、没有导入但有失败、既无导入也无
+/// 失败（目录里没有受支持的音频文件）。imported 段带 `count`/`s` 两个
+/// 占位符——单复数由核心决定，不猜文案。
+pub fn import_directory_result(imported: i32, failed: i32) -> MessageSpec {
+    if imported > 0 {
+        MessageSpec::new(vec![MessageSegment::key_with(
+            "imported_tracks",
+            &[
+                ("count", &imported.to_string()),
+                ("s", if imported == 1 { "" } else { "s" }),
+            ],
+        )])
+    } else if failed > 0 {
+        MessageSpec::new(vec![MessageSegment::key("import_dir_failed")])
+    } else {
+        MessageSpec::new(vec![MessageSegment::key("import_dir_empty")])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -627,6 +627,18 @@ pub unsafe extern "C" fn rhythm_message_resolver_status(
     str_to_c_string(&serde_json::to_string(&spec).unwrap_or_default())
 }
 
+/// 目录导入结果的文案规格（#375）。`imported` / `failed` 是目录导入的
+/// 具名计数；三态分派（有导入/全部失败/没找到文件）在核心。
+/// Free with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_message_import_directory_result(
+    imported: i32,
+    failed: i32,
+) -> *mut c_char {
+    let spec = message::import_directory_result(imported, failed);
+    str_to_c_string(&serde_json::to_string(&spec).unwrap_or_default())
+}
+
 // ─── Playback Coordinator FFI ─────────────────────────────────────
 //
 // The coordinator owns the orchestration rules (stop old playback, dispatch
