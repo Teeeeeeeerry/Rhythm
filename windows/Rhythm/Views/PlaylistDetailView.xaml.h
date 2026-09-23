@@ -26,13 +26,12 @@ struct PlaylistDetailView : PlaylistDetailViewT<PlaylistDetailView> {
                       winrt::Microsoft::UI::Xaml::Controls::ItemClickEventArgs const& args);
 
 private:
-    /// Render once both the id (navigation) and the state (MainWindow) are in.
+    /// Render from the state's current playlist (#358): the page holds no
+    /// playlist of its own, so every render takes the values fresh.
     void Refresh();
-    rhythm::Playlist const* CurrentPlaylist() const;
     /// Show the import/export feedback the state asks for, if any (#352).
     winrt::Windows::Foundation::IAsyncAction ShowPendingAlert();
 
-    std::optional<int64_t> playlistId_;
     rhythm::AppState* appState_ = nullptr;
     HWND owner_{};
 };

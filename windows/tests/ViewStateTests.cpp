@@ -523,3 +523,59 @@ TEST_CASE("VS-37 nothing pending renders no alert") {
     REQUIRE_FALSE(view::PendingAlert(state).has_value());
 }
 
+
+// ─── VS-38 歌单详情按需取值（#358）─────────────────────────────────
+
+TEST_CASE("VS-38 the detail page renders the state's current playlist") {
+    LanguageScope zh(L"zh");
+    AppState state;
+    Playlist other;
+    other.id = 1;
+    other.name = L"其他";
+    other.tracks = {makeLocalTrack(L"C:\m\o.mp3", L"Other")};
+    Playlist mine;
+    mine.id = 2;
+    mine.name = L"晨跑";
+    mine.tracks = {makeLocalTrack(L"C:\m\z.mp3", L"Zulu"),
+                   makeLocalTrack(L"C:\m\a.mp3", L"Alpha")};
+    state.Playlists = {other, mine};
+    state.SelectPlaylist(2);
+
+    auto detail = view::PlaylistDetailOf(state, false);
+
+    REQUIRE(detail.hasPlaylist);
+    REQUIRE(detail.title == L"晨跑");
+    REQUIRE(titlesOf(detail.rows) == std::vector<std::wstring>{L"Zulu", L"Alpha"});
+    REQUIRE(detail.rows.at(0).badge.tag == L"本地");
+}
+
+TEST_CASE("VS-38 with nothing selected the detail page has no playlist") {
+    AppState state;
+    Playlist mine;
+    mine.id = 2;
+    mine.name = L"晨跑";
+    state.Playlists = {mine};
+
+    auto detail = view::PlaylistDetailOf(state, true);
+
+    REQUIRE_FALSE(detail.hasPlaylist);
+    REQUIRE(detail.title.empty());
+    REQUIRE(detail.rows.empty());
+}
+
+TEST_CASE("VS-38 a refresh is visible on the next render") {
+    TempDir dir;  // #455: before AppState, so the database closes before cleanup
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto id = state.CreatePlaylist(L"晨跑");
+    state.SelectPlaylist(id);
+    REQUIRE(view::PlaylistDetailOf(state, true).rows.empty());
+
+    auto saved = state.Library->AddTrack(makeLocalTrack(L"C:\m\vs38.mp3", L"VS38"));
+    state.Library->AddToPlaylist(id, saved.id);
+    state.RefreshLibrary();  // what an M3U8 import triggers
+
+    auto detail = view::PlaylistDetailOf(state, true);
+    REQUIRE(detail.hasPlaylist);
+    REQUIRE(titlesOf(detail.rows) == std::vector<std::wstring>{L"VS38"});
+}
