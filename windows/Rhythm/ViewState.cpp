@@ -137,9 +137,21 @@ std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool 
     return rows;
 }
 
-std::vector<TrackRow> PlaylistRows(const AppState& state, int64_t playlistId, bool isDarkTheme) {
-    auto playlist = state.FindPlaylist(playlistId);
-    return playlist ? RowsOf(playlist->tracks, isDarkTheme) : std::vector<TrackRow>{};
+PlaylistListPage PlaylistListState(const AppState& state) {
+    // #320: the list renders from an assertable return value; a click carries
+    // the row's identifier, so the list and the detail correspond by identity
+    // rather than by position in the state's storage.
+    PlaylistListPage page;
+    for (const auto& playlist : state.Playlists) {
+        if (!playlist.id) continue;  // not stored: nothing to select it by
+        PlaylistRow row;
+        row.id = *playlist.id;
+        row.name = playlist.name;
+        row.trackCountText = std::to_wstring(playlist.tracks.size());
+        page.rows.push_back(std::move(row));
+    }
+    if (page.rows.empty()) page.emptyMessage = L10n::PlaylistEmpty();
+    return page;
 }
 
 PlaylistDetail PlaylistDetailOf(const AppState& state, bool isDarkTheme) {
