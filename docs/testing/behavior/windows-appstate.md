@@ -25,6 +25,7 @@
 |---|---|---|---|
 | WA-01 | `OpenDatabase` | `Library` 创建 + `Tracks`/`Playlists` 填充 | 新测（待 Windows 验证） |
 | WA-02 | `RefreshLibrary` | 无 Library → no-op；有 → Tracks/Playlists 从库刷新（队列同步在协调器，CO-14） | 新测（待 Windows 验证） |
+| WA-39（#355） | `RefreshLibrary` 后当前歌单 | 刷新会替换歌单列表，当前歌单按标识从新列表重新解析：刷新后仍是同一个歌单，且内容（名字、曲目）取自刷新后的列表而不是选中时的副本；连续多次刷新结果稳定；未选中时刷新仍为空 | 真库（临时路径） |
 | WA-03 | `ImportDirectory` | 有 Library → 导入 + `RefreshLibrary`；无 Library → no-op（数量反馈见 WA-23，T7 已实现） | 新测（待 Windows 验证） |
 | WA-04 | `DoSearch` | 空 query → `AllTracks`；非空 → `Search(query)` | 新测（待 Windows 验证） |
 | WA-10 | `ResolveAndPlay` 成功 | trim 输入；`AddTrack` 持久化（#39）；`RefreshLibrary()` 从 DB 重载（#139）；`UrlError` 清空；`PlayTrack(saved)` 经协调器 | SpyCoordinator（真 core 解析，无网络） |

@@ -1105,3 +1105,51 @@ TEST_CASE("WA-38 the current playlist is a value, not an address in the list") {
     REQUIRE(state.CurrentPlaylist.has_value());
     REQUIRE(state.CurrentPlaylist->name == L"A");
 }
+
+// ─── WA-39 刷新后按标识重新解析（#355）──────────────────────────────
+
+TEST_CASE("WA-39 the current playlist survives a refresh and comes from the new list") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto id = state.CreatePlaylist(L"晨跑");
+    state.SelectPlaylist(id);
+    REQUIRE(state.CurrentPlaylist->tracks.empty());
+
+    auto saved = state.Library->AddTrack(makeLocalTrack(L"C:\music\wa39.mp3", L"WA39"));
+    state.Library->AddToPlaylist(id, saved.id);
+    state.RefreshLibrary();
+
+    REQUIRE(state.CurrentPlaylist.has_value());
+    REQUIRE(state.CurrentPlaylist->id.value_or(-1) == id);
+    // The content is the refreshed one, not the copy taken at select time.
+    REQUIRE(state.CurrentPlaylist->tracks.size() == 1);
+    REQUIRE(state.CurrentPlaylist->tracks[0].title == L"WA39");
+}
+
+TEST_CASE("WA-39 repeated refreshes keep the same current playlist") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    state.CreatePlaylist(L"其他");
+    auto id = state.CreatePlaylist(L"晨跑");
+    state.SelectPlaylist(id);
+
+    for (int i = 0; i < 3; ++i) {
+        state.RefreshLibrary();
+        REQUIRE(state.CurrentPlaylist.has_value());
+        REQUIRE(state.CurrentPlaylist->id.value_or(-1) == id);
+        REQUIRE(state.CurrentPlaylist->name == L"晨跑");
+    }
+}
+
+TEST_CASE("WA-39 a refresh with nothing selected selects nothing") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    state.CreatePlaylist(L"晨跑");
+
+    state.RefreshLibrary();
+
+    REQUIRE_FALSE(state.CurrentPlaylist.has_value());
+}
