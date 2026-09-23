@@ -92,4 +92,14 @@ inline std::vector<MessageSegment> ResolverStatusSpec(const std::wstring& phase,
     return ParseMessageSpec(owned);
 }
 
+/// 取一条目录导入结果的消息规格。三态分派（有导入/全部失败/没找到文件）
+/// 由核心决定（#375），本端只传具名计数。
+inline std::vector<MessageSegment> ImportDirectoryResultSpec(int32_t imported, int32_t failed) {
+    char* json = rhythm_message_import_directory_result(imported, failed);
+    if (!json) return {};
+    std::string owned(json);
+    rhythm_free_string(json);
+    return ParseMessageSpec(owned);
+}
+
 } // namespace rhythm

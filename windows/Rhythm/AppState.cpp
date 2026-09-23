@@ -60,15 +60,10 @@ void AppState::ImportDirectory(const std::wstring& path) {
     auto outcome = Library->ImportDirectory(path);
     if (!outcome) return;
     // WA-23: mirror the macOS import alert. The counts are named (#241) --
-    // no reverse-engineering a magic integer.
-    if (outcome->imported > 0) {
-        RefreshLibrary();
-        ImportAlertMessage = L10n::ImportedTracks(outcome->imported);
-    } else if (outcome->failed > 0) {
-        ImportAlertMessage = L10n::ImportFailed();
-    } else {
-        ImportAlertMessage = L10n::ImportNoFiles();
-    }
+    // no reverse-engineering a magic integer. Which of the three arms to
+    // pick, and the imported-count wording, is decided by the core (#375).
+    if (outcome->imported > 0) RefreshLibrary();
+    ImportAlertMessage = L10n::ImportDirectoryResult(outcome->imported, outcome->failed);
     ShowImportAlert = true;
 }
 
