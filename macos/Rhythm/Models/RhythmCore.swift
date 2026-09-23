@@ -650,6 +650,14 @@ func resolverStatusSpec(phase: String, received: Int64?, total: Int64?) -> Messa
     return decodeMessageSpec(String(cString: json))
 }
 
+/// 目录导入结果的消息规格。三态分派（有导入/全部失败/没找到文件）与
+/// 「有导入」时的单复数参数都在核心（#375）。
+func importDirectoryResultSpec(imported: Int32, failed: Int32) -> MessageSpec? {
+    guard let json = rhythm_message_import_directory_result(imported, failed) else { return nil }
+    defer { rhythm_free_string(json) }
+    return decodeMessageSpec(String(cString: json))
+}
+
 /// Progress of yt-dlp provisioning, polled while a resolution is running so a
 /// first-run download doesn't look like a hang.
 struct ResolverStatus: Decodable {

@@ -87,6 +87,14 @@ enum L10n {
         return render(spec)
     }
 
+    /// 目录导入结果的文案。三态分派（有导入/全部失败/没找到文件）与
+    /// 「有导入」时的单复数参数都在核心（#375/#376），本层只渲染规格。
+    static func importDirectoryResult(imported: Int, failed: Int) -> String {
+        guard let spec = importDirectoryResultSpec(imported: Int32(imported), failed: Int32(failed))
+        else { return "" }
+        return render(spec)
+    }
+
     // ─── Play Mode Labels ─────────────────────────────────
 
     static var modeSequential: String { L10nKeys.value("mode_sequential") }
@@ -116,8 +124,6 @@ enum L10n {
     static var importResultTitle: String { L10nKeys.value("import_result_title") }
     static var importing: String { L10nKeys.value("importing") }
     static var importButton: String { L10nKeys.value("import_button") }
-    static var importDirEmpty: String { L10nKeys.value("import_dir_empty") }
-    static var importDirFailed: String { L10nKeys.value("import_dir_failed") }
     static var importFileUnsupported: String { L10nKeys.value("import_file_unsupported") }
     static var importFileFailed: String { L10nKeys.value("import_file_failed") }
     static var importAllFailed: String { L10nKeys.value("import_all_failed") }
