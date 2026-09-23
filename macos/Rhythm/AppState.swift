@@ -113,8 +113,8 @@ final class AppState: ObservableObject {
     /// extraction and SQLite writes (#38).
     ///
     /// Directory/file dispatch and the "partial success" aggregation live in
-    /// the core (#240) — this layer only picks the alert text from the
-    /// named counts.
+    /// the core (#240), and so does picking the alert text from the named
+    /// counts (#379/#380) — this layer only renders it.
     func importURLs(_ urls: [URL]) {
         guard !isImporting else { return }
         isImporting = true
@@ -127,15 +127,7 @@ final class AppState: ObservableObject {
                 let imported = outcome?.imported ?? 0
                 let failed = outcome?.failed ?? 0
                 if imported > 0 { self.refreshLibrary() }
-                if imported > 0 && failed == 0 {
-                    self.importAlertMessage = L10n.importedTracks(imported)
-                } else if imported > 0 {
-                    self.importAlertMessage = L10n.importSomeFailed(imported, failed)
-                } else if failed > 0 {
-                    self.importAlertMessage = L10n.importAllFailed
-                } else {
-                    self.importAlertMessage = L10n.importNoneFound
-                }
+                self.importAlertMessage = L10n.importBatchResult(imported: imported, failed: failed)
                 self.showImportAlert = true
             }
         }

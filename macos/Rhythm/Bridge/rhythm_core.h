@@ -159,6 +159,12 @@ char* rhythm_message_import_directory_result(int32_t imported, int32_t failed);
 // (#377). Free with rhythm_free_string.
 char* rhythm_message_import_file_result(int32_t imported, int32_t unsupported);
 
+// imported / failed: the batch import's aggregated named counts. Dispatch
+// (all imported / partial success / all failed / none found) and the
+// partial-success sentence's two numbers are decided by the core (#379).
+// Free with rhythm_free_string.
+char* rhythm_message_import_batch_result(int32_t imported, int32_t failed);
+
 // ─── M3U8 Import/Export ────────────────────────────────────────────
 
 // Write tracks to an M3U8 file. Returns 0 on success, -1 when tracks_json

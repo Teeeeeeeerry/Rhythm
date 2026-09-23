@@ -328,5 +328,13 @@ inline std::wstring ImportFileResult(int32_t imported, int32_t unsupported) {
     return RenderMessageSpec(ImportFileResultSpec(imported, unsupported));
 }
 
+// ─── Batch import result (#379/#380) ──────────────────────────────────
+
+/// 批量导入结果的文案。四态分派（全成/部分成/全败/没找到）与部分成功
+/// 那一句的两个数字都在核心（#379），本层只渲染规格。
+inline std::wstring ImportBatchResult(int32_t imported, int32_t failed) {
+    return RenderMessageSpec(ImportBatchResultSpec(imported, failed));
+}
+
 } // namespace L10n
 } // namespace rhythm

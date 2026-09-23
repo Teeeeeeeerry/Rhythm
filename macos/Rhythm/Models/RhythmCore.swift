@@ -666,6 +666,14 @@ func importFileResultSpec(imported: Int32, unsupported: Int32) -> MessageSpec? {
     return decodeMessageSpec(String(cString: json))
 }
 
+/// 批量导入结果的消息规格。四态分派（全成/部分成/全败/没找到）与部分
+/// 成功那一句的两个数字都在核心（#379）。
+func importBatchResultSpec(imported: Int32, failed: Int32) -> MessageSpec? {
+    guard let json = rhythm_message_import_batch_result(imported, failed) else { return nil }
+    defer { rhythm_free_string(json) }
+    return decodeMessageSpec(String(cString: json))
+}
+
 /// Progress of yt-dlp provisioning, polled while a resolution is running so a
 /// first-run download doesn't look like a hang.
 struct ResolverStatus: Decodable {
