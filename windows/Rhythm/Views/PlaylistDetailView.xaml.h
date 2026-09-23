@@ -10,7 +10,8 @@ struct PlaylistDetailView : PlaylistDetailViewT<PlaylistDetailView> {
 
     void InitializeComponent();
 
-    /// The navigation parameter is the playlist id.
+    /// Navigation carries no parameter (#357): the playlist is the one the
+    /// state has selected.
     void OnNavigatedTo(winrt::Microsoft::UI::Xaml::Navigation::NavigationEventArgs const& args);
     /// Called by MainWindow once the page is in the frame (not projected).
     void BindState(rhythm::AppState* state, HWND owner);
