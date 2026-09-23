@@ -27,6 +27,15 @@ void AppState::RefreshLibrary() {
     Tracks = Library->AllTracks();
     Playlists = Library->AllPlaylists();
 
+    // #355: the refresh replaces the list, so the selection is re-resolved by
+    // id against the new one -- its content must come from the reloaded
+    // playlists, never from the copy taken before the refresh.
+    if (CurrentPlaylist && CurrentPlaylist->id) {
+        if (auto reloaded = FindPlaylist(*CurrentPlaylist->id)) {
+            CurrentPlaylist = *reloaded;
+        }
+    }
+
     // #69: keep the play queue in sync so newly imported tracks are
     // reachable via "next" and deleted tracks are removed — inside the
     // coordinator (ticket #173).
