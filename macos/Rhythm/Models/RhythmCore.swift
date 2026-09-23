@@ -674,6 +674,14 @@ func importBatchResultSpec(imported: Int32, failed: Int32) -> MessageSpec? {
     return decodeMessageSpec(String(cString: json))
 }
 
+/// M3U8 导入结果的消息规格。分派（有失败带两个数字/全部入库/没有可读
+/// 条目）在核心（#381）。
+func importM3U8ResultSpec(imported: Int32, failed: Int32) -> MessageSpec? {
+    guard let json = rhythm_message_import_m3u8_result(imported, failed) else { return nil }
+    defer { rhythm_free_string(json) }
+    return decodeMessageSpec(String(cString: json))
+}
+
 /// Progress of yt-dlp provisioning, polled while a resolution is running so a
 /// first-run download doesn't look like a hang.
 struct ResolverStatus: Decodable {

@@ -165,6 +165,11 @@ char* rhythm_message_import_file_result(int32_t imported, int32_t unsupported);
 // Free with rhythm_free_string.
 char* rhythm_message_import_batch_result(int32_t imported, int32_t failed);
 
+// imported / failed: the M3U8 import's named counts (M3u8ImportOutcome).
+// Dispatch (failures with both numbers / all stored / nothing readable) is
+// decided by the core (#381). Free with rhythm_free_string.
+char* rhythm_message_import_m3u8_result(int32_t imported, int32_t failed);
+
 // ─── M3U8 Import/Export ────────────────────────────────────────────
 
 // Write tracks to an M3U8 file. Returns 0 on success, -1 when tracks_json

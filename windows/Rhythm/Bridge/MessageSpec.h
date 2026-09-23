@@ -122,4 +122,14 @@ inline std::vector<MessageSegment> ImportBatchResultSpec(int32_t imported, int32
     return ParseMessageSpec(owned);
 }
 
+/// 取一条 M3U8 导入结果的消息规格。分派（有失败带两个数字/全部入库/
+/// 没有可读条目）由核心决定（#381），本端只传具名计数。
+inline std::vector<MessageSegment> ImportM3U8ResultSpec(int32_t imported, int32_t failed) {
+    char* json = rhythm_message_import_m3u8_result(imported, failed);
+    if (!json) return {};
+    std::string owned(json);
+    rhythm_free_string(json);
+    return ParseMessageSpec(owned);
+}
+
 } // namespace rhythm
