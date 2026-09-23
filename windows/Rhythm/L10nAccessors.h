@@ -58,6 +58,7 @@ inline std::wstring ModeSequential() { return Key("mode_sequential"); }
 inline std::wstring ModeShuffle() { return Key("mode_shuffle"); }
 inline std::wstring ModeSingleLoop() { return Key("mode_single_loop"); }
 inline std::wstring NewPlaylist() { return Key("new_playlist"); }
+inline std::wstring NoPlaylistSelected() { return Key("no_playlist_selected"); }
 inline std::wstring PlaylistEmpty() { return Key("no_playlists"); }
 inline std::wstring NotPlaying() { return Key("not_playing"); }
 inline std::wstring Ok() { return Key("ok"); }

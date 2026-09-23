@@ -275,6 +275,12 @@
       "zh": "返回",
       "en": "Back"
     },
+    "no_playlist_selected": {
+      "accessor": "NoPlaylistSelected",
+      "zh": "未选中歌单",
+      "en": "No playlist selected",
+      "platform": "windows"
+    },
     "playlist_empty": {
       "accessor": "PlaylistDetailEmpty",
       "zh": "列表为空",

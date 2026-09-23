@@ -127,6 +127,7 @@ inline const wchar_t* Key(const char* key) {
         L10N_ENTRY(mode_single_loop)
         L10N_ENTRY(mode_sequential)
         L10N_ENTRY(new_playlist)
+        L10N_ENTRY(no_playlist_selected)
         L10N_ENTRY(no_playlists)
         L10N_ENTRY(not_playing)
         L10N_ENTRY(ok)

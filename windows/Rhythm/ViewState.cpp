@@ -146,7 +146,10 @@ PlaylistDetail PlaylistDetailOf(const AppState& state, bool isDarkTheme) {
     // #358: the values come from the state's current playlist, taken fresh on
     // every render -- the page keeps nothing between renders.
     PlaylistDetail detail;
-    if (!state.CurrentPlaylist) return detail;
+    if (!state.CurrentPlaylist) {
+        detail.emptyMessage = L10n::NoPlaylistSelected();  // #359
+        return detail;
+    }
     detail.hasPlaylist = true;
     detail.title = state.CurrentPlaylist->name;
     detail.rows = RowsOf(state.CurrentPlaylist->tracks, isDarkTheme);

@@ -80,6 +80,19 @@ TEST_CASE("LK-12 L10n export feedback copy") {
     }
 }
 
+// ─── LK-13 歌单详情空态（#359）──────────────────────────────────────
+
+TEST_CASE("LK-13 L10n playlist empty-state copy") {
+    {
+        LanguageScope zh(L"zh");
+        REQUIRE(L10n::NoPlaylistSelected() == L"未选中歌单");
+    }
+    {
+        LanguageScope en(L"en");
+        REQUIRE(L10n::NoPlaylistSelected() == L"No playlist selected");
+    }
+}
+
 // ─── WA-26 解析/播放失败分类（#120 英文分支）────────────────────────
 
 TEST_CASE("LK-03 L10n playback failure classification has English branches") {

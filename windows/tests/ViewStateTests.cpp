@@ -579,3 +579,47 @@ TEST_CASE("VS-38 a refresh is visible on the next render") {
     REQUIRE(detail.hasPlaylist);
     REQUIRE(titlesOf(detail.rows) == std::vector<std::wstring>{L"VS38"});
 }
+
+// ─── VS-39 未选中时的空态（#359）───────────────────────────────────
+
+TEST_CASE("VS-39 with nothing selected the detail page shows the empty-state copy") {
+    for (const wchar_t* language : {L"zh", L"en"}) {
+        LanguageScope scope(language);
+        AppState state;
+        Playlist mine;
+        mine.id = 2;
+        mine.name = L"晨跑";
+        mine.tracks = {makeLocalTrack(L"C:\m\a.mp3", L"Alpha")};
+        state.Playlists = {mine};
+
+        auto empty = view::PlaylistDetailOf(state, true);
+        REQUIRE_FALSE(empty.hasPlaylist);
+        REQUIRE(empty.emptyMessage == L10n::NoPlaylistSelected());  // from the key table
+        REQUIRE_FALSE(empty.emptyMessage.empty());
+        REQUIRE(empty.title.empty());
+        REQUIRE(empty.rows.empty());
+
+        // A selected playlist carries no empty-state copy.
+        state.SelectPlaylist(2);
+        auto selected = view::PlaylistDetailOf(state, true);
+        REQUIRE(selected.hasPlaylist);
+        REQUIRE(selected.emptyMessage.empty());
+    }
+}
+
+TEST_CASE("VS-40 a selection cleared by a refresh falls back to the empty state") {
+    TempDir dir;  // #455: before AppState, so the database closes before cleanup
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto id = state.CreatePlaylist(L"晨跑");
+    state.SelectPlaylist(id);
+    REQUIRE(view::PlaylistDetailOf(state, true).hasPlaylist);
+
+    state.Library->DeletePlaylist(id);
+    state.RefreshLibrary();
+
+    auto detail = view::PlaylistDetailOf(state, true);
+    REQUIRE_FALSE(detail.hasPlaylist);
+    REQUIRE(detail.emptyMessage == L10n::NoPlaylistSelected());
+    REQUIRE(detail.rows.empty());
+}

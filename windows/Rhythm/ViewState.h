@@ -77,6 +77,10 @@ struct PlaylistDetail {
     std::wstring title;
     /// Its tracks, the same rows as the library, in playlist order.
     std::vector<TrackRow> rows;
+    /// The empty-state copy from the key table (#359): set exactly when no
+    /// playlist is selected, so the page shows something determinate instead
+    /// of an empty frame.
+    std::wstring emptyMessage;
 };
 
 PlaylistDetail PlaylistDetailOf(const AppState& state, bool isDarkTheme);
