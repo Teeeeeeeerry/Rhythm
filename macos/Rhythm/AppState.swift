@@ -102,14 +102,9 @@ final class AppState: ObservableObject {
 
     func importFile(_ url: URL) {
         guard let outcome = library?.importFile(url.path) else { return }
-        if outcome.imported > 0 {
-            refreshLibrary()
-            importAlertMessage = L10n.importedTracks(outcome.imported)
-        } else if outcome.unsupported > 0 {
-            importAlertMessage = L10n.importFileUnsupported
-        } else {
-            importAlertMessage = L10n.importFileFailed
-        }
+        // 三态分派（有导入/格式不支持/读取失败）与单复数参数都在核心（#377/#378）。
+        if outcome.imported > 0 { refreshLibrary() }
+        importAlertMessage = L10n.importFileResult(imported: outcome.imported, unsupported: outcome.unsupported)
         showImportAlert = true
     }
 

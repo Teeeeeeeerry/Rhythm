@@ -320,5 +320,13 @@ inline std::wstring ImportDirectoryResult(int32_t imported, int32_t failed) {
     return RenderMessageSpec(ImportDirectoryResultSpec(imported, failed));
 }
 
+// ─── Single-file import result (#377/#378) ────────────────────────────
+
+/// 单文件导入结果的文案。三态分派（有导入/格式不支持/读取失败）与
+/// 「有导入」时的单复数参数都在核心（#377），本层只渲染规格。
+inline std::wstring ImportFileResult(int32_t imported, int32_t unsupported) {
+    return RenderMessageSpec(ImportFileResultSpec(imported, unsupported));
+}
+
 } // namespace L10n
 } // namespace rhythm

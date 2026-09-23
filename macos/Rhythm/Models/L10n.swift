@@ -95,6 +95,14 @@ enum L10n {
         return render(spec)
     }
 
+    /// 单文件导入结果的文案。三态分派（有导入/格式不支持/读取失败）与
+    /// 「有导入」时的单复数参数都在核心（#377/#378），本层只渲染规格。
+    static func importFileResult(imported: Int, unsupported: Int) -> String {
+        guard let spec = importFileResultSpec(imported: Int32(imported), unsupported: Int32(unsupported))
+        else { return "" }
+        return render(spec)
+    }
+
     // ─── Play Mode Labels ─────────────────────────────────
 
     static var modeSequential: String { L10nKeys.value("mode_sequential") }
@@ -124,8 +132,6 @@ enum L10n {
     static var importResultTitle: String { L10nKeys.value("import_result_title") }
     static var importing: String { L10nKeys.value("importing") }
     static var importButton: String { L10nKeys.value("import_button") }
-    static var importFileUnsupported: String { L10nKeys.value("import_file_unsupported") }
-    static var importFileFailed: String { L10nKeys.value("import_file_failed") }
     static var importAllFailed: String { L10nKeys.value("import_all_failed") }
     static var importNoneFound: String { L10nKeys.value("import_none_found") }
     static var importHint: String { L10nKeys.value("import_hint") }

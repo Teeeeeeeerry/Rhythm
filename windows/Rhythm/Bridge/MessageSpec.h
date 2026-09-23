@@ -102,4 +102,14 @@ inline std::vector<MessageSegment> ImportDirectoryResultSpec(int32_t imported, i
     return ParseMessageSpec(owned);
 }
 
+/// 取一条单文件导入结果的消息规格。三态分派（有导入/格式不支持/读取
+/// 失败）由核心决定（#377），本端只传具名计数。
+inline std::vector<MessageSegment> ImportFileResultSpec(int32_t imported, int32_t unsupported) {
+    char* json = rhythm_message_import_file_result(imported, unsupported);
+    if (!json) return {};
+    std::string owned(json);
+    rhythm_free_string(json);
+    return ParseMessageSpec(owned);
+}
+
 } // namespace rhythm

@@ -154,6 +154,11 @@ char* rhythm_message_resolver_status(const char* phase, int64_t received, int64_
 // Free with rhythm_free_string.
 char* rhythm_message_import_directory_result(int32_t imported, int32_t failed);
 
+// imported / unsupported: the single-file import's named counts. Dispatch
+// (has import / unsupported format / read failed) is decided by the core
+// (#377). Free with rhythm_free_string.
+char* rhythm_message_import_file_result(int32_t imported, int32_t unsupported);
+
 // ─── M3U8 Import/Export ────────────────────────────────────────────
 
 // Write tracks to an M3U8 file. Returns 0 on success, -1 when tracks_json
