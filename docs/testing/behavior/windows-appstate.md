@@ -44,6 +44,7 @@
 | WA-34（#349） | `ResolverStatusText()` | 链接解析进行中：各供给阶段（checking/downloading/verifying/updating/failed）返回与 `Resolver::StatusText` 相同的文案；静默阶段（idle/ready）返回空串；无解析在进行 → 空串且不轮询解析器；未打开资料库时照常安全返回。状态来源经 `PollResolverStatus` 注入，默认是真解析器的 FFI 轮询。视图因此不必直接接触解析器 | 注入状态来源 + 真解析器 |
 | WA-35（#351） | `ExportPlaylist(id, path)` | 真库歌单导出成功 → 具名结果 `Exported`、`exported` 为曲目数、文件含曲目路径；写不出文件 → `WriteFailed`、`code == -2`（核心把「曲目数据解不开」-1 与「写不出」-2 分开，见 FF-14）；未打开资料库或歌单 id 不存在 → `nullopt`、什么都不写。视图因此不必直接调 FFI 导出层 | 真库（临时路径） |
 | WA-36（#352） | 导出反馈文案 | `ExportPlaylist` 成功 → `ShowExportAlert`，标题「导出结果」、正文 `ExportedTracks(n)`；失败 → 标题「导出失败」、正文 `ExportFailed(code)`（键表 `export_failed`，此前无渲染者）；没跑导出（无库/无歌单）→ 不置提示。`DismissAlerts()` 同时清掉导入与导出两个提示 | 真库（临时路径） |
+| WA-38（#354） | `CurrentPlaylist` / `SelectPlaylist(id)` / `ClearPlaylistSelection()` | 与 `CurrentTrack` 同形的可选字段，由 AppState 持有值（不是 `Playlists` 里的地址）：选中某 id → 当前歌单为该歌单的副本；未选中 → 空；id 不在已加载列表 → 清空（「选中了但不存在」没有意义）；清空幂等，清空后再次选中正常；列表存储被整体替换后当前歌单仍有效 | 直接构造 |
 | WA-37（#321 评审） | 失败文案按类别、提示自清 | `ExportFailureText`：`InvalidTracks` → `export_invalid_tracks`（数据问题，请反馈），`WriteFailed` → `export_failed`，中英两语言都不同；`ExportPlaylist` 与 `ImportM3U8` 开始时自己 `DismissAlerts`，残留的另一种提示不会被误弹，视图不必在调用前先清 | 真库（临时路径）+ 纯函数 |
 
 ## 测试夹具（P1，#455）

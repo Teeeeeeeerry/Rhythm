@@ -227,6 +227,21 @@ const Playlist* AppState::FindPlaylist(int64_t id) const {
     return nullptr;
 }
 
+void AppState::SelectPlaylist(int64_t id) {
+    // #354: the selection is a value, not an address inside `Playlists`.
+    // An unknown id clears it rather than leaving a stale selection.
+    auto playlist = FindPlaylist(id);
+    if (!playlist) {
+        ClearPlaylistSelection();
+        return;
+    }
+    CurrentPlaylist = *playlist;
+}
+
+void AppState::ClearPlaylistSelection() {
+    CurrentPlaylist.reset();
+}
+
 std::wstring AppState::ResolverStatusText() const {
     // The status is an FFI poll: only worth taking while a link resolves.
     if (!IsResolvingUrl) return {};
