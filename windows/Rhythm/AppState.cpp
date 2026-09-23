@@ -30,9 +30,14 @@ void AppState::RefreshLibrary() {
     // #355: the refresh replaces the list, so the selection is re-resolved by
     // id against the new one -- its content must come from the reloaded
     // playlists, never from the copy taken before the refresh.
-    if (CurrentPlaylist && CurrentPlaylist->id) {
-        if (auto reloaded = FindPlaylist(*CurrentPlaylist->id)) {
+    // #356: a selection the new list no longer carries is cleared -- the UI
+    // goes to its empty state instead of keeping a dead pointer.
+    if (CurrentPlaylist) {
+        auto reloaded = CurrentPlaylist->id ? FindPlaylist(*CurrentPlaylist->id) : nullptr;
+        if (reloaded) {
             CurrentPlaylist = *reloaded;
+        } else {
+            ClearPlaylistSelection();
         }
     }
 

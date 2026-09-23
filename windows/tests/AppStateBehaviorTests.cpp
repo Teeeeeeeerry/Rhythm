@@ -1153,3 +1153,38 @@ TEST_CASE("WA-39 a refresh with nothing selected selects nothing") {
 
     REQUIRE_FALSE(state.CurrentPlaylist.has_value());
 }
+
+// ─── WA-40 选中项被删除时清空（#356）───────────────────────────────
+
+TEST_CASE("WA-40 deleting the current playlist clears the selection on refresh") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    auto keep = state.CreatePlaylist(L"保留");
+    auto id = state.CreatePlaylist(L"晨跑");
+    state.SelectPlaylist(id);
+
+    state.Library->DeletePlaylist(id);
+    state.RefreshLibrary();
+
+    REQUIRE_FALSE(state.CurrentPlaylist.has_value());
+    REQUIRE(state.Playlists.size() == 1);
+
+    // And the empty state is not a dead end: another playlist still selects.
+    state.SelectPlaylist(keep);
+    REQUIRE(state.CurrentPlaylist.has_value());
+    REQUIRE(state.CurrentPlaylist->name == L"保留");
+}
+
+TEST_CASE("WA-40 a current playlist with no id is cleared by a refresh") {
+    TempDir dir;
+    AppState state;
+    state.OpenDatabase(dir.dbPath());
+    Playlist unsaved;  // never stored: nothing to re-resolve it by
+    unsaved.name = L"未入库";
+    state.CurrentPlaylist = unsaved;
+
+    state.RefreshLibrary();
+
+    REQUIRE_FALSE(state.CurrentPlaylist.has_value());
+}
