@@ -82,18 +82,11 @@ void AppState::ImportPaths(const std::vector<std::wstring>& paths) {
     if (!Library) return;
     auto outcome = Library->ImportPaths(paths);
     if (!outcome) return;
-    // Same four arms as macOS, in the same order, from the same counts --
-    // both platforms must render one batch identically (#243).
+    // Which of the four arms to pick, and the partial-success sentence's two
+    // numbers, is decided by the core (#379/#380) -- both platforms render one
+    // batch identically (#243).
     if (outcome->imported > 0) RefreshLibrary();
-    if (outcome->imported > 0 && outcome->failed == 0) {
-        ImportAlertMessage = L10n::ImportedTracks(outcome->imported);
-    } else if (outcome->imported > 0) {
-        ImportAlertMessage = L10n::ImportSomeFailed(outcome->imported, outcome->failed);
-    } else if (outcome->failed > 0) {
-        ImportAlertMessage = L10n::ImportAllFailed();
-    } else {
-        ImportAlertMessage = L10n::ImportNoneFound();
-    }
+    ImportAlertMessage = L10n::ImportBatchResult(outcome->imported, outcome->failed);
     ShowImportAlert = true;
 }
 
