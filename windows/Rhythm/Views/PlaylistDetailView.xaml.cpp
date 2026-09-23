@@ -40,9 +40,22 @@ void PlaylistDetailView::Refresh() {
     // the page holds neither a pointer nor an id of its own.
     const bool isDark = rhythm::shell::IsDarkTheme();  // #342: resolved once, by the shell
     auto detail = rhythm::view::PlaylistDetailOf(*appState_, isDark);
-    if (!detail.hasPlaylist) return;
 
+    // #359: with no playlist selected the page shows the empty-state copy and
+    // hides what would act on a playlist -- the back button stays.
+    const auto whenPlaylist = detail.hasPlaylist ? Visibility::Visible : Visibility::Collapsed;
+    const auto whenEmpty = detail.hasPlaylist ? Visibility::Collapsed : Visibility::Visible;
+    emptyMessage().Text(detail.emptyMessage);
+    emptyMessage().Visibility(whenEmpty);
+    trackList().Visibility(whenPlaylist);
+    btnImport().Visibility(whenPlaylist);
+    btnExport().Visibility(whenPlaylist);
     playlistTitle().Text(detail.title);
+    if (!detail.hasPlaylist) {
+        trackList().ItemsSource(nullptr);
+        return;
+    }
+
     // The same rows as the library, from the view state (#339).
     auto items = winrt::single_threaded_observable_vector<IInspectable>();
     for (auto& row : detail.rows) {

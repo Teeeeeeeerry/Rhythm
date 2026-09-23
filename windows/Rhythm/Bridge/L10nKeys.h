@@ -100,6 +100,8 @@ inline const wchar_t* L10nKeys_zh_mode_single_loop() { return L"单曲循环"; }
 inline const wchar_t* L10nKeys_en_mode_single_loop() { return L"Repeat One"; }
 inline const wchar_t* L10nKeys_zh_new_playlist() { return L"新建播放列表"; }
 inline const wchar_t* L10nKeys_en_new_playlist() { return L"New Playlist"; }
+inline const wchar_t* L10nKeys_zh_no_playlist_selected() { return L"未选中歌单"; }
+inline const wchar_t* L10nKeys_en_no_playlist_selected() { return L"No playlist selected"; }
 inline const wchar_t* L10nKeys_zh_no_playlists() { return L"暂无播放列表"; }
 inline const wchar_t* L10nKeys_en_no_playlists() { return L"No playlists yet"; }
 inline const wchar_t* L10nKeys_zh_not_playing() { return L"未在播放"; }
