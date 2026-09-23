@@ -67,6 +67,20 @@ std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool 
 /// No rows when the state holds no playlist with that id.
 std::vector<TrackRow> PlaylistRows(const AppState& state, int64_t playlistId, bool isDarkTheme);
 
+/// What the playlist detail page renders (#358). Read from the state's
+/// current playlist on every render, so the page holds nothing of its own --
+/// not a pointer, not an id.
+struct PlaylistDetail {
+    /// True when a playlist is selected; false leaves the other fields empty.
+    bool hasPlaylist = false;
+    /// The current playlist's name.
+    std::wstring title;
+    /// Its tracks, the same rows as the library, in playlist order.
+    std::vector<TrackRow> rows;
+};
+
+PlaylistDetail PlaylistDetailOf(const AppState& state, bool isDarkTheme);
+
 /// What the player bar shows.
 struct PlayerBar {
     /// The current track's title and artist (empty when it has none); with

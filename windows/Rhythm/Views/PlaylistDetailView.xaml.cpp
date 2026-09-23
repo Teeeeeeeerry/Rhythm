@@ -31,26 +31,21 @@ void PlaylistDetailView::OnNavigatedTo(Navigation::NavigationEventArgs const&) {
 void PlaylistDetailView::BindState(rhythm::AppState* state, HWND owner) {
     appState_ = state;
     owner_ = owner;
-    if (appState_ && appState_->CurrentPlaylist) {
-        playlistId_ = appState_->CurrentPlaylist->id;
-    }
     Refresh();
 }
 
-rhythm::Playlist const* PlaylistDetailView::CurrentPlaylist() const {
-    if (!appState_ || !playlistId_) return nullptr;
-    return appState_->FindPlaylist(*playlistId_);  // #339: one lookup, shared with the rows
-}
-
 void PlaylistDetailView::Refresh() {
-    auto playlist = CurrentPlaylist();
-    if (!playlist) return;
-
-    playlistTitle().Text(playlist->name);
-    // The same rows as the library, from the view state (#339).
+    if (!appState_) return;
+    // #358: which playlist this is comes from the state on every render --
+    // the page holds neither a pointer nor an id of its own.
     const bool isDark = rhythm::shell::IsDarkTheme();  // #342: resolved once, by the shell
+    auto detail = rhythm::view::PlaylistDetailOf(*appState_, isDark);
+    if (!detail.hasPlaylist) return;
+
+    playlistTitle().Text(detail.title);
+    // The same rows as the library, from the view state (#339).
     auto items = winrt::single_threaded_observable_vector<IInspectable>();
-    for (auto& row : rhythm::view::PlaylistRows(*appState_, *playlistId_, isDark)) {
+    for (auto& row : detail.rows) {
         items.Append(winrt::make<Models::implementation::TrackItem>(std::move(row)));
     }
     trackList().ItemsSource(items);
@@ -83,22 +78,24 @@ winrt::fire_and_forget PlaylistDetailView::OnImportClick(IInspectable const&, Ro
 }
 
 winrt::fire_and_forget PlaylistDetailView::OnExportClick(IInspectable const&, RoutedEventArgs const&) {
-    auto playlist = CurrentPlaylist();
-    if (!playlist) co_return;
+    if (!appState_ || !appState_->CurrentPlaylist) co_return;
     auto lifetime = get_strong();
 
     winrt::Windows::Storage::Pickers::FileSavePicker picker;
-    picker.SuggestedFileName(playlist->name);
+    picker.SuggestedFileName(appState_->CurrentPlaylist->name);
     auto extensions = winrt::single_threaded_vector<winrt::hstring>({ L".m3u8" });
     picker.FileTypeChoices().Insert(L"M3U8", extensions);
     rhythm::shell::ParentPicker(picker, owner_);
 
     try {
         auto file = co_await picker.PickSaveFileAsync();
-        if (!file || !appState_ || !playlistId_) co_return;
-        // #352: the state exports the playlist it holds now (re-read after
-        // the await) and picks the result or failure copy; this only shows it.
-        appState_->ExportPlaylist(*playlistId_, file.Path().c_str());
+        if (!file || !appState_) co_return;
+        // #352/#358: the state exports the playlist it holds now (read again
+        // after the await -- a refresh may have landed while the picker was
+        // open) and picks the result or failure copy; this only shows it.
+        auto current = appState_->CurrentPlaylist;
+        if (!current || !current->id) co_return;
+        appState_->ExportPlaylist(*current->id, file.Path().c_str());
         co_await ShowPendingAlert();
     } catch (winrt::hresult_error const& e) {
         OutputDebugStringW((L"M3U8 export failed: " + e.message() + L"\n").c_str());

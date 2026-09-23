@@ -142,6 +142,17 @@ std::vector<TrackRow> PlaylistRows(const AppState& state, int64_t playlistId, bo
     return playlist ? RowsOf(playlist->tracks, isDarkTheme) : std::vector<TrackRow>{};
 }
 
+PlaylistDetail PlaylistDetailOf(const AppState& state, bool isDarkTheme) {
+    // #358: the values come from the state's current playlist, taken fresh on
+    // every render -- the page keeps nothing between renders.
+    PlaylistDetail detail;
+    if (!state.CurrentPlaylist) return detail;
+    detail.hasPlaylist = true;
+    detail.title = state.CurrentPlaylist->name;
+    detail.rows = RowsOf(state.CurrentPlaylist->tracks, isDarkTheme);
+    return detail;
+}
+
 PlayerBar PlayerBarState(const AppState& state) {
     PlayerBar bar;
     if (state.CurrentTrack) {
