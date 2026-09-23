@@ -112,4 +112,14 @@ inline std::vector<MessageSegment> ImportFileResultSpec(int32_t imported, int32_
     return ParseMessageSpec(owned);
 }
 
+/// 取一条批量导入结果的消息规格。四态分派（全成/部分成/全败/没找到）
+/// 与部分成功那一句的两个数字由核心决定（#379），本端只传具名计数。
+inline std::vector<MessageSegment> ImportBatchResultSpec(int32_t imported, int32_t failed) {
+    char* json = rhythm_message_import_batch_result(imported, failed);
+    if (!json) return {};
+    std::string owned(json);
+    rhythm_free_string(json);
+    return ParseMessageSpec(owned);
+}
+
 } // namespace rhythm

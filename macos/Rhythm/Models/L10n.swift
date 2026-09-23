@@ -103,6 +103,14 @@ enum L10n {
         return render(spec)
     }
 
+    /// 批量导入结果的文案。四态分派（全成/部分成/全败/没找到）与部分成功
+    /// 那一句的两个数字都在核心（#379/#380），本层只渲染规格。
+    static func importBatchResult(imported: Int, failed: Int) -> String {
+        guard let spec = importBatchResultSpec(imported: Int32(imported), failed: Int32(failed))
+        else { return "" }
+        return render(spec)
+    }
+
     // ─── Play Mode Labels ─────────────────────────────────
 
     static var modeSequential: String { L10nKeys.value("mode_sequential") }
@@ -132,8 +140,6 @@ enum L10n {
     static var importResultTitle: String { L10nKeys.value("import_result_title") }
     static var importing: String { L10nKeys.value("importing") }
     static var importButton: String { L10nKeys.value("import_button") }
-    static var importAllFailed: String { L10nKeys.value("import_all_failed") }
-    static var importNoneFound: String { L10nKeys.value("import_none_found") }
     static var importHint: String { L10nKeys.value("import_hint") }
 
     static func importSomeFailed(_ imported: Int, _ failed: Int) -> String {

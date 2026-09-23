@@ -23,7 +23,7 @@
 | AS-20 | `resolveAndImport` 失败（#21） | `urlError=L10n.urlResolveError(kind, detail)` 非空；不弹导入 alert | stub resolver 报错 |
 | AS-21 | `importResolved`（#71） | `addTrack` 持久化 → `refreshLibrary`（#66）→ `urlInput=""` → 导入 alert；不播放 | 真库 + SpyCoordinator |
 | AS-22 | `playResolved`（#39/#66） | `addTrack` → `refreshLibrary` → `coordinator.start(saved, tracks, …)`（真实 DB id）→ `isPlaying=true`；队列定位经可用性断言 | 真库 + SpyCoordinator |
-| AS-23 | `importURLs` 批量导入（#38/#240） | `isImporting` 防重入；后台执行；目录/文件分派与「部分成功」聚合在核心，本端只按具名结果 `{imported, unsupported, failed}` 选文案；`imported>0` 才 `refreshLibrary`；四种统计文案（全成/部分成/全败/无支持） | 真库（临时目录夹具）+ expectation |
+| AS-23 | `importURLs` 批量导入（#38/#240） | `isImporting` 防重入；后台执行；目录/文件分派与「部分成功」聚合在核心，本端把具名结果 `{imported, failed}` 交核心选文案（#380）；`imported>0` 才 `refreshLibrary`；四种统计文案（全成/部分成/全败/无支持；四态分派下沉核心，见 l10n-keys.md LK-16/MS-11，#380） | 真库（临时目录夹具）+ expectation |
 | AS-24 | `importDirectory`/`importFile` 单路径（#240） | 断言基于具名结果：`imported>0` → 成功文案 + 刷新；目录 `failed>0` → 目录失败文案，三项全 0 → 目录为空文案（目录三态分派下沉核心，见 l10n-keys.md LK-14/MS-09，#376）；单文件 `unsupported>0` → 格式不支持文案，`failed>0` → 读取失败文案（单文件三态分派下沉核心，见 l10n-keys.md LK-15/MS-10，#378） | 真库 + 夹具目录 |
 | AS-25 | `confirmDeleteTrack` 删除当前播放曲目 | `coordinator.stop()`、`isPlaying=false`、`currentTrack=nil`；`removeTrack` + `refreshLibrary`（#33） | SpyCoordinator + 真库 |
 | AS-26 | `search` | 空 query → `allTracks()`；非空 → `lib.search(query)` | 真库 |
