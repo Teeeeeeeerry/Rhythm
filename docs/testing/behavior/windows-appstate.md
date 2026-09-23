@@ -84,7 +84,7 @@
 
 | 编号 | 行为 | 断言 | 说明 |
 |---|---|---|---|
-| WA-23（#241） | `ImportDirectory` 导入反馈 | 断言基于具名结果 `{imported, unsupported, failed}`：`imported>0` → 已导入 N 首 + 刷新；`failed>0` → 导入失败；三项全 0 → 未找到音频文件（对齐 macOS alert，本端魔数三分支删除） | 功能新增 |
+| WA-23（#241） | `ImportDirectory` 导入反馈 | 断言基于具名结果 `{imported, unsupported, failed}`：`imported>0` → 已导入 N 首 + 刷新；`failed>0` → 导入失败；三项全 0 → 未找到音频文件（对齐 macOS alert，本端魔数三分支删除；三态分派下沉核心，见 l10n-keys.md LK-14/MS-09，#376） | 功能新增 |
 | WA-26（#236） | M3U8 导入结果渲染 | `ImportM3U8(path)` 调核心解析并入库入口 → 按具名结果 `{imported, failed}` 选提示语 → 从数据库重载列表；入库策略断言归属核心（PL-17 至 PL-24），列表不可读时不弹提示 | 真 FFI + 临时 M3U8 文件 |
 | WA-29（#242，新能力 P0） | `ImportFile` 单文件导入 | 支持格式 → 已导入 1 首 + 从数据库重载列表；扩展名不支持 → 不支持的音频格式；支持但读不出 → 导入失败；无 Library → no-op。文件选择面板按核心支持的扩展名过滤 | 功能新增（macOS 一直有，Windows 此前完全缺失） |
 | WA-30（#243，新能力 P0） | `ImportPaths` 批量导入与部分成功 | 目录与文件混合批量，分派与聚合来自核心；四种文案与 macOS 逐字相同：全成 → 已导入 N 首；部分成 → 已导入 N 首、M 个失败；全败 → 全部导入失败；只有不支持格式 → 未找到支持的音频文件 | 功能新增（macOS 一直有，Windows 此前完全缺失） |

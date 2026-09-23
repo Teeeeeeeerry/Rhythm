@@ -312,5 +312,13 @@ inline std::wstring PlaybackFailed(const std::wstring& kind, const std::wstring&
     return RenderMessageSpec(spec);
 }
 
+// ─── Directory import result (#375/#376) ──────────────────────────────
+
+/// 目录导入结果的文案。三态分派（有导入/全部失败/没找到文件）与
+/// 「有导入」时的单复数参数都在核心（#375），本层只渲染规格。
+inline std::wstring ImportDirectoryResult(int32_t imported, int32_t failed) {
+    return RenderMessageSpec(ImportDirectoryResultSpec(imported, failed));
+}
+
 } // namespace L10n
 } // namespace rhythm

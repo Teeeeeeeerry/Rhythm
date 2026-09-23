@@ -94,14 +94,9 @@ final class AppState: ObservableObject {
 
     func importDirectory(_ url: URL) {
         guard let outcome = library?.importDirectory(url.path) else { return }
-        if outcome.imported > 0 {
-            refreshLibrary()
-            importAlertMessage = L10n.importedTracks(outcome.imported)
-        } else if outcome.failed > 0 {
-            importAlertMessage = L10n.importDirFailed
-        } else {
-            importAlertMessage = L10n.importDirEmpty
-        }
+        // 三态分派（有导入/全部失败/没找到文件）与单复数参数都在核心（#375/#376）。
+        if outcome.imported > 0 { refreshLibrary() }
+        importAlertMessage = L10n.importDirectoryResult(imported: outcome.imported, failed: outcome.failed)
         showImportAlert = true
     }
 
