@@ -80,7 +80,9 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
 - **文案分派归核心（#216 组）**：「具名分类 → 哪个文案键 + 哪些参数」这一跳只写在 `rust-core/src/message/`，
   经 `rhythm_message_*` 导出为消息规格 JSON（按顺序拼接的键段与字面量段）。双端适配层只剩两件事——
   按键取模板、按参数填占位符；中英拼装形状、平台差异选键（brew 与 winget）、字节到 MB 的换算都在核心。
-  新增一种分类只改核心与键表，双端零改动。语言解析（macOS Locale + AppLanguage、Windows 系统 UI 语言 +
+  导入结果也不例外（#324）：目录、单文件、批量、M3U8 四条导入路径各有一个 `rhythm_message_import_*_result`
+  入口，双端 `AppState` 只传具名计数、一次调用加一次赋值，不出现选键分支；弹不弹提示（如空 M3U8 列表不弹）
+  是呈现决定，留在双端。新增一种分类只改核心与键表，双端零改动。语言解析（macOS Locale + AppLanguage、Windows 系统 UI 语言 +
   注册表覆盖）保持平台特异，不下沉。跨接缝一律传核心原始分类值，UI 侧不发明前缀编码（#226）
 - **零 emoji（硬性）**：任何文本不得出现 emoji——代码注释、文档、测试、commit/PR 文案、与用户的对话输出一律禁止（ASCII 与普通符号如 `->` 除外）。提交前跑 `python3 scripts/tasks.py check-no-emoji` 校验；发现即修，不得绕过。校验范围是 git 跟踪的全部文件减排除清单（第三方 vendor 目录、依赖锁文件、构建产物，二进制按内容跳过），新增语言或文件类型自动纳入；已挂进两个平台 `python3 scripts/tasks.py test` 的共享静态分析前缀（#224/#345）。CI 工作流仍是 `testing/ci/` 下未部署的模板，不在 CI 生效（#346）
 - **品牌色单一出处（#219 组）**：视图只用 `RhythmTheme` 的 token（如 `.rhythmAccent`），不硬编码色值。
