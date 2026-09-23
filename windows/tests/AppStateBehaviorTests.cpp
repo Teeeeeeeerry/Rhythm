@@ -1036,3 +1036,72 @@ TEST_CASE("WA-37 an export clears a stale import alert, an M3U8 import a stale e
     REQUIRE_FALSE(state.ShowImportAlert);
 }
 
+
+// ─── WA-38 当前歌单归 AppState（#354）───────────────────────────────
+
+TEST_CASE("WA-38 selecting a playlist makes it the current playlist") {
+    AppState state;
+    Playlist a;
+    a.id = 1;
+    a.name = L"A";
+    Playlist b;
+    b.id = 2;
+    b.name = L"B";
+    state.Playlists = {a, b};
+
+    REQUIRE_FALSE(state.CurrentPlaylist.has_value());  // nothing selected yet
+
+    state.SelectPlaylist(2);
+
+    REQUIRE(state.CurrentPlaylist.has_value());
+    REQUIRE(state.CurrentPlaylist->id.value_or(-1) == 2);
+    REQUIRE(state.CurrentPlaylist->name == L"B");
+}
+
+TEST_CASE("WA-38 selecting an unknown id clears the selection") {
+    AppState state;
+    Playlist a;
+    a.id = 1;
+    a.name = L"A";
+    state.Playlists = {a};
+    state.SelectPlaylist(1);
+    REQUIRE(state.CurrentPlaylist.has_value());
+
+    state.SelectPlaylist(99);
+
+    REQUIRE_FALSE(state.CurrentPlaylist.has_value());
+}
+
+TEST_CASE("WA-38 clearing the selection empties the current playlist") {
+    AppState state;
+    Playlist a;
+    a.id = 1;
+    a.name = L"A";
+    state.Playlists = {a};
+    state.SelectPlaylist(1);
+
+    state.ClearPlaylistSelection();
+    REQUIRE_FALSE(state.CurrentPlaylist.has_value());
+
+    state.ClearPlaylistSelection();  // idempotent: clearing twice is defined
+    REQUIRE_FALSE(state.CurrentPlaylist.has_value());
+
+    state.SelectPlaylist(1);  // and selecting again still works
+    REQUIRE(state.CurrentPlaylist.has_value());
+    REQUIRE(state.CurrentPlaylist->name == L"A");
+}
+
+TEST_CASE("WA-38 the current playlist is a value, not an address in the list") {
+    AppState state;
+    Playlist a;
+    a.id = 1;
+    a.name = L"A";
+    state.Playlists = {a};
+    state.SelectPlaylist(1);
+
+    // The list's storage is replaced, as RefreshLibrary does; the selection
+    // survives because it never pointed into that buffer (#320).
+    state.Playlists = {};
+    REQUIRE(state.CurrentPlaylist.has_value());
+    REQUIRE(state.CurrentPlaylist->name == L"A");
+}

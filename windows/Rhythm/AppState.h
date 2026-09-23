@@ -38,6 +38,10 @@ public:
     std::vector<Track> Tracks;
     std::vector<Playlist> Playlists;
     std::optional<Track> CurrentTrack;
+    /// The selected playlist (#354), shaped exactly like `CurrentTrack`: a
+    /// value owned by the state, never a pointer into `Playlists`. Empty
+    /// when nothing is selected; views only read it.
+    std::optional<Playlist> CurrentPlaylist;
     bool IsPlaying = false;
     /// True while the engine is buffering; driven by state events (ticket
     /// #172/#173) and shown in the player bar (mirrors macOS `isBuffering`).
@@ -128,6 +132,15 @@ public:
     /// The loaded playlist with this id, or null (#339): the one lookup the
     /// playlist detail view and its view-state rows share.
     const Playlist* FindPlaylist(int64_t id) const;
+
+    /// Select the playlist with this id (#354): `CurrentPlaylist` becomes a
+    /// copy of the loaded playlist. An id no loaded playlist carries clears
+    /// the selection -- "selected but absent" has no meaning.
+    void SelectPlaylist(int64_t id);
+
+    /// Clear the selection (#354): `CurrentPlaylist` becomes empty, and the
+    /// detail view goes to its empty state.
+    void ClearPlaylistSelection();
 
     /// Runs work on the UI thread. Async resolver results and coordinator
     /// events are marshalled through it; empty means "no UI thread".
