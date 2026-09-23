@@ -57,7 +57,7 @@
 
 | 编号 | 行为 | 断言 |
 |---|---|---|
-| PL-15 | `AppState.importM3U8` 结果渲染 | 具名结果 `{imported, failed}` → 全成 `importedTracks`、有失败 `importSomeFailed`；调用后从数据库重载列表 |
+| PL-15 | `AppState.importM3U8` 结果渲染 | 有计数时把具名结果 `{imported, failed}` 交核心选文案（全成 → 已导入 N 首，有失败 → 成功与失败两个数字；分派下沉核心，见 l10n-keys.md LK-17/MS-12，#382）；两者皆 0 的空列表不弹提示；调用后从数据库重载列表 |
 | PL-16 | `AppState.importM3U8` 列表不可读 | 核心返回 null → 不弹提示、列表不变 |
 
 ## 红测登记

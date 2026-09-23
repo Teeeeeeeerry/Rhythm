@@ -111,6 +111,14 @@ enum L10n {
         return render(spec)
     }
 
+    /// M3U8 导入结果的文案。分派（有失败带两个数字/全部入库/没有可读条目）
+    /// 在核心（#381/#382），本层只渲染规格。
+    static func importM3U8Result(imported: Int, failed: Int) -> String {
+        guard let spec = importM3U8ResultSpec(imported: Int32(imported), failed: Int32(failed))
+        else { return "" }
+        return render(spec)
+    }
+
     // ─── Play Mode Labels ─────────────────────────────────
 
     static var modeSequential: String { L10nKeys.value("mode_sequential") }

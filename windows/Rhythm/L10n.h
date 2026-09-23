@@ -336,5 +336,13 @@ inline std::wstring ImportBatchResult(int32_t imported, int32_t failed) {
     return RenderMessageSpec(ImportBatchResultSpec(imported, failed));
 }
 
+// ─── M3U8 import result (#381/#382) ───────────────────────────────────
+
+/// M3U8 导入结果的文案。分派（有失败带两个数字/全部入库/没有可读条目）
+/// 在核心（#381），本层只渲染规格。
+inline std::wstring ImportM3U8Result(int32_t imported, int32_t failed) {
+    return RenderMessageSpec(ImportM3U8ResultSpec(imported, failed));
+}
+
 } // namespace L10n
 } // namespace rhythm
