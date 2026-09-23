@@ -639,6 +639,18 @@ pub extern "C" fn rhythm_message_import_directory_result(
     str_to_c_string(&serde_json::to_string(&spec).unwrap_or_default())
 }
 
+/// 单文件导入结果的文案规格（#377）。`imported` / `unsupported` 是单
+/// 文件导入的具名计数；三态分派（有导入/格式不支持/读取失败）在核心。
+/// Free with `rhythm_free_string`.
+#[no_mangle]
+pub extern "C" fn rhythm_message_import_file_result(
+    imported: i32,
+    unsupported: i32,
+) -> *mut c_char {
+    let spec = message::import_file_result(imported, unsupported);
+    str_to_c_string(&serde_json::to_string(&spec).unwrap_or_default())
+}
+
 // ─── Playback Coordinator FFI ─────────────────────────────────────
 //
 // The coordinator owns the orchestration rules (stop old playback, dispatch

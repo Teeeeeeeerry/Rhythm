@@ -287,6 +287,28 @@ pub fn import_directory_result(imported: i32, failed: i32) -> MessageSpec {
     }
 }
 
+/// 单文件导入结果的文案规格（#377）。
+///
+/// `imported` / `unsupported` 是单文件导入的具名计数（`ImportOutcome`）。
+/// 三态：有导入（成功优先）、格式不支持、读取失败——「不支持」与「读取
+/// 失败」分属两个键，是用户唯一能据以行动的区分，不折成一种「失败」。
+/// imported 段带 `count`/`s` 两个占位符，与目录导入同形（#375）。
+pub fn import_file_result(imported: i32, unsupported: i32) -> MessageSpec {
+    if imported > 0 {
+        MessageSpec::new(vec![MessageSegment::key_with(
+            "imported_tracks",
+            &[
+                ("count", &imported.to_string()),
+                ("s", if imported == 1 { "" } else { "s" }),
+            ],
+        )])
+    } else if unsupported > 0 {
+        MessageSpec::new(vec![MessageSegment::key("import_file_unsupported")])
+    } else {
+        MessageSpec::new(vec![MessageSegment::key("import_file_failed")])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
