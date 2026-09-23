@@ -92,18 +92,15 @@ void AppState::ImportPaths(const std::vector<std::wstring>& paths) {
 
 void AppState::ImportM3U8(const std::wstring& path) {
     if (!Library) return;
-    // #236: parsing and storing are one core entry point — this layer only
-    // picks the alert text and reloads the list from the database.
+    // #236: parsing and storing are one core entry point, and so is picking
+    // the alert text (#381/#382) — this layer only renders it and reloads
+    // the list from the database.
     DismissAlerts();  // only this import's feedback is pending (#321 review)
     auto outcome = Library->ImportM3U8(path);
     if (!outcome) return;
     RefreshLibrary();
-    if (outcome->failed > 0) {
-        ImportAlertMessage = L10n::ImportSomeFailed(outcome->imported, outcome->failed);
-    } else if (outcome->imported > 0) {
-        ImportAlertMessage = L10n::ImportedTracks(outcome->imported);
-    }
     if (outcome->imported > 0 || outcome->failed > 0) {
+        ImportAlertMessage = L10n::ImportM3U8Result(outcome->imported, outcome->failed);
         ShowImportAlert = true;
     }
 }

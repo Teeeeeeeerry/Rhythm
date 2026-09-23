@@ -295,19 +295,15 @@ final class AppState: ObservableObject {
     /// Import an M3U8 playlist through the core entry point (#235).
     ///
     /// The core parses the file and stores every entry — location type,
-    /// title fallback and the success test all live there (#217). This layer
-    /// only picks the alert text, reloads the list from the database (#66)
-    /// and returns the counts.
+    /// title fallback and the success test all live there (#217), and so does
+    /// picking the alert text (#381/#382). This layer only renders it, reloads
+    /// the list from the database (#66) and returns the counts.
     @discardableResult
     func importM3U8(_ url: URL) -> M3u8ImportOutcome? {
         guard let outcome = library?.importM3U8(url.path) else { return nil }
         refreshLibrary()
-        if outcome.failed > 0 {
-            importAlertMessage = L10n.importSomeFailed(outcome.imported, outcome.failed)
-        } else if outcome.imported > 0 {
-            importAlertMessage = L10n.importedTracks(outcome.imported)
-        }
         if outcome.imported > 0 || outcome.failed > 0 {
+            importAlertMessage = L10n.importM3U8Result(imported: outcome.imported, failed: outcome.failed)
             showImportAlert = true
         }
         return outcome

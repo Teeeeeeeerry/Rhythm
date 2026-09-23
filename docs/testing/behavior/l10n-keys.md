@@ -55,6 +55,7 @@
 | LK-14（#376） | 目录导入结果文案 | 双端 `ImportDirectory`/`importDirectory` 不再自选文案键，改传具名计数 `{imported, failed}` 给核心入口渲染；同一组计数两端渲染同一句话 | 核心表驱动（MS-09，#376 起分派在核心）；Windows `AppStateBehaviorTests.cpp`（WA-23）+ macOS `AppStatePlaybackMainPathTests.swift`（AS-24）行为回归原样通过 |
 | LK-15（#378） | 单文件导入结果文案 | 双端 `ImportFile`/`importFile` 不再自选文案键，改传具名计数 `{imported, unsupported}` 给核心入口渲染；「不支持」与「读取失败」在双端仍显示为两句不同的话 | 核心表驱动（MS-10，#378 起分派在核心）；Windows `AppStateBehaviorTests.cpp`（WA-29）+ macOS `AppStatePlaybackMainPathTests.swift`（AS-24）行为回归原样通过 |
 | LK-16（#380） | 批量导入结果文案 | 双端 `ImportPaths`/`importURLs` 不再自选文案键、不再自行拼接数字，改传具名计数 `{imported, failed}` 给核心入口渲染；部分成功时两端显示同一句话（两个数字在同一句里） | 核心表驱动（MS-11，#380 起分派在核心）；Windows `AppStateBehaviorTests.cpp`（WA-30）+ macOS `AppStatePlaybackMainPathTests.swift`（AS-23）行为回归原样通过 |
+| LK-17（#382） | M3U8 导入结果文案 | 双端 `ImportM3U8`/`importM3U8` 不再自选文案键，有计数时改传具名计数 `{imported, failed}` 给核心入口渲染；列表为空（两者皆 0）或不可读时仍不弹提示；导入后从数据库重载列表不变 | 核心表驱动（MS-12，#382 起分派在核心）；Windows `AppStateBehaviorTests.cpp`（WA-26/WA-37）+ macOS `AppStateImportTests.swift`（PL-15/PL-16）行为回归原样通过 |
 
 ## 红测登记
 
