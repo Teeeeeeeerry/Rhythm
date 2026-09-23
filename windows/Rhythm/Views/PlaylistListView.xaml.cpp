@@ -57,10 +57,13 @@ winrt::fire_and_forget PlaylistListView::OnNewPlaylistClick(IInspectable const&,
 void PlaylistListView::OnPlaylistClick(IInspectable const&, ItemClickEventArgs const& args) {
     auto item = args.ClickedItem().as<Rhythm::Models::PlaylistItem>();
     auto id = get_self<Models::implementation::PlaylistItem>(item)->Model().id;
-    if (!id) return;
+    if (!id || !appState_) return;
+    // #357: selecting is the state's job and navigation carries no value of
+    // its own -- the detail page reads the current playlist from AppState,
+    // so nothing derived from this list's storage outlives it.
+    appState_->SelectPlaylist(*id);
     // MainWindow binds the detail page's state when it lands in the frame.
-    Frame().Navigate(winrt::xaml_typename<Rhythm::Views::PlaylistDetailView>(),
-                     winrt::box_value(*id));
+    Frame().Navigate(winrt::xaml_typename<Rhythm::Views::PlaylistDetailView>());
 }
 
 void PlaylistListView::Refresh() {

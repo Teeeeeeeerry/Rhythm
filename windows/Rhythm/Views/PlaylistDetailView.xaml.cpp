@@ -22,16 +22,18 @@ void PlaylistDetailView::InitializeComponent() {
     btnExport().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::ExportM3U8() }));
 }
 
-void PlaylistDetailView::OnNavigatedTo(Navigation::NavigationEventArgs const& args) {
-    if (auto id = args.Parameter().try_as<int64_t>()) {
-        playlistId_ = *id;
-    }
+void PlaylistDetailView::OnNavigatedTo(Navigation::NavigationEventArgs const&) {
+    // #357: navigation carries no parameter -- which playlist this page shows
+    // is the state's current playlist, read once the state is bound.
     Refresh();
 }
 
 void PlaylistDetailView::BindState(rhythm::AppState* state, HWND owner) {
     appState_ = state;
     owner_ = owner;
+    if (appState_ && appState_->CurrentPlaylist) {
+        playlistId_ = appState_->CurrentPlaylist->id;
+    }
     Refresh();
 }
 
