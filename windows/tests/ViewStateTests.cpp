@@ -366,40 +366,6 @@ TEST_CASE("VS-26 a row carries its track's artist, empty when it has none") {
     REQUIRE(rows.at(1).artist.empty());
 }
 
-TEST_CASE("VS-27 playlist rows are the same rows, in playlist order") {
-    LanguageScope zh(L"zh");
-    AppState state;
-    auto late = makeLocalTrack(L"C:\\m\\z.mp3", L"Zulu");
-    late.duration = 65.0;
-    Playlist other;
-    other.id = 1;
-    other.tracks = {makeLocalTrack(L"C:\\m\\o.mp3", L"Other")};
-    Playlist mine;
-    mine.id = 2;
-    mine.tracks = {late, makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha")};
-    state.Playlists = {other, mine};
-
-    auto rows = view::PlaylistRows(state, 2, false);
-
-    REQUIRE(titlesOf(rows) == std::vector<std::wstring>{L"Zulu", L"Alpha"});
-    REQUIRE(rows.at(0).durationText == L"1:05");
-    REQUIRE(rows.at(0).badge.tag == L"本地");
-    REQUIRE(hexOf(rows.at(0).badge.foreground) ==
-            hexOf(view::SourceBadgeOf(L"local", false).foreground));
-    REQUIRE(rows.at(0).track.title == L"Zulu");
-}
-
-TEST_CASE("VS-28 an unknown playlist renders no rows") {
-    AppState state;
-    Playlist mine;
-    mine.id = 2;
-    mine.tracks = {makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha")};
-    state.Playlists = {mine};
-    REQUIRE(view::PlaylistRows(state, 99, true).empty());
-}
-
-// ─── VS-29 托盘菜单文案（#340）──────────────────────────────────────
-
 TEST_CASE("VS-29 the tray menu carries its three labels in the current language") {
     AppState state;
     {
@@ -533,11 +499,12 @@ TEST_CASE("VS-38 the detail page renders the state's current playlist") {
     other.id = 1;
     other.name = L"其他";
     other.tracks = {makeLocalTrack(L"C:\m\o.mp3", L"Other")};
+    auto late = makeLocalTrack(L"C:\m\z.mp3", L"Zulu");
+    late.duration = 65.0;
     Playlist mine;
     mine.id = 2;
     mine.name = L"晨跑";
-    mine.tracks = {makeLocalTrack(L"C:\m\z.mp3", L"Zulu"),
-                   makeLocalTrack(L"C:\m\a.mp3", L"Alpha")};
+    mine.tracks = {late, makeLocalTrack(L"C:\m\a.mp3", L"Alpha")};
     state.Playlists = {other, mine};
     state.SelectPlaylist(2);
 
@@ -545,8 +512,13 @@ TEST_CASE("VS-38 the detail page renders the state's current playlist") {
 
     REQUIRE(detail.hasPlaylist);
     REQUIRE(detail.title == L"晨跑");
+    // The same rows as the library (#339), in playlist order.
     REQUIRE(titlesOf(detail.rows) == std::vector<std::wstring>{L"Zulu", L"Alpha"});
+    REQUIRE(detail.rows.at(0).durationText == L"1:05");
     REQUIRE(detail.rows.at(0).badge.tag == L"本地");
+    REQUIRE(hexOf(detail.rows.at(0).badge.foreground) ==
+            hexOf(view::SourceBadgeOf(L"local", false).foreground));
+    REQUIRE(detail.rows.at(0).track.title == L"Zulu");
 }
 
 TEST_CASE("VS-38 with nothing selected the detail page has no playlist") {
@@ -622,4 +594,66 @@ TEST_CASE("VS-40 a selection cleared by a refresh falls back to the empty state"
     REQUIRE_FALSE(detail.hasPlaylist);
     REQUIRE(detail.emptyMessage == L10n::NoPlaylistSelected());
     REQUIRE(detail.rows.empty());
+}
+
+// ─── VS-41 歌单列表行（#320）───────────────────────────────────────
+
+TEST_CASE("VS-41 every loaded playlist renders as one row carrying its id") {
+    AppState state;
+    Playlist first;
+    first.id = 7;
+    first.name = L"晨跑";
+    first.tracks = {makeLocalTrack(L"C:\m\a.mp3", L"Alpha"),
+                    makeLocalTrack(L"C:\m\b.mp3", L"Beta")};
+    Playlist second;
+    second.id = 9;
+    second.name = L"夜归";
+    state.Playlists = {first, second};
+
+    auto page = view::PlaylistListState(state);
+
+    REQUIRE(page.rows.size() == 2);
+    REQUIRE(page.rows.at(0).id == 7);
+    REQUIRE(page.rows.at(0).name == L"晨跑");
+    REQUIRE(page.rows.at(0).trackCountText == L"2");
+    REQUIRE(page.rows.at(1).id == 9);
+    REQUIRE(page.rows.at(1).trackCountText == L"0");
+    REQUIRE(page.emptyMessage.empty());
+}
+
+TEST_CASE("VS-41 the row's id is what selects that playlist") {
+    AppState state;
+    Playlist first;
+    first.id = 7;
+    first.name = L"晨跑";
+    Playlist second;
+    second.id = 9;
+    second.name = L"夜归";
+    state.Playlists = {first, second};
+
+    state.SelectPlaylist(view::PlaylistListState(state).rows.at(1).id);
+
+    REQUIRE(state.CurrentPlaylist.has_value());
+    REQUIRE(state.CurrentPlaylist->name == L"夜归");
+}
+
+TEST_CASE("VS-42 with no playlists the list renders the empty-state copy") {
+    for (const wchar_t* language : {L"zh", L"en"}) {
+        LanguageScope scope(language);
+        AppState state;
+
+        auto page = view::PlaylistListState(state);
+
+        REQUIRE(page.rows.empty());
+        REQUIRE(page.emptyMessage == L10n::PlaylistEmpty());
+    }
+}
+
+TEST_CASE("VS-42 a playlist with no id renders no row") {
+    AppState state;
+    Playlist unsaved;  // never stored: nothing a click could select it by
+    unsaved.name = L"未入库";
+    state.Playlists = {unsaved};
+
+    REQUIRE(view::PlaylistListState(state).rows.empty());
 }

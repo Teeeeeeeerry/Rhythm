@@ -63,9 +63,26 @@ enum class LibrarySort {
 /// state is only read (#336). The theme is resolved by the shell (#342).
 std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool isDarkTheme);
 
-/// A playlist's detail list: one row per track, in playlist order (#339).
-/// No rows when the state holds no playlist with that id.
-std::vector<TrackRow> PlaylistRows(const AppState& state, int64_t playlistId, bool isDarkTheme);
+/// One row of the playlist list (#320). Carries the identifier a click hands
+/// to `AppState::SelectPlaylist` -- never an address inside the state -- plus
+/// the two values the row shows.
+struct PlaylistRow {
+    int64_t id = 0;
+    std::wstring name;
+    /// The playlist's track count, as shown.
+    std::wstring trackCountText;
+};
+
+/// What the playlist list page renders (#320): one row per loaded playlist
+/// that has an identifier, in list order, and the empty-state copy when there
+/// are none.
+struct PlaylistListPage {
+    std::vector<PlaylistRow> rows;
+    /// The key table's "no playlists yet" copy; empty when there are rows.
+    std::wstring emptyMessage;
+};
+
+PlaylistListPage PlaylistListState(const AppState& state);
 
 /// What the playlist detail page renders (#358). Read from the state's
 /// current playlist on every render, so the page holds nothing of its own --

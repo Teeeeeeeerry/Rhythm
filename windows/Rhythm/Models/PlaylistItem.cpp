@@ -6,12 +6,10 @@
 
 namespace winrt::Rhythm::Models::implementation {
 
-PlaylistItem::PlaylistItem(rhythm::Playlist playlist) : playlist_(std::move(playlist)) {}
+PlaylistItem::PlaylistItem(rhythm::view::PlaylistRow row) : row_(std::move(row)) {}
 
-hstring PlaylistItem::Name() const { return hstring{playlist_.name}; }
+hstring PlaylistItem::Name() const { return hstring{row_.name}; }
 
-hstring PlaylistItem::TrackCountText() const {
-    return winrt::to_hstring(static_cast<uint64_t>(playlist_.tracks.size()));
-}
+hstring PlaylistItem::TrackCountText() const { return hstring{row_.trackCountText}; }
 
 } // namespace winrt::Rhythm::Models::implementation

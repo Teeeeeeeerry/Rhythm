@@ -109,6 +109,12 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   `docs/testing/behavior/windows-viewstate.md` 登记；壳本身不测，被有意做薄。行为库不含任何 C++/WinRT 头，测试宿主不需要 WinUI 与 WinRT 单元
   视图的能力只经 `AppState` 的方法取（创建歌单、导出歌单、解析器文案……，#321），包含列表里也没有下层模块：包含 `Bridge/` 下的头或
   `rhythm_core.h`、直接调 FFI、导出层、解析器或 `AppState` 的 `Library`/`Coordinator` 句柄由 `python3 testing/l0/check-view-seams.py` 拦截（#353），确有必要的例外写进该脚本的 ALLOWED 并附理由
+- **当前歌单归 `AppState`（#320 组）**：「当前选中的歌单」是 `AppState::CurrentPlaylist`，与 `CurrentTrack` 同形——状态持有值，视图只读；
+  选中经 `SelectPlaylist(id)`，清空经 `ClearPlaylistSelection()`。`RefreshLibrary()` 会整体替换歌单列表，当前歌单在那之后按标识
+  重新解析，解析不到就清空（#355/#356）。页面之间传标识不传地址：歌单列表点击即选中、导航不带参数（#357），详情页每次渲染向
+  视图状态 `PlaylistDetailOf` 取当前歌单、不持有成员（#358），没有当前歌单时呈现取自键表的空态（#359）。
+  原缺陷是详情页持有 `Playlists` 里元素的地址，刷新后悬垂（#320）：任何视图都不得持有指向状态内部存储的指针或索引，
+  跨渲染只允许持有标识，而标识的解析只在 `AppState` 一处
 - **导入结果具名不用魔数**：资料库导入不再有魔数返回码（#244 起）。三条路径共用 `ImportOutcome{imported, unsupported, failed}`，
   「格式不支持」与「读写失败」必须分开——合并会丢掉用户唯一能据以行动的信息。新增一条导入路径沿用同一形状，
   不发明新的返回约定；结果结构声明在 `contracts/ffi-contract.json`，双端绑定由生成器产出，少接一条路径会在生成物比对时暴露。

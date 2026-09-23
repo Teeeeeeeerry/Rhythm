@@ -5,6 +5,7 @@
 #endif
 #include "Models/PlaylistItem.h"
 #include "L10n.h"
+#include "ViewState.h"
 
 using namespace winrt::Microsoft::UI::Xaml;
 using namespace winrt::Microsoft::UI::Xaml::Controls;
@@ -16,7 +17,6 @@ void PlaylistListView::InitializeComponent() {
     PlaylistListViewT<PlaylistListView>::InitializeComponent();
     // #141: copy from the language layer.
     newPlaylistText().Text(rhythm::L10n::NewPlaylist());
-    emptyMessage().Text(rhythm::L10n::PlaylistEmpty());
 }
 
 void PlaylistListView::BindState(rhythm::AppState* state) {
@@ -55,26 +55,29 @@ winrt::fire_and_forget PlaylistListView::OnNewPlaylistClick(IInspectable const&,
 }
 
 void PlaylistListView::OnPlaylistClick(IInspectable const&, ItemClickEventArgs const& args) {
+    if (!appState_) return;
     auto item = args.ClickedItem().as<Rhythm::Models::PlaylistItem>();
-    auto id = get_self<Models::implementation::PlaylistItem>(item)->Model().id;
-    if (!id || !appState_) return;
     // #357: selecting is the state's job and navigation carries no value of
     // its own -- the detail page reads the current playlist from AppState,
     // so nothing derived from this list's storage outlives it.
-    appState_->SelectPlaylist(*id);
+    appState_->SelectPlaylist(get_self<Models::implementation::PlaylistItem>(item)->Id());
     // MainWindow binds the detail page's state when it lands in the frame.
     Frame().Navigate(winrt::xaml_typename<Rhythm::Views::PlaylistDetailView>());
 }
 
 void PlaylistListView::Refresh() {
     if (!appState_) return;
-    auto const& playlists = appState_->Playlists;
-    emptyMessage().Visibility(playlists.empty() ? Visibility::Visible : Visibility::Collapsed);
-    playlistList().Visibility(playlists.empty() ? Visibility::Collapsed : Visibility::Visible);
+    // #320: the rows come from the view state, so the list and the detail
+    // correspond by identity, not by position in the state's storage.
+    auto page = rhythm::view::PlaylistListState(*appState_);
+    const bool empty = page.rows.empty();
+    emptyMessage().Text(page.emptyMessage);
+    emptyMessage().Visibility(empty ? Visibility::Visible : Visibility::Collapsed);
+    playlistList().Visibility(empty ? Visibility::Collapsed : Visibility::Visible);
 
     auto items = winrt::single_threaded_observable_vector<IInspectable>();
-    for (const auto& pl : playlists) {
-        items.Append(winrt::make<Models::implementation::PlaylistItem>(pl));
+    for (auto& row : page.rows) {
+        items.Append(winrt::make<Models::implementation::PlaylistItem>(std::move(row)));
     }
     playlistList().ItemsSource(items);
 }
