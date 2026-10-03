@@ -39,6 +39,11 @@
       "zh": "播放链接",
       "en": "Play URL"
     },
+    "url_import": {
+      "zh": "导入链接",
+      "en": "Import URL",
+      "platform": "macos"
+    },
     "url_resolving": {
       "accessor": "Resolving",
       "zh": "解析中…",
