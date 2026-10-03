@@ -5,6 +5,10 @@
 #include <iterator>
 #include <map>
 
+// Types and constants only: the functions are resolved at run time from the
+// system's icu.dll (see SystemIcu), so nothing links against it (#504).
+#include <icu.h>
+
 namespace rhythm::view {
 
 namespace {
@@ -113,7 +117,124 @@ std::vector<TrackRow> RowsOf(const std::vector<Track>& tracks, bool isDarkTheme)
     return rows;
 }
 
+/// The heading of every title that does not start with a letter (#504).
+constexpr wchar_t kNonLetterHeading[] = L"#";
+
+/// The system's ICU (#504), for what the Win32 character types cannot tell:
+/// whether a code point outside the BMP is a letter, and its full upper-case
+/// mapping. Resolved at run time: icu.dll ships from Windows 10 1903 while
+/// the app runs from 1809 (WindowsTargetPlatformMinVersion), so a missing
+/// library falls back to the Win32 calls instead of keeping the app from
+/// loading.
+struct SystemIcu {
+    decltype(&u_hasBinaryProperty) hasBinaryProperty = nullptr;
+    decltype(&u_strToUpper) strToUpper = nullptr;
+
+    static const SystemIcu& Get() {
+        static const SystemIcu icu = [] {
+            SystemIcu loaded;
+            if (HMODULE module = ::LoadLibraryExW(L"icu.dll", nullptr,
+                                                  LOAD_LIBRARY_SEARCH_SYSTEM32)) {
+                loaded.hasBinaryProperty = reinterpret_cast<decltype(&u_hasBinaryProperty)>(
+                    ::GetProcAddress(module, "u_hasBinaryProperty"));
+                loaded.strToUpper = reinterpret_cast<decltype(&u_strToUpper)>(
+                    ::GetProcAddress(module, "u_strToUpper"));
+            }
+            if (!loaded.hasBinaryProperty || !loaded.strToUpper) return SystemIcu{};
+            return loaded;
+        }();
+        return icu;
+    }
+};
+
+/// The title in composed form (NFC): a letter written as base + combining
+/// accent, as tags from macOS often are, becomes the one code point Swift
+/// treats it as. Unchanged when it cannot be normalised.
+std::wstring Composed(const std::wstring& title) {
+    const int needed = ::NormalizeString(NormalizationC, title.c_str(),
+                                         static_cast<int>(title.size()), nullptr, 0);
+    if (needed <= 0) return title;
+    std::wstring composed(static_cast<size_t>(needed), L' ');
+    const int written = ::NormalizeString(NormalizationC, title.c_str(),
+                                          static_cast<int>(title.size()), composed.data(), needed);
+    if (written <= 0) return title;
+    composed.resize(static_cast<size_t>(written));
+    return composed;
+}
+
+/// The by-letter heading of a title (#504), as macOS `groupByFirstLetter`
+/// derives it: the first character of the composed title, full upper-case
+/// mapped, when it has the Unicode Alphabetic property -- what Swift's
+/// `Character.isLetter` tests -- else "#".
+std::wstring LetterOf(const std::wstring& rawTitle) {
+    const std::wstring title = Composed(rawTitle);
+    if (title.empty()) return kNonLetterHeading;
+    const auto* text = reinterpret_cast<const UChar*>(title.c_str());
+    int32_t end = 0;
+    UChar32 first = 0;
+    U16_NEXT(text, end, static_cast<int32_t>(title.size()), first);
+
+    const auto& icu = SystemIcu::Get();
+    if (icu.hasBinaryProperty) {
+        if (!icu.hasBinaryProperty(first, UCHAR_ALPHABETIC)) return kNonLetterHeading;
+        UChar upper[8] = {};  // one code point maps to at most three
+        UErrorCode status = U_ZERO_ERROR;
+        const int32_t written = icu.strToUpper(upper, 8, text, end, "", &status);
+        if (U_FAILURE(status) || written <= 0 || written > 8) return title.substr(0, end);
+        return std::wstring(reinterpret_cast<const wchar_t*>(upper), static_cast<size_t>(written));
+    }
+
+    // Without ICU: the Win32 character types, which see BMP letters only.
+    WORD type = 0;
+    if (end != 1 || !::GetStringTypeW(CT_CTYPE1, title.c_str(), 1, &type) || !(type & C1_ALPHA)) {
+        return kNonLetterHeading;
+    }
+    wchar_t upper[4] = {};
+    const int written = ::LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, title.c_str(), 1,
+                                        upper, 4, nullptr, nullptr, 0);
+    return written > 0 ? std::wstring(upper, static_cast<size_t>(written)) : title.substr(0, 1);
+}
+
+/// Heading order by code point, as Swift compares strings (#504). UTF-16
+/// code units disagree with it in one place -- a surrogate (a letter outside
+/// the BMP) is smaller than U+E000..U+FFFF -- so those two ranges swap ranks.
+struct CodePointLess {
+    static uint32_t Rank(wchar_t unit) {
+        if (unit < 0xD800) return unit;
+        return unit >= 0xE000 ? unit - 0x800u : unit + 0x2000u;
+    }
+    bool operator()(const std::wstring& a, const std::wstring& b) const {
+        return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(),
+                                            [](wchar_t x, wchar_t y) { return Rank(x) < Rank(y); });
+    }
+};
+
+/// Title order within a letter section: ignoring case, in the user's locale
+/// (macOS `localizedCaseInsensitiveCompare` uses the current locale too),
+/// punctuation counted as it is there -- string sort, not word sort.
+bool TitleBefore(const std::wstring& a, const std::wstring& b) {
+    return ::CompareStringEx(LOCALE_NAME_USER_DEFAULT, LINGUISTIC_IGNORECASE | SORT_STRINGSORT,
+                             a.c_str(), static_cast<int>(a.size()), b.c_str(),
+                             static_cast<int>(b.size()), nullptr, nullptr, 0) == CSTR_LESS_THAN;
+}
+
 } // namespace
+
+std::vector<LetterSection> LetterSections(const AppState& state, bool isDarkTheme) {
+    // #504: sectioned as macOS groupByFirstLetter does.
+    std::map<std::wstring, std::vector<TrackRow>, CodePointLess> letters;
+    for (auto& row : RowsOf(state.Tracks, isDarkTheme)) {
+        letters[LetterOf(row.track.title)].push_back(std::move(row));
+    }
+    std::vector<LetterSection> sections;
+    for (auto& [letter, rows] : letters) {
+        std::stable_sort(rows.begin(), rows.end(), [](const TrackRow& a, const TrackRow& b) {
+            return TitleBefore(a.track.title, b.track.title);
+        });
+        sections.push_back(LetterSection{letter, std::move(rows)});
+    }
+    return sections;
+}
 
 std::vector<ArtistSection> ArtistAlbumSections(const AppState& state, bool isDarkTheme) {
     // #503: grouped as macOS groupByArtistAlbum does -- by display name, so a
@@ -157,10 +278,11 @@ std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool 
             return rows;
         }
         case LibrarySort::Alphabetical: {
-            auto rows = RowsOf(state.Tracks, isDarkTheme);
-            std::stable_sort(rows.begin(), rows.end(), [](const TrackRow& a, const TrackRow& b) {
-                return a.track.title < b.track.title;
-            });
+            // #504: one by-letter rule -- the sections, read top to bottom.
+            std::vector<TrackRow> rows;
+            for (auto& section : LetterSections(state, isDarkTheme)) {
+                std::move(section.rows.begin(), section.rows.end(), std::back_inserter(rows));
+            }
             return rows;
         }
     }
@@ -185,8 +307,11 @@ std::vector<LibraryLine> LibraryLines(const AppState& state, bool isDarkTheme) {
         }
         return lines;
     }
-    for (auto& row : LibraryRows(state, isDarkTheme)) {
-        lines.push_back(LibraryLine{LibraryLineKind::Track, {}, std::move(row), false});
+    for (auto& section : LetterSections(state, isDarkTheme)) {
+        lines.push_back(LibraryLine{LibraryLineKind::Section, section.title, {}, false});
+        for (auto& row : section.rows) {
+            lines.push_back(LibraryLine{LibraryLineKind::Track, {}, std::move(row), false});
+        }
     }
     return lines;
 }

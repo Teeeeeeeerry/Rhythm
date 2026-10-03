@@ -11,7 +11,7 @@
 |---|---|---|---|
 | VS-01（#331） | 资料库行 `LibraryRows` | 空曲库 → 空行列表；每首已加载曲目 → 一行，行内带着该曲目（点击播放用）与其标题 | 新测 |
 | VS-14（#336） | 按艺人/专辑排序 `LibraryRows(state, ArtistAlbum)` | 艺人优先，其次专辑，其次音轨号（#503 起即分组结构自上而下读出的顺序，见 VS-51） | 新测 |
-| VS-15（#336） | 按首字母排序 `LibraryRows(state, Alphabetical)` | 标题升序 | 新测 |
+| VS-15（#336） | 按首字母排序 `LibraryRows(state, Alphabetical)` | 标题升序（#504 起即首字母分节自上而下读出的顺序，见 VS-55） | 新测 |
 | VS-18（#337，原 WB-01） | 曲目行时长文案 `TrackRow::durationText` | 分:秒，秒补零（65 秒 → 1:05，5 秒 → 0:05，不足一秒舍去） | 新测 |
 | VS-21（#338，原 WB-02） | 来源标记 `SourceBadgeOf().tag` | local → 本地/Local、youtube → YT、bilibili → B站/Bili、direct_url → 链接/Link、未知 → 空串（中英各一次） | 新测 |
 | VS-22（#338，原 WB-03/WB-20） | 来源前景色 `SourceBadgeOf().foreground` | 四种来源 dark/light 双端色值与 palette.json 一致（#121），不透明 | 新测 |
@@ -42,7 +42,10 @@
 | VS-49（#503） | 按艺人/专辑分组 `ArtistAlbumSections(state, isDark)` | 艺人分节按艺人名排序，节内按专辑名分组；组内曲目按碟号、音轨号排序（缺失记 0），相同时保持曲库原顺序；与 macOS `groupByArtistAlbum` 一致 | 新测 |
 | VS-50（#503） | 未知艺人/专辑的归组 | 缺艺人归入「未知艺人」节、缺专辑归入「未知专辑」组，文案取键表 `unknown_artist` / `unknown_album`（中英各一次），按当前语言的文案与其他名字一起排序（中文下「未知艺人」排在拉丁字母艺人之后；macOS 目前写死英文文案，见 #518）；同名专辑分属两位艺人时仍是两组 | 新测 |
 | VS-51（#503） | 平铺的艺人/专辑顺序即分组顺序 | `LibraryRows(state, ArtistAlbum)` 等于 `ArtistAlbumSections` 自上而下读出的曲目顺序，艺人/专辑的规则只有一处 | 新测 |
-| VS-52（#503） | 资料库列表逐行 `LibraryLines(state, isDark)` | 按艺人/专辑：每节先是艺人标题行，每组先是专辑标题行、随后是组内曲目行（标记在组内）；按首字母：曲目行（不在组内）；空曲库无行。页面只把每行变成列表项：标题行渲染为不可点、不可聚焦的标题，专辑标题旁带封面占位（`rhythmElevated`），组内曲目缩进到与专辑标题对齐 | 新测 |
+| VS-52（#503） | 资料库列表逐行 `LibraryLines(state, isDark)` | 按艺人/专辑：每节先是艺人标题行，每组先是专辑标题行、随后是组内曲目行（标记在组内）；按首字母：每节先是字母标题行、随后是节内曲目行（不在组内，#504）；空曲库无行。页面只把每行变成列表项：标题行渲染为不可点、不可聚焦的标题，专辑标题旁带封面占位（`rhythmElevated`），组内曲目缩进到与专辑标题对齐 | 新测 |
+| VS-53（#504） | 按首字母分节 `LetterSections(state, isDark)` | 节标题为标题（先合成为 NFC，分解写法的重音字母与预组合写法同节）首字符完整转大写（大小写归同一节）；首字符（按码位，BMP 以外的字母同样）带 Unicode Alphabetic 属性才自成一节（含中日韩文字，与 macOS `Character.isLetter` 一致；分类与大小写取系统 ICU，运行时载入，缺失时退回 Win32），数字、标点、表情符号与空标题归入 `#`；节按码位排序（与 Swift 字符串比较一致），`#` 在字母之前、中日韩文字在拉丁字母之后；与 macOS `groupByFirstLetter` 一致 | 新测 |
+| VS-54（#504） | 节内顺序 | 按标题忽略大小写、按用户区域设置排序（对应 macOS `localizedCaseInsensitiveCompare`），标点按字符串排序计入（`a-z` 在 `ab` 前，不按词排序忽略连字符），相同时保持曲库原顺序 | 新测 |
+| VS-55（#504） | 平铺的首字母顺序即分节顺序 | `LibraryRows(state, Alphabetical)` 等于 `LetterSections` 自上而下读出的顺序；`LibraryLines` 按首字母时为每节的字母标题行加节内曲目行，曲目不在组内 | 新测 |
 
 ## 边界情况（P1）
 
