@@ -1769,3 +1769,84 @@ fn ae43_stale_success_does_not_touch_new_playback() {
 }
 
 
+
+// ── AE-44 (#499): crackle diagnosis ─────────────────────────────────────────
+
+/// AE-44 (#499): a decoder feeding a continuous tone at a rate the device does
+/// not share (44.1 kHz into a 48 kHz output, the common local-file case) must
+/// reach the sink as a continuous tone: no sample jump bigger than the tone
+/// itself can produce, and no silence inserted mid-stream.
+///
+/// Diagnosis: the resampler interpolates the output frames that fall past the
+/// last input frame of a packet toward the *previous* packet's tail instead of
+/// the next packet's head, so every packet boundary carries a step. One packet
+/// is ~23 ms, so the steps repeat at ~43 Hz — the buzz heard as crackle.
+#[test]
+#[ignore = "red test: resampler block-boundary discontinuity (diagnosed in #499, fix in #500)"]
+fn ae44_continuous_tone_reaches_sink_without_boundary_jumps() {
+    const IN_RATE: u32 = 44_100;
+    const OUT_RATE: u32 = 48_000;
+    const PACKET_FRAMES: usize = 1024;
+    const PACKETS: usize = 40;
+    const FREQ: f64 = 441.0;
+    const AMP: f64 = 0.5;
+
+    // Two-channel tone, packetized the way an AAC/MP3 decoder hands it out.
+    let mut fake = FakeDecoder::new(IN_RATE, 2, (PACKETS * PACKET_FRAMES) as f64 / f64::from(IN_RATE));
+    for p in 0..PACKETS {
+        let mut pcm = Vec::with_capacity(PACKET_FRAMES * 2);
+        for i in 0..PACKET_FRAMES {
+            let n = (p * PACKET_FRAMES + i) as f64;
+            let s = (AMP * (2.0 * std::f64::consts::PI * FREQ * n / f64::from(IN_RATE)).sin()) as f32;
+            pcm.push(s);
+            pcm.push(s);
+        }
+        let position = ((p + 1) * PACKET_FRAMES) as f64 / f64::from(IN_RATE);
+        fake = fake.packet(pcm, position);
+    }
+    let fake = fake.end();
+    let probe = Arc::new(SinkProbe::default());
+    let sink = FakeSink::new(OUT_RATE, 2, probe.clone());
+
+    AudioEngine::new()
+        .run_playback_with(
+            "fake://tone".to_string(),
+            PlayerState::Playing,
+            || Ok((fake, None)),
+            |_| Ok(sink),
+        )
+        .unwrap();
+
+    let samples = probe.samples.lock().unwrap().clone();
+    let left: Vec<f32> = samples.iter().step_by(2).copied().collect();
+    let expected_frames = PACKETS * PACKET_FRAMES * OUT_RATE as usize / IN_RATE as usize;
+    assert!(
+        left.len() + 4 >= expected_frames,
+        "sink got {} frames, expected about {expected_frames}",
+        left.len()
+    );
+
+    // The steepest step a 441 Hz tone of this amplitude takes between two
+    // 48 kHz frames is AMP * 2 * pi * FREQ / OUT_RATE ~= 0.029. Allow
+    // headroom for interpolation; a boundary step is an order larger.
+    let max_step = AMP * 2.0 * std::f64::consts::PI * FREQ / f64::from(OUT_RATE);
+    let limit = (max_step * 1.5) as f32;
+    let jumps: Vec<(usize, f32)> = left
+        .windows(2)
+        .enumerate()
+        .map(|(i, w)| (i + 1, (w[1] - w[0]).abs()))
+        .filter(|&(_, d)| d > limit)
+        .collect();
+    let worst = jumps.iter().map(|&(_, d)| d).fold(0.0f32, f32::max);
+    assert!(
+        jumps.is_empty(),
+        "{} sample jumps above {limit:.4} (worst {worst:.4}); first at output frames {:?}",
+        jumps.len(),
+        jumps.iter().take(6).map(|&(i, _)| i).collect::<Vec<_>>()
+    );
+
+    // No silence inserted mid-stream: a 441 Hz tone never sits at exactly 0.0
+    // for two frames running.
+    let silent_runs = left.windows(2).filter(|w| w[0] == 0.0 && w[1] == 0.0).count();
+    assert_eq!(silent_runs, 0, "silence inserted into a continuously fed stream");
+}

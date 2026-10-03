@@ -32,4 +32,6 @@
 
 ## 红测登记
 
-（暂空。实现时若发现现状代码与清单不符，测试照写、禁用并挂 issue 编号，在此登记。）
+| 编号 | 缺陷 | issue | 状态 |
+|---|---|---|---|
+| AE-44 | 跨块插值取上一块的尾帧而非下一块的首帧，变采样率时每个块边界出现样本跳变（电流音）。RM-05 只断言帧数，看不见这一跳；本模块是私有实现，经音频引擎行为测试 AE-44 锁定（见 `audio-engine.md`） | [#500](https://github.com/Teeeeeeeerry/Rhythm/issues/500)（诊断 [#499](https://github.com/Teeeeeeeerry/Rhythm/issues/499)） | 红测禁用（`#[ignore]`） |
