@@ -71,8 +71,9 @@ using LibrarySort = ::rhythm::LibrarySort;
 /// The library list: one row per loaded library track, in `sort` order.
 /// Stable -- rows that compare equal keep their library order -- and the
 /// state is only read (#336). By artist/album it is the grouping of
-/// `ArtistAlbumSections` read top to bottom (#503), so the two never
-/// disagree. The theme is resolved by the shell (#342).
+/// `ArtistAlbumSections` read top to bottom (#503), by letter that of
+/// `LetterSections` (#504), so the list and its sections never disagree.
+/// The theme is resolved by the shell (#342).
 std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool isDarkTheme);
 
 /// One album group of the artist/album view (#503): the album's name (the
@@ -99,6 +100,21 @@ struct ArtistSection {
 /// the shell (#342).
 std::vector<ArtistSection> ArtistAlbumSections(const AppState& state, bool isDarkTheme);
 
+/// One section of the by-letter view (#504): its heading and its tracks,
+/// by title ignoring case (macOS `localizedCaseInsensitiveCompare`), ties in
+/// library order.
+struct LetterSection {
+    std::wstring title;
+    std::vector<TrackRow> rows;
+};
+
+/// The by-letter view's structure, as macOS `groupByFirstLetter` builds it:
+/// a track's section is its title's first character upper-cased when that is
+/// a letter -- any Unicode letter, CJK included -- and `#` otherwise (a
+/// digit, punctuation, an empty title). Sections in heading order, so `#`
+/// comes before the letters.
+std::vector<LetterSection> LetterSections(const AppState& state, bool isDarkTheme);
+
 /// The kinds of line the library list shows (#503).
 enum class LibraryLineKind { Section, Album, Track };
 
@@ -115,9 +131,9 @@ struct LibraryLine {
 
 /// What the library page lists, line by line, in the state's order (#503):
 /// by artist/album the grouping of `ArtistAlbumSections` -- each section's
-/// heading, then each album's heading followed by its tracks; by letter the
-/// rows of `LibraryRows`. Empty for an empty library. The page only turns
-/// each line into a list item.
+/// heading, then each album's heading followed by its tracks; by letter each
+/// `LetterSections` heading followed by its tracks (#504). Empty for an
+/// empty library. The page only turns each line into a list item.
 std::vector<LibraryLine> LibraryLines(const AppState& state, bool isDarkTheme);
 
 /// The library list in the order the state holds (#502): what the library

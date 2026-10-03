@@ -931,3 +931,146 @@ TEST_CASE("VS-52 the list follows the state's order and is empty for an empty li
     REQUIRE(lines.back().row.title == L"b1");
     REQUIRE_FALSE(lines.back().inAlbum);
 }
+
+// ─── VS-53/54/55 按首字母分节（#504）─────────────────────────────────
+
+namespace {
+
+std::vector<std::wstring> letterTitles(const std::vector<view::LetterSection>& sections) {
+    std::vector<std::wstring> titles;
+    for (const auto& s : sections) titles.push_back(s.title);
+    return titles;
+}
+
+} // namespace
+
+TEST_CASE("VS-53 tracks section by their title's first letter, upper-cased, in order") {
+    AppState state;
+    state.Tracks = {sortTrack(L"beta", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"Alpha", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"apple", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"Bravo", L"X", std::nullopt, std::nullopt)};
+
+    auto sections = view::LetterSections(state, true);
+
+    REQUIRE(letterTitles(sections) == std::vector<std::wstring>{L"A", L"B"});
+    REQUIRE(sections.at(0).rows.size() == 2);
+    REQUIRE(sections.at(1).rows.size() == 2);
+}
+
+TEST_CASE("VS-53 a title not starting with a letter goes under # ahead of the letters") {
+    AppState state;
+    state.Tracks = {sortTrack(L"Zulu", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"1999", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"(intro)", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"", L"X", std::nullopt, std::nullopt)};
+
+    auto sections = view::LetterSections(state, true);
+
+    REQUIRE(letterTitles(sections) == std::vector<std::wstring>{L"#", L"Z"});
+    REQUIRE(sections.at(0).rows.size() == 3);
+}
+
+TEST_CASE("VS-53 a title starting with a CJK character is its own section, after Latin") {
+    AppState state;
+    state.Tracks = {sortTrack(L"明天见", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"Alpha", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"明月", L"X", std::nullopt, std::nullopt)};
+
+    auto sections = view::LetterSections(state, true);
+
+    // macOS counts any Unicode letter (Character.isLetter), CJK included.
+    REQUIRE(letterTitles(sections) == std::vector<std::wstring>{L"A", L"明"});
+    REQUIRE(sections.at(1).rows.size() == 2);
+}
+
+TEST_CASE("VS-54 within a section titles sort ignoring case, ties in library order") {
+    AppState state;
+    state.Tracks = {sortTrack(L"banana", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"Bee", L"first", std::nullopt, std::nullopt),
+                    sortTrack(L"Apple", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"bee", L"second", std::nullopt, std::nullopt),
+                    sortTrack(L"Blue", L"X", std::nullopt, std::nullopt)};
+
+    auto sections = view::LetterSections(state, true);
+
+    REQUIRE(titlesOf(sections.at(1).rows) ==
+            std::vector<std::wstring>{L"banana", L"Bee", L"bee", L"Blue"});
+    REQUIRE(sections.at(1).rows.at(1).artist == L"first");
+}
+
+TEST_CASE("VS-55 the flat letter order is the sections read top to bottom") {
+    AppState state;
+    state.Tracks = {sortTrack(L"beta", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"9 Lives", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"Alpha", L"X", std::nullopt, std::nullopt)};
+
+    std::vector<std::wstring> sectioned;
+    for (const auto& section : view::LetterSections(state, true)) {
+        for (const auto& row : section.rows) sectioned.push_back(row.title);
+    }
+
+    REQUIRE(titlesOf(view::LibraryRows(state, view::LibrarySort::Alphabetical, true)) == sectioned);
+}
+
+TEST_CASE("VS-55 by letter the list reads each letter heading, then its tracks") {
+    using K = view::LibraryLineKind;
+    AppState state;
+    state.LibraryOrder = view::LibrarySort::Alphabetical;
+    state.Tracks = {sortTrack(L"beta", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"Alpha", L"X", std::nullopt, std::nullopt)};
+
+    auto lines = view::LibraryLines(state, true);
+
+    REQUIRE(lineShape(lines) == std::vector<std::pair<K, std::wstring>>{
+                                    {K::Section, L"A"}, {K::Track, L"Alpha"},
+                                    {K::Section, L"B"}, {K::Track, L"beta"}});
+    for (const auto& line : lines) REQUIRE_FALSE(line.inAlbum);
+}
+
+TEST_CASE("VS-53 a letter outside the BMP is a section, an emoji goes under #") {
+    AppState state;
+    // U+1D477 MATHEMATICAL BOLD ITALIC CAPITAL P is Alphabetic, as Swift's
+    // Character.isLetter counts it; an emoji is not.
+    state.Tracks = {sortTrack(L"𝑷laylist", L"X", std::nullopt, std::nullopt),
+                    // U+1F3B5, escaped: the repository carries no emoji.
+                    sortTrack(L"\U0001F3B5 Song", L"X", std::nullopt, std::nullopt)};
+
+    auto sections = view::LetterSections(state, true);
+
+    REQUIRE(letterTitles(sections) == std::vector<std::wstring>{L"#", L"𝑷"});
+}
+
+TEST_CASE("VS-53 a decomposed accent heads the same section as a precomposed one") {
+    AppState state;
+    // E + U+0301 (as tags written on macOS often are) and U+00C9: one
+    // character to Swift, so one section headed by the accented letter.
+    state.Tracks = {sortTrack(L"Éclair", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"Été", L"X", std::nullopt, std::nullopt)};
+
+    auto sections = view::LetterSections(state, true);
+
+    REQUIRE(letterTitles(sections) == std::vector<std::wstring>{L"É"});
+    REQUIRE(sections.at(0).rows.size() == 2);
+}
+
+TEST_CASE("VS-53 sections order by code point, as Swift compares strings") {
+    AppState state;
+    // U+FF21 FULLWIDTH A comes before U+1D477 by code point, though its
+    // UTF-16 unit is larger than the surrogate that starts U+1D477.
+    state.Tracks = {sortTrack(L"𝑷laylist", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"Ａlpha", L"X", std::nullopt, std::nullopt)};
+
+    REQUIRE(letterTitles(view::LetterSections(state, true)) ==
+            std::vector<std::wstring>{L"Ａ", L"𝑷"});
+}
+
+TEST_CASE("VS-54 punctuation inside a title counts when ordering a section") {
+    AppState state;
+    state.Tracks = {sortTrack(L"ab", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"a-z", L"X", std::nullopt, std::nullopt)};
+
+    // A hyphen sorts before letters (string sort), not ignored (word sort).
+    REQUIRE(titlesOf(view::LetterSections(state, true).at(0).rows) ==
+            std::vector<std::wstring>{L"a-z", L"ab"});
+}
