@@ -26,6 +26,7 @@
 | AE-15 | 播放失败落 Error（#23） | 任一阶段出错 → `state()` 可见 `Error(message)` 且回调收到；不表现为 idle 0:00 | 接缝 + 可控失败注入 |
 | AE-16 | `stream_hint` 扩展名映射 | mp3→mp3；m4a/mp4/mov/m4s→m4a；aac/flac/wav/aiff/aif/ogg/opus 各自正确；未知扩展→None；带 query 的 URL 取 path 部分；大小写不敏感 | 直测纯函数 |
 | AE-17 | 进度回调 | 播放中收到 `(pos, dur)` 且 pos 递增 | 接缝 |
+| AE-44 | 连续供数时输出连续（#499） | 解码器以 44.1 kHz 连续供给正弦、输出端 48 kHz：输出样本流相邻帧跳变不超过该正弦本身的最大步长（留 1.5 倍余量），且不出现插入的静音段 | 接缝（注入解码器 + 记录输出的假输出端）`ae44_continuous_tone_reaches_sink_without_boundary_jumps` |
 
 ## 边界情况（P1 — 同波次内完成）
 
@@ -64,6 +65,7 @@
 | AE-38 | 播放 403 一律误报"链接已过期"、重贴无效（缓存 1h 不失效、无重试） | [#120](https://github.com/Teeeeeeerry/Rhythm/issues/120) | 已修复（结构化 `RhythmError::Http` 分类 expire/403；播放 403 淘汰缓存 + 绕过缓存重解析重试一次；`rhythm_player_error_kind` 暴露分类） |
 | AE-42 | 陈旧线程解析失败打断新曲目：A 慢解析失败 + B 已开播 → 旧线程把共享状态置 Error、弹假失败 | [#134](https://github.com/Teeeeeeerry/Rhythm/issues/134) | 已修复（`fail`/`set_state` 写入前校验 `generation == my_gen`，陈旧时直接返回：`ae42_stale_failure_does_not_clobber_new_playback`） |
 | AE-43 | 陈旧线程 open 成功后仍抢占：claim source、置 Playing、开 cpal sink，与新曲目争抢输出 | [#134](https://github.com/Teeeeeeerry/Rhythm/issues/134) | 已修复（open 完成后 generation 已前进则直接返回，不 claim source / 不置 Playing / 不开 sink：`ae43_stale_success_does_not_touch_new_playback`） |
+| AE-44 | 电流音：重采样在包的末帧之后朝**上一包**的尾帧插值（应朝下一包首帧），每个包边界产生样本跳变；44.1k 包 1024 帧、设备 48k 时每 ~23 ms 一次（~43 Hz 嗡声）。证据：40 包正弦得到 64 处跳变，最大 0.69（正弦自身最大步长 0.029），位置间隔 1114-1115 输出帧，恰为一包；同采样率对照组无跳变、全程无插入静音 | [#500](https://github.com/Teeeeeeeerry/Rhythm/issues/500)（诊断 [#499](https://github.com/Teeeeeeeerry/Rhythm/issues/499)） | 红测禁用（`#[ignore]`） |
 
 ## Decoder / HttpStream（已有测试行为对照）
 
