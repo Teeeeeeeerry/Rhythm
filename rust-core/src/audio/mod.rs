@@ -621,7 +621,26 @@ fn run_playback_loop<D: Decoder + ?Sized, S: Sink + ?Sized>(
                 set_position(&inner, pos);
                 emit_progress(&progress_cb, pos, decoder.duration());
             }
-            Ok(None) => break, // End of stream
+            Ok(None) => {
+                // End of stream: the resampler holds back the frames past the
+                // last input frame while it waits for a next block (#500);
+                // there is none, so let them out before draining.
+                let held = (f64::from(out_rate) / f64::from(decoder.sample_rate().max(1))).ceil()
+                    as usize
+                    + 1;
+                let mut out_buf = vec![0.0f32; held * out_channels as usize];
+                let frames = resampler.flush(&mut out_buf);
+                if frames > 0 {
+                    let volume = inner.lock().unwrap().volume;
+                    if volume < 1.0 {
+                        for s in out_buf[..frames * out_channels as usize].iter_mut() {
+                            *s *= volume;
+                        }
+                    }
+                    output.write(&out_buf[..frames * out_channels as usize])?;
+                }
+                break;
+            }
             Err(e) => return Err(e),
         }
     }

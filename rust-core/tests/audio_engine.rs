@@ -1782,7 +1782,6 @@ fn ae43_stale_success_does_not_touch_new_playback() {
 /// the next packet's head, so every packet boundary carries a step. One packet
 /// is ~23 ms, so the steps repeat at ~43 Hz — the buzz heard as crackle.
 #[test]
-#[ignore = "red test: resampler block-boundary discontinuity (diagnosed in #499, fix in #500)"]
 fn ae44_continuous_tone_reaches_sink_without_boundary_jumps() {
     const IN_RATE: u32 = 44_100;
     const OUT_RATE: u32 = 48_000;
