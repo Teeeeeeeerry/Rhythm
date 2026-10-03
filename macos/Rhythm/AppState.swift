@@ -220,6 +220,18 @@ final class AppState: ObservableObject {
         resolverStatusTimer != nil
     }
 
+    /// Whether the link bar holds something to submit (#505): the text
+    /// button is enabled exactly when this is true.
+    var canSubmitURLInput: Bool {
+        !urlInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Submit the link bar (#505). Enter and the text button both land here,
+    /// so they cannot drift apart: resolve, import, never auto-play.
+    func submitURLInput() {
+        resolveAndImport(urlInput)
+    }
+
     /// Resolve a pasted URL (YouTube/Bilibili/direct audio) and import the
     /// track into the library without interrupting playback. Resolution may
     /// take a few seconds (yt-dlp), so it runs on a background queue; the

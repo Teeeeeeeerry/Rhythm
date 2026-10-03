@@ -435,6 +435,45 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         XCTAssertTrue(publishedOnMain, "the list is published on the main thread")
     }
 
+    // MARK: - AS-44 链接输入提交（#505）
+
+    /// The link bar's Enter key and its text button both submit through
+    /// `submitURLInput`; restyling the bar (#505) must not change what a
+    /// submission does: resolve, store in the library, never auto-play.
+    func testSubmitURLInput_ImportsWithoutPlaying() throws {
+        appState.resolver = { _ in .success(ResolvedInfo(
+            title: "Submitted Title",
+            artist: nil,
+            streamUrl: "https://cdn.example.com/s.mp3",
+            duration: 42,
+            sourceType: "youtube",
+            thumbnailUrl: nil
+        )) }
+        appState.urlInput = "  https://page.example.com/watch?v=2  "
+
+        appState.submitURLInput()
+
+        XCTAssertTrue(waitUntil { appState.showImportAlert }, "resolution should finish")
+        XCTAssertEqual(appState.tracks.count, 1)
+        XCTAssertEqual(appState.tracks[0].sourceUrl, "https://page.example.com/watch?v=2")
+        XCTAssertFalse(appState.isPlaying, "submitting a link must not auto-play")
+        XCTAssertTrue(spy.startCalls.isEmpty)
+        XCTAssertEqual(appState.urlInput, "")
+    }
+
+    /// A blank link bar has nothing to submit: the button is disabled and a
+    /// stray Enter starts no resolution.
+    func testSubmitURLInput_BlankInputIsNotSubmittable() throws {
+        appState.urlInput = "   "
+        XCTAssertFalse(appState.canSubmitURLInput)
+
+        appState.submitURLInput()
+
+        XCTAssertFalse(appState.isResolvingURL)
+        appState.urlInput = "https://page.example.com/watch?v=3"
+        XCTAssertTrue(appState.canSubmitURLInput)
+    }
+
     // MARK: - AS-20 resolveAndImport 失败
 
     func testResolveAndImport_Failure_SurfacesError() throws {

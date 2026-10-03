@@ -68,23 +68,20 @@ struct PlayerBarView: View {
         }
     }
 
-    /// URL input bar: paste a link and hit enter (or the play button) to
-    /// resolve and play it.
+    /// URL input bar (#505): a bordered field and a text button, styled
+    /// after the Windows link bar. Enter and the button both submit through
+    /// `submitURLInput` -- resolve and store in the library, never auto-play.
     var urlBar: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "link")
-                .font(.caption)
-                .foregroundStyle(.rhythmTextSecondary)
+        HStack(spacing: 8) {
             TextField(L10n.urlPlaceholder, text: $appState.urlInput)
-                .textFieldStyle(.plain)
-                .font(.system(size: 11))
-                .onSubmit { appState.resolveAndImport(appState.urlInput) }
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { appState.submitURLInput() }
             if appState.isResolvingURL {
                 // A fresh install downloads yt-dlp on the first link, which
                 // takes long enough that a bare spinner reads as a hang.
                 if !appState.urlStatus.isEmpty {
                     Text(appState.urlStatus)
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .foregroundStyle(.rhythmTextSecondary)
                         .lineLimit(1)
                         .fixedSize()
@@ -92,15 +89,10 @@ struct PlayerBarView: View {
                 ProgressView()
                     .controlSize(.small)
                     .help(appState.urlStatus.isEmpty ? L10n.urlResolving : appState.urlStatus)
-            } else {
-                Button(action: { appState.resolveAndImport(appState.urlInput) }) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 14))
-                }
-                .buttonStyle(.plain)
-                .disabled(appState.urlInput.trimmingCharacters(in: .whitespaces).isEmpty)
-                .help(L10n.urlPlay)
             }
+            Button(L10n.urlImport) { appState.submitURLInput() }
+                .buttonStyle(.bordered)
+                .disabled(!appState.canSubmitURLInput || appState.isResolvingURL)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
