@@ -53,14 +53,22 @@
             <StackPanel Grid.Column="1" Orientation="Horizontal"
                         HorizontalAlignment="Center" VerticalAlignment="Center"
                         Spacing="12">
-                <Button Padding="8" VerticalAlignment="Center">
+                <!-- #497: order matches macOS (previous, play/pause, stop,
+                     next, play mode); tooltips come from the key table. -->
+                <Button x:Name="btnPrevious" Padding="8" VerticalAlignment="Center"
+                        Click="OnPreviousClick">
                     <SymbolIcon Symbol="Previous" />
                 </Button>
                 <Button x:Name="btnPlayPause" Padding="10" VerticalAlignment="Center"
                         Click="OnPlayPauseClick">
                     <SymbolIcon x:Name="playIcon" Symbol="Play" />
                 </Button>
-                <Button Padding="8" VerticalAlignment="Center">
+                <Button x:Name="btnStop" Padding="8" VerticalAlignment="Center"
+                        Click="OnStopClick">
+                    <SymbolIcon Symbol="Stop" />
+                </Button>
+                <Button x:Name="btnNext" Padding="8" VerticalAlignment="Center"
+                        Click="OnNextClick">
                     <SymbolIcon Symbol="Next" />
                 </Button>
                 <!-- #373: play mode control; tooltip text comes from the key

@@ -128,6 +128,11 @@ public:
     void PlayNext();
     void PlayPrevious();
 
+    /// Stop playback through the coordinator's stop entry point (#497,
+    /// macOS `stop()`): back to the not-playing state -- no current track,
+    /// position and duration zero, not buffering.
+    void Stop();
+
     /// The resolver's provisioning copy (#349), so views never query the
     /// resolver: empty unless a link is resolving, and empty while the
     /// resolver has nothing to report (idle/ready). Polls only while resolving.

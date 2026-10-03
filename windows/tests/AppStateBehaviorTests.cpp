@@ -432,6 +432,51 @@ TEST_CASE("WA-19 playNext/playPrevious walk the queue, exhausted is a no-op") {
     REQUIRE(app.state.CurrentTrack->id == savedA.id);
 }
 
+// ─── WA-42 停止（#497）──────────────────────────────────────────────
+
+TEST_CASE("WA-42 Stop forwards to the coordinator and returns to not playing") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto wa = app.dir.path / L"wa";
+    fs::create_directories(wa);
+    auto a = writeWavAt(wa, L"a.wav", 3.0);
+    auto savedA = app.state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    app.state.RefreshLibrary();
+
+    app.state.PlayTrack(savedA);
+    app.state.Position = 86;
+    app.state.Duration = 200;
+    app.state.IsBuffering = true;
+    REQUIRE(app.state.CanStop());
+
+    app.state.Stop();
+
+    REQUIRE(app.spy->stopCalls == 1);
+    REQUIRE_FALSE(app.state.IsPlaying);
+    REQUIRE_FALSE(app.state.IsBuffering);
+    REQUIRE_FALSE(app.state.CurrentTrack.has_value());
+    REQUIRE(app.state.Position == 0);
+    REQUIRE(app.state.Duration == 0);
+    REQUIRE_FALSE(app.state.CanStop());
+
+    // The player bar renders the not-playing state, not the stopped track.
+    LanguageScope en(L"en");
+    auto bar = rhythm::view::PlayerBarState(app.state);
+    REQUIRE(bar.title == L10n::NotPlaying());
+    REQUIRE(bar.artist.empty());
+    REQUIRE(bar.timeText == L"0:00 / 0:00");
+    REQUIRE(bar.progressPercent == 0.0);
+    REQUIRE(bar.playIcon == rhythm::view::Icon::Play);
+}
+
+TEST_CASE("WA-42 Stop with nothing playing is a harmless forward") {
+    SpyApp app;
+    app.state.Stop();
+    REQUIRE(app.spy->stopCalls == 1);
+    REQUIRE_FALSE(app.state.IsPlaying);
+    REQUIRE_FALSE(app.state.CurrentTrack.has_value());
+}
+
 // ─── WA-20 RefreshLibrary 队列同步（在协调器内，#69）─────────────────
 
 TEST_CASE("WA-20 RefreshLibrary keeps the queue in sync") {

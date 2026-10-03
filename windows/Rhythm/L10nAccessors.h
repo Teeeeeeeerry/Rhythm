@@ -58,6 +58,7 @@ inline std::wstring ModeSequential() { return Key("mode_sequential"); }
 inline std::wstring ModeShuffle() { return Key("mode_shuffle"); }
 inline std::wstring ModeSingleLoop() { return Key("mode_single_loop"); }
 inline std::wstring NewPlaylist() { return Key("new_playlist"); }
+inline std::wstring NextTooltip() { return Key("next_tooltip"); }
 inline std::wstring NoPlaylistSelected() { return Key("no_playlist_selected"); }
 inline std::wstring PlaylistEmpty() { return Key("no_playlists"); }
 inline std::wstring NotPlaying() { return Key("not_playing"); }
@@ -71,6 +72,7 @@ inline std::wstring PlaylistDetailEmpty() { return Key("playlist_empty"); }
 inline std::wstring PlaylistEmptyHint() { return Key("playlist_empty_hint"); }
 inline std::wstring PlaylistNamePlaceholder() { return Key("playlist_name"); }
 inline std::wstring PlaylistsTab() { return Key("playlists_tab"); }
+inline std::wstring PreviousTooltip() { return Key("previous_tooltip"); }
 inline std::wstring RemoveFromPlaylist() { return Key("remove_from_playlist"); }
 inline std::wstring ResolveErrorInvalidUrl() { return Key("resolve_error_invalid_url"); }
 inline std::wstring ResolveErrorNetwork() { return Key("resolve_error_network"); }
@@ -86,6 +88,7 @@ inline std::wstring ResolverStatusFailed() { return Key("resolver_status_failed"
 inline std::wstring ResolverStatusUpdating() { return Key("resolver_status_updating"); }
 inline std::wstring ResolverStatusVerifying() { return Key("resolver_status_verifying"); }
 inline std::wstring SearchPlaceholder() { return Key("search_placeholder"); }
+inline std::wstring StopTooltip() { return Key("stop_tooltip"); }
 inline std::wstring TagBilibili() { return Key("tag_bilibili"); }
 inline std::wstring TagLink() { return Key("tag_link"); }
 inline std::wstring TagLocal() { return Key("tag_local"); }

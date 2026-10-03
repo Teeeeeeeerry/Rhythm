@@ -18,6 +18,18 @@
       "zh": "播放模式",
       "en": "Play Mode"
     },
+    "previous_tooltip": {
+      "zh": "上一首",
+      "en": "Previous Track"
+    },
+    "stop_tooltip": {
+      "zh": "停止",
+      "en": "Stop"
+    },
+    "next_tooltip": {
+      "zh": "下一首",
+      "en": "Next Track"
+    },
     "url_placeholder": {
       "zh": "粘贴 YouTube / Bilibili 链接播放",
       "en": "Paste a YouTube / Bilibili URL to play"

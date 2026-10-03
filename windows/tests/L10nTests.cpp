@@ -192,6 +192,21 @@ TEST_CASE("LK-10 play mode tooltip comes from the key table in both languages") 
     }
 }
 
+TEST_CASE("LK-19 previous, stop and next tooltips come from the key table in both languages") {
+    {
+        LanguageScope zh(L"zh");
+        REQUIRE(L10n::PreviousTooltip() == L"上一首");
+        REQUIRE(L10n::StopTooltip() == L"停止");
+        REQUIRE(L10n::NextTooltip() == L"下一首");
+    }
+    {
+        LanguageScope en(L"en");
+        REQUIRE(L10n::PreviousTooltip() == L"Previous Track");
+        REQUIRE(L10n::StopTooltip() == L"Stop");
+        REQUIRE(L10n::NextTooltip() == L"Next Track");
+    }
+}
+
 TEST_CASE("LK-10 play mode icon follows the current mode (#411)") {
     // The mapping lives in the view state since #335.
     auto iconFor = [](PlayMode mode) {

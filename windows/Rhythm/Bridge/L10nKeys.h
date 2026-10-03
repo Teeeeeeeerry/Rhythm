@@ -100,6 +100,8 @@ inline const wchar_t* L10nKeys_zh_mode_single_loop() { return L"单曲循环"; }
 inline const wchar_t* L10nKeys_en_mode_single_loop() { return L"Repeat One"; }
 inline const wchar_t* L10nKeys_zh_new_playlist() { return L"新建播放列表"; }
 inline const wchar_t* L10nKeys_en_new_playlist() { return L"New Playlist"; }
+inline const wchar_t* L10nKeys_zh_next_tooltip() { return L"下一首"; }
+inline const wchar_t* L10nKeys_en_next_tooltip() { return L"Next Track"; }
 inline const wchar_t* L10nKeys_zh_no_playlist_selected() { return L"未选中歌单"; }
 inline const wchar_t* L10nKeys_en_no_playlist_selected() { return L"No playlist selected"; }
 inline const wchar_t* L10nKeys_zh_no_playlists() { return L"暂无播放列表"; }
@@ -126,6 +128,8 @@ inline const wchar_t* L10nKeys_zh_playlist_name() { return L"播放列表名称"
 inline const wchar_t* L10nKeys_en_playlist_name() { return L"Playlist Name"; }
 inline const wchar_t* L10nKeys_zh_playlists_tab() { return L"播放列表"; }
 inline const wchar_t* L10nKeys_en_playlists_tab() { return L"Playlists"; }
+inline const wchar_t* L10nKeys_zh_previous_tooltip() { return L"上一首"; }
+inline const wchar_t* L10nKeys_en_previous_tooltip() { return L"Previous Track"; }
 inline const wchar_t* L10nKeys_zh_remove_from_playlist() { return L"从列表移除"; }
 inline const wchar_t* L10nKeys_en_remove_from_playlist() { return L"Remove from Playlist"; }
 inline const wchar_t* L10nKeys_zh_resolve_error_invalid_url() { return L"链接无效，请输入以 http:// 或 https:// 开头的地址。"; }
@@ -156,6 +160,8 @@ inline const wchar_t* L10nKeys_zh_resolver_status_verifying() { return L"正在�
 inline const wchar_t* L10nKeys_en_resolver_status_verifying() { return L"Verifying resolver…"; }
 inline const wchar_t* L10nKeys_zh_search_placeholder() { return L"搜索..."; }
 inline const wchar_t* L10nKeys_en_search_placeholder() { return L"Search..."; }
+inline const wchar_t* L10nKeys_zh_stop_tooltip() { return L"停止"; }
+inline const wchar_t* L10nKeys_en_stop_tooltip() { return L"Stop"; }
 inline const wchar_t* L10nKeys_zh_tag_bilibili() { return L"B站"; }
 inline const wchar_t* L10nKeys_en_tag_bilibili() { return L"Bili"; }
 inline const wchar_t* L10nKeys_zh_tag_link() { return L"链接"; }
