@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  L2 capture host (#495): renders the Windows app's managed views to PNG in
+  both themes, for compare_screenshots.py to check against golden/.
+
+  It compiles the shell exactly as the app does: RhythmShell.props and
+  RhythmShell.targets (windows/Rhythm/) carry the settings, the views and the
+  XAML glue, and the pinned packages come from the same RhythmBehavior.props
+  the CMake configure writes (#386/#428). Only the application object and the
+  process services differ: App.xaml.cpp captures instead of opening a window
+  for a user, CaptureHost.cpp points the main window at a scratch library and
+  installs no tray icon.
+
+  Built by `python scripts/tasks.py test` after the L1b CMake steps (they
+  configure build/windows and build the behaviour library). Output:
+  build/windows/l2/Release/RhythmCapture.exe.
+-->
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{0B7E2D4A-5C91-4F3E-8A26-71D9C4E5B812}</ProjectGuid>
+    <ProjectName>RhythmCapture</ProjectName>
+  </PropertyGroup>
+  <Import Project="..\..\..\windows\Rhythm\RhythmShell.props" />
+  <PropertyGroup>
+    <OutDir>$(RhythmBuildDir)l2\$(Configuration)\</OutDir>
+    <IntDir>$(RhythmBuildDir)l2\RhythmCapture.msbuild\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Manifest Include="$(RhythmShellDir)app.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="App.xaml.h">
+      <DependentUpon>App.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="CaptureFixture.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ApplicationDefinition Include="App.xaml" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="App.xaml.cpp">
+      <DependentUpon>App.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="CaptureHost.cpp" />
+  </ItemGroup>
+  <Import Project="..\..\..\windows\Rhythm\RhythmShell.targets" />
+</Project>

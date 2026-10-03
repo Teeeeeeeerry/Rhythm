@@ -15,7 +15,7 @@
 | L1 单元 | `l1/macos/` | PaletteSeed + 五组 Swift 测试（isDark/RGB/对比度/语义/互异） | `swift test` |
 | L1 单元 | `l1/windows/` | 来源徽标色 assert 测试 exe（直测视图状态的徽标 `SourceBadgeOf`，链接行为库，#121/#122/#338） | ctest |
 | L2 快照 | `l2/macos/` | swift-snapshot-testing 模板（8 视图 × 状态 × 外观 × 语言） | visual CI |
-| L2 快照 | `l2/windows/` | **缺口，未实现**：`capture_views.cpp` 是骨架、没有 CMake 工程、没有 golden；已从测试入口移除（#387，见下文「Windows L2 缺口」）。像素比对工具 `compare_screenshots.py` 本身可用 | — |
+| L2 快照 | `l2/windows/` | 截屏宿主 `RhythmCapture.vcxproj`（与应用共用 `windows/Rhythm/RhythmShell.props/.targets`）在进程内渲染受管视图 × 深浅主题，`compare_screenshots.py` 与 `golden/` 逐像素比对（#495，见下文「Windows L2 截屏比对」） | `tasks.py test`（Windows） |
 | L3 UI | `l3/macos/` | XcodeGen project.yml + 4 组 XCUITest（外观切换/键盘/a11y/新建弹窗） | visual CI |
 | L3 UI | `l3/windows/` | WinAppDriver 兼容性验证 + 主题切换脚本（stdlib 直调 REST） | visual CI |
 | L4 手工 | `l4/` | 8 项主观烟测清单（唯一人工环节） | PR 合并前 |
@@ -49,7 +49,7 @@ python3 -m unittest discover -s testing/l0/tests
 # 编排层自测：
 python3 -m unittest discover -s testing/tasks/tests
 # 或一键全量（日志统一落盘）。两个平台先跑同一组静态分析前缀（L0 十项 + 零 emoji + 两组自测），
-# 再跑平台段：macOS 为 L1 swift test + ASan，Windows 为 L1 ctest（L2 未实现，#387）。
+# 再跑平台段：macOS 为 L1 swift test + ASan，Windows 为 L1 ctest 加 L2 截屏比对（#495）。
 # Windows 段里的「L1b 契约生成物编译门」是契约的第二道门（#369）：生成物由 CMake 目标
 # RhythmGeneratedCodec 单独编译一次，文本比对看不见的「生成器产不出可编译代码」在这里报红；
 # 门本身有牙齿由 ctest 用例 GeneratedCodecTypeErrorFailsTheBuild 证明（构建一个故意写错类型的
@@ -71,7 +71,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.227）
+## 当前状态（main，v0.5.228）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
@@ -118,20 +118,27 @@ L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门�
    两处构建配置不参与——macOS 应用包版本在组装时写入、Windows 项目版本在 cmake 配置期派生（#254/#255），
    源文件里再写死版本值即报红。写的位置取自校验的副本清单，两边不可能各漂一次（#220 收尾）。
 
-## Windows L2 缺口（#387）
+## Windows L2 截屏比对（#495）
 
-Windows 端**没有视图外观回归防线**。测试入口曾登记三段 L2 步骤（截屏宿主 cmake 配置与构建、截屏、golden 像素比对），
-但它们指向的东西从未提交：`testing/l2/windows/` 下没有 CMake 工程文件，`golden/` 目录不存在，`capture_views.cpp`
-只是注释写着「P3」的骨架。这三步在 Windows 上注定失败，却让文档与 CI 模板以为防线存在，因此已从入口移除。
+#387 登记的缺口已补齐：Windows 端的视图外观回归由三步把关，随 `python3 scripts/tasks.py test` 执行，排在 L1b 之后
+（宿主链接 L1b 构建出的行为库、读取它配置期写出的 props）。
 
-重启这项工作时需要补齐的产物（缺一不可，补齐后再把步骤加回 `scripts/task_test.py` 的 `windows_steps`）：
+1. **截屏宿主构建**：`testing/l2/windows/RhythmCapture.vcxproj` 是 MSBuild 工程（XAML 标记编译只有 MSBuild 有，ADR-0004）。
+   它与应用导入同一份 `windows/Rhythm/RhythmShell.props` / `RhythmShell.targets`（设置、视图源码、XAML 编译胶水）和同一份
+   依赖 props，只换掉两处：自己的 `App.xaml.cpp`（截屏后退出）与 `CaptureHost.cpp`（主窗口打开临时目录里的空资料库、不装托盘）。
+   产物 `build/windows/l2/Release/RhythmCapture.exe`
+2. **截屏**：宿主在进程内用 `RenderTargetBitmap` 渲染，不走屏幕捕获（agent 会话里截屏是黑的），窗口放在屏幕外。
+   界面语言只在本进程内固定为英文（`L10n::PinLanguageForProcess`，不写注册表），资料库页与播放栏用 `CaptureFixture.h` 的夹具数据，
+   不读写用户的真实资料库。输出 `build/windows/l2/screenshots/<视图>_<Dark|Light>.png`，受管视图：
+   - `MainWindow`：侧栏、工具栏、资料库空态、未播放的播放栏
+   - `LibraryView_ArtistAlbum` / `LibraryView_Letter`：资料库页两种排序
+   - `PlayerBarView_Idle` / `PlayerBarView_Playing`：播放栏未播放、播放中
+3. **金标准像素比对**：`compare_screenshots.py --golden testing/l2/windows/golden`，差异像素占比超过 0.1% 即失败，
+   差异热图写到 `build/windows/l2/heatmap/`。golden 为空、缺某张基准、多出未入库的截图都算失败，首次建立基准不会被误判为通过。
 
-1. `testing/l2/windows/CMakeLists.txt`：截屏宿主工程，依赖走 `windows/cmake/RhythmWindowsDeps.cmake`（与应用一致，#386）
-2. `capture_views.cpp` 实现骨架里的集成步骤：初始化 WinRT 与 DispatcherQueue，各受管视图 x {Default, Light} 渲染，
-   输出 `<视图名>_<Default|Light>.png`（比对工具依赖此命名）
-3. `testing/l2/windows/golden/`：首批基准由人工确认截图后提交。`compare_screenshots.py` 在 golden 为空时直接失败，
-   新增截图缺基准也失败，所以首次建立基准不会被误判为通过
-4. 验收：改一个受管视图的配色后比对非零退出；比对失败时用 `--heatmap` 输出差异热图
+**更新金标准**：改动受管视图外观后比对会红。看热图与 `build/windows/l2/screenshots/` 里的新图，人工确认是预期的变化后，
+把新图拷进 `testing/l2/windows/golden/` 随改动一起提交；新增受管视图同理。截图按逻辑像素输出，与显示缩放无关，
+但字体渲染随系统版本可能有细微差别，换机器后首次比对红时先看热图再决定。
 
 ## 任务入口（#221）
 
@@ -141,7 +148,7 @@ CI 模板调用的是同名命令（模板在 `testing/ci/`，尚未部署到 `.
 | 任务 | 内容 |
 |---|---|
 | `build` | 构建本平台应用（macOS `build/Rhythm.app`；Windows `build/windows/Release/Rhythm.exe`） |
-| `test` | 本平台全量测试：双端共享静态分析前缀（L0 十项 + 零 emoji + 两组自测，#344/#345），再接平台段——macOS L1（swift test + ASan）；Windows L1（ctest）外加契约生成物编译门（#369），`--smoke` 追加 L3；Windows L2 未实现（#387） |
+| `test` | 本平台全量测试：双端共享静态分析前缀（L0 十项 + 零 emoji + 两组自测，#344/#345），再接平台段——macOS L1（swift test + ASan）；Windows L1（ctest）外加契约生成物编译门（#369）与 L2 截屏比对（#495），`--smoke` 追加 L3 |
 | `bump-version` | 提升版本号（不带参数末位加一），同步三处文档副本与依赖锁文件后自校验 |
 | `check-no-emoji` | 零 emoji 硬性约定校验 |
 | `compare-screenshots` | L2 截屏与 golden 的像素比对 |

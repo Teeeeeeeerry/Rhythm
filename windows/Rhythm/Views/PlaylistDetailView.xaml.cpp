@@ -38,7 +38,7 @@ void PlaylistDetailView::Refresh() {
     if (!appState_) return;
     // #358: which playlist this is comes from the state on every render --
     // the page holds neither a pointer nor an id of its own.
-    const bool isDark = rhythm::shell::IsDarkTheme();  // #342: resolved once, by the shell
+    const bool isDark = rhythm::shell::IsDarkTheme(RequestedTheme());  // #342/#495: a theme pinned on the view wins, else the system
     auto detail = rhythm::view::PlaylistDetailOf(*appState_, isDark);
 
     // #359: with no playlist selected the page shows the empty-state copy and

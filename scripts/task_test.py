@@ -125,9 +125,22 @@ def macos_steps(root: Path) -> list[tasklib.Step]:
 # CMake 构建目录随应用产物一起收进仓库根 build/（#263 的单一约定）；
 # 日志文件名沿用迁移前的约定，CI 收集路径不变。
 #
-# L2（截屏宿主构建、截屏、golden 像素比对）已移除（#387）：截屏宿主没有工程文件、
-# golden 目录不存在，三步注定失败却让人以为外观回归有防线。重启所需的产物清单见
-# testing/README.md「Windows L2 缺口」，补齐后再把步骤加回这里。
+# L2（#495，补齐 #387 登记的缺口）：截屏宿主是 MSBuild 工程，与应用共用
+# windows/Rhythm/RhythmShell.props/.targets 与同一份依赖 props；它在进程内把受管视图
+# 按深浅两种主题渲染成 PNG，再与人工确认入库的 golden 逐像素比对。宿主依赖 L1b 的
+# CMake 配置与行为库，所以排在 L1b 之后。
+L2_PROJECT = Path("testing") / "l2" / "windows" / "RhythmCapture.vcxproj"
+L2_GOLDEN = Path("testing") / "l2" / "windows" / "golden"
+L2_COMPARE = Path("testing") / "l2" / "windows" / "compare_screenshots.py"
+
+
+def l2_build_dir(root: Path) -> Path:
+    """截屏宿主的产物、截图与差异热图都在 build/windows/l2/ 下。"""
+    return task_build.windows_build_dir(root) / "l2"
+
+
+def l2_capture_exe(root: Path) -> Path:
+    return l2_build_dir(root) / task_build.WINDOWS_CONFIG / "RhythmCapture.exe"
 
 # 契约生成物的编译门（#369），声明在 windows/CMakeLists.txt。
 GENERATED_CODEC_TARGET = "RhythmGeneratedCodec"
@@ -169,8 +182,51 @@ def _cmake_configure_args(source: str, build_dir: Path) -> list[str]:
     return ["-S", source, "-B", str(build_dir)]
 
 
+def l2_steps(root: Path) -> list[tasklib.Step]:
+    """L2 三步（#495）：构建截屏宿主、截屏、golden 像素比对。
+
+    每一步先检查自己指向的东西在不在，缺了就点名缺的文件（#387 的教训：步骤指向
+    空目标时，失败信息不该是构建工具的一句笼统报错）。golden 为空或缺某张基准时，
+    比对工具本身就失败，首次建立基准不会被误判为通过。
+    """
+    out = l2_build_dir(root)
+    shots = out / "screenshots"
+    exe = l2_capture_exe(root)
+
+    def build() -> int:
+        if not (root / L2_PROJECT).is_file():
+            print(f"! 缺工程文件：{L2_PROJECT.as_posix()}（截屏宿主工程）")
+            return 1
+        return tasklib.run(
+            [task_build.msbuild_executable(), str(root / L2_PROJECT),
+             f"-p:Configuration={task_build.WINDOWS_CONFIG}", "-p:Platform=x64",
+             f"-p:RhythmBuildDir={task_build.windows_build_dir(root)}{os.sep}",
+             "-nologo", "-verbosity:minimal", "-nodeReuse:false"],
+            cwd=root, log=tasklib.log_path("l2-windows-capture-build", root))
+
+    def capture() -> int:
+        if not exe.is_file():
+            print(f"! 缺截屏宿主：{exe}（先跑「L2 截屏宿主构建」）")
+            return 1
+        shutil.rmtree(shots, ignore_errors=True)  # 上一次的截图不得混进本次比对
+        return tasklib.run([exe, shots], cwd=root,
+                           log=tasklib.log_path("l2-windows-capture", root))
+
+    def compare() -> int:
+        return tasklib.run(
+            [PYTHON, str(root / L2_COMPARE), "--actual", str(shots),
+             "--golden", str(root / L2_GOLDEN), "--heatmap", str(out / "heatmap")],
+            cwd=root)
+
+    return [
+        tasklib.Step("L2 截屏宿主构建（MSBuild）", build, static_analysis=False),
+        tasklib.Step("L2 截屏（进程内渲染，深浅两种主题）", capture, static_analysis=False),
+        tasklib.Step("L2 金标准像素比对", compare, static_analysis=False),
+    ]
+
+
 def windows_steps(root: Path, smoke: bool = False) -> list[tasklib.Step]:
-    """Windows 测试的步骤表：共享静态分析前缀（#344）+ L1 单元 + L3 冒烟（L2 未实现，#387）。
+    """Windows 测试的步骤表：共享静态分析前缀（#344）+ L1 单元 + L2 截屏比对（#495）+ L3 冒烟。
 
     平台段只有构建与运行。每段的调用与日志文件名沿用迁移前的 PowerShell 入口；
     失败处理改为统一的退出码聚合——旧入口对 ctest 只打印警告后继续，红灯会被吞掉。
@@ -199,6 +255,7 @@ def windows_steps(root: Path, smoke: bool = False) -> list[tasklib.Step]:
                     root, "l1-windows-rhythmtests"),
         _ctest_step("L1b 应用工程测试 ctest", app_dir, root, "l1-windows-rhythmtests"),
     ]
+    steps += l2_steps(root)
     if smoke:
         steps.append(tasklib.Step(
             "L3 WinAppDriver 冒烟",

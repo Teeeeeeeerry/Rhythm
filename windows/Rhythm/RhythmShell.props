@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The XAML shell's build settings, shared by every MSBuild project that
+  compiles the shell (#495): the app (Rhythm.vcxproj) and the L2 capture host
+  (testing/l2/windows/RhythmCapture.vcxproj). One copy, so the host renders
+  views built exactly the way the app builds them.
+
+  Import order inside a project:
+    1. set ProjectGuid / ProjectName (and nothing else)
+    2. import this file
+    3. set OutDir / IntDir, list the project's own App.xaml and sources
+    4. import RhythmShell.targets (the shared views and the XAML glue)
+
+  Package pins are not declared here: RhythmBehavior.props, written by the
+  CMake configure step, points at the packages RhythmWindowsDeps.cmake fetched
+  and verified (ADR-0004, #428).
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <RhythmShellDir>$(MSBuildThisFileDirectory)</RhythmShellDir>
+    <RhythmRepoDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</RhythmRepoDir>
+    <RhythmBuildDir Condition="'$(RhythmBuildDir)' == ''">$(RhythmRepoDir)build\windows\</RhythmBuildDir>
+    <RhythmBehaviorProps>$(RhythmBuildDir)$(Configuration)\RhythmBehavior.props</RhythmBehaviorProps>
+  </PropertyGroup>
+  <Import Project="$(RhythmBehaviorProps)" Condition="Exists('$(RhythmBehaviorProps)')" />
+  <Import Project="$(RhythmCppWinRTDir)build\native\Microsoft.Windows.CppWinRT.props" Condition="'$(RhythmCppWinRTDir)' != ''" />
+  <Import Project="$(RhythmWindowsAppSDKDir)build\native\Microsoft.WindowsAppSDK.props" Condition="'$(RhythmWindowsAppSDKDir)' != ''" />
+  <PropertyGroup Label="Globals">
+    <CppWinRTOptimized>true</CppWinRTOptimized>
+    <CppWinRTRootNamespaceAutoMerge>true</CppWinRTRootNamespaceAutoMerge>
+    <CppWinRTUsePrefixes>false</CppWinRTUsePrefixes>
+    <RootNamespace>Rhythm</RootNamespace>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
+    <AppContainerApplication>false</AppContainerApplication>
+    <AppxPackage>false</AppxPackage>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformMinVersion>10.0.17763.0</WindowsTargetPlatformMinVersion>
+    <UseWinUI>true</UseWinUI>
+    <!-- Unpackaged and self-contained: the runtime ships next to the exe,
+         so it starts without the Windows App Runtime installer. -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <!-- resources.pri (XAML .xbf lookup) via the SDK's own MSIX tooling; the
+         default PriGen path needs Visual Studio's AppxPackage tasks. -->
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <EnablePriGenTooling>false</EnablePriGenTooling>
+    <!-- Native XAML markup compilation (see the MarkupCompilePass hooks in
+         RhythmShell.targets). -->
+    <ManagedAssembly>false</ManagedAssembly>
+    <IsNativeLanguage>true</IsNativeLanguage>
+    <XamlLanguage>CppWinRT</XamlLanguage>
+    <DefaultLanguageSourceExtension>.cpp</DefaultLanguageSourceExtension>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <DesktopCompatible>true</DesktopCompatible>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
+      <WarningLevel>Level3</WarningLevel>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <!-- The behaviour library's usage requirements come from its one
+           declaration (windows/cmake/RhythmBehavior.cmake) through the props
+           file (#330); only the shell's own flags are written here. The
+           project's own directory comes first, so its App.xaml.h wins. -->
+      <AdditionalOptions>%(AdditionalOptions) /bigobj $(RhythmBehaviorOptions)</AdditionalOptions>
+      <PreprocessorDefinitions>$(RhythmBehaviorDefines);NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory);$(RhythmShellDir);$(RhythmBehaviorIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <Optimization>MaxSpeed</Optimization>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>$(RhythmBehaviorLib);$(RhythmCoreImportLib);WindowsApp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+</Project>

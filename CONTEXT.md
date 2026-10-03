@@ -129,7 +129,7 @@ scripts/            tasks.py（跨平台任务入口）+ tasklib.py / task_build
   `SWIFT_SKIP`（macOS 仍走 Codable 的四个对象），清单与契约不一致由契约校验报红。
   加字段只改 `contracts/ffi-contract.json` 再跑 `python3 scripts/gen-ffi-bindings.py`，不必手改任何一处解码
 - **构建产物**：放 `build/` 目录——macOS 为 `build/Rhythm.app`，Windows 为 `build/windows/Release/Rhythm.exe`，
-  截屏产物 `build/artifacts`（Windows L2 截屏尚未实现、已从测试入口移除，#387）；Rust 核心产物在工作区根 `target/release/`，取用点只有 `task_build.core_artifact_dir` 一处
+  Windows L2 截屏宿主、截图与差异热图在 `build/windows/l2/`（#495）；Rust 核心产物在工作区根 `target/release/`，取用点只有 `task_build.core_artifact_dir` 一处
 - **Windows 依赖在仓库里声明（#386）**：Windows App SDK 上游只给 MSBuild 的 props/targets，没有 CMake 包，
   `find_package` 在任何机器上都找不到。依赖改由 `windows/cmake/RhythmWindowsDeps.cmake` 一处负责：按固定版本 +
   SHA-256 下载 NuGet 包与 json 头，以导入目标 `nlohmann_json::nlohmann_json` 导出，缓存在 `build/windows-deps/`。
