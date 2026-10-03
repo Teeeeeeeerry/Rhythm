@@ -10,6 +10,8 @@
         <ResourceDictionary x:Key="Default">
             <!-- BEGIN GENERATED BRUSHES: Default (#248) -->
             <SolidColorBrush x:Key="RhythmAccentBrush" Color="#ABC8D4" />
+            <!-- #ABC8D4 @ 0.15 for selected-item highlight (sidebar) -->
+            <SolidColorBrush x:Key="RhythmSelectionBrush" Color="#26ABC8D4" />
             <SolidColorBrush x:Key="RhythmSurfaceBrush" Color="#011F26" />
             <SolidColorBrush x:Key="RhythmElevatedBrush" Color="#0D464D" />
             <SolidColorBrush x:Key="RhythmTextPrimaryBrush" Color="#ABC8D4" />
@@ -26,6 +28,8 @@
         <ResourceDictionary x:Key="Light">
             <!-- BEGIN GENERATED BRUSHES: Light (#248) -->
             <SolidColorBrush x:Key="RhythmAccentBrush" Color="#0D464D" />
+            <!-- #0D464D @ 0.15 for selected-item highlight (sidebar) -->
+            <SolidColorBrush x:Key="RhythmSelectionBrush" Color="#260D464D" />
             <SolidColorBrush x:Key="RhythmSurfaceBrush" Color="#FFFFFF" />
             <SolidColorBrush x:Key="RhythmElevatedBrush" Color="#FFFFFF" />
             <SolidColorBrush x:Key="RhythmTextPrimaryBrush" Color="#0D464D" />

@@ -14,9 +14,8 @@ struct MainWindow : MainWindowT<MainWindow> {
     /// run (C++/WinRT calls it after construction), so setup lives here.
     void InitializeComponent();
 
-    void OnNavSelectionChanged(
-        winrt::Microsoft::UI::Xaml::Controls::NavigationView const& sender,
-        winrt::Microsoft::UI::Xaml::Controls::NavigationViewSelectionChangedEventArgs const& args);
+    void OnSidebarClick(winrt::Windows::Foundation::IInspectable const& sender,
+                        winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
     winrt::fire_and_forget OnImportClick(winrt::Windows::Foundation::IInspectable const&,
                                          winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
     winrt::fire_and_forget OnImportFileClick(winrt::Windows::Foundation::IInspectable const&,
@@ -29,6 +28,9 @@ struct MainWindow : MainWindowT<MainWindow> {
                            winrt::Microsoft::UI::Xaml::Controls::SelectionChangedEventArgs const& args);
 
 private:
+    /// Copies the view state's sidebar entries into the two sidebar items
+    /// (#501): icon, label and the selected highlight.
+    void RenderSidebar();
     void LoadLibraryView();
     void LoadPlaylistListView();
     void RefreshLibraryIfShown();

@@ -11,7 +11,7 @@ namespace rhythm::view {
 
 /// A UI-free icon name (#329/#335): the XAML shell maps it to its own symbol
 /// set, so the view state carries no WinUI type.
-enum class Icon { Play, Pause, List, Shuffle, RepeatOne, RepeatAll };
+enum class Icon { Play, Pause, List, Shuffle, RepeatOne, RepeatAll, Library, Playlists };
 
 /// A colour as plain bytes (#328/#338). Field names and order mirror
 /// `Windows::UI::Color` on purpose, so the shell converts field by field when
@@ -48,6 +48,21 @@ struct TrackRow {
     /// The track's source badge in the rendered theme (#338).
     SourceBadge badge;
 };
+
+/// One entry of the always-expanded sidebar (#501): the page it selects, its
+/// icon and label (both shown -- there is no icon-only state), and whether it
+/// is the selected page, which the shell highlights in the brand accent like
+/// the macOS sidebar.
+struct SidebarEntry {
+    SidebarItem item = SidebarItem::Library;
+    Icon icon = Icon::Library;
+    std::wstring label;
+    bool selected = false;
+};
+
+/// The sidebar's entries, in macOS order: library, then playlists. Exactly
+/// the entry of `AppState::SelectedView` is selected.
+std::vector<SidebarEntry> SidebarState(const AppState& state);
 
 /// The library's two orders (#336).
 enum class LibrarySort {

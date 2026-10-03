@@ -198,6 +198,15 @@ double SeekPosition(const AppState& state, double percent) {
     return std::clamp(percent, 0.0, 100.0) / 100.0 * state.Duration;
 }
 
+std::vector<SidebarEntry> SidebarState(const AppState& state) {
+    // #501: labels come from the same keys the old navigation items used.
+    auto entry = [&](SidebarItem item, Icon icon, std::wstring label) {
+        return SidebarEntry{item, icon, std::move(label), state.SelectedView == item};
+    };
+    return {entry(SidebarItem::Library, Icon::Library, L10n::LibraryTab()),
+            entry(SidebarItem::Playlists, Icon::Playlists, L10n::PlaylistsTab())};
+}
+
 TrayMenu TrayMenuState(const AppState& state) {
     // #141: tray copy follows the language layer like everything else.
     return TrayMenu{L10n::TrayPlayPause(), L10n::TrayShowWindow(), L10n::TrayQuit(),

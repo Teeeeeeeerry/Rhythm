@@ -56,7 +56,7 @@
 - `PlaylistDetailView.xaml`：2 → textPrimary、textSecondary
 - `PlaylistListView.xaml`：1 → textSecondary
 - `PlayerBarView.xaml`：5 → surface、border、accent（ProgressBar）、elevated、textSecondary
-- ~~`SidebarView.xaml`~~：已删除（#383，无调用方；侧栏由 `MainWindow` 的 `NavigationView` 提供）
+- ~~`SidebarView.xaml`~~：已删除（#383，无调用方；侧栏由 `MainWindow` 提供；#501 起为常驻展开的侧栏，条目取自视图状态 `SidebarState`）
 
 ### 2.3 对比度背景映射（L0 脚本内置，按实际渲染背景）
 
@@ -173,7 +173,7 @@ UI 自动化断言颜色：macOS 用 `XCUIElement` 的 `value` + 窗口截图像
 | # | 问题 | 位置 | 阻断谁 | 处置 | 状态（v0.5.64） |
 |---|---|---|---|---|---|
 | **F1** | Windows Source 色仅 dark 变体，Light 徽标对比度 ~3:1 | `RhythmCore.h` | parity/contrast/L1/L3 全链 | 补 light 变体 + theme 感知签名 | 已修复 #121（#122 解除测试桩、#123 palette sources light 实值、#147 收敛为单一表映射） |
-| **F2** | Windows Sidebar 零品牌化（覆盖率为 0） | `SidebarView.xaml` | token-coverage | 品牌化 + 键盘/Tab 语义 | 已修复 #124（合入 #133）：4 个 token 接入；**随 #383 删除关闭**——该控件从未被渲染（无调用方），校验器例外分支同步移除（#384），键盘/Tab 语义由 `NavigationView` 提供 |
+| **F2** | Windows Sidebar 零品牌化（覆盖率为 0） | `SidebarView.xaml` | token-coverage | 品牌化 + 键盘/Tab 语义 | 已修复 #124（合入 #133）：4 个 token 接入；**随 #383 删除关闭**——该控件从未被渲染（无调用方），校验器例外分支同步移除（#384），键盘/Tab 语义由 `MainWindow` 侧栏的按钮提供（#501 起取代 `NavigationView`） |
 | **F3** | macOS Sidebar 移除 `List(selection:)` 失键盘导航/VoiceOver | `SidebarView.swift` | L3 a11y 用例 | 恢复语义（`.accessibilityAddTraits(.isSelected)` 或回归 selection 绑定+自定义 tint） | **未处置**：现状仍为 `ForEach` + `onTapGesture` 手动选中态，无选中语义 |
 | **F4** | `SourceTagView` 未知类型回退 `.gray` | `ArtistAlbumView.swift` | forbidden-color 扫描 | 回退改 `.rhythmTextTertiary` | 已修复 #125（合入 #128）；Windows 侧回退 teal 文字色，非系统 Gray |
 | **F5** | `Track.swift` 遗留 `sourceColor` 死代码 | `Track.swift` | 文档漂移 | 删除 | 已修复 #147：`sourceColor`/`sourceTag` 一并删除 |

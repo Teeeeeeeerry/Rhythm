@@ -10,12 +10,24 @@
 #include "Views/Win32Interop.h"
 #include "ShellHost.h"
 #include "L10n.h"
+#include "ViewState.h"
+
+#include <winrt/Microsoft.UI.Xaml.Automation.h>
 
 using namespace winrt::Microsoft::UI::Xaml;
 using namespace winrt::Microsoft::UI::Xaml::Controls;
 using winrt::Windows::Foundation::IInspectable;
 
 namespace winrt::Rhythm::implementation {
+
+namespace {
+
+/// The view state's sidebar icon as a XAML symbol (#501).
+Symbol SidebarSymbol(rhythm::view::Icon icon) {
+    return icon == rhythm::view::Icon::Playlists ? Symbol::List : Symbol::MusicInfo;
+}
+
+} // namespace
 
 void MainWindow::InitializeComponent() {
     MainWindowT<MainWindow>::InitializeComponent();
@@ -24,8 +36,6 @@ void MainWindow::InitializeComponent() {
 
     // #141: all static copy comes from the language layer (system UI
     // language, manual override in L10n::SetOverrideLanguage).
-    navLibrary().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::LibraryTab() }));
-    navPlaylists().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::PlaylistsTab() }));
     ToolTipService::SetToolTip(btnImport(), winrt::box_value(winrt::hstring{ rhythm::L10n::ImportFolderTooltip() }));
     ToolTipService::SetToolTip(btnImportFile(), winrt::box_value(winrt::hstring{ rhythm::L10n::ImportTooltip() }));
     searchBox().PlaceholderText(rhythm::L10n::SearchPlaceholder());
@@ -61,7 +71,7 @@ void MainWindow::InitializeComponent() {
     Closed([](auto&&, auto&&) { rhythm::shell::DetachTray(); });
 
     contentFrame().Navigated({ this, &MainWindow::OnFrameNavigated });
-    navView().SelectedItem(navLibrary());
+    RenderSidebar();
     ready_ = true;
     LoadLibraryView();
 }
@@ -78,20 +88,52 @@ void MainWindow::OnFrameNavigated(IInspectable const&,
     }
 }
 
-void MainWindow::OnNavSelectionChanged(
-    NavigationView const&,
-    NavigationViewSelectionChangedEventArgs const& args) {
+void MainWindow::OnSidebarClick(IInspectable const& sender, RoutedEventArgs const&) {
     if (!ready_) return;
-    auto item = args.SelectedItem().try_as<NavigationViewItem>();
-    if (!item) return;
-    auto tag = winrt::unbox_value<hstring>(item.Tag());
+    // The clicked slot's page is whatever the view state put in that slot.
+    const Button buttons[] = {sideLibrary(), sidePlaylists()};
+    const auto entries = rhythm::view::SidebarState(appState_);
+    for (size_t i = 0; i < entries.size() && i < std::size(buttons); ++i) {
+        if (sender != buttons[i]) continue;
+        appState_.SelectedView = entries[i].item;
+        if (entries[i].item == rhythm::SidebarItem::Library) {
+            LoadLibraryView();
+        } else {
+            LoadPlaylistListView();
+        }
+        RenderSidebar();
+        return;
+    }
+}
 
-    if (tag == L"Library") {
-        appState_.SelectedView = rhythm::SidebarItem::Library;
-        LoadLibraryView();
-    } else if (tag == L"Playlists") {
-        appState_.SelectedView = rhythm::SidebarItem::Playlists;
-        LoadPlaylistListView();
+void MainWindow::RenderSidebar() {
+    struct Slot {
+        Button button;
+        Border highlight;
+        SymbolIcon icon;
+        TextBlock label;
+    };
+    const Slot slots[] = {
+        {sideLibrary(), sideLibraryHighlight(), sideLibraryIcon(), sideLibraryLabel()},
+        {sidePlaylists(), sidePlaylistsHighlight(), sidePlaylistsIcon(), sidePlaylistsLabel()},
+    };
+    auto style = [this](const wchar_t* key) {
+        return rootGrid().Resources().Lookup(winrt::box_value(key)).as<Style>();
+    };
+    const auto entries = rhythm::view::SidebarState(appState_);
+    for (size_t i = 0; i < entries.size() && i < std::size(slots); ++i) {
+        const auto& entry = entries[i];
+        const auto& slot = slots[i];
+        slot.icon.Symbol(SidebarSymbol(entry.icon));
+        slot.label.Text(entry.label);
+        // The button's content is a layout, so screen readers need the name.
+        Automation::AutomationProperties::SetName(slot.button, entry.label);
+        slot.highlight.Style(style(entry.selected ? L"SidebarHighlightSelectedStyle"
+                                                  : L"SidebarHighlightStyle"));
+        slot.icon.Style(style(entry.selected ? L"SidebarIconSelectedStyle"
+                                             : L"SidebarIconStyle"));
+        slot.label.Style(style(entry.selected ? L"SidebarLabelSelectedStyle"
+                                              : L"SidebarLabelStyle"));
     }
 }
 
@@ -166,8 +208,8 @@ void MainWindow::OnViewModeChanged(IInspectable const&, SelectionChangedEventArg
     RefreshLibraryIfShown();
 }
 
-/// Library content changed: re-render only when that tab is showing, so the
-/// frame never switches away from Playlists behind the navigation pane.
+/// Library content changed: re-render only when that page is showing, so the
+/// frame never switches away from Playlists behind the sidebar.
 void MainWindow::RefreshLibraryIfShown() {
     if (appState_.SelectedView == rhythm::SidebarItem::Library) LoadLibraryView();
 }

@@ -14,6 +14,10 @@
       "dark": "#0D464D",
       "light": "#FFFFFF"
     },
+    "rhythmSelection": {
+      "dark": "#26ABC8D4",
+      "light": "#260D464D"
+    },
     "rhythmSourceBilibili": {
       "dark": "#C88DA8",
       "light": "#8C4D68"
@@ -98,6 +102,16 @@
         "base": "#ABC8D4",
         "opacity": 0.3
       }
+    },
+    "rhythmSelection": {
+      "dark": {
+        "base": "#ABC8D4",
+        "opacity": 0.15
+      },
+      "light": {
+        "base": "#0D464D",
+        "opacity": 0.15
+      }
     }
   },
   "docs": {
@@ -106,6 +120,15 @@
       "lines": [
         "Accent / interactive elements.",
         "{values} (10.50:1 on white)"
+      ]
+    },
+    "rhythmSelection": {
+      "lines": [
+        "Selected-item highlight (sidebar).",
+        "{values}",
+        "",
+        "The accent at low opacity behind the accent foreground, as the macOS",
+        "sidebar draws `.rhythmAccent.opacity(0.15)` (#501)."
       ]
     },
     "rhythmSurface": {
@@ -190,6 +213,11 @@
       "background": "window",
       "contrastThreshold": 0.0,
       "purpose": "卡片/占位背景（不参与对比度断言）"
+    },
+    "rhythmSelection": {
+      "background": "window",
+      "contrastThreshold": 0.0,
+      "purpose": "选中项底色（背景类，不参与对比度断言）"
     },
     "rhythmSourceLocal": {
       "background": "window",
