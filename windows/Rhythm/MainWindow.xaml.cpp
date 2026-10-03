@@ -39,8 +39,6 @@ void MainWindow::InitializeComponent() {
     ToolTipService::SetToolTip(btnImport(), winrt::box_value(winrt::hstring{ rhythm::L10n::ImportFolderTooltip() }));
     ToolTipService::SetToolTip(btnImportFile(), winrt::box_value(winrt::hstring{ rhythm::L10n::ImportTooltip() }));
     searchBox().PlaceholderText(rhythm::L10n::SearchPlaceholder());
-    comboArtistAlbum().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::ByArtistAlbum() }));
-    comboByLetter().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::ByLetter() }));
 
     // The hosting process decides where the library lives (#495).
     appState_.OpenDatabase(rhythm::shell::LibraryDatabasePath());
@@ -201,11 +199,6 @@ void MainWindow::OnSearchTextChanged(AutoSuggestBox const& sender,
         appState_.DoSearch();
         RefreshLibraryIfShown();
     }
-}
-
-void MainWindow::OnViewModeChanged(IInspectable const&, SelectionChangedEventArgs const&) {
-    if (!ready_) return;
-    RefreshLibraryIfShown();
 }
 
 /// Library content changed: re-render only when that page is showing, so the

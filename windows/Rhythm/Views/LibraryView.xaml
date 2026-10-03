@@ -4,17 +4,66 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:models="using:Rhythm.Models">
 
+    <Page.Resources>
+        <Style x:Key="SegmentButtonStyle" TargetType="Button">
+            <Setter Property="UseSystemFocusVisuals" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter Background="Transparent" Content="{TemplateBinding Content}" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SegmentBackStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="14,4" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style x:Key="SegmentBackSelectedStyle" TargetType="Border"
+               BasedOn="{StaticResource SegmentBackStyle}">
+            <Setter Property="Background" Value="{ThemeResource RhythmSelectionBrush}" />
+        </Style>
+        <Style x:Key="SegmentLabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{ThemeResource RhythmTextPrimaryBrush}" />
+        </Style>
+        <Style x:Key="SegmentLabelSelectedStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{ThemeResource RhythmAccentBrush}" />
+        </Style>
+    </Page.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Pivot x:Name="viewPivot" Grid.Row="0" SelectionChanged="OnPivotChanged"
-               Margin="12,4">
-            <PivotItem x:Name="pivotArtistAlbum" />
-            <PivotItem x:Name="pivotByLetter" />
-        </Pivot>
+        <!-- #502: the page's single view switch, a segmented control centred
+             at the top and labelled like the macOS picker, with a divider
+             under it. Segment labels and the selected one come from the view
+             state; the selected segment swaps to the selected styles, whose
+             colours are palette brushes (#219). -->
+        <StackPanel Grid.Row="0">
+            <Border HorizontalAlignment="Center" Margin="12,8,12,8" Padding="2"
+                    CornerRadius="6" BorderThickness="1"
+                    BorderBrush="{ThemeResource RhythmBorderBrush}">
+                <StackPanel Orientation="Horizontal" Spacing="2">
+                    <Button x:Name="segmentArtistAlbum" Style="{StaticResource SegmentButtonStyle}"
+                            Click="OnSegmentClick">
+                        <Border x:Name="segmentArtistAlbumBack" Style="{StaticResource SegmentBackStyle}">
+                            <TextBlock x:Name="segmentArtistAlbumLabel" Style="{StaticResource SegmentLabelStyle}" />
+                        </Border>
+                    </Button>
+                    <Button x:Name="segmentByLetter" Style="{StaticResource SegmentButtonStyle}"
+                            Click="OnSegmentClick">
+                        <Border x:Name="segmentByLetterBack" Style="{StaticResource SegmentBackStyle}">
+                            <TextBlock x:Name="segmentByLetterLabel" Style="{StaticResource SegmentLabelStyle}" />
+                        </Border>
+                    </Button>
+                </StackPanel>
+            </Border>
+            <Border Height="1" Background="{ThemeResource RhythmBorderBrush}" />
+        </StackPanel>
 
         <ListView x:Name="trackList" Grid.Row="1"
                   SelectionMode="Single"

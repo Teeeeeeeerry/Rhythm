@@ -14,14 +14,15 @@ struct LibraryView : LibraryViewT<LibraryView> {
     /// Called by MainWindow once the page is in the frame (not projected).
     void BindState(rhythm::AppState* state);
 
-    void OnPivotChanged(winrt::Windows::Foundation::IInspectable const&,
-                        winrt::Microsoft::UI::Xaml::Controls::SelectionChangedEventArgs const&);
+    void OnSegmentClick(winrt::Windows::Foundation::IInspectable const& sender,
+                        winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
     void OnTrackClick(winrt::Windows::Foundation::IInspectable const&,
                       winrt::Microsoft::UI::Xaml::Controls::ItemClickEventArgs const& args);
 
 private:
-    /// Render the library in the order the pivot selects (#336).
+    /// Render the view switch and the library in the state's order (#502).
     void Populate();
+    void RenderViewSwitch();
     void ShowRows(std::vector<rhythm::view::TrackRow> const& rows);
     void ShowEmptyMessage(bool show);
 

@@ -24,8 +24,6 @@ struct MainWindow : MainWindowT<MainWindow> {
                            winrt::Microsoft::UI::Xaml::Controls::AutoSuggestBoxQuerySubmittedEventArgs const& args);
     void OnSearchTextChanged(winrt::Microsoft::UI::Xaml::Controls::AutoSuggestBox const& sender,
                              winrt::Microsoft::UI::Xaml::Controls::AutoSuggestBoxTextChangedEventArgs const& args);
-    void OnViewModeChanged(winrt::Windows::Foundation::IInspectable const&,
-                           winrt::Microsoft::UI::Xaml::Controls::SelectionChangedEventArgs const& args);
 
 private:
     /// Copies the view state's sidebar entries into the two sidebar items
