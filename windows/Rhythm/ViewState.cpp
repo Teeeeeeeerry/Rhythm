@@ -137,6 +137,19 @@ std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool 
     return rows;
 }
 
+std::vector<TrackRow> LibraryRows(const AppState& state, bool isDarkTheme) {
+    return LibraryRows(state, state.LibraryOrder, isDarkTheme);
+}
+
+std::vector<ViewSwitchSegment> LibraryViewSwitch(const AppState& state) {
+    // #502: one switch, labelled like the macOS segmented picker.
+    auto segment = [&](LibrarySort sort, std::wstring label) {
+        return ViewSwitchSegment{sort, std::move(label), state.LibraryOrder == sort};
+    };
+    return {segment(LibrarySort::ArtistAlbum, L10n::ByArtistAlbum()),
+            segment(LibrarySort::Alphabetical, L10n::ByLetter())};
+}
+
 PlaylistListPage PlaylistListState(const AppState& state) {
     // #320: the list renders from an assertable return value; a click carries
     // the row's identifier, so the list and the detail correspond by identity

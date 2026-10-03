@@ -719,3 +719,40 @@ TEST_CASE("VS-46 exactly the selected view's entry is highlighted") {
     REQUIRE_FALSE(onPlaylists.at(0).selected);
     REQUIRE(onPlaylists.at(1).selected);
 }
+
+// ─── VS-47/48 资料库唯一的视图切换（#502）────────────────────────────
+
+TEST_CASE("VS-47 the view switch has the two macOS segments, artist/album first") {
+    for (const wchar_t* language : {L"zh", L"en"}) {
+        LanguageScope scope(language);
+        AppState state;
+
+        auto segments = view::LibraryViewSwitch(state);
+
+        REQUIRE(segments.size() == 2);
+        REQUIRE(segments.at(0).sort == view::LibrarySort::ArtistAlbum);
+        REQUIRE(segments.at(0).label == L10n::ByArtistAlbum());
+        REQUIRE(segments.at(1).sort == view::LibrarySort::Alphabetical);
+        REQUIRE(segments.at(1).label == L10n::ByLetter());
+    }
+}
+
+TEST_CASE("VS-48 switching the view selects its segment and reorders the list") {
+    AppState state;
+    state.Tracks = {sortTrack(L"Beta", L"Alpha", L"One", 1),
+                    sortTrack(L"Alpha", L"Zeta", L"One", 1)};
+
+    // At start: artist/album, the macOS default.
+    REQUIRE(state.LibraryOrder == view::LibrarySort::ArtistAlbum);
+    REQUIRE(view::LibraryViewSwitch(state).at(0).selected);
+    REQUIRE_FALSE(view::LibraryViewSwitch(state).at(1).selected);
+    REQUIRE(titlesOf(view::LibraryRows(state, true)) ==
+            std::vector<std::wstring>{L"Beta", L"Alpha"});
+
+    state.LibraryOrder = view::LibraryViewSwitch(state).at(1).sort;
+
+    REQUIRE_FALSE(view::LibraryViewSwitch(state).at(0).selected);
+    REQUIRE(view::LibraryViewSwitch(state).at(1).selected);
+    REQUIRE(titlesOf(view::LibraryRows(state, true)) ==
+            std::vector<std::wstring>{L"Alpha", L"Beta"});
+}

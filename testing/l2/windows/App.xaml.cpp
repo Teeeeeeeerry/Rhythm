@@ -174,13 +174,12 @@ IAsyncAction CaptureLibrary(Theme theme, fs::path dir) {
     for (auto sort : {LibrarySort::ArtistAlbum, LibrarySort::Alphabetical}) {
         ::rhythm::AppState state;
         state.Tracks = ::rhythm::capture::FixtureTracks();
+        // The order shown is state (#502); the page's view switch follows it.
+        state.LibraryOrder = sort;
 
         Rhythm::Views::LibraryView page;
         page.RequestedTheme(theme.value);
-        auto impl = get_self<Views::implementation::LibraryView>(page);
-        // The page's pivot picks the sort: first item artist/album, second A-Z.
-        impl->viewPivot().SelectedIndex(sort == LibrarySort::ArtistAlbum ? 0 : 1);
-        impl->BindState(&state);
+        get_self<Views::implementation::LibraryView>(page)->BindState(&state);
 
         const wchar_t* name = sort == LibrarySort::ArtistAlbum ? L"LibraryView_ArtistAlbum_"
                                                                : L"LibraryView_Letter_";

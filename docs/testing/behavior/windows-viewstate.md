@@ -37,6 +37,8 @@
 | VS-12（#335） | 播放按钮图标 `PlayerBarState().playIcon` | 播放中 → 暂停图标；非播放中 → 播放图标。播放模式图标 `playModeIcon` 同在此结构（覆盖见 LK-10，`l10n-keys.md`） | 新测 |
 | VS-45（#501） | 常驻侧栏条目 `SidebarState(state)` | 两项，按 macOS 顺序：资料库、播放列表；每项同时带图标与文案（文案取键表 `library_tab` / `playlists_tab`，中英各一次），没有只剩图标的中间态。壳把它灌进常驻展开的侧栏，不再用汉堡菜单与浮层 | 新测 |
 | VS-46（#501） | 侧栏选中项 `SidebarEntry::selected` | 恰好 `AppState::SelectedView` 那一项为选中：启动时资料库选中；切到播放列表后只有播放列表选中。壳据此套用选中样式（底色 `rhythmSelection`、前景 `rhythmAccent`，取自 palette.json，与 macOS 侧栏一致） | 新测 |
+| VS-47（#502） | 资料库唯一的视图切换 `LibraryViewSwitch(state)` | 两段，按 macOS 分段控件的顺序与标签：按艺人/专辑（`ByArtistAlbum`）、按首字母（`ByLetter`），中英各一次；每段带它选中的排序。壳把它灌进资料库页顶部居中的分段控件，主窗口工具栏不再有视图下拉框 | 新测 |
+| VS-48（#502） | 切换视图后选中段与列表顺序 `AppState::LibraryOrder` + `LibraryRows(state, isDark)` | 启动时按艺人/专辑、第一段选中；把 `LibraryOrder` 设为第二段的排序后，只有第二段选中，`LibraryRows(state, isDark)` 改为按首字母。所选排序是状态而非页面私有值，资料库页随刷新重建后仍保持 | 新测 |
 
 ## 边界情况（P1）
 

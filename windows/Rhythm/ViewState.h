@@ -64,19 +64,32 @@ struct SidebarEntry {
 /// the entry of `AppState::SelectedView` is selected.
 std::vector<SidebarEntry> SidebarState(const AppState& state);
 
-/// The library's two orders (#336).
-enum class LibrarySort {
-    /// By artist, then album, then track number. A missing artist or album
-    /// sorts as an empty name, a missing track number as 0.
-    ArtistAlbum,
-    /// By title, ascending.
-    Alphabetical,
-};
+/// The library's two orders (#336), declared with the state that holds the
+/// chosen one (`AppState::LibraryOrder`, #502).
+using LibrarySort = ::rhythm::LibrarySort;
 
 /// The library list: one row per loaded library track, in `sort` order.
 /// Stable -- rows that compare equal keep their library order -- and the
 /// state is only read (#336). The theme is resolved by the shell (#342).
 std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool isDarkTheme);
+
+/// The library list in the order the state holds (#502): what the library
+/// page renders, so the page never picks an order of its own.
+std::vector<TrackRow> LibraryRows(const AppState& state, bool isDarkTheme);
+
+/// One segment of the library's view switch (#502): the order it selects,
+/// its label, and whether it is the order shown.
+struct ViewSwitchSegment {
+    LibrarySort sort = LibrarySort::ArtistAlbum;
+    std::wstring label;
+    bool selected = false;
+};
+
+/// The library page's single view switch, labelled as on macOS: by
+/// artist/album, then by letter. Exactly the segment of
+/// `AppState::LibraryOrder` is selected; a click sets that field to the
+/// segment's `sort`.
+std::vector<ViewSwitchSegment> LibraryViewSwitch(const AppState& state);
 
 /// One row of the playlist list (#320). Carries the identifier a click hands
 /// to `AppState::SelectPlaylist` -- never an address inside the state -- plus

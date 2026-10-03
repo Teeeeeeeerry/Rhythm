@@ -94,7 +94,14 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
+            <!-- #502: the toolbar sits at the trailing end of the content's top
+                 edge, import before search, as the macOS window toolbar does.
+                 The file picker cannot take files and folders at once, so the
+                 two imports stand side by side where macOS has its single "+".
+                 The view switch is not here: it lives once, on the library
+                 page. -->
             <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8"
+                        HorizontalAlignment="Right"
                         Margin="12,8,12,4">
                 <Button x:Name="btnImport" Click="OnImportClick">
                     <SymbolIcon Symbol="Add" />
@@ -107,12 +114,6 @@
                     Width="200"
                     QuerySubmitted="OnSearchSubmitted"
                     TextChanged="OnSearchTextChanged" />
-                <ComboBox x:Name="viewModeCombo"
-                          SelectionChanged="OnViewModeChanged"
-                          SelectedIndex="0">
-                    <ComboBoxItem x:Name="comboArtistAlbum" />
-                    <ComboBoxItem x:Name="comboByLetter" />
-                </ComboBox>
             </StackPanel>
 
             <Frame x:Name="contentFrame" Grid.Row="1" />

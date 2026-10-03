@@ -7,6 +7,17 @@ namespace rhythm {
 
 enum class SidebarItem { Library, Playlists };
 
+/// The library's two orders (#336). The chosen one is state (#502), like
+/// `SidebarItem`: the library page is rebuilt on every refresh, and the
+/// order must outlive it.
+enum class LibrarySort {
+    /// By artist, then album, then track number. A missing artist or album
+    /// sorts as an empty name, a missing track number as 0.
+    ArtistAlbum,
+    /// By title, ascending.
+    Alphabetical,
+};
+
 /// Playback mode — the FFI contract values (0-3) are locked below at compile
 /// time; the canonical declaration lives in rust-core `queue::PlayMode`
 /// (#179).
@@ -34,6 +45,9 @@ public:
     /// playback paths run with no audio device.
     std::unique_ptr<ICoordinator> Coordinator;
     SidebarItem SelectedView = SidebarItem::Library;
+    /// The order the library page shows (#502); artist/album by default, as
+    /// on macOS.
+    LibrarySort LibraryOrder = LibrarySort::ArtistAlbum;
     std::wstring SearchQuery;
     std::vector<Track> Tracks;
     std::vector<Playlist> Playlists;
