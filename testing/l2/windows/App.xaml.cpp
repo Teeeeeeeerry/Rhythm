@@ -188,12 +188,25 @@ IAsyncAction CaptureLibrary(Theme theme, fs::path dir) {
     }
 }
 
-/// The player bar idle and while a track plays.
+/// The player bar idle, while a track plays, and while it plays in a narrow
+/// window (#496: the buttons stay whole and the title is the one truncated).
 IAsyncAction CapturePlayerBar(Theme theme, fs::path dir) {
-    for (bool playing : {false, true}) {
+    enum class Bar { Idle, Playing, Narrow };
+    struct Shot {
+        Bar bar;
+        double width;
+        const wchar_t* name;
+    };
+    constexpr Shot kShots[] = {
+        {Bar::Idle, 900, L"PlayerBarView_Idle_"},
+        {Bar::Playing, 900, L"PlayerBarView_Playing_"},
+        {Bar::Narrow, 600, L"PlayerBarView_Narrow_"},
+    };
+    for (const auto& shot : kShots) {
         ::rhythm::AppState state;
-        if (playing) {
-            const auto track = ::rhythm::capture::NowPlayingTrack();
+        if (shot.bar != Bar::Idle) {
+            const auto track = shot.bar == Bar::Narrow ? ::rhythm::capture::LongTitleTrack()
+                                                       : ::rhythm::capture::NowPlayingTrack();
             state.CurrentTrack = track;
             state.IsPlaying = true;
             state.Position = 86;
@@ -204,8 +217,8 @@ IAsyncAction CapturePlayerBar(Theme theme, fs::path dir) {
         bar.RequestedTheme(theme.value);
         get_self<Views::implementation::PlayerBarView>(bar)->BindState(&state);
 
-        const wchar_t* name = playing ? L"PlayerBarView_Playing_" : L"PlayerBarView_Idle_";
-        co_await CaptureView(theme, bar, 900, 100, dir / (std::wstring(name) + theme.name + L".png"));
+        co_await CaptureView(theme, bar, shot.width, 100,
+                             dir / (std::wstring(shot.name) + theme.name + L".png"));
     }
 }
 

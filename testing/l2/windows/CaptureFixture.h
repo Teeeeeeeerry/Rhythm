@@ -49,4 +49,13 @@ inline Track NowPlayingTrack() {
     return {};
 }
 
+/// The track the narrow player bar shows (#496): the same stream under a
+/// title too long for the room a narrow window leaves, so the capture shows
+/// the title truncating while the buttons stay whole.
+inline Track LongTitleTrack() {
+    auto track = NowPlayingTrack();
+    track.title = L"Live Session 2024 - Late Night Request Hour";
+    return track;
+}
+
 } // namespace rhythm::capture

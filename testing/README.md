@@ -71,7 +71,7 @@ print("PNG 解码器可用")
 EOF
 ```
 
-## 当前状态（main，v0.5.230）
+## 当前状态（main，v0.5.231）
 
 | 检查 | 现状 | 含义 |
 |---|---|---|
@@ -133,6 +133,7 @@ L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门�
    - `MainWindow`：侧栏、工具栏、资料库空态、未播放的播放栏
    - `LibraryView_ArtistAlbum` / `LibraryView_Letter`：资料库页两种排序
    - `PlayerBarView_Idle` / `PlayerBarView_Playing`：播放栏未播放、播放中
+   - `PlayerBarView_Narrow`：窄窗口（600 逻辑像素）下播放中、曲名过长，按钮完整、曲名截断（#496）
 3. **金标准像素比对**：`compare_screenshots.py --golden testing/l2/windows/golden`，差异像素占比超过 0.1% 即失败，
    差异热图写到 `build/windows/l2/heatmap/`。golden 为空、缺某张基准、多出未入库的截图都算失败，首次建立基准不会被误判为通过。
 
