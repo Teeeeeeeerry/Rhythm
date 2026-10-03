@@ -166,6 +166,11 @@ private:
     /// Deliver `OnLibraryChanged` on the UI thread (#494).
     void NotifyLibraryChanged();
 
+    /// Run work on the UI thread when one is set, otherwise directly on the
+    /// caller thread (tests): the one marshalling rule for coordinator events
+    /// and the library notification.
+    void DeliverOnUi(std::function<void()> work);
+
     /// Coordinator event entry point: marshal to the UI thread when a
     /// UI thread is set, otherwise apply directly (tests).
     void OnCoordinatorEvent(const std::wstring& json);
