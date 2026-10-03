@@ -70,8 +70,55 @@ using LibrarySort = ::rhythm::LibrarySort;
 
 /// The library list: one row per loaded library track, in `sort` order.
 /// Stable -- rows that compare equal keep their library order -- and the
-/// state is only read (#336). The theme is resolved by the shell (#342).
+/// state is only read (#336). By artist/album it is the grouping of
+/// `ArtistAlbumSections` read top to bottom (#503), so the two never
+/// disagree. The theme is resolved by the shell (#342).
 std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool isDarkTheme);
+
+/// One album group of the artist/album view (#503): the album's name (the
+/// unknown-album label when the tracks have none) and its tracks, by disc
+/// then track number -- a missing number counts as 0 -- ties in library
+/// order. The shell draws a cover placeholder beside each group.
+struct AlbumGroup {
+    std::wstring title;
+    std::vector<TrackRow> rows;
+};
+
+/// One artist section of the artist/album view (#503): the artist's name
+/// (the unknown-artist label when the tracks have none) and its albums, by
+/// name.
+struct ArtistSection {
+    std::wstring title;
+    std::vector<AlbumGroup> albums;
+};
+
+/// The artist/album view's structure, as macOS `groupByArtistAlbum` builds
+/// it: artists by name, albums by name within each, the same album name
+/// under two artists kept apart. The unknown labels come from the key table
+/// and are grouped and sorted like any other name. The theme is resolved by
+/// the shell (#342).
+std::vector<ArtistSection> ArtistAlbumSections(const AppState& state, bool isDarkTheme);
+
+/// The kinds of line the library list shows (#503).
+enum class LibraryLineKind { Section, Album, Track };
+
+/// One line of the library list (#503): a section heading or an album
+/// heading (`title`), or a track (`row`). `inAlbum` marks a track drawn
+/// inside an album group, which the shell lines up beside the group's cover
+/// placeholder.
+struct LibraryLine {
+    LibraryLineKind kind = LibraryLineKind::Track;
+    std::wstring title;
+    TrackRow row;
+    bool inAlbum = false;
+};
+
+/// What the library page lists, line by line, in the state's order (#503):
+/// by artist/album the grouping of `ArtistAlbumSections` -- each section's
+/// heading, then each album's heading followed by its tracks; by letter the
+/// rows of `LibraryRows`. Empty for an empty library. The page only turns
+/// each line into a list item.
+std::vector<LibraryLine> LibraryLines(const AppState& state, bool isDarkTheme);
 
 /// The library list in the order the state holds (#502): what the library
 /// page renders, so the page never picks an order of its own.

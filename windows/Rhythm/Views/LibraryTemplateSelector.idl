@@ -1,0 +1,12 @@
+namespace Rhythm.Views
+{
+    /// Picks the library list's template by line kind (#503): a section
+    /// heading, an album group heading, or a track row.
+    runtimeclass LibraryTemplateSelector : Microsoft.UI.Xaml.Controls.DataTemplateSelector
+    {
+        LibraryTemplateSelector();
+        Microsoft.UI.Xaml.DataTemplate HeaderTemplate;
+        Microsoft.UI.Xaml.DataTemplate AlbumTemplate;
+        Microsoft.UI.Xaml.DataTemplate TrackTemplate;
+    }
+}

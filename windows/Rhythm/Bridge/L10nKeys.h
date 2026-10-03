@@ -188,6 +188,10 @@ inline const wchar_t* L10nKeys_zh_tray_show() { return L"显示主窗口"; }
 inline const wchar_t* L10nKeys_en_tray_show() { return L"Show Window"; }
 inline const wchar_t* L10nKeys_zh_tray_stop() { return L"停止"; }
 inline const wchar_t* L10nKeys_en_tray_stop() { return L"Stop"; }
+inline const wchar_t* L10nKeys_zh_unknown_album() { return L"未知专辑"; }
+inline const wchar_t* L10nKeys_en_unknown_album() { return L"Unknown Album"; }
+inline const wchar_t* L10nKeys_zh_unknown_artist() { return L"未知艺人"; }
+inline const wchar_t* L10nKeys_en_unknown_artist() { return L"Unknown Artist"; }
 inline const wchar_t* L10nKeys_zh_url_error_title() { return L"无法播放链接"; }
 inline const wchar_t* L10nKeys_en_url_error_title() { return L"Cannot Play URL"; }
 inline const wchar_t* L10nKeys_zh_url_placeholder() { return L"粘贴 YouTube / Bilibili 链接播放"; }

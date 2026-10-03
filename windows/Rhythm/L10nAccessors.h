@@ -102,6 +102,8 @@ inline std::wstring TrayPrev() { return Key("tray_prev"); }
 inline std::wstring TrayQuit() { return Key("tray_quit"); }
 inline std::wstring TrayShowWindow() { return Key("tray_show"); }
 inline std::wstring TrayStop() { return Key("tray_stop"); }
+inline std::wstring UnknownAlbum() { return Key("unknown_album"); }
+inline std::wstring UnknownArtist() { return Key("unknown_artist"); }
 inline std::wstring UrlErrorTitle() { return Key("url_error_title"); }
 inline std::wstring UrlPlaceholder() { return Key("url_placeholder"); }
 inline std::wstring PlayUrl() { return Key("url_play"); }

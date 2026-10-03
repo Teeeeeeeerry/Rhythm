@@ -18,12 +18,16 @@ struct LibraryView : LibraryViewT<LibraryView> {
                         winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
     void OnTrackClick(winrt::Windows::Foundation::IInspectable const&,
                       winrt::Microsoft::UI::Xaml::Controls::ItemClickEventArgs const& args);
+    void OnContainerContentChanging(
+        winrt::Microsoft::UI::Xaml::Controls::ListViewBase const&,
+        winrt::Microsoft::UI::Xaml::Controls::ContainerContentChangingEventArgs const& args);
+    void OnSelectionChanged(winrt::Windows::Foundation::IInspectable const&,
+                            winrt::Microsoft::UI::Xaml::Controls::SelectionChangedEventArgs const& args);
 
 private:
     /// Render the view switch and the library in the state's order (#502).
     void Populate();
     void RenderViewSwitch();
-    void ShowRows(std::vector<rhythm::view::TrackRow> const& rows);
     void ShowEmptyMessage(bool show);
 
     rhythm::AppState* appState_ = nullptr;

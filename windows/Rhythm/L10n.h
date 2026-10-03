@@ -186,6 +186,8 @@ inline const wchar_t* Key(const char* key) {
         L10N_ENTRY(tray_quit)
         L10N_ENTRY(tray_show)
         L10N_ENTRY(tray_stop)
+        L10N_ENTRY(unknown_album)
+        L10N_ENTRY(unknown_artist)
         L10N_ENTRY(url_error_title)
         L10N_ENTRY(url_placeholder)
         L10N_ENTRY(url_play)

@@ -6,10 +6,27 @@ namespace Rhythm.Models
     {
         String Title{ get; };
         String Artist{ get; };
+        /// Whether the artist line shows (#503): only when there is one.
+        Boolean HasArtist{ get; };
+        /// Left inset of the row: a track inside an album group lines up
+        /// beside the group's cover placeholder (#503); zero elsewhere.
+        Double Indent{ get; };
         String SourceTag{ get; };
         Microsoft.UI.Xaml.Media.Brush SourceForeground{ get; };
         Microsoft.UI.Xaml.Media.Brush SourceBackground{ get; };
         String DurationText{ get; };
+    }
+
+    /// A section heading of the library list (#503): an artist.
+    runtimeclass LibraryHeaderItem
+    {
+        String Title{ get; };
+    }
+
+    /// An album group's heading with its cover placeholder (#503).
+    runtimeclass AlbumGroupItem
+    {
+        String Title{ get; };
     }
 
     runtimeclass PlaylistItem

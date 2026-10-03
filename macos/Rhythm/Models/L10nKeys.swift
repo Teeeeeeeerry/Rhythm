@@ -101,6 +101,8 @@ enum L10nKeys {
         "tray_quit": (zh: "退出 Rhythm", en: "Quit Rhythm"),
         "tray_show": (zh: "显示主窗口", en: "Show Window"),
         "tray_stop": (zh: "停止", en: "Stop"),
+        "unknown_album": (zh: "未知专辑", en: "Unknown Album"),
+        "unknown_artist": (zh: "未知艺人", en: "Unknown Artist"),
         "url_error_title": (zh: "无法播放链接", en: "Cannot Play URL"),
         "url_placeholder": (zh: "粘贴 YouTube / Bilibili 链接播放", en: "Paste a YouTube / Bilibili URL to play"),
         "url_play": (zh: "播放链接", en: "Play URL"),
