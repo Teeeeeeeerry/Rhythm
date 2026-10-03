@@ -25,6 +25,8 @@ struct PlayerBarView : PlayerBarViewT<PlayerBarView> {
                          winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
     void OnVolumeChanged(winrt::Windows::Foundation::IInspectable const&,
                          winrt::Microsoft::UI::Xaml::Controls::Primitives::RangeBaseValueChangedEventArgs const& args);
+    void OnSeekValueChanged(winrt::Windows::Foundation::IInspectable const&,
+                            winrt::Microsoft::UI::Xaml::Controls::Primitives::RangeBaseValueChangedEventArgs const& args);
     void OnUrlPlayClick(winrt::Windows::Foundation::IInspectable const&,
                         winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
     void OnUrlKeyDown(winrt::Windows::Foundation::IInspectable const&,
@@ -36,7 +38,14 @@ private:
     /// 弹出错误对话框，内容取 AppState 已本地化的 `UrlError`（#230）。
     void ShowUrlError();
 
+    /// Seek to the progress bar's value through the app state (#498).
+    void CommitSeek();
+
     rhythm::AppState* appState_ = nullptr;
+    /// The progress bar's thumb is held: progress updates leave it alone.
+    bool seeking_ = false;
+    /// Update() is writing the progress bar's value: not a user seek.
+    bool updatingSeek_ = false;
 };
 
 } // namespace winrt::Rhythm::Views::implementation

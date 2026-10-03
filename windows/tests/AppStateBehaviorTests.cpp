@@ -477,6 +477,57 @@ TEST_CASE("WA-42 Stop with nothing playing is a harmless forward") {
     REQUIRE_FALSE(app.state.CurrentTrack.has_value());
 }
 
+// ─── WA-43 跳转（#498）──────────────────────────────────────────────
+
+TEST_CASE("WA-43 Seek forwards to the coordinator and moves the position") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    auto wa = app.dir.path / L"wa";
+    fs::create_directories(wa);
+    auto a = writeWavAt(wa, L"a.wav", 3.0);
+    auto savedA = app.state.Library->AddTrack(makeLocalTrack(a.wstring(), L"A"));
+    app.state.RefreshLibrary();
+    app.state.PlayTrack(savedA);
+    app.state.Position = 10;
+    app.state.Duration = 200;
+
+    app.state.Seek(150);
+    REQUIRE(app.spy->seekCalls == std::vector<double>{150.0});
+    REQUIRE(app.state.Position == 150.0);
+
+    // Out of range targets are clamped into the track before forwarding.
+    app.state.Seek(260);
+    app.state.Seek(-5);
+    REQUIRE(app.spy->seekCalls == std::vector<double>{150.0, 200.0, 0.0});
+    REQUIRE(app.state.Position == 0.0);
+}
+
+TEST_CASE("WA-43 a rejected seek leaves the position where it was") {
+    SpyApp app;
+    app.state.CurrentTrack = makeLocalTrack(L"C:/a.wav", L"A");
+    app.state.Position = 42;
+    app.state.Duration = 200;
+    app.spy->seekAccepted = false;
+
+    app.state.Seek(120);
+    REQUIRE(app.spy->seekCalls.size() == 1);
+    REQUIRE(app.state.Position == 42.0);
+}
+
+TEST_CASE("WA-43 nothing to seek in: no current track or an unknown duration") {
+    SpyApp app;
+    app.state.Duration = 200;
+    app.state.Seek(50);  // no current track
+    REQUIRE(app.spy->seekCalls.empty());
+
+    app.state.CurrentTrack = makeLocalTrack(L"C:/a.wav", L"A");
+    app.state.Duration = 0;
+    app.state.Position = 7;
+    app.state.Seek(50);  // duration unknown
+    REQUIRE(app.spy->seekCalls.empty());
+    REQUIRE(app.state.Position == 7.0);
+}
+
 // ─── WA-20 RefreshLibrary 队列同步（在协调器内，#69）─────────────────
 
 TEST_CASE("WA-20 RefreshLibrary keeps the queue in sync") {

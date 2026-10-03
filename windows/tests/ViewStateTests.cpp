@@ -144,6 +144,36 @@ TEST_CASE("VS-04 a position outside the duration is clamped into range") {
     REQUIRE(view::PlayerBarState(state).progressPercent == 0.0);
 }
 
+// ─── VS-43/44 可拖动进度条（#498）──────────────────────────────────
+
+TEST_CASE("VS-43 the progress bar is seekable only with a current track of known duration") {
+    AppState state;
+    state.Duration = 120.0;
+    REQUIRE_FALSE(view::PlayerBarState(state).seekable);  // no current track
+
+    Track track;
+    track.title = L"Alpha";
+    state.CurrentTrack = track;
+    REQUIRE(view::PlayerBarState(state).seekable);
+
+    state.Duration = 0.0;  // unknown duration: nothing to drag over
+    REQUIRE_FALSE(view::PlayerBarState(state).seekable);
+}
+
+TEST_CASE("VS-44 a progress bar value maps to a position in the track") {
+    AppState state;
+    state.Duration = 2175.0;
+    REQUIRE(view::SeekPosition(state, 50.0) == 1087.5);
+    REQUIRE(view::SeekPosition(state, 0.0) == 0.0);
+    REQUIRE(view::SeekPosition(state, 100.0) == 2175.0);
+    // Out of range values are clamped, never a position outside the track.
+    REQUIRE(view::SeekPosition(state, 140.0) == 2175.0);
+    REQUIRE(view::SeekPosition(state, -10.0) == 0.0);
+    // An unknown duration has no positions to map to.
+    state.Duration = 0.0;
+    REQUIRE(view::SeekPosition(state, 50.0) == 0.0);
+}
+
 // ─── VS-05/06/07 播放条时间文案（#333）──────────────────────────────
 
 TEST_CASE("VS-05 buffering renders the buffering copy instead of a clock") {

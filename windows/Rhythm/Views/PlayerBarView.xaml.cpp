@@ -45,6 +45,24 @@ void PlayerBarView::InitializeComponent() {
                                winrt::box_value(winrt::hstring{ rhythm::L10n::StopTooltip() }));
     ToolTipService::SetToolTip(btnNext(),
                                winrt::box_value(winrt::hstring{ rhythm::L10n::NextTooltip() }));
+
+    // #498: the slider marks its own pointer events handled, so the drag is
+    // followed with handledEventsToo. Pressing holds the thumb against
+    // progress updates; releasing (or losing the capture) commits the seek.
+    using winrt::Microsoft::UI::Xaml::Input::PointerEventHandler;
+    using winrt::Microsoft::UI::Xaml::Input::PointerRoutedEventArgs;
+    auto press = [this](IInspectable const&, PointerRoutedEventArgs const&) { seeking_ = true; };
+    auto release = [this](IInspectable const&, PointerRoutedEventArgs const&) {
+        if (!seeking_) return;
+        seeking_ = false;
+        CommitSeek();
+    };
+    seekSlider().AddHandler(UIElement::PointerPressedEvent(),
+                            winrt::box_value(PointerEventHandler(press)), true);
+    seekSlider().AddHandler(UIElement::PointerReleasedEvent(),
+                            winrt::box_value(PointerEventHandler(release)), true);
+    seekSlider().AddHandler(UIElement::PointerCaptureLostEvent(),
+                            winrt::box_value(PointerEventHandler(release)), true);
 }
 
 void PlayerBarView::BindState(rhythm::AppState* state) {
@@ -80,13 +98,31 @@ void PlayerBarView::Update() {
     playIcon().Symbol(ToSymbol(bar.playIcon));
     playModeIcon().Symbol(ToSymbol(bar.playModeIcon));
 
-    progressBar().Value(bar.progressPercent);
+    seekSlider().IsEnabled(bar.seekable);
+    if (!seeking_) {  // a held thumb is not pulled back by progress (#498)
+        updatingSeek_ = true;
+        seekSlider().Value(bar.progressPercent);
+        updatingSeek_ = false;
+    }
 
     timeText().Text(bar.timeText);
 
     volumeSlider().Value(bar.volumePercent);
 
     urlStatus().Text(bar.urlStatusText);
+}
+
+void PlayerBarView::CommitSeek() {
+    if (appState_) appState_->Seek(rhythm::view::SeekPosition(*appState_, seekSlider().Value()));
+    Update();
+}
+
+void PlayerBarView::OnSeekValueChanged(IInspectable const&,
+                                       Primitives::RangeBaseValueChangedEventArgs const&) {
+    // Values written by Update() and the steps of a held drag are not seeks;
+    // anything else (keyboard, a click on the track) seeks right away.
+    if (updatingSeek_ || seeking_) return;
+    CommitSeek();
 }
 
 void PlayerBarView::OnPlayPauseClick(IInspectable const&, RoutedEventArgs const&) {

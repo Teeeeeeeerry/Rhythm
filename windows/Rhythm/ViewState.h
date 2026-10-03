@@ -112,6 +112,10 @@ struct PlayerBar {
     /// Progress bar value, 0-100. Zero while the duration is unknown -- no
     /// made-up progress -- and clamped when the position runs past it (#332).
     double progressPercent = 0.0;
+    /// Whether the progress bar can be dragged (#498): only with a current
+    /// track whose duration is known -- an unknown duration has no positions
+    /// to seek to.
+    bool seekable = false;
     /// The buffering copy while buffering -- a link can take a while to
     /// start, and 0:00 / 0:00 reads as a dead player (#137) -- otherwise
     /// "position / duration" in m:ss (#333).
@@ -134,6 +138,11 @@ struct PlayerBar {
 /// so the player bar never queries the resolver; tests drive it through the
 /// app state's `PollResolverStatus`.
 PlayerBar PlayerBarState(const AppState& state);
+
+/// The position, in seconds, a progress bar value (0-100) stands for (#498):
+/// the value is clamped into range, and an unknown duration maps to zero.
+/// The player bar hands it to `AppState::Seek` when a drag ends.
+double SeekPosition(const AppState& state, double percent);
 
 /// The notification-area menu (#340): its item labels, in the language the
 /// language layer currently resolves, and whether play/pause is available.

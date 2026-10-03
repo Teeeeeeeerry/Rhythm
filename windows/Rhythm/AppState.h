@@ -133,6 +133,12 @@ public:
     /// position and duration zero, not buffering.
     void Stop();
 
+    /// Seek the current track to `seconds` through the coordinator's seek
+    /// entry point (#498, macOS `seek(to:)`), clamped into the track; the
+    /// position follows only when the engine accepted it. A no-op without a
+    /// current track or while the duration is unknown -- nothing to seek in.
+    void Seek(double seconds);
+
     /// The resolver's provisioning copy (#349), so views never query the
     /// resolver: empty unless a link is resolving, and empty while the
     /// resolver has nothing to report (idle/ready). Polls only while resolving.
