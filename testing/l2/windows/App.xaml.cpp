@@ -170,17 +170,20 @@ IAsyncAction CaptureView(Theme theme, FrameworkElement view, double width, doubl
 
 /// The library page with fixture tracks, in both of its sort modes.
 IAsyncAction CaptureLibrary(Theme theme, fs::path dir) {
-    for (int sort : {0, 1}) {
+    using ::rhythm::view::LibrarySort;
+    for (auto sort : {LibrarySort::ArtistAlbum, LibrarySort::Alphabetical}) {
         ::rhythm::AppState state;
         state.Tracks = ::rhythm::capture::FixtureTracks();
 
         Rhythm::Views::LibraryView page;
         page.RequestedTheme(theme.value);
         auto impl = get_self<Views::implementation::LibraryView>(page);
-        impl->viewPivot().SelectedIndex(sort);
+        // The page's pivot picks the sort: first item artist/album, second A-Z.
+        impl->viewPivot().SelectedIndex(sort == LibrarySort::ArtistAlbum ? 0 : 1);
         impl->BindState(&state);
 
-        const wchar_t* name = sort == 0 ? L"LibraryView_ArtistAlbum_" : L"LibraryView_Letter_";
+        const wchar_t* name = sort == LibrarySort::ArtistAlbum ? L"LibraryView_ArtistAlbum_"
+                                                               : L"LibraryView_Letter_";
         co_await CaptureView(theme, page, 760, 440, dir / (std::wstring(name) + theme.name + L".png"));
     }
 }
@@ -190,10 +193,11 @@ IAsyncAction CapturePlayerBar(Theme theme, fs::path dir) {
     for (bool playing : {false, true}) {
         ::rhythm::AppState state;
         if (playing) {
-            state.CurrentTrack = ::rhythm::capture::FixtureTracks()[3];
+            const auto track = ::rhythm::capture::NowPlayingTrack();
+            state.CurrentTrack = track;
             state.IsPlaying = true;
             state.Position = 86;
-            state.Duration = 2175;
+            state.Duration = track.duration;
         }
 
         Rhythm::Views::PlayerBarView bar;

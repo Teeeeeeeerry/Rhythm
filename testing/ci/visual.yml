@@ -90,7 +90,7 @@ jobs:
           exclude: |
             **/*.py
 
-  # Windows L2（截屏宿主 + golden 比对，#495）随 `python scripts/tasks.py test` 执行（ci.yml 的
+  # Windows L2（截屏宿主 + golden 比对，#495）随 `python3 scripts/tasks.py test` 执行（ci.yml 的
   # Windows 任务），这里不再重复；见 testing/README.md「Windows L2 截屏比对」。
   windows-visual:
     name: Windows 视觉（L3）

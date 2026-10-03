@@ -40,4 +40,13 @@ inline std::vector<Track> FixtureTracks() {
     };
 }
 
+/// The track the "playing" player bar shows: a long online stream, the case
+/// the player bar's time text and progress have to handle.
+inline Track NowPlayingTrack() {
+    for (const auto& track : FixtureTracks()) {
+        if (track.sourceType == L"bilibili") return track;
+    }
+    return {};
+}
+
 } // namespace rhythm::capture

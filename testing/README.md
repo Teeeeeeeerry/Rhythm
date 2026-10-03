@@ -120,7 +120,7 @@ L0 已全绿，P0（F1–F5，F5 于 #147 删除死代码）完成。合并门�
 
 ## Windows L2 截屏比对（#495）
 
-#387 登记的缺口已补齐：Windows 端的视图外观回归由三步把关，随 `python scripts/tasks.py test` 执行，排在 L1b 之后
+#387 登记的缺口已补齐：Windows 端的视图外观回归由三步把关，随 `python3 scripts/tasks.py test` 执行，排在 L1b 之后
 （宿主链接 L1b 构建出的行为库、读取它配置期写出的 props）。
 
 1. **截屏宿主构建**：`testing/l2/windows/RhythmCapture.vcxproj` 是 MSBuild 工程（XAML 标记编译只有 MSBuild 有，ADR-0004）。

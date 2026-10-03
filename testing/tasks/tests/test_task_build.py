@@ -29,7 +29,7 @@ WINDOWS_CMAKE = ROOT / "windows" / "CMakeLists.txt"
 # 行为库的唯一声明处：源文件清单、使用要求、核心产物都在这里（#330）
 BEHAVIOR_CMAKE = ROOT / "windows" / "cmake" / "RhythmBehavior.cmake"
 APP_VCXPROJ = ROOT / "windows" / "Rhythm" / "Rhythm.vcxproj"
-# The shell's settings and views, shared by the app and the L2 capture host (#495).
+# 壳层的设置与视图，应用与 L2 截屏宿主共用（#495）。
 SHELL_PROPS = ROOT / "windows" / "Rhythm" / "RhythmShell.props"
 SHELL_TARGETS = ROOT / "windows" / "Rhythm" / "RhythmShell.targets"
 L1_CMAKE = ROOT / "testing" / "l1" / "windows" / "CMakeLists.txt"
