@@ -16,62 +16,81 @@
                      Height="4"
                      Foreground="{ThemeResource RhythmAccentBrush}" />
 
+        <!-- #496: the controls sit in an Auto column so a narrow window never
+             clips them; the two equal star columns keep them centred and give
+             way first: the title truncates and the volume slider narrows. -->
         <Grid Grid.Row="1" Margin="16,4">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="180" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+            <Grid Grid.Column="0" ColumnSpacing="8" Margin="0,0,16,0"
+                  VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
                 <Border Width="40" Height="40" CornerRadius="4"
                         Background="{ThemeResource RhythmElevatedBrush}">
                     <SymbolIcon Symbol="MusicInfo" />
                 </Border>
-                <StackPanel VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" VerticalAlignment="Center"
+                            MaxWidth="180" HorizontalAlignment="Left">
                     <TextBlock x:Name="trackTitle"
                                FontSize="12" FontWeight="SemiBold"
-                               TextTrimming="CharacterEllipsis"
-                               MaxWidth="120" />
+                               TextTrimming="CharacterEllipsis" />
                     <TextBlock x:Name="trackArtist" Text=""
                                FontSize="11"
                                Foreground="{ThemeResource RhythmTextSecondaryBrush}"
-                               TextTrimming="CharacterEllipsis"
-                               MaxWidth="120" />
+                               TextTrimming="CharacterEllipsis" />
                 </StackPanel>
-            </StackPanel>
+            </Grid>
 
+            <!-- #496: the buttons size to their icon plus padding; a fixed
+                 32px square left the default padding no room for the glyph. -->
             <StackPanel Grid.Column="1" Orientation="Horizontal"
-                        HorizontalAlignment="Center" Spacing="12">
-                <Button Width="32" Height="32">
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Spacing="12">
+                <Button Padding="8" VerticalAlignment="Center">
                     <SymbolIcon Symbol="Previous" />
                 </Button>
-                <Button x:Name="btnPlayPause" Width="40" Height="40"
+                <Button x:Name="btnPlayPause" Padding="10" VerticalAlignment="Center"
                         Click="OnPlayPauseClick">
                     <SymbolIcon x:Name="playIcon" Symbol="Play" />
                 </Button>
-                <Button Width="32" Height="32">
+                <Button Padding="8" VerticalAlignment="Center">
                     <SymbolIcon Symbol="Next" />
                 </Button>
                 <!-- #373: play mode control; tooltip text comes from the key
                      table (play_mode_tooltip), icon follows AppState.CurrentMode. -->
-                <Button x:Name="btnPlayMode" Width="32" Height="32"
+                <Button x:Name="btnPlayMode" Padding="8" VerticalAlignment="Center"
                         Click="OnPlayModeClick">
                     <SymbolIcon x:Name="playModeIcon" Symbol="List" />
                 </Button>
             </StackPanel>
 
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
-                        VerticalAlignment="Center">
-                <SymbolIcon Symbol="Volume" />
-                <Slider x:Name="volumeSlider" Width="80"
+            <!-- #496: icon, slider and time text share one centred row; the
+                 slider is the part that narrows when the column does. -->
+            <Grid Grid.Column="2" ColumnSpacing="8" Margin="8,0,0,0"
+                  VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="4*" MaxWidth="80" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <SymbolIcon Grid.Column="1" Symbol="Volume" VerticalAlignment="Center" />
+                <Slider x:Name="volumeSlider" Grid.Column="2" VerticalAlignment="Center"
                         Minimum="0" Maximum="100" Value="100"
                         ValueChanged="OnVolumeChanged" />
-                <TextBlock x:Name="timeText" FontSize="11"
+                <TextBlock x:Name="timeText" Grid.Column="3" FontSize="11"
+                           VerticalAlignment="Center"
                            Foreground="{ThemeResource RhythmTextSecondaryBrush}"
                            Text="0:00 / 0:00" Width="80"
                            HorizontalTextAlignment="Right" />
-            </StackPanel>
+            </Grid>
         </Grid>
 
         <Grid Grid.Row="2" Margin="16,0,16,8">
