@@ -81,6 +81,13 @@ public:
     /// without polling (ticket #172/#173). Set by the main window.
     std::function<void()> OnStateChanged;
 
+    /// Raised once every time the track or playlist lists are reloaded
+    /// (#494), so the library page re-renders because the data changed --
+    /// not because each import entry remembered to refresh it. A channel of
+    /// its own, separate from `OnStateChanged`, and delivered on the UI
+    /// thread (directly when none is set). Set by the main window.
+    std::function<void()> OnLibraryChanged;
+
     void OpenDatabase(const std::wstring& path);
     void RefreshLibrary();
     void ImportDirectory(const std::wstring& path);
@@ -156,6 +163,9 @@ public:
     void ApplyCoordinatorEvent(const std::wstring& json);
 
 private:
+    /// Deliver `OnLibraryChanged` on the UI thread (#494).
+    void NotifyLibraryChanged();
+
     /// Coordinator event entry point: marshal to the UI thread when a
     /// UI thread is set, otherwise apply directly (tests).
     void OnCoordinatorEvent(const std::wstring& json);

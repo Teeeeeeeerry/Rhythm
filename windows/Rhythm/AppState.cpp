@@ -45,6 +45,19 @@ void AppState::RefreshLibrary() {
     // reachable via "next" and deleted tracks are removed — inside the
     // coordinator (ticket #173).
     Coordinator->SyncQueue(Tracks);
+
+    NotifyLibraryChanged();
+}
+
+void AppState::NotifyLibraryChanged() {
+    if (!OnLibraryChanged) return;
+    if (uiPost_) {
+        uiPost_([this] {
+            if (OnLibraryChanged) OnLibraryChanged();
+        });
+    } else {
+        OnLibraryChanged();
+    }
 }
 
 int64_t AppState::CreatePlaylist(const std::wstring& name) {

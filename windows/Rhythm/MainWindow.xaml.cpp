@@ -51,6 +51,12 @@ void MainWindow::InitializeComponent() {
         get_self<Views::implementation::PlayerBarView>(playerBar())->Update();
     };
 
+    // #494: the library page follows the data. Every reload of the lists --
+    // any import path, including the online one that finishes on a resolver
+    // thread -- arrives here on the UI thread; no import entry refreshes the
+    // page by hand any more.
+    appState_.OnLibraryChanged = [this] { RefreshLibraryIfShown(); };
+
     rhythm::shell::AttachTray(hwnd_, &appState_);
     Closed([](auto&&, auto&&) { rhythm::shell::DetachTray(); });
 
@@ -102,7 +108,6 @@ winrt::fire_and_forget MainWindow::OnImportClick(IInspectable const&, RoutedEven
         auto folder = co_await picker.PickSingleFolderAsync();
         if (!folder) co_return;
         appState_.ImportDirectory(folder.Path().c_str());
-        RefreshLibraryIfShown();
     } catch (winrt::hresult_error const& e) {
         // An exception leaving a fire_and_forget coroutine ends the process.
         OutputDebugStringW((L"Folder import failed: " + e.message() + L"\n").c_str());
@@ -134,7 +139,6 @@ winrt::fire_and_forget MainWindow::OnImportFileClick(IInspectable const&, Routed
             }
             appState_.ImportPaths(paths);
         }
-        RefreshLibraryIfShown();
     } catch (winrt::hresult_error const& e) {
         OutputDebugStringW((L"File import failed: " + e.message() + L"\n").c_str());
     }

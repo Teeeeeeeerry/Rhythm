@@ -41,6 +41,7 @@
 | AS-37 | `playResolved` 持久化失败 | `addTrack` 返回 nil → `saved=track`（id=-1）、仍尝试播放（`start` 携 id=-1，队列定位跳过） | 真库 + SpyCoordinator |
 | AS-38 | `importResolved` 库未打开 | `addTrack` 返回 nil → `saved=track`、`refreshLibrary` no-op、alert 仍弹 | SpyCoordinator（library=nil） |
 | AS-39 | `seek` 乐观更新 | `position` 立即更新为请求秒数，不等 core 回报 | SpyCoordinator |
+| AS-43（#494） | 在线导入后曲目列表随状态更新 | `resolveAndImport` 成功后 `$tracks` 在主线程发布含新曲目的列表；列表视图观察该状态，不需要显式刷新（Windows 对应条目 WA-41） | stub resolver + 真库 + `$tracks` 订阅 |
 
 ## 错误路径（P2 — 仅断言"错误被正确上报"，可顺延）
 
