@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 import Foundation
 @testable import Rhythm
 
@@ -402,6 +403,36 @@ final class AppStatePlaybackMainPathTests: AppStatePlaybackTestCase {
         XCTAssertTrue(spy.startCalls.isEmpty, "no playback started at all")
         XCTAssertFalse(appState.isResolvingURL)
         XCTAssertEqual(appState.urlInput, "")
+    }
+
+    // MARK: - AS-43 在线导入后曲目列表随状态更新（#494）
+
+    /// The list view observes `tracks`; a published change is what redraws
+    /// it. An online import must publish the new list on the main thread --
+    /// no explicit view refresh exists on macOS, and none is needed.
+    func testResolveAndImport_PublishesTheNewTrackList() throws {
+        appState.resolver = { _ in .success(ResolvedInfo(
+            title: "Published Title",
+            artist: nil,
+            streamUrl: "https://cdn.example.com/x.mp3",
+            duration: 60,
+            sourceType: "bilibili",
+            thumbnailUrl: nil
+        )) }
+        var published: [[Track]] = []
+        var publishedOnMain = true
+        let subscription = appState.$tracks.dropFirst().sink { tracks in
+            publishedOnMain = publishedOnMain && Thread.isMainThread
+            published.append(tracks)
+        }
+        defer { subscription.cancel() }
+
+        appState.resolveAndImport("https://www.bilibili.com/video/BV1")
+
+        XCTAssertTrue(waitUntil { published.contains { $0.count == 1 } },
+                      "the imported track must reach the observed list")
+        XCTAssertEqual(published.last?.first?.title, "Published Title")
+        XCTAssertTrue(publishedOnMain, "the list is published on the main thread")
     }
 
     // MARK: - AS-20 resolveAndImport 失败

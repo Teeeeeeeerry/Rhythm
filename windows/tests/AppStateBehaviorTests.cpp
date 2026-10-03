@@ -1188,3 +1188,119 @@ TEST_CASE("WA-40 a current playlist with no id is cleared by a refresh") {
 
     REQUIRE_FALSE(state.CurrentPlaylist.has_value());
 }
+
+// ─── WA-41 资料库已变化通知（#494）──────────────────────────────────
+
+namespace {
+
+/// Counts "library changed" notifications and records the thread each one
+/// arrived on, so a test can tell "once, on the UI thread" from "twice" or
+/// "on the import's own thread".
+struct LibraryChangeProbe {
+    std::atomic<int> count{0};
+    std::mutex mutex;
+    std::vector<std::thread::id> threads;
+
+    void Attach(AppState& state) {
+        state.OnLibraryChanged = [this] {
+            {
+                std::lock_guard lock(mutex);
+                threads.push_back(std::this_thread::get_id());
+            }
+            ++count;
+        };
+    }
+
+    /// Waits for `expected` notifications, then drains the UI queue once
+    /// more so a stray second notification would have arrived by now.
+    bool SettlesAt(SpyApp& app, int expected) {
+        if (!waitFor([&] { return count.load() >= expected; })) return false;
+        std::atomic<bool> drained{false};
+        app.ui->Post()([&] { drained = true; });
+        waitFor([&] { return drained.load(); });
+        return count.load() == expected;
+    }
+
+    bool AllOn(std::thread::id thread) {
+        std::lock_guard lock(mutex);
+        for (auto id : threads) {
+            if (id != thread) return false;
+        }
+        return !threads.empty();
+    }
+};
+
+std::thread::id UiThreadId(SpyApp& app) {
+    std::atomic<bool> done{false};
+    std::thread::id id;
+    app.ui->Post()([&] {
+        id = std::this_thread::get_id();
+        done = true;
+    });
+    waitFor([&] { return done.load(); });
+    return id;
+}
+
+} // namespace
+
+TEST_CASE("WA-41 an online import notifies the library change once, on the UI thread") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    app.UseUiThread();
+    LibraryChangeProbe probe;
+    probe.Attach(app.state);
+
+    app.state.ResolveAndPlay(L"https://example.com/wa41-tone.mp3");
+
+    REQUIRE(probe.SettlesAt(app, 1));
+    REQUIRE(probe.AllOn(UiThreadId(app)));
+    REQUIRE(app.state.Tracks.size() == 1);
+}
+
+TEST_CASE("WA-41 every local import path notifies the library change exactly once") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    app.UseUiThread();
+    LibraryChangeProbe probe;
+    probe.Attach(app.state);
+    int playbackNotifications = 0;
+    app.state.OnStateChanged = [&] { ++playbackNotifications; };
+
+    auto music = app.dir.path / L"music";
+    fs::create_directories(music);
+    writeWavAt(music, L"one.wav");
+    app.state.ImportDirectory(music.wstring());
+    REQUIRE(probe.SettlesAt(app, 1));
+
+    auto single = writeWavAt(app.dir.path, L"single.wav");
+    app.state.ImportFile(single.wstring());
+    REQUIRE(probe.SettlesAt(app, 2));
+
+    auto a = writeWavAt(app.dir.path, L"batch-a.wav");
+    auto b = writeWavAt(app.dir.path, L"batch-b.wav");
+    app.state.ImportPaths({a.wstring(), b.wstring()});
+    REQUIRE(probe.SettlesAt(app, 3));
+
+    auto playlist = app.dir.path / L"list.m3u8";
+    {
+        std::ofstream out(playlist);
+        out << "#EXTM3U\n#EXTINF:180,Remote Artist - Remote Song\nhttps://example.com/remote.mp3\n";
+    }
+    app.state.ImportM3U8(playlist.wstring());
+    REQUIRE(probe.SettlesAt(app, 4));
+
+    REQUIRE(probe.AllOn(UiThreadId(app)));
+    // A separate channel: imports never raise the playback notification.
+    REQUIRE(playbackNotifications == 0);
+}
+
+TEST_CASE("WA-41 without a UI thread the library change is notified directly") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    int notified = 0;
+    app.state.OnLibraryChanged = [&] { ++notified; };
+
+    app.state.ImportFile(writeWavAt(app.dir.path, L"direct.wav").wstring());
+
+    REQUIRE(notified == 1);
+}

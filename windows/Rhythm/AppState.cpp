@@ -45,6 +45,25 @@ void AppState::RefreshLibrary() {
     // reachable via "next" and deleted tracks are removed — inside the
     // coordinator (ticket #173).
     Coordinator->SyncQueue(Tracks);
+
+    NotifyLibraryChanged();
+}
+
+void AppState::NotifyLibraryChanged() {
+    if (!OnLibraryChanged) return;
+    DeliverOnUi([this] {
+        if (OnLibraryChanged) OnLibraryChanged();
+    });
+}
+
+void AppState::DeliverOnUi(std::function<void()> work) {
+    auto post = uiPost_;
+    if (post) {
+        post(std::move(work));
+    } else {
+        // No UI thread (tests): run on the caller thread.
+        work();
+    }
 }
 
 int64_t AppState::CreatePlaylist(const std::wstring& name) {
@@ -297,13 +316,7 @@ void AppState::ResolveAndPlay(const std::wstring& url) {
 // ─── Coordinator events (ticket #172/#173) ─────────────────────────
 
 void AppState::OnCoordinatorEvent(const std::wstring& json) {
-    auto post = uiPost_;
-    if (post) {
-        post([this, json] { ApplyCoordinatorEvent(json); });
-    } else {
-        // No UI thread (tests): apply synchronously on the caller thread.
-        ApplyCoordinatorEvent(json);
-    }
+    DeliverOnUi([this, json] { ApplyCoordinatorEvent(json); });
 }
 
 void AppState::ApplyCoordinatorEvent(const std::wstring& json) {
