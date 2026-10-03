@@ -232,6 +232,17 @@ void AppState::PlayPrevious() {
     }
 }
 
+// ─── Stop (WA-42, #497) ────────────────────────────────────────────
+
+void AppState::Stop() {
+    Coordinator->Stop();
+    IsPlaying = false;
+    IsBuffering = false;
+    CurrentTrack.reset();
+    Position = 0;
+    Duration = 0;
+}
+
 // ─── Play mode (WA-21) ─────────────────────────────────────────────
 
 const Playlist* AppState::FindPlaylist(int64_t id) const {

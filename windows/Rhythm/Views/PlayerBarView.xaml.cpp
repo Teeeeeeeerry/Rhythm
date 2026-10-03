@@ -38,6 +38,13 @@ void PlayerBarView::InitializeComponent() {
     // #373: the play mode control's tooltip, taken from the key table.
     ToolTipService::SetToolTip(btnPlayMode(),
                                winrt::box_value(winrt::hstring{ rhythm::L10n::PlayModeTooltip() }));
+    // #497: the transport buttons' tooltips, from the key table too.
+    ToolTipService::SetToolTip(btnPrevious(),
+                               winrt::box_value(winrt::hstring{ rhythm::L10n::PreviousTooltip() }));
+    ToolTipService::SetToolTip(btnStop(),
+                               winrt::box_value(winrt::hstring{ rhythm::L10n::StopTooltip() }));
+    ToolTipService::SetToolTip(btnNext(),
+                               winrt::box_value(winrt::hstring{ rhythm::L10n::NextTooltip() }));
 }
 
 void PlayerBarView::BindState(rhythm::AppState* state) {
@@ -84,6 +91,21 @@ void PlayerBarView::Update() {
 
 void PlayerBarView::OnPlayPauseClick(IInspectable const&, RoutedEventArgs const&) {
     if (appState_) appState_->TogglePlayPause();
+    Update();
+}
+
+void PlayerBarView::OnPreviousClick(IInspectable const&, RoutedEventArgs const&) {
+    if (appState_) appState_->PlayPrevious();
+    Update();
+}
+
+void PlayerBarView::OnStopClick(IInspectable const&, RoutedEventArgs const&) {
+    if (appState_) appState_->Stop();
+    Update();
+}
+
+void PlayerBarView::OnNextClick(IInspectable const&, RoutedEventArgs const&) {
+    if (appState_) appState_->PlayNext();
     Update();
 }
 

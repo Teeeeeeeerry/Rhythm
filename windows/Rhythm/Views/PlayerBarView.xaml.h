@@ -15,6 +15,12 @@ struct PlayerBarView : PlayerBarViewT<PlayerBarView> {
 
     void OnPlayPauseClick(winrt::Windows::Foundation::IInspectable const&,
                           winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
+    void OnPreviousClick(winrt::Windows::Foundation::IInspectable const&,
+                         winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
+    void OnStopClick(winrt::Windows::Foundation::IInspectable const&,
+                     winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
+    void OnNextClick(winrt::Windows::Foundation::IInspectable const&,
+                     winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
     void OnPlayModeClick(winrt::Windows::Foundation::IInspectable const&,
                          winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
     void OnVolumeChanged(winrt::Windows::Foundation::IInspectable const&,
