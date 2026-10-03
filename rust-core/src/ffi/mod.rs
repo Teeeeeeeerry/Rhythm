@@ -1007,13 +1007,14 @@ pub unsafe extern "C" fn rhythm_coordinator_get_position(ptr: *mut RhythmCoordin
     unsafe { ptr.as_ref().map(|c| c.inner.lock().unwrap().player().position()).unwrap_or(0.0) }
 }
 
-/// Get media duration in seconds.
+/// Get media duration in seconds: the engine's, else the current track's
+/// known duration (#493, the same rule as progress events).
 #[no_mangle]
 ///
 /// # Safety
 /// See the module-level `# Safety` contract.
 pub unsafe extern "C" fn rhythm_coordinator_get_duration(ptr: *mut RhythmCoordinator) -> f64 {
-    unsafe { ptr.as_ref().map(|c| c.inner.lock().unwrap().player().duration()).unwrap_or(0.0) }
+    unsafe { ptr.as_ref().map(|c| c.inner.lock().unwrap().duration()).unwrap_or(0.0) }
 }
 
 /// Get player state: 0=Stopped, 1=Playing, 2=Paused, 3=Buffering, 4=Error, 5=Finished

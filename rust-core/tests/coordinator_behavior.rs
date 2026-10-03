@@ -882,6 +882,83 @@ fn co29_progress_events_are_forwarded() {
     );
 }
 
+// ─── CO-33: 在线流总时长回退到曲目已知时长（#493）──────────────────
+
+/// The duration carried by the last progress event.
+fn last_progress_duration(events: &Arc<Mutex<Vec<CoordinatorEvent>>>) -> Option<f64> {
+    events.lock().unwrap().iter().rev().find_map(|e| match e {
+        CoordinatorEvent::Progress { duration, .. } => Some(*duration),
+        _ => None,
+    })
+}
+
+#[test]
+fn co33_unknown_engine_duration_falls_back_to_the_track_duration() {
+    // An online stream's codec parameters carry no frame count: the engine
+    // reports 0, while the library knows the track runs 36:15.
+    let (player, _, _, bus) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+    let events = subscribe(&coord);
+    let mut stream = url_track(1, "Stream", "https://www.bilibili.com/video/BV1");
+    stream.duration = 2175.0;
+    assert!(coord.start(None, stream.clone(), vec![stream], PlayMode::Sequential).ok);
+
+    bus.fire_progress(86.0, 0.0);
+
+    assert_eq!(last_progress_duration(&events), Some(2175.0));
+    // The duration getter answers by the same rule (the fake engine reports 0).
+    assert_eq!(coord.duration(), 2175.0);
+}
+
+#[test]
+fn co33_a_valid_engine_duration_wins_over_the_track_duration() {
+    let (player, _, _, bus) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+    let events = subscribe(&coord);
+    let mut track = dummy_track(1, "A");
+    track.duration = 2175.0;
+    assert!(coord.start(None, track.clone(), vec![track], PlayMode::Sequential).ok);
+
+    bus.fire_progress(12.5, 180.0);
+
+    assert_eq!(last_progress_duration(&events), Some(180.0));
+}
+
+#[test]
+fn co33_no_duration_anywhere_stays_zero() {
+    let (player, _, _, bus) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+    let events = subscribe(&coord);
+    let mut stream = url_track(1, "Stream", "https://example.com/live");
+    stream.duration = 0.0;
+    assert!(coord.start(None, stream.clone(), vec![stream], PlayMode::Sequential).ok);
+
+    bus.fire_progress(5.0, 0.0);
+    assert_eq!(last_progress_duration(&events), Some(0.0));
+
+    // After stop there is no current track to fall back to either.
+    coord.stop();
+    bus.fire_progress(0.0, 0.0);
+    assert_eq!(last_progress_duration(&events), Some(0.0));
+}
+
+#[test]
+fn co33_the_fallback_follows_the_track_change() {
+    let (player, _, _, bus) = FakePlayer::new();
+    let mut coord = make_coordinator(player);
+    let events = subscribe(&coord);
+    let mut a = url_track(1, "A", "https://example.com/a");
+    a.duration = 100.0;
+    let mut b = url_track(2, "B", "https://example.com/b");
+    b.duration = 200.0;
+    assert!(coord.start(None, a.clone(), vec![a, b], PlayMode::Sequential).ok);
+    assert!(coord.next(None).ok);
+
+    bus.fire_progress(1.0, 0.0);
+
+    assert_eq!(last_progress_duration(&events), Some(200.0));
+}
+
 #[test]
 fn co30_state_events_are_forwarded() {
     let (player, _, _, bus) = FakePlayer::new();

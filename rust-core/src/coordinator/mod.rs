@@ -278,6 +278,12 @@ pub struct PlaybackCoordinator {
     /// The UI's event subscription (ticket #172). `Arc` so the engine
     /// wiring closures can hold a clone without a self-reference cycle.
     event_callback: Arc<Mutex<Option<CoordinatorEventCallback>>>,
+    /// The current track's known duration (library or resolver value, 0 when
+    /// unknown or nothing is current), shared with the progress wiring: an
+    /// online stream's codec parameters carry no frame count, so the engine
+    /// reports 0 and progress falls back to this (#493). Kept in step with
+    /// `current_track` by `set_current_track`.
+    known_duration: Arc<Mutex<f64>>,
 }
 
 impl PlaybackCoordinator {
@@ -296,6 +302,7 @@ impl PlaybackCoordinator {
             play_mode: PlayMode::Sequential,
             library_tracks: Vec::new(),
             event_callback: Arc::new(Mutex::new(None)),
+            known_duration: Arc::new(Mutex::new(0.0)),
         };
         coordinator.wire_engine_events();
         coordinator
@@ -315,7 +322,9 @@ impl PlaybackCoordinator {
             emit_event(&holder, event);
         }));
         let holder = self.event_callback.clone();
+        let known_duration = self.known_duration.clone();
         self.player.on_progress(Box::new(move |position, duration| {
+            let duration = effective_duration(duration, *known_duration.lock().unwrap());
             emit_event(
                 &holder,
                 CoordinatorEvent::Progress {
@@ -324,6 +333,20 @@ impl PlaybackCoordinator {
                 },
             );
         }));
+    }
+
+    /// The current track's duration as the UI should show it: the engine's
+    /// when it can report one, else the track's known duration (#493).
+    pub fn duration(&self) -> f64 {
+        effective_duration(self.player.duration(), *self.known_duration.lock().unwrap())
+    }
+
+    /// The one place the current track changes, so the progress fallback
+    /// (#493) always describes the track that is playing.
+    fn set_current_track(&mut self, track: Option<TrackInfo>) {
+        let known = track.as_ref().map_or(0.0, |t| t.duration.max(0.0));
+        *self.known_duration.lock().unwrap() = known;
+        self.current_track = track;
     }
 
     /// Handle a natural track end: auto-advance to the next playable track
@@ -398,7 +421,7 @@ impl PlaybackCoordinator {
         }
         self.queue = Some(queue);
         self.play_mode = mode;
-        self.current_track = Some(track.clone());
+        self.set_current_track(Some(track.clone()));
         self.emit(CoordinatorEvent::TrackChanged { track: Box::new(track.clone()) });
         CoordinatorResult::ok_with_track(track)
     }
@@ -436,7 +459,7 @@ impl PlaybackCoordinator {
     /// Stop playback and clear the transport state (current track + queue).
     pub fn stop(&mut self) {
         self.player.stop();
-        self.current_track = None;
+        self.set_current_track(None);
         self.queue = None;
     }
 
@@ -570,7 +593,7 @@ impl PlaybackCoordinator {
                     }
                 }
             }
-            self.current_track = Some(candidate.clone());
+            self.set_current_track(Some(candidate.clone()));
             self.emit(CoordinatorEvent::TrackChanged { track: Box::new(candidate.clone()) });
             return CoordinatorResult::ok_with_track(candidate.clone());
         }
@@ -597,6 +620,18 @@ impl PlaybackCoordinator {
 impl Default for PlaybackCoordinator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// #493: the duration rule lives here, not in either player bar. A duration
+/// the engine cannot report (0, as for an online stream whose codec
+/// parameters carry no frame count) gives way to the track's known one; with
+/// neither it stays 0 and the bar renders "unknown".
+fn effective_duration(engine: f64, known: f64) -> f64 {
+    if engine > 0.0 {
+        engine
+    } else {
+        known
     }
 }
 
