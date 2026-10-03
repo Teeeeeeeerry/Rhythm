@@ -11,12 +11,13 @@
 | RM-01 | 恒等直通 | 同率同声道：`is_identity()` true、样本 1:1 拷贝 | 已有 `test_identity_passthrough` |
 | RM-02 | 单声道→立体声 | 单声道样本复制到两声道 | 已有 `test_mono_to_stereo` |
 | RM-03 | 降采样 | 48k→24k 半速，输出帧数按比例 | 已有 `test_half_speed_downsample` |
-| RM-04 | 线性插值 | 48k→96k 中间帧取均值；末尾钳制到末帧 | 已有 `test_interpolation` |
+| RM-04 | 线性插值 | 48k→96k 中间帧取均值；末帧之后的输出帧留到下一块，流末由 `flush` 钳制到末帧输出（#500） | 已有 `test_interpolation` |
 | RM-05 | 跨块连续性（#28） | 44.1k→48k 多块输出总数 ≈ 理论值（无每块返 0） | 已有 `multi_block_44k_to_48k_continuous_output` |
 | RM-06 | 恒等跨块连续 | 恒等多块每块输出完整帧数 | 已有 `multi_block_identity_continuous_output` |
 | RM-07 | `reset`（seek 场景） | 重置后 phase 清零，输出与全新实例一致 | 已有 `reset_matches_fresh_instance` |
 | RM-08 | 空输入/空输出 | 返回 0 帧 | 已有 `empty_input_or_output_yields_zero` |
 | RM-09 | 声道映射 | 输入声道少于输出（如立体声→4 声道）多余声道静音；输入多于输出取前 N 平面 | 已有 `channel_mapping_extra_and_missing_planes` |
+| RM-13 | 块边界朝下一块首帧插值（#499/#500） | 变采样率时，落在本块末帧之后的输出帧不朝上一块尾帧插值，而是留到下一块、朝其首帧插值；落在输入帧上的输出帧不需要邻帧，同采样率仍逐块全量输出。本模块私有，经音频引擎行为测试锁定 | `audio_engine.rs::ae44_continuous_tone_reaches_sink_without_boundary_jumps`（AE-44） |
 
 ## 边界情况（P1）
 
@@ -24,7 +25,7 @@
 |---|---|---|---|
 | RM-10 | 输出缓冲不足一帧 | 返回 0 帧，输入不丢失（src_pos 不推进） | 已有 `short_output_buffer_consumes_nothing` |
 | RM-11 | 输入不足一帧（长度 < 声道数） | 返回 0 帧 | 已有 `short_input_yields_zero` |
-| RM-12 | 极端速率比 | 超大升采样（如 8k→192k）不越界、无 NaN | 已有 `extreme_upsampling_no_nan` |
+| RM-12 | 极端速率比 | 超大升采样（如 8k→192k）不越界、无 NaN；`process` 加流末 `flush` 的总帧数等于理论值 | 已有 `extreme_upsampling_no_nan` |
 
 ## 错误路径（P2）
 
@@ -32,6 +33,4 @@
 
 ## 红测登记
 
-| 编号 | 缺陷 | issue | 状态 |
-|---|---|---|---|
-| AE-44 | 跨块插值取上一块的尾帧而非下一块的首帧，变采样率时每个块边界出现样本跳变（电流音）。RM-05 只断言帧数，看不见这一跳；本模块是私有实现，经音频引擎行为测试 AE-44 锁定（见 `audio-engine.md`） | [#500](https://github.com/Teeeeeeeerry/Rhythm/issues/500)（诊断 [#499](https://github.com/Teeeeeeeerry/Rhythm/issues/499)） | 红测禁用（`#[ignore]`） |
+（暂空。实现时若发现现状代码与清单不符，测试照写、禁用并挂 issue 编号，在此登记。）

@@ -14,11 +14,13 @@ pub struct Resampler {
     in_channels: u16,
     out_rate: u32,
     out_channels: u16,
-    /// Source position (in input frames) of the next output frame.
+    /// Source position (in input frames) of the next output frame, measured
+    /// from the first frame of the next call's frame sequence: `prev_tail`
+    /// when there is one, otherwise the first frame of the next block.
     src_pos: f64,
-    /// Last input frame from the previous `process` call, one sample per
-    /// input channel. Used for correct interpolation across block boundaries
-    /// so the output doesn't repeat the last sample of every chunk.
+    /// Last input frame of the previous `process` call, one sample per input
+    /// channel. The next call interpolates from it toward its own first
+    /// frame, so a block boundary is as smooth as any other pair of frames.
     prev_tail: Vec<f32>,
 }
 
@@ -52,73 +54,104 @@ impl Resampler {
     /// (interleaved `in_channels`), writing interleaved `out_channels` frames
     /// into `output`. Returns the number of output frames written. State is
     /// preserved between calls so chunk boundaries are seamless.
+    ///
+    /// An output frame that falls between this block's last frame and the
+    /// next block's first one is held back until the next call (#500): it
+    /// used to be interpolated toward the *previous* block's tail, which put
+    /// a step into the output at every block boundary whenever the rates
+    /// differ — heard as a ~43 Hz crackle at 44.1k -> 48k (#499). A frame that
+    /// lands exactly on an input frame needs no neighbour, so same-rate
+    /// conversion still hands out every frame in the same call. `flush`
+    /// emits whatever is still held back at the end of the stream.
     pub fn process(&mut self, input: &[f32], output: &mut [f32]) -> usize {
         if input.is_empty() || output.is_empty() {
             return 0;
         }
         let in_frames = input.len() / self.in_channels as usize;
-        if in_frames == 0 {
+        let out_frames = output.len() / self.out_channels as usize;
+        if in_frames == 0 || out_frames == 0 {
             return 0;
         }
-        // Source position of the next output frame, in input frames: output
-        // frame `k` happens at time `k / out_rate` seconds, i.e. at input
-        // frame `k * in_rate / out_rate`.
+        // Output frame `k` happens at time `k / out_rate` seconds, i.e. at
+        // input frame `k * in_rate / out_rate`.
         let step = f64::from(self.in_rate) / f64::from(self.out_rate);
-        let out_frames = output.len() / self.out_channels as usize;
+        // This call's frame sequence: the previous block's tail (if any)
+        // followed by the block itself.
+        let base = usize::from(!self.prev_tail.is_empty());
+        let total = in_frames + base;
 
         let mut written = 0usize;
         while written < out_frames {
             let src = self.src_pos;
-            if src >= in_frames as f64 {
+            let idx = src.floor() as usize;
+            if idx >= total {
                 break;
             }
-            let idx = src.floor() as usize;
             let frac = (src - idx as f64) as f32;
-            let next = if idx + 1 < in_frames {
-                idx + 1
-            } else {
-                // At the last frame of this block: cross-block interpolation
-                // uses the stored previous-block tail when available,
-                // otherwise clamps to the current last frame.
-                idx
-            };
-
+            if frac > 0.0 && idx + 1 >= total {
+                // Needs the next block's first frame: wait for it.
+                break;
+            }
             for ch in 0..self.out_channels as usize {
-                let s0 = Self::sample_at(input, idx, ch, self.in_channels);
-                let s1 = if next == idx && !self.prev_tail.is_empty() {
-                    // Use the tail from the previous block for proper
-                    // cross-block interpolation.
-                    Self::sample_at(&self.prev_tail, 0, ch, self.in_channels)
+                let s0 = self.frame_sample(input, base, idx, ch);
+                let value = if frac > 0.0 {
+                    let s1 = self.frame_sample(input, base, idx + 1, ch);
+                    s0 + (s1 - s0) * frac
                 } else {
-                    Self::sample_at(input, next, ch, self.in_channels)
+                    s0
                 };
-                output[written * self.out_channels as usize + ch] = s0 + (s1 - s0) * frac;
+                output[written * self.out_channels as usize + ch] = value;
             }
             written += 1;
             self.src_pos += step;
         }
 
-        // Wrap the phase accumulator back into this block's coordinate system
-        // so the *next* call starts from the correct position instead of
-        // immediately hitting `src >= in_frames` and returning 0 (#28).
-        self.src_pos -= in_frames as f64;
+        // The block's last frame becomes the first frame of the next call's
+        // sequence. Wrapping the phase into that coordinate system keeps the
+        // next call from returning 0 frames (#28).
+        self.src_pos -= (total - 1) as f64;
         if self.src_pos < 0.0 {
             self.src_pos = 0.0;
         }
-
-        // Stash the last input frame for cross-block interpolation on the
-        // next call. Without this every block boundary repeats the last
-        // sample instead of interpolating toward the next block's first
-        // sample, producing periodic subtle distortion.
         let tail_len = self.in_channels as usize;
-        if input.len() >= tail_len {
-            self.prev_tail
-                .resize(tail_len, 0.0);
-            let start = input.len() - tail_len;
-            self.prev_tail.copy_from_slice(&input[start..]);
-        }
+        self.prev_tail.clear();
+        self.prev_tail
+            .extend_from_slice(&input[(in_frames - 1) * tail_len..in_frames * tail_len]);
 
         written
+    }
+
+    /// End of stream: emit the output frames `process` held back past the
+    /// last input frame, clamped to that frame (there is no next block to
+    /// interpolate toward), then reset. Without this the last frame or two
+    /// of every track would be cut (#28).
+    pub fn flush(&mut self, output: &mut [f32]) -> usize {
+        if self.prev_tail.is_empty() {
+            return 0;
+        }
+        let step = f64::from(self.in_rate) / f64::from(self.out_rate);
+        let out_frames = output.len() / self.out_channels as usize;
+        let mut written = 0usize;
+        while written < out_frames && self.src_pos < 1.0 {
+            for ch in 0..self.out_channels as usize {
+                output[written * self.out_channels as usize + ch] =
+                    Self::sample_at(&self.prev_tail, 0, ch, self.in_channels);
+            }
+            written += 1;
+            self.src_pos += step;
+        }
+        self.reset();
+        written
+    }
+
+    /// Sample of channel `ch` at position `idx` of the current call's frame
+    /// sequence (`prev_tail` first when `base == 1`, then `input`).
+    fn frame_sample(&self, input: &[f32], base: usize, idx: usize, ch: usize) -> f32 {
+        if idx < base {
+            Self::sample_at(&self.prev_tail, 0, ch, self.in_channels)
+        } else {
+            Self::sample_at(input, idx - base, ch, self.in_channels)
+        }
     }
 
     /// Get the sample for input frame `idx`, channel `ch`. Mono input is
@@ -176,11 +209,13 @@ mod tests {
     #[test]
     fn test_interpolation() {
         // 48k → 96k, ratio 2.0: output frame 1 interpolates halfway between
-        // input frames 0 and 1.
+        // input frames 0 and 1. The frame past the last input frame waits for
+        // a next block (#500); at the end of the stream `flush` clamps it.
         let mut r = Resampler::new(48000, 1, 96000, 1);
         let input = vec![0.0f32, 1.0];
         let mut out = vec![0.0f32; 4];
         let n = r.process(&input, &mut out);
+        let n = n + r.flush(&mut out[n..]);
         assert_eq!(n, 4);
         assert_eq!(out[0], 0.0);
         assert!((out[1] - 0.5).abs() < 1e-6);
@@ -333,6 +368,7 @@ mod tests {
         let input: Vec<f32> = (0..frames).map(|i| i as f32).collect();
         let mut out = vec![0.0f32; frames * 24 + 2];
         let n = r.process(&input, &mut out);
+        let n = n + r.flush(&mut out[n..]);
         assert_eq!(n, frames * 24);
         assert!(out[..n].iter().all(|s| s.is_finite()), "NaN in output");
     }
