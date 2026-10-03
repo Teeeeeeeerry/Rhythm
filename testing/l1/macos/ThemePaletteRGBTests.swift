@@ -21,6 +21,7 @@ final class ThemePaletteRGBTests: XCTestCase {
         case "rhythmTextSecondary": return .rhythmTextSecondary
         case "rhythmTextTertiary": return .rhythmTextTertiary
         case "rhythmBorder": return .rhythmBorder
+        case "rhythmSelection": return .rhythmSelection
         case "rhythmSourceLocal": return .rhythmSourceLocal
         case "rhythmSourceYoutube": return .rhythmSourceYoutube
         case "rhythmSourceBilibili": return .rhythmSourceBilibili
@@ -80,7 +81,7 @@ final class ThemePaletteRGBTests: XCTestCase {
         let declared = Set([
             "rhythmAccent", "rhythmSurface", "rhythmElevated",
             "rhythmTextPrimary", "rhythmTextSecondary", "rhythmTextTertiary",
-            "rhythmBorder",
+            "rhythmBorder", "rhythmSelection",
             "rhythmSourceLocal", "rhythmSourceYoutube",
             "rhythmSourceBilibili", "rhythmSourceUrl",
         ])

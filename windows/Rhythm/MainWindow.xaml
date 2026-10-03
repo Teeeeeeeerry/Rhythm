@@ -5,55 +5,119 @@
     xmlns:views="using:Rhythm.Views"
     Title="Rhythm">
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <!-- #501: an always-expanded sidebar beside the content, laid out like
+         the macOS split view: the sidebar runs the full height, the player
+         bar sits under the content. No hamburger, no overlay, no icon-only
+         state. Which entry is highlighted comes from the view state; the
+         highlight swaps between the styles below, whose colours are palette
+         brushes (#219). -->
+    <Grid x:Name="rootGrid">
+        <Grid.Resources>
+            <Style x:Key="SidebarButtonStyle" TargetType="Button">
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="UseSystemFocusVisuals" Value="True" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <ContentPresenter Background="Transparent"
+                                              Content="{TemplateBinding Content}"
+                                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="SidebarHighlightStyle" TargetType="Border">
+                <Setter Property="Background" Value="Transparent" />
+            </Style>
+            <Style x:Key="SidebarHighlightSelectedStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource RhythmSelectionBrush}" />
+            </Style>
+            <Style x:Key="SidebarIconStyle" TargetType="SymbolIcon">
+                <Setter Property="Foreground" Value="{ThemeResource RhythmTextPrimaryBrush}" />
+            </Style>
+            <Style x:Key="SidebarIconSelectedStyle" TargetType="SymbolIcon">
+                <Setter Property="Foreground" Value="{ThemeResource RhythmAccentBrush}" />
+            </Style>
+            <Style x:Key="SidebarLabelStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource RhythmTextPrimaryBrush}" />
+            </Style>
+            <Style x:Key="SidebarLabelSelectedStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource RhythmAccentBrush}" />
+            </Style>
+        </Grid.Resources>
 
-        <NavigationView
-            x:Name="navView"
-            Grid.Row="0"
-            PaneDisplayMode="LeftCompact"
-            IsBackButtonVisible="Collapsed"
-            IsSettingsVisible="False"
-            SelectionChanged="OnNavSelectionChanged">
-            <NavigationView.MenuItems>
-                <NavigationViewItem x:Name="navLibrary" Icon="MusicInfo" Content="" Tag="Library" />
-                <NavigationViewItem x:Name="navPlaylists" Icon="List" Content="" Tag="Playlists" />
-            </NavigationView.MenuItems>
+        <Grid.ColumnDefinitions>
+            <!-- The macOS sidebar column's ideal width (ContentView.swift). -->
+            <ColumnDefinition Width="220" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+        <Border Grid.Column="0"
+                Background="{ThemeResource RhythmSurfaceBrush}"
+                BorderBrush="{ThemeResource RhythmBorderBrush}"
+                BorderThickness="0,0,1,0">
+            <StackPanel Padding="10,12" Spacing="2">
+                <Button x:Name="sideLibrary"
+                        Style="{StaticResource SidebarButtonStyle}"
+                        Click="OnSidebarClick">
+                    <Border x:Name="sideLibraryHighlight" CornerRadius="5" Padding="8,6"
+                            Style="{StaticResource SidebarHighlightStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <SymbolIcon x:Name="sideLibraryIcon"
+                                        Style="{StaticResource SidebarIconStyle}" />
+                            <TextBlock x:Name="sideLibraryLabel" VerticalAlignment="Center"
+                                       Style="{StaticResource SidebarLabelStyle}" />
+                        </StackPanel>
+                    </Border>
+                </Button>
+                <Button x:Name="sidePlaylists"
+                        Style="{StaticResource SidebarButtonStyle}"
+                        Click="OnSidebarClick">
+                    <Border x:Name="sidePlaylistsHighlight" CornerRadius="5" Padding="8,6"
+                            Style="{StaticResource SidebarHighlightStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <SymbolIcon x:Name="sidePlaylistsIcon"
+                                        Style="{StaticResource SidebarIconStyle}" />
+                            <TextBlock x:Name="sidePlaylistsLabel" VerticalAlignment="Center"
+                                       Style="{StaticResource SidebarLabelStyle}" />
+                        </StackPanel>
+                    </Border>
+                </Button>
+            </StackPanel>
+        </Border>
 
-                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8"
-                            Margin="12,8,12,4">
-                    <Button x:Name="btnImport" Click="OnImportClick">
-                        <SymbolIcon Symbol="Add" />
-                    </Button>
-                    <Button x:Name="btnImportFile" Click="OnImportFileClick">
-                        <SymbolIcon Symbol="Audio" />
-                    </Button>
-                    <AutoSuggestBox
-                        x:Name="searchBox"
-                        Width="200"
-                        QuerySubmitted="OnSearchSubmitted"
-                        TextChanged="OnSearchTextChanged" />
-                    <ComboBox x:Name="viewModeCombo"
-                              SelectionChanged="OnViewModeChanged"
-                              SelectedIndex="0">
-                        <ComboBoxItem x:Name="comboArtistAlbum" />
-                        <ComboBoxItem x:Name="comboByLetter" />
-                    </ComboBox>
-                </StackPanel>
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-                <Frame x:Name="contentFrame" Grid.Row="1" />
-            </Grid>
-        </NavigationView>
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8"
+                        Margin="12,8,12,4">
+                <Button x:Name="btnImport" Click="OnImportClick">
+                    <SymbolIcon Symbol="Add" />
+                </Button>
+                <Button x:Name="btnImportFile" Click="OnImportFileClick">
+                    <SymbolIcon Symbol="Audio" />
+                </Button>
+                <AutoSuggestBox
+                    x:Name="searchBox"
+                    Width="200"
+                    QuerySubmitted="OnSearchSubmitted"
+                    TextChanged="OnSearchTextChanged" />
+                <ComboBox x:Name="viewModeCombo"
+                          SelectionChanged="OnViewModeChanged"
+                          SelectedIndex="0">
+                    <ComboBoxItem x:Name="comboArtistAlbum" />
+                    <ComboBoxItem x:Name="comboByLetter" />
+                </ComboBox>
+            </StackPanel>
 
-        <views:PlayerBarView x:Name="playerBar" Grid.Row="1" />
+            <Frame x:Name="contentFrame" Grid.Row="1" />
+
+            <views:PlayerBarView x:Name="playerBar" Grid.Row="2" />
+        </Grid>
     </Grid>
 </Window>

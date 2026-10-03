@@ -687,3 +687,35 @@ TEST_CASE("VS-42 a playlist with no id renders no row") {
 
     REQUIRE(view::PlaylistListState(state).rows.empty());
 }
+
+// ─── VS-45/46 常驻侧栏（#501）──────────────────────────────────────
+
+TEST_CASE("VS-45 the sidebar renders library then playlists, each with icon and label") {
+    for (const wchar_t* language : {L"zh", L"en"}) {
+        LanguageScope scope(language);
+        AppState state;
+
+        auto entries = view::SidebarState(state);
+
+        REQUIRE(entries.size() == 2);
+        REQUIRE(entries.at(0).item == SidebarItem::Library);
+        REQUIRE(entries.at(0).icon == view::Icon::Library);
+        REQUIRE(entries.at(0).label == L10n::LibraryTab());
+        REQUIRE(entries.at(1).item == SidebarItem::Playlists);
+        REQUIRE(entries.at(1).icon == view::Icon::Playlists);
+        REQUIRE(entries.at(1).label == L10n::PlaylistsTab());
+    }
+}
+
+TEST_CASE("VS-46 exactly the selected view's entry is highlighted") {
+    AppState state;
+
+    auto atStart = view::SidebarState(state);
+    REQUIRE(atStart.at(0).selected);
+    REQUIRE_FALSE(atStart.at(1).selected);
+
+    state.SelectedView = SidebarItem::Playlists;
+    auto onPlaylists = view::SidebarState(state);
+    REQUIRE_FALSE(onPlaylists.at(0).selected);
+    REQUIRE(onPlaylists.at(1).selected);
+}
