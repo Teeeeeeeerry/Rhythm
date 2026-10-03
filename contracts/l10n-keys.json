@@ -158,6 +158,14 @@
       "zh": "按首字母",
       "en": "A–Z"
     },
+    "unknown_artist": {
+      "zh": "未知艺人",
+      "en": "Unknown Artist"
+    },
+    "unknown_album": {
+      "zh": "未知专辑",
+      "en": "Unknown Album"
+    },
     "search_placeholder": {
       "zh": "搜索...",
       "en": "Search..."

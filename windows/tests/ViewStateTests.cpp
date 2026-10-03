@@ -91,9 +91,11 @@ TEST_CASE("VS-16 tracks without an artist are kept, together and in library orde
         sortTrack(L"loose-1", std::nullopt, std::nullopt, std::nullopt),
     };
     auto rows = view::LibraryRows(state, view::LibrarySort::ArtistAlbum, true);
-    // No artist sorts as an empty name: first, and ties keep library order.
+    // #503: no artist groups under the unknown-artist label and sorts by that
+    // name, as on macOS (it used to sort as an empty name, first); ties keep
+    // library order.
     REQUIRE(titlesOf(rows) ==
-            std::vector<std::wstring>{L"loose-2", L"loose-1", L"known"});
+            std::vector<std::wstring>{L"known", L"loose-2", L"loose-1"});
 }
 
 TEST_CASE("VS-17 sorting leaves the state's track order untouched") {
@@ -755,4 +757,177 @@ TEST_CASE("VS-48 switching the view selects its segment and reorders the list") 
     REQUIRE(view::LibraryViewSwitch(state).at(1).selected);
     REQUIRE(titlesOf(view::LibraryRows(state, true)) ==
             std::vector<std::wstring>{L"Alpha", L"Beta"});
+}
+
+// ─── VS-49/50/51 按艺人/专辑分组（#503）──────────────────────────────
+
+namespace {
+
+std::vector<std::wstring> sectionTitles(const std::vector<view::ArtistSection>& sections) {
+    std::vector<std::wstring> titles;
+    for (const auto& s : sections) titles.push_back(s.title);
+    return titles;
+}
+
+std::vector<std::wstring> albumTitles(const view::ArtistSection& section) {
+    std::vector<std::wstring> titles;
+    for (const auto& a : section.albums) titles.push_back(a.title);
+    return titles;
+}
+
+} // namespace
+
+TEST_CASE("VS-49 artists form sections by name, albums group within them by name") {
+    AppState state;
+    state.Tracks = {
+        sortTrack(L"b-two", L"Beta", L"Two", 1),
+        sortTrack(L"a-one", L"Alpha", L"One", 1),
+        sortTrack(L"b-one", L"Beta", L"One", 1),
+        sortTrack(L"a-two", L"Alpha", L"Two", 1),
+    };
+
+    auto sections = view::ArtistAlbumSections(state, true);
+
+    REQUIRE(sectionTitles(sections) == std::vector<std::wstring>{L"Alpha", L"Beta"});
+    REQUIRE(albumTitles(sections.at(0)) == std::vector<std::wstring>{L"One", L"Two"});
+    REQUIRE(albumTitles(sections.at(1)) == std::vector<std::wstring>{L"One", L"Two"});
+    REQUIRE(titlesOf(sections.at(1).albums.at(0).rows) == std::vector<std::wstring>{L"b-one"});
+}
+
+TEST_CASE("VS-49 tracks in an album follow disc then track number, ties in library order") {
+    AppState state;
+    auto disc = [](Track t, int32_t number) {
+        t.discNumber = number;
+        return t;
+    };
+    state.Tracks = {
+        disc(sortTrack(L"d2-t1", L"A", L"X", 1), 2),
+        disc(sortTrack(L"d1-t2", L"A", L"X", 2), 1),
+        sortTrack(L"tie-first", L"A", L"X", std::nullopt),
+        disc(sortTrack(L"d1-t1", L"A", L"X", 1), 1),
+        sortTrack(L"tie-second", L"A", L"X", std::nullopt),
+    };
+
+    auto rows = view::ArtistAlbumSections(state, true).at(0).albums.at(0).rows;
+
+    // A missing disc or track number counts as 0, as on macOS.
+    REQUIRE(titlesOf(rows) == std::vector<std::wstring>{
+                                  L"tie-first", L"tie-second", L"d1-t1", L"d1-t2", L"d2-t1"});
+}
+
+TEST_CASE("VS-50 a missing artist or album groups under the unknown label") {
+    for (const wchar_t* language : {L"zh", L"en"}) {
+        LanguageScope scope(language);
+        AppState state;
+        state.Tracks = {
+            sortTrack(L"no-album", L"Alpha", std::nullopt, 1),
+            sortTrack(L"nothing", std::nullopt, std::nullopt, std::nullopt),
+            sortTrack(L"no-artist", std::nullopt, L"Live", std::nullopt),
+            sortTrack(L"known", L"Alpha", L"One", 1),
+        };
+
+        auto sections = view::ArtistAlbumSections(state, true);
+
+        // The unknown groups are ordinary groups named by the label, sorted
+        // by it like any other name (macOS groupByArtistAlbum).
+        REQUIRE(sections.size() == 2);
+        REQUIRE(sections.at(0).title == L"Alpha");
+        REQUIRE(albumTitles(sections.at(0)) ==
+                std::vector<std::wstring>{L"One", L10n::UnknownAlbum()});
+        REQUIRE(sections.at(1).title == L10n::UnknownArtist());
+        auto expected = std::vector<std::wstring>{L"Live", L10n::UnknownAlbum()};
+        std::sort(expected.begin(), expected.end());
+        REQUIRE(albumTitles(sections.at(1)) == expected);
+    }
+}
+
+TEST_CASE("VS-50 the same album name under two artists stays two groups") {
+    AppState state;
+    state.Tracks = {sortTrack(L"a", L"Alpha", L"Greatest Hits", 1),
+                    sortTrack(L"b", L"Beta", L"Greatest Hits", 1)};
+
+    auto sections = view::ArtistAlbumSections(state, true);
+
+    REQUIRE(sections.size() == 2);
+    REQUIRE(titlesOf(sections.at(0).albums.at(0).rows) == std::vector<std::wstring>{L"a"});
+    REQUIRE(titlesOf(sections.at(1).albums.at(0).rows) == std::vector<std::wstring>{L"b"});
+}
+
+TEST_CASE("VS-51 the flat artist/album order is the grouping read top to bottom") {
+    AppState state;
+    state.Tracks = {
+        sortTrack(L"loose", std::nullopt, std::nullopt, std::nullopt),
+        sortTrack(L"b1", L"Beta", L"One", 1),
+        sortTrack(L"a1", L"Alpha", L"One", 1),
+    };
+
+    std::vector<std::wstring> grouped;
+    for (const auto& section : view::ArtistAlbumSections(state, true)) {
+        for (const auto& album : section.albums) {
+            for (const auto& row : album.rows) grouped.push_back(row.title);
+        }
+    }
+
+    REQUIRE(titlesOf(view::LibraryRows(state, view::LibrarySort::ArtistAlbum, true)) == grouped);
+}
+
+TEST_CASE("VS-50 the unknown-artist section sorts by its label in each language") {
+    for (const wchar_t* language : {L"zh", L"en"}) {
+        LanguageScope scope(language);
+        AppState state;
+        state.Tracks = {sortTrack(L"z", L"Zeta", L"One", 1),
+                        sortTrack(L"loose", std::nullopt, std::nullopt, std::nullopt)};
+
+        auto expected = std::vector<std::wstring>{L"Zeta", L10n::UnknownArtist()};
+        std::sort(expected.begin(), expected.end());
+        REQUIRE(sectionTitles(view::ArtistAlbumSections(state, true)) == expected);
+    }
+}
+
+// ─── VS-52 资料库列表逐行（#503）─────────────────────────────────────
+
+namespace {
+
+std::vector<std::pair<view::LibraryLineKind, std::wstring>> lineShape(
+    const std::vector<view::LibraryLine>& lines) {
+    std::vector<std::pair<view::LibraryLineKind, std::wstring>> shape;
+    for (const auto& line : lines) {
+        shape.emplace_back(line.kind, line.kind == view::LibraryLineKind::Track
+                                          ? line.row.title : line.title);
+    }
+    return shape;
+}
+
+} // namespace
+
+TEST_CASE("VS-52 by artist/album the list reads section, album, then its tracks") {
+    using K = view::LibraryLineKind;
+    AppState state;
+    state.Tracks = {sortTrack(L"b1", L"Beta", L"One", 1),
+                    sortTrack(L"a2", L"Alpha", L"One", 2),
+                    sortTrack(L"a1", L"Alpha", L"One", 1)};
+
+    auto lines = view::LibraryLines(state, true);
+
+    REQUIRE(lineShape(lines) == std::vector<std::pair<K, std::wstring>>{
+                                    {K::Section, L"Alpha"}, {K::Album, L"One"},
+                                    {K::Track, L"a1"}, {K::Track, L"a2"},
+                                    {K::Section, L"Beta"}, {K::Album, L"One"},
+                                    {K::Track, L"b1"}});
+    for (const auto& line : lines) {
+        if (line.kind == K::Track) REQUIRE(line.inAlbum);
+    }
+}
+
+TEST_CASE("VS-52 the list follows the state's order and is empty for an empty library") {
+    AppState state;
+    REQUIRE(view::LibraryLines(state, true).empty());
+
+    state.Tracks = {sortTrack(L"b1", L"Beta", L"One", 1)};
+    state.LibraryOrder = view::LibrarySort::Alphabetical;
+    auto lines = view::LibraryLines(state, true);
+    REQUIRE_FALSE(lines.empty());
+    REQUIRE(lines.back().kind == view::LibraryLineKind::Track);
+    REQUIRE(lines.back().row.title == L"b1");
+    REQUIRE_FALSE(lines.back().inAlbum);
 }

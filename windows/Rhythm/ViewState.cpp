@@ -2,7 +2,8 @@
 #include "ViewState.h"
 #include "L10n.h"
 
-#include <tuple>
+#include <iterator>
+#include <map>
 
 namespace rhythm::view {
 
@@ -114,31 +115,80 @@ std::vector<TrackRow> RowsOf(const std::vector<Track>& tracks, bool isDarkTheme)
 
 } // namespace
 
-std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool isDarkTheme) {
-    auto rows = RowsOf(state.Tracks, isDarkTheme);
+std::vector<ArtistSection> ArtistAlbumSections(const AppState& state, bool isDarkTheme) {
+    // #503: grouped as macOS groupByArtistAlbum does -- by display name, so a
+    // missing artist or album is a group named by its label and sorts by it.
+    const std::wstring unknownArtist = L10n::UnknownArtist();
+    const std::wstring unknownAlbum = L10n::UnknownAlbum();
+    std::map<std::wstring, std::map<std::wstring, std::vector<TrackRow>>> artists;
+    for (auto& row : RowsOf(state.Tracks, isDarkTheme)) {
+        const auto artist = row.track.artist.value_or(unknownArtist);
+        const auto album = row.track.album.value_or(unknownAlbum);
+        artists[artist][album].push_back(std::move(row));
+    }
 
+    auto position = [](const TrackRow& row) {
+        return std::pair(row.track.discNumber.value_or(0), row.track.trackNumber.value_or(0));
+    };
+    std::vector<ArtistSection> sections;
+    for (auto& [artist, albums] : artists) {
+        ArtistSection section{artist, {}};
+        for (auto& [album, rows] : albums) {
+            std::stable_sort(rows.begin(), rows.end(), [&](const TrackRow& a, const TrackRow& b) {
+                return position(a) < position(b);
+            });
+            section.albums.push_back(AlbumGroup{album, std::move(rows)});
+        }
+        sections.push_back(std::move(section));
+    }
+    return sections;
+}
+
+std::vector<TrackRow> LibraryRows(const AppState& state, LibrarySort sort, bool isDarkTheme) {
     switch (sort) {
         case LibrarySort::ArtistAlbum: {
-            auto key = [](const Track& t) {
-                return std::tuple(t.artist.value_or(L""), t.album.value_or(L""),
-                                  t.trackNumber.value_or(0));
-            };
-            std::stable_sort(rows.begin(), rows.end(), [&](const TrackRow& a, const TrackRow& b) {
-                return key(a.track) < key(b.track);
-            });
-            break;
+            // #503: one artist/album rule -- the grouping, read top to bottom.
+            std::vector<TrackRow> rows;
+            for (auto& section : ArtistAlbumSections(state, isDarkTheme)) {
+                for (auto& album : section.albums) {
+                    std::move(album.rows.begin(), album.rows.end(), std::back_inserter(rows));
+                }
+            }
+            return rows;
         }
-        case LibrarySort::Alphabetical:
+        case LibrarySort::Alphabetical: {
+            auto rows = RowsOf(state.Tracks, isDarkTheme);
             std::stable_sort(rows.begin(), rows.end(), [](const TrackRow& a, const TrackRow& b) {
                 return a.track.title < b.track.title;
             });
-            break;
+            return rows;
+        }
     }
-    return rows;
+    return {};
 }
 
 std::vector<TrackRow> LibraryRows(const AppState& state, bool isDarkTheme) {
     return LibraryRows(state, state.LibraryOrder, isDarkTheme);
+}
+
+std::vector<LibraryLine> LibraryLines(const AppState& state, bool isDarkTheme) {
+    std::vector<LibraryLine> lines;
+    if (state.LibraryOrder == LibrarySort::ArtistAlbum) {
+        for (auto& section : ArtistAlbumSections(state, isDarkTheme)) {
+            lines.push_back(LibraryLine{LibraryLineKind::Section, section.title, {}, false});
+            for (auto& album : section.albums) {
+                lines.push_back(LibraryLine{LibraryLineKind::Album, album.title, {}, false});
+                for (auto& row : album.rows) {
+                    lines.push_back(LibraryLine{LibraryLineKind::Track, {}, std::move(row), true});
+                }
+            }
+        }
+        return lines;
+    }
+    for (auto& row : LibraryRows(state, isDarkTheme)) {
+        lines.push_back(LibraryLine{LibraryLineKind::Track, {}, std::move(row), false});
+    }
+    return lines;
 }
 
 std::vector<ViewSwitchSegment> LibraryViewSwitch(const AppState& state) {

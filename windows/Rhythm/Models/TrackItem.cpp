@@ -17,11 +17,16 @@ winrt::Microsoft::UI::Xaml::Media::SolidColorBrush ToBrush(rhythm::view::Color c
 
 } // namespace
 
-TrackItem::TrackItem(rhythm::view::TrackRow row) : row_(std::move(row)) {}
+TrackItem::TrackItem(rhythm::view::TrackRow row, double indent)
+    : row_(std::move(row)), indent_(indent) {}
 
 hstring TrackItem::Title() const { return hstring{row_.title}; }
 
 hstring TrackItem::Artist() const { return hstring{row_.artist}; }
+
+bool TrackItem::HasArtist() const { return !row_.artist.empty(); }
+
+double TrackItem::Indent() const { return indent_; }
 
 hstring TrackItem::SourceTag() const { return hstring{row_.badge.tag}; }
 

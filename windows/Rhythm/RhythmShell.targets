@@ -20,6 +20,8 @@
     <ClInclude Include="$(RhythmShellDir)ShellHost.h" />
     <ClInclude Include="$(RhythmShellDir)Models\TrackItem.h"><DependentUpon>$(RhythmShellDir)Models\Items.idl</DependentUpon></ClInclude>
     <ClInclude Include="$(RhythmShellDir)Models\PlaylistItem.h"><DependentUpon>$(RhythmShellDir)Models\Items.idl</DependentUpon></ClInclude>
+    <ClInclude Include="$(RhythmShellDir)Models\LibraryItems.h"><DependentUpon>$(RhythmShellDir)Models\Items.idl</DependentUpon></ClInclude>
+    <ClInclude Include="$(RhythmShellDir)Views\LibraryTemplateSelector.h"><DependentUpon>$(RhythmShellDir)Views\LibraryTemplateSelector.idl</DependentUpon></ClInclude>
     <ClInclude Include="$(RhythmShellDir)Views\LibraryView.xaml.h"><DependentUpon>$(RhythmShellDir)Views\LibraryView.xaml</DependentUpon></ClInclude>
     <ClInclude Include="$(RhythmShellDir)Views\PlayerBarView.xaml.h"><DependentUpon>$(RhythmShellDir)Views\PlayerBarView.xaml</DependentUpon></ClInclude>
     <ClInclude Include="$(RhythmShellDir)Views\PlaylistDetailView.xaml.h"><DependentUpon>$(RhythmShellDir)Views\PlaylistDetailView.xaml</DependentUpon></ClInclude>
@@ -42,6 +44,8 @@
     <ClCompile Include="$(RhythmShellDir)MainWindow.xaml.cpp" />
     <ClCompile Include="$(RhythmShellDir)Models\TrackItem.cpp" />
     <ClCompile Include="$(RhythmShellDir)Models\PlaylistItem.cpp" />
+    <ClCompile Include="$(RhythmShellDir)Models\LibraryItems.cpp" />
+    <ClCompile Include="$(RhythmShellDir)Views\LibraryTemplateSelector.cpp" />
     <ClCompile Include="$(RhythmShellDir)Views\LibraryView.xaml.cpp" />
     <ClCompile Include="$(RhythmShellDir)Views\PlayerBarView.xaml.cpp" />
     <ClCompile Include="$(RhythmShellDir)Views\PlaylistDetailView.xaml.cpp" />
@@ -56,6 +60,7 @@
     <Midl Include="$(RhythmShellDir)MainWindow.idl" />
     <Midl Include="$(RhythmShellDir)Models\Items.idl" />
     <Midl Include="$(RhythmShellDir)Views\LibraryView.idl" />
+    <Midl Include="$(RhythmShellDir)Views\LibraryTemplateSelector.idl" />
     <Midl Include="$(RhythmShellDir)Views\PlayerBarView.idl" />
     <Midl Include="$(RhythmShellDir)Views\PlaylistDetailView.idl" />
     <Midl Include="$(RhythmShellDir)Views\PlaylistListView.idl" />
