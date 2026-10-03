@@ -35,7 +35,7 @@
 | CO-27 | 事件订阅 FFI | `rhythm_coordinator_set_event_callback`/`set_library` 注册与空指针安全；Finished 事件触发 handle_finished（auto-advance） | FFI 直调 |
 | CO-29 | 事件序列契约（#178） | 起播：state(stopped,#51)→track_changed→state(playing)→progress*→state(paused/playing)→finished→state(stopped)→track_changed（自动切歌）；顺序断言 | 事件总线 |
 | CO-30 | 事件 JSON 形状 | finished/state/progress/error（含 kind）序列化形状与契约文档一致（#178） | 序列化断言 |
-| CO-33 | 在线流总时长回退（#493） | 引擎时长为 0 而当前曲目有已知时长（资料库/解析结果）→ 进度事件携带曲目时长；引擎报告有效时长 → 用引擎的值；两者皆无（含 stop 之后）→ 0，播放栏按「时长未知」渲染；切歌后回退值随当前曲目；`rhythm_coordinator_get_duration` 按同一规则作答。规则只在核心，两端播放栏不自行回退 | FakePlayer + 事件总线 fire_progress |
+| CO-33 | 在线流总时长回退（#493） | 引擎时长为 0 而当前曲目有已知时长（资料库/解析结果）→ 进度事件携带曲目时长；引擎报告有效时长 → 用引擎的值；两者皆无（含 stop 之后）→ 0，播放栏按「时长未知」渲染；切歌后回退值随当前曲目；时长查询 `duration()` 按同一规则作答（FFI `rhythm_coordinator_get_duration` 直接委托它）。规则只在核心，两端播放栏不自行回退 | FakePlayer + 事件总线 fire_progress |
 | CO-28 | 删除曲目后的队列同步（#174） | 删除当前播放曲目（先 stop 再刷新）→ 队列为空/单曲无 next；删除非当前曲目 → replace 后按当前曲 id 跳回（#69） | FakePlayer + 真队列 |
 
 ## 边界情况（P1）
