@@ -7,35 +7,15 @@
 #include "Views/PlaylistListView.xaml.h"
 #include "Views/PlaylistDetailView.xaml.h"
 #include "Views/PlayerBarView.xaml.h"
-#include "Views/TrayManager.h"
 #include "Views/Win32Interop.h"
+#include "ShellHost.h"
 #include "L10n.h"
-
-#include <filesystem>
-#include <shlobj_core.h>
 
 using namespace winrt::Microsoft::UI::Xaml;
 using namespace winrt::Microsoft::UI::Xaml::Controls;
 using winrt::Windows::Foundation::IInspectable;
 
 namespace winrt::Rhythm::implementation {
-
-namespace {
-
-/// %LOCALAPPDATA%\Rhythm\library.db. An unpackaged app has no
-/// ApplicationData container (ApplicationData::Current() throws, #428).
-std::wstring LibraryDatabasePath() {
-    PWSTR base = nullptr;
-    HRESULT hr = ::SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &base);
-    std::filesystem::path root = SUCCEEDED(hr) ? base : L"";
-    ::CoTaskMemFree(base);  // freed on failure too (API contract)
-    winrt::check_hresult(hr);
-    std::filesystem::path dir = root / L"Rhythm";
-    std::filesystem::create_directories(dir);
-    return (dir / L"library.db").wstring();
-}
-
-} // namespace
 
 void MainWindow::InitializeComponent() {
     MainWindowT<MainWindow>::InitializeComponent();
@@ -52,7 +32,8 @@ void MainWindow::InitializeComponent() {
     comboArtistAlbum().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::ByArtistAlbum() }));
     comboByLetter().Content(winrt::box_value(winrt::hstring{ rhythm::L10n::ByLetter() }));
 
-    appState_.OpenDatabase(LibraryDatabasePath());
+    // The hosting process decides where the library lives (#495).
+    appState_.OpenDatabase(rhythm::shell::LibraryDatabasePath());
 
     // Wire the player bar to the shared state. The UI thread is this
     // window's DispatcherQueue -- a WinUI type, so the shell adapts it (#326).
@@ -70,8 +51,8 @@ void MainWindow::InitializeComponent() {
         get_self<Views::implementation::PlayerBarView>(playerBar())->Update();
     };
 
-    TrayManager::Create(hwnd_, &appState_);
-    Closed([](auto&&, auto&&) { TrayManager::Remove(); });
+    rhythm::shell::AttachTray(hwnd_, &appState_);
+    Closed([](auto&&, auto&&) { rhythm::shell::DetachTray(); });
 
     contentFrame().Navigated({ this, &MainWindow::OnFrameNavigated });
     navView().SelectedItem(navLibrary());

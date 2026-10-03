@@ -90,9 +90,8 @@ jobs:
           exclude: |
             **/*.py
 
-  # Windows L2（截屏宿主 + golden 比对）尚未实现，步骤已移除（#387）：截屏宿主没有工程文件、
-  # golden 目录不存在。重启时补齐的产物见 testing/README.md「Windows L2 缺口」，再在此恢复
-  # 「构建截屏宿主 / 渲染视图 / compare-screenshots」三步。
+  # Windows L2（截屏宿主 + golden 比对，#495）随 `python scripts/tasks.py test` 执行（ci.yml 的
+  # Windows 任务），这里不再重复；见 testing/README.md「Windows L2 截屏比对」。
   windows-visual:
     name: Windows 视觉（L3）
     runs-on: windows-latest

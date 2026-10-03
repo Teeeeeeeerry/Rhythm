@@ -8,7 +8,7 @@
 
 用法：
     python3 testing/l2/windows/compare_screenshots.py \
-        --actual build/artifacts --golden testing/l2/windows/golden \
+        --actual build/windows/l2/screenshots --golden testing/l2/windows/golden \
         [--threshold 0.001] [--heatmap build/heatmap] [--log PATH]
 
 golden 维护：外观改动后人工确认截图 → 拷入 golden 目录（git 提交）；

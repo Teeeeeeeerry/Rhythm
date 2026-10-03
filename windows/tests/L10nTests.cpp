@@ -248,3 +248,18 @@ TEST_CASE("LK-06 L10n source tags and tray copy") {
         REQUIRE(L10n::TrayQuit() == L"Quit Rhythm");
     }
 }
+
+// ─── LK-18 进程内固定语言（#495） ──────────────────────────────────
+
+TEST_CASE("LK-18 a language pinned for the process wins and is never persisted") {
+    // The persisted preference says Chinese; the pin says English.
+    LanguageScope zh(L"zh");
+    L10n::PinLanguageForProcess(L"en");
+    REQUIRE(L10n::LibraryTab() == L"Library");
+    // Pinning leaves the user's saved preference alone.
+    REQUIRE(L10n::OverrideLanguage() == L"zh");
+
+    // Clearing the pin falls back to the persisted preference.
+    L10n::PinLanguageForProcess(L"");
+    REQUIRE(L10n::LibraryTab() == L"资料库");
+}

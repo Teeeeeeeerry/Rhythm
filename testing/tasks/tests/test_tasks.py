@@ -212,8 +212,8 @@ class MacosStepTableTest(unittest.TestCase):
 
 
 class WindowsStepTableTest(unittest.TestCase):
-    """Windows 测试步骤表（#264）：L1 齐备，冒烟段是可选开关；
-    未实现的 L2 不得占着步骤（#387）。"""
+    """Windows 测试步骤表（#264）：L1 齐备，L2 截屏比对的每一步都有真实目标
+    （#387/#495），冒烟段是可选开关。"""
 
     def setUp(self):
         self.root = tasklib.repo_root()
@@ -254,10 +254,44 @@ class WindowsStepTableTest(unittest.TestCase):
         for segment in ("L1 颜色测试", "L1b 应用工程测试"):
             self.assertIn(segment, names)
 
-    def test_unimplemented_l2_is_not_a_step(self):
-        # 截屏宿主没有工程文件、golden 目录不存在：这类步骤注定失败（#387）。
-        names = [s.name for s in task_test.windows_steps(self.root, smoke=True)]
-        self.assertFalse([n for n in names if n.startswith("L2")], names)
+    def test_l2_steps_point_at_committed_artifacts(self):
+        # #495 补齐 #387 的缺口：L2 三步回到入口，且每一步指向的东西都在仓库里。
+        names = [s.name for s in task_test.windows_steps(self.root)]
+        l2 = [n for n in names if n.startswith("L2")]
+        self.assertEqual(len(l2), 3, names)
+        for segment in ("截屏宿主构建", "截屏", "金标准像素比对"):
+            self.assertTrue([n for n in l2 if segment in n], (segment, l2))
+        self.assertTrue((self.root / task_test.L2_PROJECT).is_file())
+        self.assertTrue((self.root / task_test.L2_COMPARE).is_file())
+        self.assertTrue(list((self.root / task_test.L2_GOLDEN).glob("*.png")))
+
+    def test_l2_runs_after_the_behaviour_library_is_built(self):
+        # 截屏宿主链接 L1b 构建出的行为库、读取它配置期写出的 props。
+        names = [s.name for s in task_test.windows_steps(self.root)]
+        first_l2 = next(i for i, n in enumerate(names) if n.startswith("L2"))
+        self.assertGreater(first_l2, names.index("L1b 应用工程测试 cmake 构建"))
+
+    def test_l2_steps_name_what_is_missing(self):
+        # 工程文件或截屏宿主不在时，失败信息点名缺的产物，而不是构建工具的笼统报错。
+        with tempfile.TemporaryDirectory() as tmp:
+            build, capture, _ = task_test.l2_steps(Path(tmp))
+            for step, missing in ((build, "RhythmCapture.vcxproj"),
+                                  (capture, "RhythmCapture.exe")):
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    code = step.action()
+                self.assertEqual(code, 1, step.name)
+                self.assertIn(missing, out.getvalue(), step.name)
+
+    def test_l2_compares_against_the_committed_golden_with_a_heatmap(self):
+        seen: list[list[str]] = []
+        with mock.patch.object(task_test.tasklib, "run",
+                               lambda cmd, **_: seen.append([str(c) for c in cmd]) or 0):
+            task_test.l2_steps(self.root)[2].action()
+        cmd = seen[0]
+        self.assertEqual(Path(cmd[cmd.index("--golden") + 1]),
+                         self.root / task_test.L2_GOLDEN)
+        self.assertIn("--heatmap", cmd)
 
     def test_configure_step_names_the_missing_project_file(self):
         # 源目录里没有工程文件时，失败信息指出缺的是哪个文件，而不是 cmake 的笼统报错。

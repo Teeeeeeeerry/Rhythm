@@ -61,12 +61,27 @@ inline void SetOverrideLanguage(const std::wstring& code) {
     isChineseComputed() = false;
 }
 
-/// Whether the UI renders Chinese: manual override wins, otherwise the
-/// system UI language decides (mirrors macOS `L10n.isChinese`).
+/// A language pinned for this process only ("zh", "en", ...), empty when
+/// nothing is pinned. Held in memory, never written to the registry: the L2
+/// capture host pins it so its screenshots do not follow the machine's
+/// language, and the user's saved preference stays untouched (#495).
+inline std::wstring& processLanguage() {
+    static std::wstring code;
+    return code;
+}
+
+inline void PinLanguageForProcess(const std::wstring& code) {
+    processLanguage() = code;
+    isChineseComputed() = false;
+}
+
+/// Whether the UI renders Chinese: a process pin wins, then the manual
+/// override, otherwise the system UI language decides (mirrors macOS
+/// `L10n.isChinese`).
 inline bool IsChinese() {
     static bool cached = false;
     if (!isChineseComputed()) {
-        auto override = OverrideLanguage();
+        auto override = processLanguage().empty() ? OverrideLanguage() : processLanguage();
         cached = override.empty()
             ? PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_CHINESE
             : override.rfind(L"zh", 0) == 0;

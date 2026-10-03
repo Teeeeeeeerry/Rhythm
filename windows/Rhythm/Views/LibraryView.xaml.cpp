@@ -44,7 +44,7 @@ void LibraryView::Populate() {
     // The sort rules live in the view state (#336); the pivot only picks one.
     auto sort = viewPivot().SelectedIndex() == 0 ? rhythm::view::LibrarySort::ArtistAlbum
                                                  : rhythm::view::LibrarySort::Alphabetical;
-    const bool isDark = rhythm::shell::IsDarkTheme();  // #342: resolved once, by the shell
+    const bool isDark = rhythm::shell::IsDarkTheme(RequestedTheme());  // #342: resolved once, by the shell
     ShowRows(rhythm::view::LibraryRows(*appState_, sort, isDark));
 }
 

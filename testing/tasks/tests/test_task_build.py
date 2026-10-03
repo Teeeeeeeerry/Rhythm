@@ -29,6 +29,9 @@ WINDOWS_CMAKE = ROOT / "windows" / "CMakeLists.txt"
 # 行为库的唯一声明处：源文件清单、使用要求、核心产物都在这里（#330）
 BEHAVIOR_CMAKE = ROOT / "windows" / "cmake" / "RhythmBehavior.cmake"
 APP_VCXPROJ = ROOT / "windows" / "Rhythm" / "Rhythm.vcxproj"
+# The shell's settings and views, shared by the app and the L2 capture host (#495).
+SHELL_PROPS = ROOT / "windows" / "Rhythm" / "RhythmShell.props"
+SHELL_TARGETS = ROOT / "windows" / "Rhythm" / "RhythmShell.targets"
 L1_CMAKE = ROOT / "testing" / "l1" / "windows" / "CMakeLists.txt"
 # 构建配置里对核心产物的引用，形如 ${RHYTHM_REPO_ROOT}/target/release/x
 CORE_REF_RE = re.compile(r"\$\{RHYTHM_REPO_ROOT\}/([^\s)]+)/rhythm_core\.")
@@ -82,7 +85,7 @@ class WindowsSingleDeclarationTest(unittest.TestCase):
     不再抄一份包含目录与编译选项。
     """
 
-    BUILD_FILES = (WINDOWS_CMAKE, APP_VCXPROJ, L1_CMAKE)
+    BUILD_FILES = (WINDOWS_CMAKE, APP_VCXPROJ, SHELL_PROPS, SHELL_TARGETS, L1_CMAKE)
 
     @staticmethod
     def behavior_sources() -> set[str]:
@@ -92,8 +95,13 @@ class WindowsSingleDeclarationTest(unittest.TestCase):
 
     @staticmethod
     def shell_sources() -> set[str]:
-        text = APP_VCXPROJ.read_text(encoding="utf-8")
-        found = re.findall(r'<Cl(?:Compile|Include) Include="([^"$]+)"', text)
+        # 应用工程只登记自己独有的文件，与截屏宿主共用的视图在 RhythmShell.targets
+        # （#495），以 $(RhythmShellDir) 起头。
+        found: list[str] = []
+        for path in (APP_VCXPROJ, SHELL_TARGETS):
+            text = path.read_text(encoding="utf-8")
+            found += re.findall(
+                r'<Cl(?:Compile|Include) Include="(?:\$\(RhythmShellDir\))?([^"$]+)"', text)
         return {f.replace("\\", "/") for f in found}
 
     def test_every_windows_source_is_registered_exactly_once(self):
