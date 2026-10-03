@@ -25,6 +25,7 @@
 |---|---|---|---|
 | WA-01 | `OpenDatabase` | `Library` 创建 + `Tracks`/`Playlists` 填充 | 新测（待 Windows 验证） |
 | WA-02 | `RefreshLibrary` | 无 Library → no-op；有 → Tracks/Playlists 从库刷新（队列同步在协调器，CO-14） | 新测（待 Windows 验证） |
+| WA-43（#498） | `Seek(seconds)` 跳转 | 有当前曲目且时长已知时，把目标夹进 `[0, Duration]` 后转发到协调器现有的跳转入口（`ICoordinator::Seek`）；引擎接受 → `Position` 改为目标，拒绝 → `Position` 不变；无当前曲目或时长未知（为 0）→ 不转发、什么都不改。播放栏松手时只调这个方法，拖动中不被进度事件拉回由壳层持住滑块实现 | SpyCoordinator + 真库（临时路径） |
 | WA-42（#497） | `Stop()` 停止 | 转发到协调器现有的停止入口（`ICoordinator::Stop` 恰好一次），回到未播放状态：`IsPlaying`、`IsBuffering` 为假，`CurrentTrack` 清空，`Position`/`Duration` 归零，`CanStop()` 为假；播放栏视图状态随之渲染「未在播放」、空艺人、`0:00 / 0:00`、进度 0、播放图标。未在播放时调用同样只转发一次、不崩溃。播放栏的停止键、上一首、下一首（接到 `PlayPrevious`/`PlayNext`，WA-19）只调这些方法，控件顺序与 macOS 相同：上一首、播放/暂停、停止、下一首、播放模式 | SpyCoordinator + 真库（临时路径） |
 | WA-41（#494） | 资料库已变化通知 | 曲目/歌单列表每次重载发一次 `OnLibraryChanged`，与播放状态通知 `OnStateChanged` 分开，经 `UiPost` 投递到界面线程（未设界面线程时直接调用）；在线、本地文件、目录、批量、M3U8 五条导入路径各只发一次，导入不触发播放状态通知。壳层只在资料库页正在显示时重新渲染，导入入口不再手动刷新 | 真库（临时路径）+ `UiThread` |
 | WA-40（#356） | 当前歌单被删除后刷新 | 刷新后新列表里没有该标识 → 当前歌单清空（不保留失效的指向）、不崩溃，界面进入空态；清空后再次选中其他歌单正常；当前歌单没有标识（未入库）时刷新同样清空 | 真库（临时路径） |

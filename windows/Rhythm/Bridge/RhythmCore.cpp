@@ -313,6 +313,10 @@ void Coordinator::Stop() {
     if (ptr_) rhythm_coordinator_stop(ptr_);
 }
 
+bool Coordinator::Seek(double seconds) {
+    return ptr_ && rhythm_coordinator_seek(ptr_, seconds) == 0;
+}
+
 void Coordinator::SetVolume(float volume) {
     if (ptr_) rhythm_coordinator_set_volume(ptr_, volume);
 }

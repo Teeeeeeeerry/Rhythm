@@ -62,6 +62,10 @@ public:
     int previousCalls = 0;
     int toggleCalls = 0;
     int stopCalls = 0;
+    std::vector<double> seekCalls;
+    /// What the engine answers to a seek (#498): accepted unless a test
+    /// says otherwise.
+    bool seekAccepted = true;
     float lastVolume = 0.0f;
 
     // Engine mirror (what the UI renders between events).
@@ -157,6 +161,11 @@ public:
         currentTrack.reset();
         queueTracks.clear();
         cursor = 0;
+    }
+
+    bool Seek(double seconds) override {
+        seekCalls.push_back(seconds);
+        return seekAccepted;
     }
 
     void SetVolume(float volume) override { lastVolume = volume; }

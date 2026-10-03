@@ -179,6 +179,7 @@ PlayerBar PlayerBarState(const AppState& state) {
     if (state.Duration > 0) {
         bar.progressPercent = std::clamp(state.Position / state.Duration * 100.0, 0.0, 100.0);
     }
+    bar.seekable = state.CurrentTrack.has_value() && state.Duration > 0;
     bar.timeText = state.IsBuffering
         ? L10n::Buffering()
         : MinutesSeconds(state.Position) + L" / " + MinutesSeconds(state.Duration);
@@ -190,6 +191,11 @@ PlayerBar PlayerBarState(const AppState& state) {
         bar.urlStatusText = progress.empty() ? L10n::Resolving() : progress;
     }
     return bar;
+}
+
+double SeekPosition(const AppState& state, double percent) {
+    if (state.Duration <= 0) return 0.0;
+    return std::clamp(percent, 0.0, 100.0) / 100.0 * state.Duration;
 }
 
 TrayMenu TrayMenuState(const AppState& state) {

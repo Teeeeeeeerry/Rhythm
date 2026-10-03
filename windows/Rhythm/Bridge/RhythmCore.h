@@ -205,6 +205,9 @@ public:
     /// Sync the queue after a library refresh (#69).
     virtual void SyncQueue(const std::vector<Track>& tracks) = 0;
     virtual void Stop() = 0;
+    /// Seek the current track to `seconds` (#498): the coordinator's own
+    /// seek entry point. False when the engine rejected the seek.
+    virtual bool Seek(double seconds) = 0;
     virtual void SetVolume(float volume) = 0;
     virtual void SetPlayMode(int32_t mode) = 0;
     virtual bool HasNext() const = 0;
@@ -240,6 +243,7 @@ public:
     CoordinatorResult TogglePlayPause() override;
     void SyncQueue(const std::vector<Track>& tracks) override;
     void Stop() override;
+    bool Seek(double seconds) override;
     void SetVolume(float volume) override;
     void SetPlayMode(int32_t mode) override;
     bool HasNext() const override;

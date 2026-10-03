@@ -243,6 +243,16 @@ void AppState::Stop() {
     Duration = 0;
 }
 
+// ─── Seek (WA-43, #498) ────────────────────────────────────────────
+
+void AppState::Seek(double seconds) {
+    if (!CurrentTrack || Duration <= 0) return;
+    const double target = std::clamp(seconds, 0.0, Duration);
+    if (Coordinator->Seek(target)) {
+        Position = target;
+    }
+}
+
 // ─── Play mode (WA-21) ─────────────────────────────────────────────
 
 const Playlist* AppState::FindPlaylist(int64_t id) const {

@@ -217,7 +217,7 @@ IAsyncAction CapturePlayerBar(Theme theme, fs::path dir) {
         bar.RequestedTheme(theme.value);
         get_self<Views::implementation::PlayerBarView>(bar)->BindState(&state);
 
-        co_await CaptureView(theme, bar, shot.width, 100,
+        co_await CaptureView(theme, bar, shot.width, 132,
                              dir / (std::wstring(shot.name) + theme.name + L".png"));
     }
 }
