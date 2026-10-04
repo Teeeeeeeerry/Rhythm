@@ -3,26 +3,11 @@ import SwiftUI
 import RhythmTheme
 #endif
 
-/// ForEach ID 载体 — 艺人分组，id 为艺人名（groupByArtistAlbum 保证唯一）。
-private struct ArtistSection: Identifiable {
-    let id: String
-    let name: String
-    let albums: [AlbumEntry]
-}
-
-/// ForEach ID 载体 — 专辑分组。id 为 "艺人|专辑" 组合键，
-/// 避免跨艺人 "Unknown Album" 字符串 ID 碰撞（#66）。
-private struct AlbumEntry: Identifiable {
-    let id: String
-    let name: String
-    let tracks: [Track]
-}
-
 struct ArtistAlbumView: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        let sections = groupByArtistAlbum()
+        let sections = appState.artistAlbumSections
         if sections.isEmpty {
             Text(L10n.libraryEmpty).foregroundStyle(.rhythmTextSecondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -38,27 +23,6 @@ struct ArtistAlbumView: View {
             }
             .listStyle(.inset)
         }
-    }
-
-    private func groupByArtistAlbum() -> [ArtistSection] {
-        var artists: [String: [String: [Track]]] = [:]
-        for track in appState.tracks {
-            let artist = track.artist ?? "Unknown Artist"
-            let album = track.album ?? "Unknown Album"
-            artists[artist, default: [:]][album, default: []].append(track)
-        }
-        return artists
-            .map { (artist, albums) in
-                let entries = albums.map { (album, tracks) in
-                    AlbumEntry(
-                        id: "\(artist)|\(album)",
-                        name: album,
-                        tracks: tracks.sorted { ($0.discNumber ?? 0, $0.trackNumber ?? 0) < ($1.discNumber ?? 0, $1.trackNumber ?? 0) }
-                    )
-                }.sorted { $0.name < $1.name }
-                return ArtistSection(id: artist, name: artist, albums: entries)
-            }
-            .sorted { $0.name < $1.name }
     }
 }
 

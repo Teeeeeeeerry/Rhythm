@@ -41,7 +41,7 @@
 | VS-48（#502） | 切换视图后选中段与列表顺序 `AppState::LibraryOrder` + `LibraryRows(state, isDark)` | 启动时按艺人/专辑、第一段选中；把 `LibraryOrder` 设为第二段的排序后，只有第二段选中，`LibraryRows(state, isDark)` 改为按首字母。所选排序是状态而非页面私有值，资料库页随刷新重建后仍保持 | 新测 |
 | VS-57（#516） | 工具栏导入控件 `ImportControlsState(state)` | 与 macOS 工具栏一致：资料库页且未在导入 → 显示两个导入按钮、不显示进度；资料库页导入进行中（`AppState::IsImporting`）→ 隐藏按钮、显示进度指示，其提示与无障碍名称取键表 `importing`（中英各一次）；播放列表页无论是否在导入 → 两者都不显示。视图切换两段同 VS-46 改为同组单选按钮（选中取 `selected`，悬停/按下同色） | 新测 |
 | VS-49（#503） | 按艺人/专辑分组 `ArtistAlbumSections(state, isDark)` | 艺人分节按艺人名排序，节内按专辑名分组；组内曲目按碟号、音轨号排序（缺失记 0），相同时保持曲库原顺序；与 macOS `groupByArtistAlbum` 一致 | 新测 |
-| VS-50（#503） | 未知艺人/专辑的归组 | 缺艺人归入「未知艺人」节、缺专辑归入「未知专辑」组，文案取键表 `unknown_artist` / `unknown_album`（中英各一次），按当前语言的文案与其他名字一起排序（中文下「未知艺人」排在拉丁字母艺人之后；macOS 目前写死英文文案，见 #518）；同名专辑分属两位艺人时仍是两组 | 新测 |
+| VS-50（#503） | 未知艺人/专辑的归组 | 缺艺人归入「未知艺人」节、缺专辑归入「未知专辑」组，文案取键表 `unknown_artist` / `unknown_album`（中英各一次），按当前语言的文案与其他名字一起排序（中文下「未知艺人」排在拉丁字母艺人之后；macOS 同规则见 appstate-macos.md AS-45，#518）；同名专辑分属两位艺人时仍是两组 | 新测 |
 | VS-51（#503） | 平铺的艺人/专辑顺序即分组顺序 | `LibraryRows(state, ArtistAlbum)` 等于 `ArtistAlbumSections` 自上而下读出的曲目顺序，艺人/专辑的规则只有一处 | 新测 |
 | VS-52（#503） | 资料库列表逐行 `LibraryLines(state, isDark)` | 按艺人/专辑：每节先是艺人标题行，每组先是专辑标题行、随后是组内曲目行（标记在组内）；按首字母：每节先是字母标题行、随后是节内曲目行（不在组内，#504）；空曲库无行。页面只把每行变成列表项：标题行渲染为不可点、不可聚焦的标题，专辑标题旁带封面占位（`rhythmElevated`），组内曲目缩进到与专辑标题对齐 | 新测 |
 | VS-53（#504） | 按首字母分节 `LetterSections(state, isDark)` | 节标题为标题（先合成为 NFC，分解写法的重音字母与预组合写法同节）首字符完整转大写（大小写归同一节）；首字符（按码位，BMP 以外的字母同样）带 Unicode Alphabetic 属性才自成一节（含中日韩文字，与 macOS `Character.isLetter` 一致；分类与大小写取系统 ICU，运行时载入，缺失时退回 Win32），数字、标点、表情符号与空标题归入 `#`；节按码位排序（与 Swift 字符串比较一致），`#` 在字母之前、中日韩文字在拉丁字母之后；与 macOS `groupByFirstLetter` 一致 | 新测 |
