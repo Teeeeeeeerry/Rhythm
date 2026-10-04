@@ -1400,3 +1400,96 @@ TEST_CASE("WA-41 without a UI thread the library change is notified directly") {
 
     REQUIRE(notified == 1);
 }
+
+// ─── WA-44 导入进行中（#516）────────────────────────────────────────────
+
+namespace {
+
+/// Holds the UI thread until released, so the work an import posts back
+/// cannot run while the test looks at the in-flight state.
+struct UiGate {
+    std::mutex mutex;
+    std::condition_variable cv;
+    bool open = false;
+
+    void Hold(SpyApp& app) {
+        std::atomic<bool> held{false};
+        app.ui->Post()([this, &held] {
+            held = true;
+            std::unique_lock lock(mutex);
+            cv.wait(lock, [this] { return open; });
+        });
+        waitFor([&] { return held.load(); });
+    }
+
+    void Release() {
+        {
+            std::lock_guard lock(mutex);
+            open = true;
+        }
+        cv.notify_all();
+    }
+};
+
+} // namespace
+
+TEST_CASE("WA-44 a toolbar import is in progress until its result is back on the UI thread") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    app.UseUiThread();
+    LibraryChangeProbe probe;
+    probe.Attach(app.state);
+    std::atomic<int> importingChanges{0};
+    app.state.OnImportingChanged = [&] { ++importingChanges; };
+    REQUIRE_FALSE(app.state.IsImporting);
+
+    auto music = app.dir.path / L"music";
+    fs::create_directories(music);
+    writeWavAt(music, L"one.wav");
+    auto extra = writeWavAt(app.dir.path, L"extra.wav");
+
+    UiGate gate;
+    gate.Hold(app);
+    app.state.ImportDirectory(music.wstring());
+    REQUIRE(app.state.IsImporting);
+    // macOS ignores a second import while one runs; so does Windows.
+    app.state.ImportFile(extra.wstring());
+    gate.Release();
+
+    REQUIRE(probe.SettlesAt(app, 1));
+    REQUIRE_FALSE(app.state.IsImporting);
+    REQUIRE(app.state.Tracks.size() == 1);
+    REQUIRE(app.state.ShowImportAlert);
+    // Once when it starts, once when it ends; the ignored one adds nothing.
+    REQUIRE(waitFor([&] { return importingChanges.load() == 2; }));
+}
+
+TEST_CASE("WA-44 every toolbar import path clears the in-progress flag when it ends") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    app.UseUiThread();
+
+    auto none = app.dir.path / L"empty";
+    fs::create_directories(none);
+    app.state.ImportDirectory(none.wstring());
+    REQUIRE(waitFor([&] { return !app.state.IsImporting; }));
+
+    app.state.ImportFile(writeWavAt(app.dir.path, L"a.wav").wstring());
+    REQUIRE(waitFor([&] { return !app.state.IsImporting; }));
+
+    app.state.ImportPaths({writeWavAt(app.dir.path, L"b.wav").wstring()});
+    REQUIRE(waitFor([&] { return !app.state.IsImporting && app.state.Tracks.size() == 2; }));
+}
+
+TEST_CASE("WA-44 without a UI thread an import runs in place and is never left in progress") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    int importingChanges = 0;
+    app.state.OnImportingChanged = [&] { ++importingChanges; };
+
+    app.state.ImportFile(writeWavAt(app.dir.path, L"direct.wav").wstring());
+
+    REQUIRE_FALSE(app.state.IsImporting);
+    REQUIRE(app.state.Tracks.size() == 1);
+    REQUIRE(importingChanges == 2);
+}

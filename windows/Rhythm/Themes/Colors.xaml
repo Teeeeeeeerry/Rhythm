@@ -12,6 +12,10 @@
             <SolidColorBrush x:Key="RhythmAccentBrush" Color="#ABC8D4" />
             <!-- #ABC8D4 @ 0.15 for selected-item highlight (sidebar) -->
             <SolidColorBrush x:Key="RhythmSelectionBrush" Color="#26ABC8D4" />
+            <!-- #ABC8D4 @ 0.08 for pointer-over highlight (sidebar entries, view switch segments) -->
+            <SolidColorBrush x:Key="RhythmHoverBrush" Color="#14ABC8D4" />
+            <!-- #ABC8D4 @ 0.25 for pressed highlight (sidebar entries, view switch segments) -->
+            <SolidColorBrush x:Key="RhythmPressedBrush" Color="#40ABC8D4" />
             <SolidColorBrush x:Key="RhythmSurfaceBrush" Color="#011F26" />
             <SolidColorBrush x:Key="RhythmElevatedBrush" Color="#0D464D" />
             <SolidColorBrush x:Key="RhythmTextPrimaryBrush" Color="#ABC8D4" />
@@ -30,6 +34,10 @@
             <SolidColorBrush x:Key="RhythmAccentBrush" Color="#0D464D" />
             <!-- #0D464D @ 0.15 for selected-item highlight (sidebar) -->
             <SolidColorBrush x:Key="RhythmSelectionBrush" Color="#260D464D" />
+            <!-- #0D464D @ 0.08 for pointer-over highlight (sidebar entries, view switch segments) -->
+            <SolidColorBrush x:Key="RhythmHoverBrush" Color="#140D464D" />
+            <!-- #0D464D @ 0.25 for pressed highlight (sidebar entries, view switch segments) -->
+            <SolidColorBrush x:Key="RhythmPressedBrush" Color="#400D464D" />
             <SolidColorBrush x:Key="RhythmSurfaceBrush" Color="#FFFFFF" />
             <SolidColorBrush x:Key="RhythmElevatedBrush" Color="#FFFFFF" />
             <SolidColorBrush x:Key="RhythmTextPrimaryBrush" Color="#0D464D" />

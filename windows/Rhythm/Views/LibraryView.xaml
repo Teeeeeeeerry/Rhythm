@@ -6,12 +6,35 @@
     xmlns:views="using:Rhythm.Views">
 
     <Page.Resources>
-        <Style x:Key="SegmentButtonStyle" TargetType="Button">
+        <!-- #516: radio buttons, so assistive technology reads which
+             segment is selected, with pointer-over and pressed states in
+             palette brushes; the checked one still comes from the view state. -->
+        <Style x:Key="SegmentButtonStyle" TargetType="RadioButton">
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="0" />
             <Setter Property="UseSystemFocusVisuals" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <ContentPresenter Background="Transparent" Content="{TemplateBinding Content}" />
+                    <ControlTemplate TargetType="RadioButton">
+                        <Grid x:Name="RootGrid" Background="Transparent" CornerRadius="4">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="PointerOver">
+                                        <VisualState.Setters>
+                                            <Setter Target="RootGrid.Background" Value="{ThemeResource RhythmHoverBrush}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <VisualState.Setters>
+                                            <Setter Target="RootGrid.Background" Value="{ThemeResource RhythmPressedBrush}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled" />
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <ContentPresenter Content="{TemplateBinding Content}" />
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -105,18 +128,20 @@
                     CornerRadius="6" BorderThickness="1"
                     BorderBrush="{ThemeResource RhythmBorderBrush}">
                 <StackPanel Orientation="Horizontal" Spacing="2">
-                    <Button x:Name="segmentArtistAlbum" Style="{StaticResource SegmentButtonStyle}"
-                            Click="OnSegmentClick">
+                    <RadioButton x:Name="segmentArtistAlbum" GroupName="LibraryViewSwitch"
+                                 Style="{StaticResource SegmentButtonStyle}"
+                                 Click="OnSegmentClick">
                         <Border x:Name="segmentArtistAlbumBack" Style="{StaticResource SegmentBackStyle}">
                             <TextBlock x:Name="segmentArtistAlbumLabel" Style="{StaticResource SegmentLabelStyle}" />
                         </Border>
-                    </Button>
-                    <Button x:Name="segmentByLetter" Style="{StaticResource SegmentButtonStyle}"
-                            Click="OnSegmentClick">
+                    </RadioButton>
+                    <RadioButton x:Name="segmentByLetter" GroupName="LibraryViewSwitch"
+                                 Style="{StaticResource SegmentButtonStyle}"
+                                 Click="OnSegmentClick">
                         <Border x:Name="segmentByLetterBack" Style="{StaticResource SegmentBackStyle}">
                             <TextBlock x:Name="segmentByLetterLabel" Style="{StaticResource SegmentLabelStyle}" />
                         </Border>
-                    </Button>
+                    </RadioButton>
                 </StackPanel>
             </Border>
             <Border Height="1" Background="{ThemeResource RhythmBorderBrush}" />

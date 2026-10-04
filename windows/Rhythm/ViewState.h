@@ -64,6 +64,21 @@ struct SidebarEntry {
 /// the entry of `AppState::SelectedView` is selected.
 std::vector<SidebarEntry> SidebarState(const AppState& state);
 
+/// The toolbar's import controls (#516), as on macOS: they belong to the
+/// library page, and while an import runs a progress indicator stands in
+/// for them.
+struct ImportControls {
+    /// The two import buttons: on the library page, when nothing imports.
+    bool showsButtons = false;
+    /// The progress indicator: on the library page, while importing.
+    bool showsProgress = false;
+    /// The indicator's tooltip and accessible name, the key table's
+    /// "importing" copy; empty when it is hidden.
+    std::wstring progressLabel;
+};
+
+ImportControls ImportControlsState(const AppState& state);
+
 /// The library's two orders (#336), declared with the state that holds the
 /// chosen one (`AppState::LibraryOrder`, #502).
 using LibrarySort = ::rhythm::LibrarySort;

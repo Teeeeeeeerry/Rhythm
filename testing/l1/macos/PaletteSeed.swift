@@ -10,6 +10,8 @@ enum PaletteSeed {
         "rhythmAccent": ["dark": RGB(r: 171, g: 200, b: 212, a: 255) , "light": RGB(r: 13, g: 70, b: 77, a: 255)],
         "rhythmBorder": ["dark": RGB(r: 171, g: 200, b: 212, a: 38) , "light": RGB(r: 171, g: 200, b: 212, a: 77)],
         "rhythmElevated": ["dark": RGB(r: 13, g: 70, b: 77, a: 255) , "light": RGB(r: 255, g: 255, b: 255, a: 255)],
+        "rhythmHover": ["dark": RGB(r: 171, g: 200, b: 212, a: 20) , "light": RGB(r: 13, g: 70, b: 77, a: 20)],
+        "rhythmPressed": ["dark": RGB(r: 171, g: 200, b: 212, a: 64) , "light": RGB(r: 13, g: 70, b: 77, a: 64)],
         "rhythmSelection": ["dark": RGB(r: 171, g: 200, b: 212, a: 38) , "light": RGB(r: 13, g: 70, b: 77, a: 38)],
         "rhythmSourceBilibili": ["dark": RGB(r: 200, g: 141, b: 168, a: 255) , "light": RGB(r: 140, g: 77, b: 104, a: 255)],
         "rhythmSourceLocal": ["dark": RGB(r: 138, g: 188, b: 208, a: 255) , "light": RGB(r: 58, g: 122, b: 140, a: 255)],

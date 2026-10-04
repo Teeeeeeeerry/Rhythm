@@ -51,6 +51,32 @@ extension ShapeStyle where Self == Color {
         })
     }
 
+    /// Pointer-over highlight (sidebar entries, view switch segments).
+    /// Dark: #ABC8D4 @ 0.08   Light: #0D464D @ 0.08
+    ///
+    /// The accent at a lower opacity than `rhythmSelection`, so hovering never
+    /// reads as selecting (#516).
+    public static var rhythmHover: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            isDark(appearance)
+                ? NSColor(red: 0xAB / 255.0, green: 0xC8 / 255.0, blue: 0xD4 / 255.0, alpha: 0.08)
+                : NSColor(red: 0x0D / 255.0, green: 0x46 / 255.0, blue: 0x4D / 255.0, alpha: 0.08)
+        })
+    }
+
+    /// Pressed highlight (sidebar entries, view switch segments).
+    /// Dark: #ABC8D4 @ 0.25   Light: #0D464D @ 0.25
+    ///
+    /// Stronger than `rhythmSelection`, so the press shows even on the selected
+    /// entry (#516).
+    public static var rhythmPressed: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            isDark(appearance)
+                ? NSColor(red: 0xAB / 255.0, green: 0xC8 / 255.0, blue: 0xD4 / 255.0, alpha: 0.25)
+                : NSColor(red: 0x0D / 255.0, green: 0x46 / 255.0, blue: 0x4D / 255.0, alpha: 0.25)
+        })
+    }
+
     // MARK: Surfaces
 
     /// Deepest background.

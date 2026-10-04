@@ -396,6 +396,20 @@ std::vector<SidebarEntry> SidebarState(const AppState& state) {
             entry(SidebarItem::Playlists, Icon::Playlists, L10n::PlaylistsTab())};
 }
 
+ImportControls ImportControlsState(const AppState& state) {
+    // #516: macOS shows "+" only on the library page and swaps it for a
+    // progress view while importing (ContentView.swift).
+    ImportControls controls;
+    if (state.SelectedView != SidebarItem::Library) return controls;
+    if (state.IsImporting) {
+        controls.showsProgress = true;
+        controls.progressLabel = L10n::Importing();
+    } else {
+        controls.showsButtons = true;
+    }
+    return controls;
+}
+
 TrayMenu TrayMenuState(const AppState& state) {
     // #141: tray copy follows the language layer like everything else.
     return TrayMenu{L10n::TrayPlayPause(), L10n::TrayShowWindow(), L10n::TrayQuit(),
