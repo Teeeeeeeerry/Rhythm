@@ -609,10 +609,11 @@ fn run_playback_loop<D: Decoder + ?Sized, S: Sink + ?Sized>(
                 let frames = resampler.process(&pcm, &mut out_buf);
 
                 // Apply volume, gliding toward a changed value (#524).
+                let written = &mut out_buf[..frames * out_channels as usize];
                 let volume = inner.lock().unwrap().volume;
-                gain.apply(volume, &mut out_buf[..frames * out_channels as usize], out_channels);
+                gain.apply(volume, written, out_channels);
 
-                output.write(&out_buf[..frames * out_channels as usize])?;
+                output.write(written)?;
 
                 let pos = decoder.position();
                 set_position(&inner, pos);
@@ -628,9 +629,10 @@ fn run_playback_loop<D: Decoder + ?Sized, S: Sink + ?Sized>(
                 let mut out_buf = vec![0.0f32; held * out_channels as usize];
                 let frames = resampler.flush(&mut out_buf);
                 if frames > 0 {
+                    let written = &mut out_buf[..frames * out_channels as usize];
                     let volume = inner.lock().unwrap().volume;
-                    gain.apply(volume, &mut out_buf[..frames * out_channels as usize], out_channels);
-                    output.write(&out_buf[..frames * out_channels as usize])?;
+                    gain.apply(volume, written, out_channels);
+                    output.write(written)?;
                 }
                 break;
             }
