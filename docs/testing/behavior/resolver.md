@@ -5,7 +5,7 @@
 - 测试途径（R3-Q2=A 已定）：
   1. 纯函数直测（已有 28 单测的扩展）：`classify_url`、`parse_hh_mm_ss`、`extract_stream`、`classify_ytdlp_stderr`、`summarize_stderr`、`prune_cache`、`format_utc` 等。
   2. **stub 可执行脚本**（假 yt-dlp）：fixtures 目录放一个脚本，解析参数、按 URL 吐出预置 JSON 或按场景报错/超时；测试设 `RHYTHM_YTDLP_PATH` 指向它，测 `resolve_url` 的"进程调用→输出解析→缓存→失败落地"全链路，不碰网络。**平台适用范围：macOS / Linux / Windows 全部适用**（#388）——桩的可执行路径一律取 `tests/common` 的 `fake_ytdlp_executable()`：类 Unix 直接执行脚本，Windows 由它写一个转交解释器的 `.cmd` 启动器（解释器取 PATH 上 `python` 的绝对路径，可用 `RHYTHM_TEST_PYTHON` 指定）；桩起不来时断言报「stub not runnable」，与解析错误区分。新增端到端用例不要直接把 `.py` 路径交给解析器。
-  3. 缓存为全局 `LazyLock`——测试间用不同 URL 前缀隔离（`unique()` 生成每测试唯一 URL）；`YTDLP_PATH` 路径缓存同样全局，路径失效类场景（RS-14/RS-21）放在独立测试二进制 `resolver_path_failure.rs`（独立进程、缓存从空开始）。
+  3. 缓存为全局 `LazyLock`——测试间用不同 URL 前缀隔离（`unique()` 生成每测试唯一 URL）；`YTDLP_PATH` 路径缓存同样全局，路径失效类场景（RS-14/RS-21）放在独立测试二进制 `resolver_path_failure.rs`（独立进程、缓存从空开始）。断言“找不到 yt-dlp”前，参与候选路径的环境变量（`PATH`、`HOME`、`XDG_DATA_HOME`、`LOCALAPPDATA`、`APPDATA`、`USERPROFILE`、`ProgramFiles`）一律经 `common::EnvGuard` 指到临时空目录，结果与开发机是否装过 yt-dlp、是否已有 Rhythm 自管副本无关（#523）；写死的绝对候选路径上真有 yt-dlp 时用例跳过并打印说明。
   4. `run_with_timeout` 用短超时直测（已有先例）。
 
 ## 主路径（P0 — 合并门槛）
