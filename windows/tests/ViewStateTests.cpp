@@ -242,6 +242,28 @@ TEST_CASE("VS-10 no current track renders the not-playing copy, never the last t
     }
 }
 
+// ─── VS-56 播放条是否显示艺人行（#512）──────────────────────────────
+
+TEST_CASE("VS-56 the player bar shows the artist line only when there is an artist") {
+    AppState state;
+    REQUIRE_FALSE(view::PlayerBarState(state).showsArtist);
+
+    auto track = makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha");
+    state.CurrentTrack = track;
+    REQUIRE_FALSE(view::PlayerBarState(state).showsArtist);
+
+    track.artist = L"";
+    state.CurrentTrack = track;
+    REQUIRE_FALSE(view::PlayerBarState(state).showsArtist);
+
+    track.artist = L"Artist A";
+    state.CurrentTrack = track;
+    REQUIRE(view::PlayerBarState(state).showsArtist);
+
+    state.CurrentTrack.reset();
+    REQUIRE_FALSE(view::PlayerBarState(state).showsArtist);
+}
+
 // ─── VS-11/12/13 播放条音量与播放图标（#335）────────────────────────
 
 TEST_CASE("VS-11 the volume slider shows the current volume") {

@@ -38,7 +38,9 @@
                     <TextBlock x:Name="trackTitle"
                                FontSize="12" FontWeight="SemiBold"
                                TextTrimming="CharacterEllipsis" />
-                    <TextBlock x:Name="trackArtist" Text=""
+                    <!-- #512: shown only when the view state has an artist,
+                         so the not-playing title centres on the cover. -->
+                    <TextBlock x:Name="trackArtist" Text="" Visibility="Collapsed"
                                FontSize="11"
                                Foreground="{ThemeResource RhythmTextSecondaryBrush}"
                                TextTrimming="CharacterEllipsis" />
