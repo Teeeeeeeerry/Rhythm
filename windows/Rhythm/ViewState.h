@@ -200,6 +200,10 @@ struct PlayerBar {
     /// the previous track's values (#334).
     std::wstring title;
     std::wstring artist;
+    /// Whether the artist line is drawn (#512): only for a current track with
+    /// a non-empty artist, like macOS `if let artist`. Without it the line
+    /// takes no height, so the title centres on the cover placeholder.
+    bool showsArtist = false;
     /// Progress bar value, 0-100. Zero while the duration is unknown -- no
     /// made-up progress -- and clamped when the position runs past it (#332).
     double progressPercent = 0.0;

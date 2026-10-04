@@ -94,6 +94,7 @@ void PlayerBarView::Update() {
 
     trackTitle().Text(bar.title);
     trackArtist().Text(bar.artist);
+    trackArtist().Visibility(bar.showsArtist ? Visibility::Visible : Visibility::Collapsed);
 
     playIcon().Symbol(ToSymbol(bar.playIcon));
     playModeIcon().Symbol(ToSymbol(bar.playModeIcon));

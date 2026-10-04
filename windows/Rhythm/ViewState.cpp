@@ -361,6 +361,7 @@ PlayerBar PlayerBarState(const AppState& state) {
     if (state.CurrentTrack) {
         bar.title = state.CurrentTrack->title;
         bar.artist = state.CurrentTrack->artist.value_or(L"");
+        bar.showsArtist = !bar.artist.empty();
     } else {
         bar.title = L10n::NotPlaying();
     }
