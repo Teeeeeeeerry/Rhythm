@@ -14,6 +14,14 @@
       "dark": "#0D464D",
       "light": "#FFFFFF"
     },
+    "rhythmHover": {
+      "dark": "#14ABC8D4",
+      "light": "#140D464D"
+    },
+    "rhythmPressed": {
+      "dark": "#40ABC8D4",
+      "light": "#400D464D"
+    },
     "rhythmSelection": {
       "dark": "#26ABC8D4",
       "light": "#260D464D"
@@ -112,6 +120,26 @@
         "base": "#0D464D",
         "opacity": 0.15
       }
+    },
+    "rhythmHover": {
+      "dark": {
+        "base": "#ABC8D4",
+        "opacity": 0.08
+      },
+      "light": {
+        "base": "#0D464D",
+        "opacity": 0.08
+      }
+    },
+    "rhythmPressed": {
+      "dark": {
+        "base": "#ABC8D4",
+        "opacity": 0.25
+      },
+      "light": {
+        "base": "#0D464D",
+        "opacity": 0.25
+      }
     }
   },
   "docs": {
@@ -129,6 +157,24 @@
         "",
         "The accent at low opacity behind the accent foreground, as the macOS",
         "sidebar draws `.rhythmAccent.opacity(0.15)` (#501)."
+      ]
+    },
+    "rhythmHover": {
+      "lines": [
+        "Pointer-over highlight (sidebar entries, view switch segments).",
+        "{values}",
+        "",
+        "The accent at a lower opacity than `rhythmSelection`, so hovering never",
+        "reads as selecting (#516)."
+      ]
+    },
+    "rhythmPressed": {
+      "lines": [
+        "Pressed highlight (sidebar entries, view switch segments).",
+        "{values}",
+        "",
+        "Stronger than `rhythmSelection`, so the press shows even on the selected",
+        "entry (#516)."
       ]
     },
     "rhythmSurface": {
@@ -218,6 +264,16 @@
       "background": "window",
       "contrastThreshold": 0.0,
       "purpose": "选中项底色（背景类，不参与对比度断言）"
+    },
+    "rhythmHover": {
+      "background": "window",
+      "contrastThreshold": 0.0,
+      "purpose": "悬停底色（背景类，不参与对比度断言）"
+    },
+    "rhythmPressed": {
+      "background": "window",
+      "contrastThreshold": 0.0,
+      "purpose": "按下底色（背景类，不参与对比度断言）"
     },
     "rhythmSourceLocal": {
       "background": "window",

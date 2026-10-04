@@ -40,7 +40,7 @@ void LibraryView::BindState(rhythm::AppState* state) {
 void LibraryView::OnSegmentClick(IInspectable const& sender, RoutedEventArgs const&) {
     if (!appState_) return;
     // The clicked segment's order is whatever the view state put there.
-    const Button buttons[] = {segmentArtistAlbum(), segmentByLetter()};
+    const RadioButton buttons[] = {segmentArtistAlbum(), segmentByLetter()};
     const auto segments = rhythm::view::LibraryViewSwitch(*appState_);
     for (size_t i = 0; i < segments.size() && i < std::size(buttons); ++i) {
         if (sender != buttons[i]) continue;
@@ -106,7 +106,7 @@ void LibraryView::Populate() {
 
 void LibraryView::RenderViewSwitch() {
     struct Slot {
-        Button button;
+        RadioButton button;
         Border back;
         TextBlock label;
     };
@@ -124,6 +124,9 @@ void LibraryView::RenderViewSwitch() {
         slot.label.Text(segment.label);
         // The button's content is a layout, so screen readers need the name.
         Automation::AutomationProperties::SetName(slot.button, segment.label);
+        // #516: checked mirrors the view state, so UI Automation reads the
+        // selected segment through the radio button's selection item.
+        slot.button.IsChecked(segment.selected);
         slot.back.Style(style(segment.selected ? L"SegmentBackSelectedStyle" : L"SegmentBackStyle"));
         slot.label.Style(style(segment.selected ? L"SegmentLabelSelectedStyle" : L"SegmentLabelStyle"));
     }

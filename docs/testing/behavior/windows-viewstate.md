@@ -36,9 +36,10 @@
 | VS-11（#335） | 播放条音量 `PlayerBarState().volumePercent` | 返回当前音量（滑块刻度 0 到 100：0.35 → 35） | 新测 |
 | VS-12（#335） | 播放按钮图标 `PlayerBarState().playIcon` | 播放中 → 暂停图标；非播放中 → 播放图标。播放模式图标 `playModeIcon` 同在此结构（覆盖见 LK-10，`l10n-keys.md`） | 新测 |
 | VS-45（#501） | 常驻侧栏条目 `SidebarState(state)` | 两项，按 macOS 顺序：资料库、播放列表；每项同时带图标与文案（文案取键表 `library_tab` / `playlists_tab`，中英各一次），没有只剩图标的中间态。壳把它灌进常驻展开的侧栏，不再用汉堡菜单与浮层 | 新测 |
-| VS-46（#501） | 侧栏选中项 `SidebarEntry::selected` | 恰好 `AppState::SelectedView` 那一项为选中：启动时资料库选中；切到播放列表后只有播放列表选中。壳据此套用选中样式（底色 `rhythmSelection`、前景 `rhythmAccent`，取自 palette.json，与 macOS 侧栏一致） | 新测 |
+| VS-46（#501） | 侧栏选中项 `SidebarEntry::selected` | 恰好 `AppState::SelectedView` 那一项为选中：启动时资料库选中；切到播放列表后只有播放列表选中。壳据此套用选中样式（底色 `rhythmSelection`、前景 `rhythmAccent`，取自 palette.json，与 macOS 侧栏一致）。#516 起侧栏条目是同组单选按钮，选中与否仍取此字段（`IsChecked`），UI Automation 经 SelectionItem 读出当前选中项；悬停与按下底色为 `rhythmHover` / `rhythmPressed`（palette.json），由 L2 `MainWindow_Pointer_*` 强制视觉状态拍下 | 新测 |
 | VS-47（#502） | 资料库唯一的视图切换 `LibraryViewSwitch(state)` | 两段，按 macOS 分段控件的顺序与标签：按艺人/专辑（`ByArtistAlbum`）、按首字母（`ByLetter`），中英各一次；每段带它选中的排序。壳把它灌进资料库页顶部居中的分段控件，主窗口工具栏不再有视图下拉框 | 新测 |
 | VS-48（#502） | 切换视图后选中段与列表顺序 `AppState::LibraryOrder` + `LibraryRows(state, isDark)` | 启动时按艺人/专辑、第一段选中；把 `LibraryOrder` 设为第二段的排序后，只有第二段选中，`LibraryRows(state, isDark)` 改为按首字母。所选排序是状态而非页面私有值，资料库页随刷新重建后仍保持 | 新测 |
+| VS-57（#516） | 工具栏导入控件 `ImportControlsState(state)` | 与 macOS 工具栏一致：资料库页且未在导入 → 显示两个导入按钮、不显示进度；资料库页导入进行中（`AppState::IsImporting`）→ 隐藏按钮、显示进度指示，其提示与无障碍名称取键表 `importing`（中英各一次）；播放列表页无论是否在导入 → 两者都不显示。视图切换两段同 VS-46 改为同组单选按钮（选中取 `selected`，悬停/按下同色） | 新测 |
 | VS-49（#503） | 按艺人/专辑分组 `ArtistAlbumSections(state, isDark)` | 艺人分节按艺人名排序，节内按专辑名分组；组内曲目按碟号、音轨号排序（缺失记 0），相同时保持曲库原顺序；与 macOS `groupByArtistAlbum` 一致 | 新测 |
 | VS-50（#503） | 未知艺人/专辑的归组 | 缺艺人归入「未知艺人」节、缺专辑归入「未知专辑」组，文案取键表 `unknown_artist` / `unknown_album`（中英各一次），按当前语言的文案与其他名字一起排序（中文下「未知艺人」排在拉丁字母艺人之后；macOS 目前写死英文文案，见 #518）；同名专辑分属两位艺人时仍是两组 | 新测 |
 | VS-51（#503） | 平铺的艺人/专辑顺序即分组顺序 | `LibraryRows(state, ArtistAlbum)` 等于 `ArtistAlbumSections` 自上而下读出的曲目顺序，艺人/专辑的规则只有一处 | 新测 |

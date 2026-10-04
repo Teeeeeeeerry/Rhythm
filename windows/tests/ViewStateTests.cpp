@@ -781,6 +781,35 @@ TEST_CASE("VS-48 switching the view selects its segment and reorders the list") 
             std::vector<std::wstring>{L"Alpha", L"Beta"});
 }
 
+// ─── VS-57 工具栏导入控件（#516）────────────────────────────────────
+
+TEST_CASE("VS-57 the import controls show on the library page only, a progress indicator while importing") {
+    for (const wchar_t* language : {L"zh", L"en"}) {
+        LanguageScope scope(language);
+        AppState state;
+
+        auto controls = view::ImportControlsState(state);
+        REQUIRE(controls.showsButtons);
+        REQUIRE_FALSE(controls.showsProgress);
+
+        state.IsImporting = true;
+        controls = view::ImportControlsState(state);
+        REQUIRE_FALSE(controls.showsButtons);
+        REQUIRE(controls.showsProgress);
+        REQUIRE(controls.progressLabel == L10n::Importing());
+
+        state.SelectedView = SidebarItem::Playlists;
+        controls = view::ImportControlsState(state);
+        REQUIRE_FALSE(controls.showsButtons);
+        REQUIRE_FALSE(controls.showsProgress);
+
+        state.IsImporting = false;
+        controls = view::ImportControlsState(state);
+        REQUIRE_FALSE(controls.showsButtons);
+        REQUIRE_FALSE(controls.showsProgress);
+    }
+}
+
 // ─── VS-49/50/51 按艺人/专辑分组（#503）──────────────────────────────
 
 namespace {

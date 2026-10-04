@@ -29,6 +29,7 @@ private:
     /// Copies the view state's sidebar entries into the two sidebar items
     /// (#501): icon, label and the selected highlight.
     void RenderSidebar();
+    void RenderImportControls();
     void LoadLibraryView();
     void LoadPlaylistListView();
     void RefreshLibraryIfShown();

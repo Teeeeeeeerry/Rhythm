@@ -74,6 +74,16 @@ public:
     /// Raised on the UI thread when a URL fails to resolve: (kind, message).
     std::function<void(const std::wstring&, const std::wstring&)> OnUrlError;
 
+    /// True while a toolbar import (folder, file, batch) runs (#516, macOS
+    /// `isImporting`): the toolbar swaps its import buttons for a progress
+    /// indicator, and a second import is ignored. Atomic: read by tests on
+    /// their own thread while the UI thread clears it.
+    std::atomic<bool> IsImporting{ false };
+    /// Raised on the UI thread when `IsImporting` flips (#516), directly
+    /// when none is set. A channel of its own, like `OnLibraryChanged`: an
+    /// import that adds nothing reloads no list, but still ends.
+    std::function<void()> OnImportingChanged;
+
     // Import feedback (WA-23, mirrors the macOS import alert).
     std::wstring ImportAlertMessage;
     bool ShowImportAlert = false;
@@ -104,6 +114,9 @@ public:
 
     void OpenDatabase(const std::wstring& path);
     void RefreshLibrary();
+    /// The three toolbar imports run off the UI thread when one is set, as
+    /// on macOS (#516), and land back on it: reload, alert, then the end of
+    /// `IsImporting`. Without a UI thread they run in place (tests).
     void ImportDirectory(const std::wstring& path);
     /// Import a single audio file (#242, macOS parity). Unsupported format
     /// and read failure get different alerts -- the user needs to know
@@ -190,6 +203,15 @@ public:
 private:
     /// Deliver `OnLibraryChanged` on the UI thread (#494).
     void NotifyLibraryChanged();
+
+    /// The one shape of a toolbar import (#516): `work` runs on a worker
+    /// thread when a UI thread is set, `finish` on the UI thread with its
+    /// outcome; `IsImporting` covers both. Ignored while one runs.
+    void RunImport(std::function<std::optional<ImportOutcome>(::rhythm::Library&)> work,
+                   std::function<std::wstring(const ImportOutcome&)> message);
+
+    /// Set `IsImporting` and raise `OnImportingChanged` on the UI thread.
+    void SetImporting(bool importing);
 
     /// Run work on the UI thread when one is set, otherwise directly on the
     /// caller thread (tests): the one marshalling rule for coordinator events

@@ -65,11 +65,16 @@ void MainWindow::InitializeComponent() {
     // page by hand any more.
     appState_.OnLibraryChanged = [this] { RefreshLibraryIfShown(); };
 
+    // #516: an import runs off the UI thread; its start and end swap the
+    // import buttons for the progress indicator and back.
+    appState_.OnImportingChanged = [this] { RenderImportControls(); };
+
     rhythm::shell::AttachTray(hwnd_, &appState_);
     Closed([](auto&&, auto&&) { rhythm::shell::DetachTray(); });
 
     contentFrame().Navigated({ this, &MainWindow::OnFrameNavigated });
     RenderSidebar();
+    RenderImportControls();
     ready_ = true;
     LoadLibraryView();
 }
@@ -89,7 +94,7 @@ void MainWindow::OnFrameNavigated(IInspectable const&,
 void MainWindow::OnSidebarClick(IInspectable const& sender, RoutedEventArgs const&) {
     if (!ready_) return;
     // The clicked slot's page is whatever the view state put in that slot.
-    const Button buttons[] = {sideLibrary(), sidePlaylists()};
+    const RadioButton buttons[] = {sideLibrary(), sidePlaylists()};
     const auto entries = rhythm::view::SidebarState(appState_);
     for (size_t i = 0; i < entries.size() && i < std::size(buttons); ++i) {
         if (sender != buttons[i]) continue;
@@ -100,13 +105,14 @@ void MainWindow::OnSidebarClick(IInspectable const& sender, RoutedEventArgs cons
             LoadPlaylistListView();
         }
         RenderSidebar();
+        RenderImportControls();
         return;
     }
 }
 
 void MainWindow::RenderSidebar() {
     struct Slot {
-        Button button;
+        RadioButton button;
         Border highlight;
         SymbolIcon icon;
         TextBlock label;
@@ -126,6 +132,9 @@ void MainWindow::RenderSidebar() {
         slot.label.Text(entry.label);
         // The button's content is a layout, so screen readers need the name.
         Automation::AutomationProperties::SetName(slot.button, entry.label);
+        // #516: checked mirrors the view state, so UI Automation reads the
+        // selected entry through the radio button's selection item.
+        slot.button.IsChecked(entry.selected);
         slot.highlight.Style(style(entry.selected ? L"SidebarHighlightSelectedStyle"
                                                   : L"SidebarHighlightStyle"));
         slot.icon.Style(style(entry.selected ? L"SidebarIconSelectedStyle"
@@ -133,6 +142,19 @@ void MainWindow::RenderSidebar() {
         slot.label.Style(style(entry.selected ? L"SidebarLabelSelectedStyle"
                                               : L"SidebarLabelStyle"));
     }
+}
+
+/// The toolbar's import controls (#516): which of the buttons and the
+/// progress indicator show comes from the view state.
+void MainWindow::RenderImportControls() {
+    const auto controls = rhythm::view::ImportControlsState(appState_);
+    const auto buttons = controls.showsButtons ? Visibility::Visible : Visibility::Collapsed;
+    btnImport().Visibility(buttons);
+    btnImportFile().Visibility(buttons);
+    importProgress().Visibility(controls.showsProgress ? Visibility::Visible : Visibility::Collapsed);
+    importProgress().IsActive(controls.showsProgress);
+    ToolTipService::SetToolTip(importProgress(), winrt::box_value(winrt::hstring{ controls.progressLabel }));
+    Automation::AutomationProperties::SetName(importProgress(), controls.progressLabel);
 }
 
 winrt::fire_and_forget MainWindow::OnImportClick(IInspectable const&, RoutedEventArgs const&) {

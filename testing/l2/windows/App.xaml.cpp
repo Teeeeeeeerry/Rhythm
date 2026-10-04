@@ -121,8 +121,10 @@ Grid Backdrop(Theme theme) {
 /// Shows the window off-screen, lets it settle and captures `root`.
 /// Activation gives the first control keyboard focus, and its focus
 /// rectangle is not part of any view's look: focus moves to an invisible
-/// sink added to the backdrop first.
-IAsyncAction Shoot(Window window, Grid root, fs::path file) {
+/// sink added to the backdrop first. `prepare`, when given, runs after that,
+/// right before the capture.
+IAsyncAction Shoot(Window window, Grid root, fs::path file,
+                   std::function<void()> prepare = {}) {
     Button sink;
     sink.Width(1);
     sink.Height(1);
@@ -136,6 +138,10 @@ IAsyncAction Shoot(Window window, Grid root, fs::path file) {
     co_await Settle();
     sink.Focus(FocusState::Programmatic);
     co_await Settle();
+    if (prepare) {
+        prepare();
+        co_await Settle();
+    }
     co_await SavePng(root, file);
     window.Close();
 }
@@ -149,6 +155,28 @@ IAsyncAction CaptureMainWindow(Theme theme, fs::path dir) {
     window.Content(backdrop);
     backdrop.Children().Append(content.as<UIElement>());
     co_await Shoot(window, backdrop, dir / (std::wstring(L"MainWindow_") + theme.name + L".png"));
+}
+
+/// The main window with its two kinds of navigation control in their pointer
+/// states (#516), which no pointer reaches in an off-screen window: the
+/// playlists entry of the sidebar under the pointer, and the library's
+/// by-letter segment pressed. Forced through the controls' own visual states.
+IAsyncAction CaptureMainWindowPointer(Theme theme, fs::path dir) {
+    auto window = make<MainWindow>();
+    auto content = window.Content();
+    auto backdrop = Backdrop(theme);
+    window.Content(backdrop);
+    backdrop.Children().Append(content.as<UIElement>());
+    auto self = get_self<implementation::MainWindow>(window);
+    co_await Shoot(window, backdrop,
+                   dir / (std::wstring(L"MainWindow_Pointer_") + theme.name + L".png"),
+                   [self] {
+                       VisualStateManager::GoToState(self->sidePlaylists(), L"PointerOver", false);
+                       auto page = self->contentFrame().Content().as<Rhythm::Views::LibraryView>();
+                       VisualStateManager::GoToState(
+                           get_self<Views::implementation::LibraryView>(page)->segmentByLetter(),
+                           L"Pressed", false);
+                   });
 }
 
 /// One view on its own, in a fixed-size frame of a bare window.
@@ -231,6 +259,7 @@ fire_and_forget CaptureAll(fs::path dir) {
         ::rhythm::capture::FixtureLibraryPath() = scratch / L"library.db";
         for (const auto& theme : kThemes) {
             co_await CaptureMainWindow(theme, dir);
+            co_await CaptureMainWindowPointer(theme, dir);
             co_await CaptureLibrary(theme, dir);
             co_await CapturePlayerBar(theme, dir);
         }

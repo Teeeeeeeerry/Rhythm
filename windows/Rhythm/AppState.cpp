@@ -75,38 +75,61 @@ int64_t AppState::CreatePlaylist(const std::wstring& name) {
 }
 
 void AppState::ImportDirectory(const std::wstring& path) {
-    if (!Library) return;
-    auto outcome = Library->ImportDirectory(path);
-    if (!outcome) return;
     // WA-23: mirror the macOS import alert. The counts are named (#241) --
     // no reverse-engineering a magic integer. Which of the three arms to
     // pick, and the imported-count wording, is decided by the core (#375).
-    if (outcome->imported > 0) RefreshLibrary();
-    ImportAlertMessage = L10n::ImportDirectoryResult(outcome->imported, outcome->failed);
-    ShowImportAlert = true;
+    RunImport([path](::rhythm::Library& lib) { return lib.ImportDirectory(path); },
+              [](const ImportOutcome& o) { return L10n::ImportDirectoryResult(o.imported, o.failed); });
 }
 
 void AppState::ImportFile(const std::wstring& path) {
-    if (!Library) return;
-    auto outcome = Library->ImportFile(path);
-    if (!outcome) return;
     // Which of the three arms to pick, and the imported-count wording, is
     // decided by the core (#377).
-    if (outcome->imported > 0) RefreshLibrary();
-    ImportAlertMessage = L10n::ImportFileResult(outcome->imported, outcome->unsupported);
-    ShowImportAlert = true;
+    RunImport([path](::rhythm::Library& lib) { return lib.ImportFile(path); },
+              [](const ImportOutcome& o) { return L10n::ImportFileResult(o.imported, o.unsupported); });
 }
 
 void AppState::ImportPaths(const std::vector<std::wstring>& paths) {
-    if (!Library) return;
-    auto outcome = Library->ImportPaths(paths);
-    if (!outcome) return;
     // Which of the four arms to pick, and the partial-success sentence's two
     // numbers, is decided by the core (#379/#380) -- both platforms render one
     // batch identically (#243).
-    if (outcome->imported > 0) RefreshLibrary();
-    ImportAlertMessage = L10n::ImportBatchResult(outcome->imported, outcome->failed);
-    ShowImportAlert = true;
+    RunImport([paths](::rhythm::Library& lib) { return lib.ImportPaths(paths); },
+              [](const ImportOutcome& o) { return L10n::ImportBatchResult(o.imported, o.failed); });
+}
+
+void AppState::RunImport(std::function<std::optional<ImportOutcome>(::rhythm::Library&)> work,
+                         std::function<std::wstring(const ImportOutcome&)> message) {
+    if (!Library || IsImporting) return;
+    SetImporting(true);
+
+    auto finish = [this, message](std::optional<ImportOutcome> outcome) {
+        if (outcome) {
+            if (outcome->imported > 0) RefreshLibrary();
+            ImportAlertMessage = message(*outcome);
+            ShowImportAlert = true;
+        }
+        SetImporting(false);
+    };
+
+    auto post = uiPost_;
+    if (!post) {
+        finish(work(*Library));
+        return;
+    }
+    // #516: the core's library serialises its own access, so the import runs
+    // off the UI thread as on macOS and the window keeps painting.
+    std::thread([lib = Library.get(), work, finish, post] {
+        auto outcome = work(*lib);
+        post([finish, outcome] { finish(outcome); });
+    }).detach();
+}
+
+void AppState::SetImporting(bool importing) {
+    IsImporting = importing;
+    if (!OnImportingChanged) return;
+    DeliverOnUi([this] {
+        if (OnImportingChanged) OnImportingChanged();
+    });
 }
 
 void AppState::ImportM3U8(const std::wstring& path) {
