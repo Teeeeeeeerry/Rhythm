@@ -31,7 +31,9 @@ const YTDLP_PROBE_TIMEOUT: Duration = Duration::from_secs(20);
 /// is guaranteed to be paid.
 pub(crate) const YTDLP_FIRST_RUN_TIMEOUT: Duration = Duration::from_secs(90);
 
-/// Timeout for asking the user's login shell where yt-dlp lives.
+/// Timeout for asking the user's login shell where yt-dlp lives. The login
+/// shell probe only exists off Windows, so the constant does too.
+#[cfg(not(windows))]
 const LOGIN_SHELL_TIMEOUT: Duration = Duration::from_secs(8);
 
 /// Environment variable that pins the yt-dlp binary location, bypassing
