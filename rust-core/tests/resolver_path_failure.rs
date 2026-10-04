@@ -16,6 +16,44 @@ fn unique(url_tag: &str) -> String {
     format!("https://e2e.example.com/watch?v={url_tag}")
 }
 
+/// Hardcoded absolute candidates (see candidate_ytdlp_paths). The tests
+/// cannot redirect these, so a machine with a real yt-dlp there skips.
+const ABSOLUTE_CANDIDATES: &[&str] = &[
+    "/opt/homebrew/bin/yt-dlp",
+    "/usr/local/bin/yt-dlp",
+    "/opt/local/bin/yt-dlp",
+    "/usr/bin/yt-dlp",
+    "/snap/bin/yt-dlp",
+    r"C:\ProgramData\chocolatey\bin\yt-dlp.exe",
+];
+
+fn real_ytdlp_on_absolute_candidate() -> Option<&'static str> {
+    ABSOLUTE_CANDIDATES
+        .iter()
+        .copied()
+        .find(|candidate| Path::new(candidate).is_file())
+}
+
+/// Point every environment variable that feeds candidate_ytdlp_paths at an
+/// empty directory (#523). Besides PATH and HOME this covers the Windows
+/// roots: Rhythm's managed copy lives under %LOCALAPPDATA%, so a dev machine
+/// that has played one online link would otherwise find a REAL yt-dlp.
+fn isolate_ytdlp_discovery(dir: &Path) -> Vec<common::EnvGuard> {
+    let empty = dir.join("empty-home");
+    let mut guards = vec![common::EnvGuard::set("PATH", "")];
+    for key in [
+        "HOME",
+        "XDG_DATA_HOME",
+        "LOCALAPPDATA",
+        "APPDATA",
+        "USERPROFILE",
+        "ProgramFiles",
+    ] {
+        guards.push(common::EnvGuard::set(key, &empty));
+    }
+    guards
+}
+
 /// Windows: a real `.exe` that forwards to the `.cmd` stub launcher (#409).
 /// Deleting a `.cmd` does not make the spawn fail (`cmd.exe` still starts and
 /// only prints "not recognized"); deleting an `.exe` does. Built with the
@@ -79,17 +117,9 @@ fn rs14_spawn_failure_reports_missing_and_rechecks() {
     // Same guard as rs21: the re-discovery phase walks hardcoded absolute
     // candidate paths, so a dev machine with a real yt-dlp there would
     // find it instead of reporting missing.
-    for candidate in [
-        "/opt/homebrew/bin/yt-dlp",
-        "/usr/local/bin/yt-dlp",
-        "/opt/local/bin/yt-dlp",
-        "/usr/bin/yt-dlp",
-        "/snap/bin/yt-dlp",
-    ] {
-        if Path::new(candidate).is_file() {
-            eprintln!("rs14 skipped: real yt-dlp found at {candidate}");
-            return;
-        }
+    if let Some(candidate) = real_ytdlp_on_absolute_candidate() {
+        eprintln!("rs14 skipped: real yt-dlp found at {candidate}");
+        return;
     }
 
     // First resolve succeeds and caches the copy's path.
@@ -107,11 +137,11 @@ fn rs14_spawn_failure_reports_missing_and_rechecks() {
 
     // With no usable binary anywhere and auto-install disabled, the next
     // resolve re-discovers and reports the plain missing-binary error.
-    // HOME is pointed at a temp dir so the managed copy / ~/bin candidates
-    // on a developer machine (which hold a REAL yt-dlp) don't get found.
+    // Every candidate root is pointed at a temp dir so the managed copy and
+    // per-user installs on a developer machine (which hold a REAL yt-dlp)
+    // don't get found.
     std::env::set_var(YTDLP_ENV_OVERRIDE, "");
-    let _path_guard = common::EnvGuard::set("PATH", "");
-    let _home_guard = common::EnvGuard::set("HOME", dir.path().join("empty-home"));
+    let _env_guards = isolate_ytdlp_discovery(dir.path());
     let err2 = rhythm_core::resolver::resolve_url(&unique("rs14-recheck")).unwrap_err();
     assert_eq!(err2.kind, ResolveErrorKind::YtDlpMissing);
 }
@@ -126,23 +156,14 @@ fn rs21_no_auto_install_yields_missing() {
     // Guard: this test assumes the machine has no yt-dlp on the hardcoded
     // candidate paths (see candidate_ytdlp_paths); bail out with a note if
     // that ever stops being true on a dev machine.
-    for candidate in [
-        "/opt/homebrew/bin/yt-dlp",
-        "/usr/local/bin/yt-dlp",
-        "/opt/local/bin/yt-dlp",
-        "/usr/bin/yt-dlp",
-        "/snap/bin/yt-dlp",
-    ] {
-        if Path::new(candidate).is_file() {
-            eprintln!("rs21 skipped: real yt-dlp found at {candidate}");
-            return;
-        }
+    if let Some(candidate) = real_ytdlp_on_absolute_candidate() {
+        eprintln!("rs21 skipped: real yt-dlp found at {candidate}");
+        return;
     }
 
     std::env::set_var(YTDLP_ENV_OVERRIDE, "");
     std::env::set_var("RHYTHM_NO_AUTO_INSTALL", "1");
-    let _path_guard = common::EnvGuard::set("PATH", "");
-    let _home_guard = common::EnvGuard::set("HOME", dir.path().join("empty-home"));
+    let _env_guards = isolate_ytdlp_discovery(dir.path());
 
     let err = rhythm_core::resolver::resolve_url(&unique("rs21-missing")).unwrap_err();
     assert_eq!(err.kind, ResolveErrorKind::YtDlpMissing);
