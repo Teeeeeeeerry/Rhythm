@@ -155,8 +155,8 @@
         "Selected-item highlight (sidebar).",
         "{values}",
         "",
-        "The accent at low opacity behind the accent foreground, as the macOS",
-        "sidebar draws `.rhythmAccent.opacity(0.15)` (#501)."
+        "The accent at low opacity behind the accent foreground; the sidebars on",
+        "both platforms take their selected background from here (#501, #514)."
       ]
     },
     "rhythmHover": {
