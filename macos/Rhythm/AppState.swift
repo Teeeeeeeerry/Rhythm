@@ -462,6 +462,50 @@ final class AppState: ObservableObject {
             position = seconds
         }
     }
+
+    // MARK: - Library Grouping
+
+    /// 按艺人/专辑的分组结构（资料库「按艺人/专辑」视图只渲染它）。
+    /// 缺失的艺人/专辑归入以键表文案 `unknown_artist` / `unknown_album`
+    /// 命名的组，归组与排序都按当前语言的文案进行，与 Windows
+    /// `ArtistAlbumSections`（VS-50）一致（#518）。
+    var artistAlbumSections: [ArtistSection] {
+        let unknownArtist = L10n.unknownArtist
+        let unknownAlbum = L10n.unknownAlbum
+        var artists: [String: [String: [Track]]] = [:]
+        for track in tracks {
+            let artist = track.artist ?? unknownArtist
+            let album = track.album ?? unknownAlbum
+            artists[artist, default: [:]][album, default: []].append(track)
+        }
+        return artists
+            .map { (artist, albums) in
+                let entries = albums.map { (album, tracks) in
+                    AlbumEntry(
+                        id: "\(artist)|\(album)",
+                        name: album,
+                        tracks: tracks.sorted { ($0.discNumber ?? 0, $0.trackNumber ?? 0) < ($1.discNumber ?? 0, $1.trackNumber ?? 0) }
+                    )
+                }.sorted { $0.name < $1.name }
+                return ArtistSection(id: artist, name: artist, albums: entries)
+            }
+            .sorted { $0.name < $1.name }
+    }
+}
+
+/// ForEach ID 载体 — 艺人分组，id 为艺人名（`artistAlbumSections` 保证唯一）。
+struct ArtistSection: Identifiable {
+    let id: String
+    let name: String
+    let albums: [AlbumEntry]
+}
+
+/// ForEach ID 载体 — 专辑分组。id 为 "艺人|专辑" 组合键，
+/// 避免跨艺人的同名专辑（含「未知专辑」）字符串 ID 碰撞（#66）。
+struct AlbumEntry: Identifiable {
+    let id: String
+    let name: String
+    let tracks: [Track]
 }
 
 enum SidebarItem: String, CaseIterable, Identifiable {

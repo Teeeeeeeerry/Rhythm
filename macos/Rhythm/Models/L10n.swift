@@ -132,6 +132,8 @@ enum L10n {
     static var libraryEmpty: String { L10nKeys.value("library_empty") }
     static var byArtistAlbum: String { L10nKeys.value("by_artist_album") }
     static var byLetter: String { L10nKeys.value("by_letter") }
+    static var unknownArtist: String { L10nKeys.value("unknown_artist") }
+    static var unknownAlbum: String { L10nKeys.value("unknown_album") }
     static var searchPlaceholder: String { L10nKeys.value("search_placeholder") }
     static var importTooltip: String { L10nKeys.value("import_tooltip") }
     static var view: String { L10nKeys.value("view") }

@@ -1,6 +1,6 @@
 # AppState（macOS）行为清单
 
-- 模块：`macos/Rhythm/AppState.swift`（播放编排经协调器委托、队列同步、导入流程、URL 解析导入）；测试：`macos/Tests/AppStateTests/`（`AppStatePlaybackMainPathTests.swift` AS-01–26、`AppStatePlaybackBoundaryTests.swift` AS-27–39、`Support/PlaybackTestSupport.swift` SpyCoordinator/夹具、`AppStateImportTests.swift` 既有导入回归）
+- 模块：`macos/Rhythm/AppState.swift`（播放编排经协调器委托、队列同步、导入流程、URL 解析导入）；测试：`macos/Tests/AppStateTests/`（`AppStatePlaybackMainPathTests.swift` AS-01–26、`AppStatePlaybackBoundaryTests.swift` AS-27–39、`Support/PlaybackTestSupport.swift` SpyCoordinator/夹具、`AppStateImportTests.swift` 既有导入回归、`AppStateLibraryGroupingTests.swift` 资料库分组 AS-45）
 - 编排规则归属（#170 起）：起播（先停后播 #51、按来源分发、recordPlay、队列建立定位）、next/previous 有界跳过（#78）、队列同步（#69）全部在 rust-core 协调器（见 `coordinator.md` CO-xx）；AppState 只渲染状态。本清单保留对应条目的行为断言，测试途径改为「SpyCoordinator 断言委托 + rust-core 覆盖规则」
 - 历史回归：`#24`+`#25`（托盘可用性）、`#32`（单文件导入）、`#33`（删除曲目）、`#38`（后台导入）、`#39`（URL 持久化）、`#51`（先停后播）、`#53`（停止按钮）、`#66`+`#67`（DB 重载一致性）、`#69`+`#72`（队列同步）、`#71`+`#74`（导入不自动播放）、`#73`（seek）、`#21`（解析错误文案）
 - 接缝需求（最小接缝，已落地）：
@@ -23,6 +23,7 @@
 | AS-20 | `resolveAndImport` 失败（#21） | `urlError=L10n.urlResolveError(kind, detail)` 非空；不弹导入 alert | stub resolver 报错 |
 | AS-21 | `importResolved`（#71） | `addTrack` 持久化 → `refreshLibrary`（#66）→ `urlInput=""` → 导入 alert；不播放 | 真库 + SpyCoordinator |
 | AS-44（#505） | 链接输入提交 | 回车与「导入链接」按钮都经 `submitURLInput` 提交：解析后入库、清空输入、弹导入提示，不播放、不调协调器起播；输入为空白时 `canSubmitURLInput == false`（按钮禁用），提交不启动解析 | stub resolver + 真库 + SpyCoordinator（`testSubmitURLInput_ImportsWithoutPlaying`、`testSubmitURLInput_BlankInputIsNotSubmittable`） |
+| AS-45（#518） | 按艺人/专辑分组 `artistAlbumSections` | 缺艺人归入「未知艺人」节、缺专辑归入「未知专辑」组，组名取键表 `unknown_artist` / `unknown_album`；归组与排序都按当前语言的文案进行（中文下「未知艺人」排在拉丁字母艺人之后，英文下按 “Unknown Artist” 与其他艺人一起排序），与 Windows VS-50 一致；跨艺人的「未知专辑」仍是两组、组 id 不碰撞（#66）。资料库「按艺人/专辑」视图只渲染该结构 | 固定 locale（`AppLanguage`）+ 直接设置 `tracks`（`AppStateLibraryGroupingTests.swift`） |
 | AS-22 | `playResolved`（#39/#66） | `addTrack` → `refreshLibrary` → `coordinator.start(saved, tracks, …)`（真实 DB id）→ `isPlaying=true`；队列定位经可用性断言 | 真库 + SpyCoordinator |
 | AS-23 | `importURLs` 批量导入（#38/#240） | `isImporting` 防重入；后台执行；目录/文件分派与「部分成功」聚合在核心，本端把具名结果 `{imported, failed}` 交核心选文案（#380）；`imported>0` 才 `refreshLibrary`；四种统计文案（全成/部分成/全败/无支持；四态分派下沉核心，见 l10n-keys.md LK-16/MS-11，#380） | 真库（临时目录夹具）+ expectation |
 | AS-24 | `importDirectory`/`importFile` 单路径（#240） | 断言基于具名结果：`imported>0` → 成功文案 + 刷新；目录 `failed>0` → 目录失败文案，三项全 0 → 目录为空文案（目录三态分派下沉核心，见 l10n-keys.md LK-14/MS-09，#376）；单文件 `unsupported>0` → 格式不支持文案，`failed>0` → 读取失败文案（单文件三态分派下沉核心，见 l10n-keys.md LK-15/MS-10，#378） | 真库 + 夹具目录 |
