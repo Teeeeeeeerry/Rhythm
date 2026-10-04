@@ -564,6 +564,7 @@ fn run_playback_loop<D: Decoder + ?Sized, S: Sink + ?Sized>(
     let PlaybackContext { inner, state_cb, progress_cb, generation } = ctx;
     let out_rate = output.sample_rate();
     let out_channels = output.channels();
+    let mut gain = VolumeGlide::new(inner.lock().unwrap().volume, out_rate);
 
     while generation.load(Ordering::SeqCst) == my_gen {
         // Check pause state. A paused loop still consumes pending seeks so a
@@ -607,15 +608,12 @@ fn run_playback_loop<D: Decoder + ?Sized, S: Sink + ?Sized>(
                 let mut out_buf = vec![0.0f32; out_frames * out_channels as usize];
                 let frames = resampler.process(&pcm, &mut out_buf);
 
-                // Apply volume.
+                // Apply volume, gliding toward a changed value (#524).
+                let written = &mut out_buf[..frames * out_channels as usize];
                 let volume = inner.lock().unwrap().volume;
-                if volume < 1.0 {
-                    for s in out_buf[..frames * out_channels as usize].iter_mut() {
-                        *s *= volume;
-                    }
-                }
+                gain.apply(volume, written, out_channels);
 
-                output.write(&out_buf[..frames * out_channels as usize])?;
+                output.write(written)?;
 
                 let pos = decoder.position();
                 set_position(&inner, pos);
@@ -631,13 +629,10 @@ fn run_playback_loop<D: Decoder + ?Sized, S: Sink + ?Sized>(
                 let mut out_buf = vec![0.0f32; held * out_channels as usize];
                 let frames = resampler.flush(&mut out_buf);
                 if frames > 0 {
+                    let written = &mut out_buf[..frames * out_channels as usize];
                     let volume = inner.lock().unwrap().volume;
-                    if volume < 1.0 {
-                        for s in out_buf[..frames * out_channels as usize].iter_mut() {
-                            *s *= volume;
-                        }
-                    }
-                    output.write(&out_buf[..frames * out_channels as usize])?;
+                    gain.apply(volume, written, out_channels);
+                    output.write(written)?;
                 }
                 break;
             }
@@ -657,6 +652,54 @@ fn run_playback_loop<D: Decoder + ?Sized, S: Sink + ?Sized>(
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
+
+/// How long a full-scale volume change takes to glide in; a smaller change
+/// takes proportionally less (#524).
+const VOLUME_GLIDE_SECS: f32 = 0.02;
+
+/// The gain the playback loop applies to output frames.
+///
+/// Volume is read once per packet. Multiplying a whole packet by the new value
+/// steps the gain between two packets, and dragging the volume slider strings
+/// those steps together into an audible click (#524). Instead the gain moves
+/// toward the requested volume frame by frame at a fixed rate and stops
+/// exactly on it; an unchanged volume is applied as a plain multiply.
+struct VolumeGlide {
+    current: f32,
+    /// Largest gain change between two consecutive frames.
+    step: f32,
+}
+
+impl VolumeGlide {
+    fn new(volume: f32, out_rate: u32) -> Self {
+        VolumeGlide {
+            current: volume,
+            step: 1.0 / (out_rate.max(1) as f32 * VOLUME_GLIDE_SECS),
+        }
+    }
+
+    /// Scale interleaved `samples` toward `target`.
+    fn apply(&mut self, target: f32, samples: &mut [f32], channels: u16) {
+        if self.current == target {
+            if target < 1.0 {
+                for s in samples.iter_mut() {
+                    *s *= target;
+                }
+            }
+            return;
+        }
+        for frame in samples.chunks_mut(usize::from(channels.max(1))) {
+            self.current = if self.current < target {
+                (self.current + self.step).min(target)
+            } else {
+                (self.current - self.step).max(target)
+            };
+            for s in frame.iter_mut() {
+                *s *= self.current;
+            }
+        }
+    }
+}
 
 fn emit(cb: &Arc<Mutex<Option<StateCallback>>>, state: PlayerState) {
     if let Some(ref cb) = *cb.lock().unwrap() {

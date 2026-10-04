@@ -1849,3 +1849,94 @@ fn ae44_continuous_tone_reaches_sink_without_boundary_jumps() {
     let silent_runs = left.windows(2).filter(|w| w[0] == 0.0 && w[1] == 0.0).count();
     assert_eq!(silent_runs, 0, "silence inserted into a continuously fed stream");
 }
+
+// ── AE-45 (#524): volume changes glide ──────────────────────────────────────
+
+/// AE-45 (#524): a volume change mid-stream reaches the sink as a frame-by-frame
+/// glide from the old gain to the new one, not a one-step jump between two
+/// packets (the click heard while dragging the volume slider). The glide is
+/// monotonic, short enough that the change still feels immediate, and lands
+/// exactly on the new volume.
+#[test]
+fn ae45_volume_change_glides_instead_of_stepping() {
+    const RATE: u32 = 44_100;
+    const PACKET_FRAMES: usize = 1024;
+    const PACKETS: usize = 8;
+    // No single frame may move the gain by more than 1/200 of full scale.
+    const MAX_STEP: f32 = 0.005;
+
+    // Full-scale DC: every output sample is the gain applied to that frame.
+    let position = |p: usize| ((p + 1) * PACKET_FRAMES) as f64 / f64::from(RATE);
+    let mut fake = FakeDecoder::new(RATE, 2, position(PACKETS - 1));
+    for p in 0..PACKETS {
+        fake = fake.packet(vec![1.0f32; PACKET_FRAMES * 2], position(p));
+    }
+    let fake = fake.end();
+    let probe = Arc::new(SinkProbe::default());
+    let sink = FakeSink::new(RATE, 2, probe.clone());
+
+    // The volume moves the way the slider moves it: from outside the loop,
+    // between two packets. Down after the first packet, up after the fourth.
+    let engine = Arc::new(AudioEngine::new());
+    let handle = Arc::downgrade(&engine);
+    engine.on_progress(Box::new(move |pos, _| {
+        let Some(engine) = handle.upgrade() else { return };
+        if (pos - position(0)).abs() < 1e-9 {
+            engine.set_volume(0.2);
+        } else if (pos - position(3)).abs() < 1e-9 {
+            engine.set_volume(0.9);
+        }
+    }));
+
+    engine
+        .run_playback_with(
+            "fake://dc".to_string(),
+            PlayerState::Playing,
+            || Ok((fake, None)),
+            |_| Ok(sink),
+        )
+        .unwrap();
+
+    let samples = probe.samples.lock().unwrap().clone();
+    assert!(
+        samples.len() >= PACKETS * PACKET_FRAMES * 2,
+        "sink got {} samples, expected {}",
+        samples.len(),
+        PACKETS * PACKET_FRAMES * 2
+    );
+    let frames: Vec<[f32; 2]> = samples.chunks_exact(2).map(|f| [f[0], f[1]]).collect();
+    assert!(
+        frames.iter().all(|f| f[0] == f[1]),
+        "both channels carry the same gain"
+    );
+    let gain: Vec<f32> = frames.iter().map(|f| f[0]).collect();
+    let p = PACKET_FRAMES;
+
+    // Before any change: full volume, untouched.
+    assert!(gain[..p].iter().all(|&g| g == 1.0), "first packet at full volume");
+
+    // No one-step jump anywhere.
+    let jumps: Vec<(usize, f32)> = gain
+        .windows(2)
+        .enumerate()
+        .map(|(i, w)| (i + 1, (w[1] - w[0]).abs()))
+        .filter(|&(_, d)| d > MAX_STEP)
+        .collect();
+    assert!(
+        jumps.is_empty(),
+        "{} gain jumps above {MAX_STEP} (worst {:.4}); first at frames {:?}",
+        jumps.len(),
+        jumps.iter().map(|&(_, d)| d).fold(0.0f32, f32::max),
+        jumps.iter().take(6).map(|&(i, _)| i).collect::<Vec<_>>()
+    );
+
+    // Down: monotonic, and settled on 0.2 within two packets (~46 ms).
+    let down = &gain[p..4 * p];
+    assert!(down.windows(2).all(|w| w[1] <= w[0]), "fade down is monotonic");
+    assert!(down[2 * p..].iter().all(|&g| g == 0.2), "fade down lands on 0.2");
+
+    // Up: monotonic, and settled on 0.9 within two packets.
+    let up = &gain[4 * p..PACKETS * p];
+    assert!(up.windows(2).all(|w| w[1] >= w[0]), "fade up is monotonic");
+    assert!(up[2 * p..].iter().all(|&g| g == 0.9), "fade up lands on 0.9");
+}
