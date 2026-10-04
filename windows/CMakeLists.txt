@@ -102,6 +102,10 @@ target_include_directories(RhythmTests PRIVATE
 
 target_link_libraries(RhythmTests PRIVATE RhythmBehavior)
 
+# #513: an unrecognised escape (C4129) in a test literal is an error, not a
+# warning. Path literals once lost a backslash on the way in and still built.
+target_compile_options(RhythmTests PRIVATE /we4129)
+
 # Building the tests still compiles the generated codec on its own (#369):
 # the gate has its own target, but nobody can get to green without it.
 add_dependencies(RhythmTests RhythmGeneratedCodec)
