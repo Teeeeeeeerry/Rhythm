@@ -66,8 +66,13 @@ void MainWindow::InitializeComponent() {
     appState_.OnLibraryChanged = [this] { RefreshLibraryIfShown(); };
 
     // #516: an import runs off the UI thread; its start and end swap the
-    // import buttons for the progress indicator and back.
-    appState_.OnImportingChanged = [this] { RenderImportControls(); };
+    // import buttons for the progress indicator and back. #533: whether an
+    // import result is pending is the view state's call, as on the playlist
+    // detail page -- the window only shows it (macOS: ContentView's alert).
+    appState_.OnImportingChanged = [this] {
+        RenderImportControls();
+        ShowPendingAlert();
+    };
 
     rhythm::shell::AttachTray(hwnd_, &appState_);
     Closed([](auto&&, auto&&) { rhythm::shell::DetachTray(); });
@@ -155,6 +160,27 @@ void MainWindow::RenderImportControls() {
     importProgress().IsActive(controls.showsProgress);
     ToolTipService::SetToolTip(importProgress(), winrt::box_value(winrt::hstring{ controls.progressLabel }));
     Automation::AutomationProperties::SetName(importProgress(), controls.progressLabel);
+}
+
+/// The toolbar imports' result alert (#533): shown when the view state has
+/// one pending, dismissed as it opens -- the playlist detail page's shape.
+winrt::fire_and_forget MainWindow::ShowPendingAlert() {
+    auto alert = rhythm::view::PendingAlert(appState_);
+    if (!alert) co_return;
+    appState_.DismissAlerts();
+
+    auto lifetime = get_strong();
+    try {
+        ContentDialog dialog;
+        dialog.XamlRoot(rootGrid().XamlRoot());
+        dialog.Title(winrt::box_value(winrt::hstring{ alert->title }));
+        dialog.Content(winrt::box_value(winrt::hstring{ alert->message }));
+        dialog.CloseButtonText(rhythm::L10n::Ok());
+        co_await dialog.ShowAsync();
+    } catch (winrt::hresult_error const& e) {
+        // An exception leaving a fire_and_forget coroutine ends the process.
+        OutputDebugStringW((L"Import alert failed: " + e.message() + L"\n").c_str());
+    }
 }
 
 winrt::fire_and_forget MainWindow::OnImportClick(IInspectable const&, RoutedEventArgs const&) {

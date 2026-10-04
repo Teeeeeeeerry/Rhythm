@@ -100,6 +100,10 @@ void AppState::ImportPaths(const std::vector<std::wstring>& paths) {
 void AppState::RunImport(std::function<std::optional<ImportOutcome>(::rhythm::Library&)> work,
                          std::function<std::wstring(const ImportOutcome&)> message) {
     if (!Library || IsImporting) return;
+    // #533: as M3U8 import and export do, only this import's feedback is
+    // pending -- the shell asks for the pending alert on every flip of
+    // `IsImporting`, so a stale one would pop when the import starts.
+    DismissAlerts();
     SetImporting(true);
 
     auto finish = [this, message](std::optional<ImportOutcome> outcome) {

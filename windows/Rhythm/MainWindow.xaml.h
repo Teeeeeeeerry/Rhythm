@@ -30,6 +30,8 @@ private:
     /// (#501): icon, label and the selected highlight.
     void RenderSidebar();
     void RenderImportControls();
+    /// Shows the view state's pending alert, if any, and dismisses it (#533).
+    winrt::fire_and_forget ShowPendingAlert();
     void LoadLibraryView();
     void LoadPlaylistListView();
     void RefreshLibraryIfShown();
