@@ -5,6 +5,12 @@
 任何非 token 的颜色引用（hex、`Color.*`、`NSColor.*`、裸 Brush 色值）即失败，
 除非命中 palette.json whitelist 段（合法系统组件/功能性颜色）。
 
+macOS 视图另拦「手算透明度」：品牌 token 后直接接 `.opacity(`（如
+`.rhythmAccent.opacity(0.15)`）。半透明色的「基色 + 不透明度」只声明在
+palette.json 的 translucent 段，由生成器换算成 token（#219 组，#514）；
+视图里再乘一次不透明度等于另开一条漂移通道。尚未收拢的旧写法登记在
+HAND_OPACITY_PENDING，附票号留痕，收拢后删除对应条目。
+
 Token 定义处（macos/.../Theme.swift、windows/.../Colors.xaml、
 Bridge/RhythmCore.h）自动豁免——它们就是 token 的来源。
 
@@ -44,6 +50,15 @@ WINDOWS_PATTERNS: list[tuple[str, re.Pattern]] = [
     ("SolidColorBrush 定义", re.compile(r"<SolidColorBrush[^>]*Color=")),
 ]
 
+# macOS 视图：品牌 token 上手算透明度
+HAND_OPACITY_RE = re.compile(r"\.rhythm[A-Z]\w*\.opacity\(")
+
+# 待收拢的手算透明度：{"相对路径": (代码片段, 票号与理由)}。
+HAND_OPACITY_PENDING: dict[str, tuple[str, str]] = {
+    "macos/Rhythm/Views/Library/ArtistAlbumView.swift":
+        (".rhythmAccent.opacity(0.12)", "#536：曲目行选中底色待改用配色 token"),
+}
+
 SKIP_DIRS = ("Views/", "Themes/", "Bridge/", "Views/../")  # 保留结构
 
 
@@ -69,6 +84,20 @@ def scan_text(path: Path, patterns, whitelist_regexes: list[re.Pattern],
     return issues
 
 
+def scan_hand_opacity(path: Path, rel: str) -> list[str]:
+    issues: list[str] = []
+    pending = HAND_OPACITY_PENDING.get(rel)
+    for line in path.read_text(encoding="utf-8").splitlines():
+        code = line.split("//", 1)[0]
+        if not HAND_OPACITY_RE.search(code):
+            continue
+        if pending and pending[0] in code:
+            continue
+        issues.append(f"  {path}（macOS）: 手算透明度（改用 palette.json "
+                      f"translucent 段的 token）→ {code.strip()[:100]}")
+    return issues
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", type=Path, default=None)
@@ -91,6 +120,7 @@ def main() -> int:
     issues: list[str] = []
     for p in mac_views:
         issues += scan_text(p, MACOS_PATTERNS, mac_whitelist, "macOS")
+        issues += scan_hand_opacity(p, p.relative_to(root).as_posix())
     for p in win_views:
         issues += scan_text(p, WINDOWS_PATTERNS, win_whitelist, "Windows")
 

@@ -41,8 +41,8 @@ extension ShapeStyle where Self == Color {
     /// Selected-item highlight (sidebar).
     /// Dark: #ABC8D4 @ 0.15   Light: #0D464D @ 0.15
     ///
-    /// The accent at low opacity behind the accent foreground, as the macOS
-    /// sidebar draws `.rhythmAccent.opacity(0.15)` (#501).
+    /// The accent at low opacity behind the accent foreground; the sidebars on
+    /// both platforms take their selected background from here (#501, #514).
     public static var rhythmSelection: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             isDark(appearance)
