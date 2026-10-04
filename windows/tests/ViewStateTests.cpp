@@ -530,13 +530,13 @@ TEST_CASE("VS-38 the detail page renders the state's current playlist") {
     Playlist other;
     other.id = 1;
     other.name = L"其他";
-    other.tracks = {makeLocalTrack(L"C:\m\o.mp3", L"Other")};
-    auto late = makeLocalTrack(L"C:\m\z.mp3", L"Zulu");
+    other.tracks = {makeLocalTrack(L"C:\\m\\o.mp3", L"Other")};
+    auto late = makeLocalTrack(L"C:\\m\\z.mp3", L"Zulu");
     late.duration = 65.0;
     Playlist mine;
     mine.id = 2;
     mine.name = L"晨跑";
-    mine.tracks = {late, makeLocalTrack(L"C:\m\a.mp3", L"Alpha")};
+    mine.tracks = {late, makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha")};
     state.Playlists = {other, mine};
     state.SelectPlaylist(2);
 
@@ -575,7 +575,7 @@ TEST_CASE("VS-38 a refresh is visible on the next render") {
     state.SelectPlaylist(id);
     REQUIRE(view::PlaylistDetailOf(state, true).rows.empty());
 
-    auto saved = state.Library->AddTrack(makeLocalTrack(L"C:\m\vs38.mp3", L"VS38"));
+    auto saved = state.Library->AddTrack(makeLocalTrack(L"C:\\m\\vs38.mp3", L"VS38"));
     state.Library->AddToPlaylist(id, saved.id);
     state.RefreshLibrary();  // what an M3U8 import triggers
 
@@ -593,7 +593,7 @@ TEST_CASE("VS-39 with nothing selected the detail page shows the empty-state cop
         Playlist mine;
         mine.id = 2;
         mine.name = L"晨跑";
-        mine.tracks = {makeLocalTrack(L"C:\m\a.mp3", L"Alpha")};
+        mine.tracks = {makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha")};
         state.Playlists = {mine};
 
         auto empty = view::PlaylistDetailOf(state, true);
@@ -635,8 +635,8 @@ TEST_CASE("VS-41 every loaded playlist renders as one row carrying its id") {
     Playlist first;
     first.id = 7;
     first.name = L"晨跑";
-    first.tracks = {makeLocalTrack(L"C:\m\a.mp3", L"Alpha"),
-                    makeLocalTrack(L"C:\m\b.mp3", L"Beta")};
+    first.tracks = {makeLocalTrack(L"C:\\m\\a.mp3", L"Alpha"),
+                    makeLocalTrack(L"C:\\m\\b.mp3", L"Beta")};
     Playlist second;
     second.id = 9;
     second.name = L"夜归";

@@ -1212,7 +1212,7 @@ TEST_CASE("WA-39 the current playlist survives a refresh and comes from the new 
     state.SelectPlaylist(id);
     REQUIRE(state.CurrentPlaylist->tracks.empty());
 
-    auto saved = state.Library->AddTrack(makeLocalTrack(L"C:\music\wa39.mp3", L"WA39"));
+    auto saved = state.Library->AddTrack(makeLocalTrack(L"C:\\music\\wa39.mp3", L"WA39"));
     state.Library->AddToPlaylist(id, saved.id);
     state.RefreshLibrary();
 
