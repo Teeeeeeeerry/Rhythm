@@ -55,6 +55,27 @@
             <Setter Property="Foreground" Value="{ThemeResource RhythmAccentBrush}" />
         </Style>
 
+        <!-- #520: an index entry is plain text, as macOS draws its index
+             with a plain button style. -->
+        <Style x:Key="LetterIndexButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="16" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{ThemeResource RhythmAccentBrush}" />
+            <Setter Property="UseSystemFocusVisuals" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter Background="Transparent"
+                                          Content="{TemplateBinding Content}"
+                                          Foreground="{TemplateBinding Foreground}"
+                                          HorizontalContentAlignment="Center"
+                                          VerticalContentAlignment="Center" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <views:LibraryTemplateSelector x:Key="LibraryTemplates">
             <views:LibraryTemplateSelector.HeaderTemplate>
                 <DataTemplate x:DataType="models:LibraryHeaderItem">
@@ -117,13 +138,19 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
+        <!-- #520: the by-letter index sits to the right of the list, as the
+             macOS index column does; collapsed it takes no room. -->
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
 
         <!-- #502: the page's single view switch, a segmented control centred
              at the top and labelled like the macOS picker, with a divider
              under it. Segment labels and the selected one come from the view
              state; the selected segment swaps to the selected styles, whose
              colours are palette brushes (#219). -->
-        <StackPanel Grid.Row="0">
+        <StackPanel Grid.Row="0" Grid.ColumnSpan="2">
             <Border HorizontalAlignment="Center" Margin="12,8,12,8" Padding="2"
                     CornerRadius="6" BorderThickness="1"
                     BorderBrush="{ThemeResource RhythmBorderBrush}">
@@ -160,7 +187,13 @@
                   SelectionChanged="OnSelectionChanged"
                   ItemTemplateSelector="{StaticResource LibraryTemplates}" />
 
-        <StackPanel x:Name="emptyState" Grid.Row="1" Spacing="4"
+        <!-- #520: the entries and the line each scrolls to come from the
+             view state (LetterIndex); empty, the column is collapsed. -->
+        <StackPanel x:Name="letterIndex" Grid.Row="1" Grid.Column="1"
+                    VerticalAlignment="Top" Margin="0,4,4,0"
+                    Visibility="Collapsed" />
+
+        <StackPanel x:Name="emptyState" Grid.Row="1" Grid.ColumnSpan="2" Spacing="4"
                     HorizontalAlignment="Center" VerticalAlignment="Center"
                     Visibility="Collapsed">
             <TextBlock x:Name="emptyMessage"

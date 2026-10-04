@@ -102,6 +102,36 @@ void LibraryView::Populate() {
     }
     ShowEmptyMessage(items.Size() == 0);
     trackList().ItemsSource(items);
+    RenderLetterIndex();
+}
+
+/// The by-letter index bar (#520): one plain button per entry the view state
+/// gives, carrying the line it scrolls to.
+void LibraryView::RenderLetterIndex() {
+    auto panel = letterIndex();
+    panel.Children().Clear();
+    const auto index = rhythm::view::LetterIndex(*appState_);
+    const auto style = Resources().Lookup(winrt::box_value(L"LetterIndexButtonStyle"))
+                           .as<winrt::Microsoft::UI::Xaml::Style>();
+    for (const auto& entry : index) {
+        Button button;
+        button.Style(style);
+        button.Content(winrt::box_value(winrt::hstring{ entry.title }));
+        button.Tag(winrt::box_value(static_cast<uint32_t>(entry.line)));
+        Automation::AutomationProperties::SetName(button, entry.title);
+        button.Click({ get_weak(), &LibraryView::OnLetterIndexClick });
+        panel.Children().Append(button);
+    }
+    panel.Visibility(index.empty() ? Visibility::Collapsed : Visibility::Visible);
+}
+
+/// Scrolls the clicked entry's heading line to the top, as macOS
+/// `scrollTo(letter, anchor: .top)`.
+void LibraryView::OnLetterIndexClick(IInspectable const& sender, RoutedEventArgs const&) {
+    const auto line = winrt::unbox_value<uint32_t>(sender.as<Button>().Tag());
+    auto items = trackList().ItemsSource().try_as<winrt::Windows::Foundation::Collections::IVector<IInspectable>>();
+    if (!items || line >= items.Size()) return;
+    trackList().ScrollIntoView(items.GetAt(line), ScrollIntoViewAlignment::Leading);
 }
 
 void LibraryView::RenderViewSwitch() {

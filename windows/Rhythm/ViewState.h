@@ -151,6 +151,19 @@ struct LibraryLine {
 /// empty library. The page only turns each line into a list item.
 std::vector<LibraryLine> LibraryLines(const AppState& state, bool isDarkTheme);
 
+/// One entry of the by-letter view's index bar (#520): a section heading
+/// and the position of that heading's line in `LibraryLines`, which a click
+/// scrolls to.
+struct LetterIndexEntry {
+    std::wstring title;
+    size_t line = 0;
+};
+
+/// The index bar beside the by-letter list, as on macOS: the headings of
+/// `LetterSections`, in section order -- no rule of its own. Empty by
+/// artist/album (macOS has no index there) and for an empty library.
+std::vector<LetterIndexEntry> LetterIndex(const AppState& state);
+
 /// The library list in the order the state holds (#502): what the library
 /// page renders, so the page never picks an order of its own.
 std::vector<TrackRow> LibraryRows(const AppState& state, bool isDarkTheme);

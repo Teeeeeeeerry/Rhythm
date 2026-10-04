@@ -28,6 +28,9 @@ private:
     /// Render the view switch and the library in the state's order (#502).
     void Populate();
     void RenderViewSwitch();
+    void RenderLetterIndex();
+    void OnLetterIndexClick(winrt::Windows::Foundation::IInspectable const& sender,
+                            winrt::Microsoft::UI::Xaml::RoutedEventArgs const&);
     void ShowEmptyMessage(bool show);
 
     rhythm::AppState* appState_ = nullptr;

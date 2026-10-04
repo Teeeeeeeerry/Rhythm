@@ -316,6 +316,19 @@ std::vector<LibraryLine> LibraryLines(const AppState& state, bool isDarkTheme) {
     return lines;
 }
 
+std::vector<LetterIndexEntry> LetterIndex(const AppState& state) {
+    // #520: the headings are LetterSections' own; each one's line follows
+    // the layout of LibraryLines by letter -- a heading, then its tracks.
+    std::vector<LetterIndexEntry> index;
+    if (state.LibraryOrder != LibrarySort::Alphabetical) return index;
+    size_t line = 0;
+    for (const auto& section : LetterSections(state, false)) {
+        index.push_back(LetterIndexEntry{section.title, line});
+        line += 1 + section.rows.size();
+    }
+    return index;
+}
+
 std::vector<ViewSwitchSegment> LibraryViewSwitch(const AppState& state) {
     // #502: one switch, labelled like the macOS segmented picker.
     auto segment = [&](LibrarySort sort, std::wstring label) {
