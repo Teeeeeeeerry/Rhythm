@@ -1079,6 +1079,45 @@ TEST_CASE("VS-55 by letter the list reads each letter heading, then its tracks")
     for (const auto& line : lines) REQUIRE_FALSE(line.inAlbum);
 }
 
+// ─── VS-58 按首字母的字母索引条（#520）──────────────────────────────
+
+TEST_CASE("VS-58 by letter the index lists the section headings, each pointing at its heading line") {
+    using K = view::LibraryLineKind;
+    AppState state;
+    state.LibraryOrder = view::LibrarySort::Alphabetical;
+    state.Tracks = {sortTrack(L"beta", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"9 Lives", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"Alpha", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"bravo", L"X", std::nullopt, std::nullopt),
+                    sortTrack(L"晴天", L"X", std::nullopt, std::nullopt)};
+
+    auto index = view::LetterIndex(state);
+    auto sections = view::LetterSections(state, true);
+    auto lines = view::LibraryLines(state, true);
+
+    REQUIRE(index.size() == sections.size());
+    for (size_t i = 0; i < index.size(); ++i) {
+        REQUIRE(index[i].title == sections[i].title);
+        REQUIRE(index[i].line < lines.size());
+        REQUIRE(lines[index[i].line].kind == K::Section);
+        REQUIRE(lines[index[i].line].title == index[i].title);
+    }
+    REQUIRE(index.front().title == L"#");
+}
+
+TEST_CASE("VS-58 by artist/album, or with no tracks, there is no index") {
+    AppState state;
+    state.Tracks = {sortTrack(L"Alpha", L"X", std::nullopt, std::nullopt)};
+    REQUIRE(state.LibraryOrder == view::LibrarySort::ArtistAlbum);
+    REQUIRE(view::LetterIndex(state).empty());
+
+    state.LibraryOrder = view::LibrarySort::Alphabetical;
+    REQUIRE(view::LetterIndex(state).size() == 1);
+
+    state.Tracks.clear();
+    REQUIRE(view::LetterIndex(state).empty());
+}
+
 TEST_CASE("VS-53 a letter outside the BMP is a section, an emoji goes under #") {
     AppState state;
     // U+1D477 MATHEMATICAL BOLD ITALIC CAPITAL P is Alphabetic, as Swift's

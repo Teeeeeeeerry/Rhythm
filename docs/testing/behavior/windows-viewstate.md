@@ -47,6 +47,7 @@
 | VS-53（#504） | 按首字母分节 `LetterSections(state, isDark)` | 节标题为标题（先合成为 NFC，分解写法的重音字母与预组合写法同节）首字符完整转大写（大小写归同一节）；首字符（按码位，BMP 以外的字母同样）带 Unicode Alphabetic 属性才自成一节（含中日韩文字，与 macOS `Character.isLetter` 一致；分类与大小写取系统 ICU，运行时载入，缺失时退回 Win32），数字、标点、表情符号与空标题归入 `#`；节按码位排序（与 Swift 字符串比较一致），`#` 在字母之前、中日韩文字在拉丁字母之后；与 macOS `groupByFirstLetter` 一致 | 新测 |
 | VS-54（#504） | 节内顺序 | 按标题忽略大小写、按用户区域设置排序（对应 macOS `localizedCaseInsensitiveCompare`），标点按字符串排序计入（`a-z` 在 `ab` 前，不按词排序忽略连字符），相同时保持曲库原顺序 | 新测 |
 | VS-55（#504） | 平铺的首字母顺序即分节顺序 | `LibraryRows(state, Alphabetical)` 等于 `LetterSections` 自上而下读出的顺序；`LibraryLines` 按首字母时为每节的字母标题行加节内曲目行，曲目不在组内 | 新测 |
+| VS-58（#520） | 按首字母的字母索引条 `LetterIndex(state)` | 按首字母时条目即 `LetterSections` 的节标题、顺序与分节一致（`#` 在前，不另设规则），每项带其节标题行在 `LibraryLines` 中的位置（该行是标题行、标题相同）；按艺人/专辑或空曲库 → 无条目（与 macOS 一致）。资料库页在列表右侧逐项渲染为纯文字按钮（前景 `rhythmAccent`），点击把对应节标题行滚到顶部；无条目时整列折叠 | 新测 |
 
 ## 边界情况（P1）
 
