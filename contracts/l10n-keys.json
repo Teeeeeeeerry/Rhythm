@@ -44,6 +44,11 @@
       "en": "Import URL",
       "platform": "macos"
     },
+    "url_import_placeholder": {
+      "zh": "粘贴 YouTube / Bilibili 链接导入",
+      "en": "Paste a YouTube / Bilibili URL to import",
+      "platform": "macos"
+    },
     "url_resolving": {
       "accessor": "Resolving",
       "zh": "解析中…",
