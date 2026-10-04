@@ -241,6 +241,21 @@ TEST_CASE("LK-11 url resolve failure falls back to the key table copy") {
 
 // ─── WA-26 来源徽标与托盘 ───────────────────────────────────────────
 
+TEST_CASE("LK-20 the Windows link bar placeholder still says play (#527)") {
+    // The Windows link button resolves and plays, so its placeholder keeps the
+    // shared `url_placeholder`; the macOS-only import wording is not served here.
+    {
+        LanguageScope zh(L"zh-CN");
+        REQUIRE(L10n::UrlPlaceholder() == L"粘贴 YouTube / Bilibili 链接播放");
+        REQUIRE(std::wstring(L10n::Key("url_import_placeholder")).empty());
+    }
+    {
+        LanguageScope en(L"en");
+        REQUIRE(L10n::UrlPlaceholder() == L"Paste a YouTube / Bilibili URL to play");
+        REQUIRE(std::wstring(L10n::Key("url_import_placeholder")).empty());
+    }
+}
+
 TEST_CASE("LK-06 L10n source tags and tray copy") {
     {
         LanguageScope zh(L"zh");

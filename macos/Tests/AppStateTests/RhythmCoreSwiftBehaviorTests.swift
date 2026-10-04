@@ -221,6 +221,20 @@ final class RhythmCoreSwiftBehaviorTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "AppLanguage")
     }
 
+    // MARK: - LK-20 链接输入框占位文字随本端行为（#527）
+
+    /// macOS 的链接输入是“解析后入库、不播放”（AS-19/AS-44），占位文字取
+    /// macOS 专用键 `url_import_placeholder`，说“导入”而不是“播放”；
+    /// Windows 解析后播放，继续用 `url_placeholder`。固定 locale（#142）。
+    func testLK20_LinkBarPlaceholderSaysImport() {
+        defer { UserDefaults.standard.removeObject(forKey: "AppLanguage") }
+
+        UserDefaults.standard.set("zh", forKey: "AppLanguage")
+        XCTAssertEqual(L10n.urlImportPlaceholder, "粘贴 YouTube / Bilibili 链接导入")
+        UserDefaults.standard.set("en", forKey: "AppLanguage")
+        XCTAssertEqual(L10n.urlImportPlaceholder, "Paste a YouTube / Bilibili URL to import")
+    }
+
     // MARK: - LK-09 适配层模板填充（#228）
 
     /// 分派已经在核心；适配层只剩两件事——按键取模板、按参数填占位符。

@@ -36,6 +36,7 @@ enum L10n {
     static var urlPlaceholder: String { L10nKeys.value("url_placeholder") }
     static var urlPlay: String { L10nKeys.value("url_play") }
     static var urlImport: String { L10nKeys.value("url_import") }
+    static var urlImportPlaceholder: String { L10nKeys.value("url_import_placeholder") }
     static var urlResolving: String { L10nKeys.value("url_resolving") }
     static var urlErrorTitle: String { L10nKeys.value("url_error_title") }
     static var urlResolveFailed: String { L10nKeys.value("url_resolve_failed") }

@@ -71,9 +71,11 @@ struct PlayerBarView: View {
     /// URL input bar (#505): a bordered field and a text button, styled
     /// after the Windows link bar. Enter and the button both submit through
     /// `submitURLInput` -- resolve and store in the library, never auto-play.
+    /// The placeholder says "import" to match (#527); Windows plays, so it
+    /// keeps the shared `url_placeholder`.
     var urlBar: some View {
         HStack(spacing: 8) {
-            TextField(L10n.urlPlaceholder, text: $appState.urlInput)
+            TextField(L10n.urlImportPlaceholder, text: $appState.urlInput)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { appState.submitURLInput() }
             if appState.isResolvingURL {

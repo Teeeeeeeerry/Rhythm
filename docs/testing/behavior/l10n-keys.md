@@ -58,6 +58,7 @@
 | LK-17（#382） | M3U8 导入结果文案 | 双端 `ImportM3U8`/`importM3U8` 不再自选文案键，有计数时改传具名计数 `{imported, failed}` 给核心入口渲染；列表为空（两者皆 0）或不可读时仍不弹提示；导入后从数据库重载列表不变 | 核心表驱动（MS-12，#382 起分派在核心）；Windows `AppStateBehaviorTests.cpp`（WA-26/WA-37）+ macOS `AppStateImportTests.swift`（PL-15/PL-16）行为回归原样通过 |
 | LK-18（#495） | 进程内固定语言 | `PinLanguageForProcess(code)` 只在本进程内固定界面语言，优先于注册表里的手动偏好与系统语言，且不写注册表；传空串解除，回落到手动偏好。L2 截屏宿主用它固定英文，截图不随机器语言变化 | Windows 固定 locale（`L10nTests.cpp`） |
 | LK-19（#497） | 播放栏传输按钮提示 | Windows 播放栏上一首、停止、下一首三个按钮的提示取键表 `previous_tooltip` / `stop_tooltip` / `next_tooltip`（生成访问器 `PreviousTooltip()` / `StopTooltip()` / `NextTooltip()`），中英两语言均能取到；视图不写死字符串 | Windows 固定 locale（`L10nTests.cpp`） |
+| LK-20（#527） | 链接输入框占位文字随本端行为 | 两端链接按钮行为不同（macOS 解析后入库不播放，AS-19/AS-44；Windows 解析后播放），占位文字取各自行为对应的键：macOS 取 macOS 专用键 `url_import_placeholder`（中文「粘贴 YouTube / Bilibili 链接导入」，英文 "Paste a YouTube / Bilibili URL to import"）；Windows 继续取 `url_placeholder`（「……链接播放」/ "...URL to play"），文字不变，且取不到 macOS 专用键 | macOS 固定 locale（`RhythmCoreSwiftBehaviorTests.swift` `testLK20_LinkBarPlaceholderSaysImport`）+ Windows 固定 locale（`L10nTests.cpp`）+ L0 平台差异键分端（#372） |
 
 ## 红测登记
 

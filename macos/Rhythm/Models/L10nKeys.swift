@@ -105,6 +105,7 @@ enum L10nKeys {
         "unknown_artist": (zh: "未知艺人", en: "Unknown Artist"),
         "url_error_title": (zh: "无法播放链接", en: "Cannot Play URL"),
         "url_import": (zh: "导入链接", en: "Import URL"),
+        "url_import_placeholder": (zh: "粘贴 YouTube / Bilibili 链接导入", en: "Paste a YouTube / Bilibili URL to import"),
         "url_placeholder": (zh: "粘贴 YouTube / Bilibili 链接播放", en: "Paste a YouTube / Bilibili URL to play"),
         "url_play": (zh: "播放链接", en: "Play URL"),
         "url_resolve_failed": (zh: "链接解析失败，请检查链接是否有效", en: "Failed to resolve the URL. Please check it is valid."),
