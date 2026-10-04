@@ -1493,3 +1493,90 @@ TEST_CASE("WA-44 without a UI thread an import runs in place and is never left i
     REQUIRE(app.state.Tracks.size() == 1);
     REQUIRE(importingChanges == 2);
 }
+
+// ─── WA-45 工具栏导入结束弹结果提示（#533）──────────────────────────────
+
+namespace {
+
+/// Does what the main window does on every `OnImportingChanged` (#533):
+/// ask the view state for the pending alert, record it and dismiss it.
+/// The shell decides nothing itself, so neither does this probe.
+struct AlertProbe {
+    std::mutex mutex;
+    std::vector<view::Alert> shown;
+
+    void Attach(AppState& state) {
+        state.OnImportingChanged = [this, &state] {
+            auto alert = view::PendingAlert(state);
+            if (!alert) return;
+            state.DismissAlerts();
+            std::lock_guard lock(mutex);
+            shown.push_back(*alert);
+        };
+    }
+
+    std::vector<view::Alert> Shown() {
+        std::lock_guard lock(mutex);
+        return shown;
+    }
+};
+
+} // namespace
+
+TEST_CASE("WA-45 each toolbar import path ends with exactly one import result alert") {
+    for (const wchar_t* language : {L"zh", L"en"}) {
+        LanguageScope scope(language);
+        SpyApp app;
+        app.state.OpenDatabase(app.dir.dbPath());
+        app.UseUiThread();
+        AlertProbe probe;
+        probe.Attach(app.state);
+
+        auto music = app.dir.path / L"music";
+        fs::create_directories(music);
+        writeWavAt(music, L"one.wav");
+        app.state.ImportDirectory(music.wstring());
+        REQUIRE(waitFor([&] { return probe.Shown().size() == 1; }));
+
+        app.state.ImportFile(writeWavAt(app.dir.path, L"single.wav").wstring());
+        REQUIRE(waitFor([&] { return probe.Shown().size() == 2; }));
+
+        auto a = writeWavAt(app.dir.path, L"batch-a.wav");
+        auto b = writeWavAt(app.dir.path, L"batch-b.wav");
+        app.state.ImportPaths({a.wstring(), b.wstring()});
+        REQUIRE(waitFor([&] { return probe.Shown().size() == 3 && !app.state.IsImporting; }));
+
+        auto shown = probe.Shown();
+        REQUIRE(shown.size() == 3);
+        for (const auto& alert : shown) REQUIRE(alert.title == L10n::ImportResultTitle());
+        REQUIRE(shown[0].message == L10n::ImportDirectoryResult(1, 0));
+        REQUIRE(shown[1].message == L10n::ImportFileResult(1, 0));
+        REQUIRE(shown[2].message == L10n::ImportBatchResult(2, 0));
+        // Shown means cleared: nothing is left for the playlist detail page.
+        REQUIRE_FALSE(view::PendingAlert(app.state).has_value());
+    }
+}
+
+TEST_CASE("WA-45 a toolbar import clears a stale alert, so only its own result shows") {
+    SpyApp app;
+    app.state.OpenDatabase(app.dir.dbPath());
+    app.UseUiThread();
+    AlertProbe probe;
+    probe.Attach(app.state);
+
+    // Left over from an export whose dialog never ran.
+    app.state.ShowExportAlert = true;
+    app.state.ExportAlertTitle = L"stale";
+    app.state.ImportFile(writeWavAt(app.dir.path, L"one.wav").wstring());
+    REQUIRE(waitFor([&] { return !app.state.IsImporting && app.state.Tracks.size() == 1; }));
+    // The end-of-import notification is queued after the flag clears.
+    std::atomic<bool> drained{false};
+    app.ui->Post()([&] { drained = true; });
+    REQUIRE(waitFor([&] { return drained.load(); }));
+
+    auto shown = probe.Shown();
+    REQUIRE(shown.size() == 1);
+    REQUIRE(shown[0].title == L10n::ImportResultTitle());
+    REQUIRE(shown[0].message == L10n::ImportFileResult(1, 0));
+    REQUIRE_FALSE(view::PendingAlert(app.state).has_value());
+}
